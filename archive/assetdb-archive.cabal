@@ -1,0 +1,86 @@
+cabal-version:      3.4
+name:               assetdb-archive
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — 壓縮檔存取層
+description:
+  列出壓縮檔內容與讀取單筆項目,**不解壓到磁碟**。
+  ZIP 由純 Haskell 處理;rar 與 7z 交給 7-Zip sidecar。
+
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+library
+    import:           warnings
+    exposed-modules:
+        AssetDB.Archive
+        AssetDB.Archive.Types
+        AssetDB.Archive.Zip
+        AssetDB.Archive.Sidecar
+    hs-source-dirs:   src
+    build-depends:
+        , assetdb-core
+        , base           >=4.17 && <5
+        , bytestring     >=0.11
+        , containers     >=0.6
+        , directory      >=1.3
+        , filepath       >=1.4
+        , text           >=2.0
+        , time           >=1.12
+        , typed-process  >=0.2.10
+        , zip            >=2.0
+        , conduit        >=1.3
+    default-language: GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+-- 診斷工具。廠商壓縮檔的內部結構千奇百怪,出問題時需要能直接指著某個檔案
+-- 問「你到底解析成什麼」。
+executable assetdb-archive-probe
+    import:           warnings
+    main-is:          Probe.hs
+    hs-source-dirs:   app
+    build-depends:
+        , assetdb-archive
+        , base
+        , bytestring
+        , text
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+
+test-suite assetdb-archive-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.Archive.ZipSpec
+        AssetDB.Archive.SidecarSpec
+        AssetDB.Archive.TypesSpec
+    hs-source-dirs:   test
+    build-depends:
+        , assetdb-archive
+        , assetdb-core
+        , base
+        , bytestring
+        , directory
+        , filepath
+        , hspec          >=2.10
+        , temporary      >=1.3
+        , text
+        , zip
+    build-tool-depends: hspec-discover:hspec-discover
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards

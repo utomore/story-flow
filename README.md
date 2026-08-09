@@ -32,6 +32,7 @@ GHC 在 Windows 上的封存器 `llvm-ar` 無法處理含空格的建置路徑,
 |---|---|
 | `core/` | 領域型別、ULID、命名文法、Manifest schema。**遊戲本體也依賴這個** |
 | `store/` | SQLite schema、migration、全文搜尋的 token 前處理 |
+| `archive/` | 壓縮檔存取:列出內容與讀取單筆項目,**不解壓到磁碟** |
 
 `assetdb-core` 刻意保持零重量級依賴,因為遊戲會 `import AssetDB.Manifest`
 來解析 `assets/manifest.json`。任何需要 IO、資料庫或影像處理的東西都不屬於那裡。
@@ -47,7 +48,16 @@ GHC 在 Windows 上的封存器 `llvm-ar` 無法處理含空格的建置路徑,
   - 完整 schema 與版本化 migration
   - `AssetDB.Store.Tokenize` — 中日韓 n-gram 前處理
 
-## 兩個實測發現
+- **`assetdb-archive`** — 36 個測試
+  - `AssetDB.Archive` — 格式派送。ZIP 走純 Haskell,rar 與 7z 走 7-Zip
+  - `AssetDB.Archive.Sidecar` — 7-Zip 呼叫與 `-slt` 輸出解析
+  - `assetdb-archive-probe` — 診斷工具,印出存取層實際看到什麼
+
+  對素材庫的 27 個真實壓縮檔驗證過:**27/27 解析成功**,共 6,431 個項目,
+  去重後 6,366 —— 與獨立跑的覆蓋率統計一致。三種格式的單筆讀取都驗過,
+  含 RAR 內的中文路徑。
+
+## 三個實測發現
 
 **1. GHC 的 `llvm-ar` 不吃含空格的路徑。** 見上。
 
@@ -59,6 +69,11 @@ GHC 在 Windows 上的封存器 `llvm-ar` 無法處理含空格的建置路徑,
 
 搜尋路徑因此是:純 ASCII 與三字以上中文走 `assets_fts`(trigram),
 三字以下中文走 `assets_cjk`(unicode61 + 自製 n-gram)。
+
+**3. GHC 在 Windows 上預設以系統 ANSI 字碼頁寫 stdout。**
+素材路徑與素材包名稱大量含有中文,不設 `hSetEncoding stdout utf8` 的話輸出全是亂碼
+—— 而且重導向到檔案時同樣壞掉,所以不是終端機顯示問題,是真的寫錯位元組。
+**每個執行檔的 `main` 都要設。**
 
 ## 外部工具
 

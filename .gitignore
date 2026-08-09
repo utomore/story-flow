@@ -1,0 +1,35 @@
+# Haskell / cabal
+dist-newstyle/
+dist/
+.ghc.environment.*
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+*.p_hi
+*.p_o
+cabal.project.local
+cabal.project.local~
+cabal.project.freeze
+
+# 前端
+node_modules/
+web/dist/
+*.tsbuildinfo
+
+# 執行期資料 —— 資料庫與快取都是可重建的衍生物,不進版控
+.assetdb/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# 編輯器
+.vscode/
+.idea/
+*.swp
+
+# 作業系統
+Thumbs.db
+desktop.ini
+.DS_Store

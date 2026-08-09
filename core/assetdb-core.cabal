@@ -1,0 +1,65 @@
+cabal-version:      3.4
+name:               assetdb-core
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — 領域型別、命名規則、Manifest schema
+description:
+  本套件是整個系統的型別中心,刻意保持零重量級依賴,
+  因為**遊戲專案本身也會依賴它**來解析 assets/manifest.json。
+  任何需要 IO、資料庫或影像處理的東西都不屬於這裡。
+
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+library
+    import:           warnings
+    exposed-modules:
+        AssetDB.Types
+        AssetDB.Id
+        AssetDB.Naming
+        AssetDB.Manifest
+    hs-source-dirs:   src
+    build-depends:
+        , base          >=4.17 && <5
+        , aeson         >=2.1  && <2.3
+        , bytestring    >=0.11
+        , containers    >=0.6
+        , random        >=1.2.1
+        , text          >=2.0
+        , time          >=1.12
+    default-language: GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+test-suite assetdb-core-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.NamingSpec
+        AssetDB.IdSpec
+        AssetDB.ManifestSpec
+    hs-source-dirs:   test
+    build-depends:
+        , assetdb-core
+        , base
+        , aeson
+        , containers
+        , hspec         >=2.10
+        , QuickCheck    >=2.14
+        , text
+        , time
+    build-tool-depends: hspec-discover:hspec-discover
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings

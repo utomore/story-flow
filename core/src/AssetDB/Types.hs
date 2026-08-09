@@ -19,8 +19,12 @@ module AssetDB.Types
 
     -- * 狀態
   , AssetStatus (..)
+  , PackStatus (..)
   , CopyMode (..)
   , TagSource (..)
+
+    -- * 素材包中繼資料
+  , AiDisclosure (..)
 
     -- * 關聯圖
   , EntityType (..)
@@ -152,6 +156,43 @@ instance TextEnum AssetStatus where
     StActive -> "active"; StExcluded -> "excluded"
     StMissing -> "missing"; StArchived -> "archived"
 
+-- | 素材包的完備狀態。
+--
+-- 匯入一個素材包時,授權與作者資訊未必當場查得到 —— 廠商的壓縮檔裡常常
+-- 什麼都沒有(現有素材庫的四個 Effects 包就是如此),得回賣場頁翻。
+-- 強迫當場填完會讓匯入卡住,乾脆不填又會讓授權風險靜靜累積。
+--
+-- 折衷是 'PkDraft':素材照樣入庫、照樣算雜湊與縮圖,但**不進搜尋預設結果、
+-- 不可用於建專案**。資訊補齊後才升級為 'PkReady'。
+-- 授權缺漏因此是一個看得見的待辦,而不是一個看不見的風險。
+data PackStatus
+  = PkDraft
+  | PkReady
+  deriving stock (Eq, Ord, Enum, Bounded, Show)
+
+instance TextEnum PackStatus where
+  toTextEnum = \case PkDraft -> "draft"; PkReady -> "ready"
+
+-- | 生成式 AI 使用揭露。
+--
+-- itch.io 已經把這個做成商品頁的必填欄位,Steam 上架也要求申報。
+-- 現有素材庫裡 Kibyra 的 11 包標示為 AI Assisted,Cainos 與 BDragon1727
+-- 標示為未使用 —— 這個差異在資料夾結構裡完全看不出來,但發行時要交代。
+--
+-- 'AiUnknown' 與 'AiNone' 是**不同**的:前者是我們還沒查,
+-- 後者是作者明確聲明。發行前的稽核只接受後者。
+data AiDisclosure
+  = AiUnknown
+  | AiNone
+  | AiAssisted
+  | AiGenerated
+  deriving stock (Eq, Ord, Enum, Bounded, Show)
+
+instance TextEnum AiDisclosure where
+  toTextEnum = \case
+    AiUnknown -> "unknown"; AiNone -> "none"
+    AiAssisted -> "assisted"; AiGenerated -> "generated"
+
 -- | 素材進專案的方式。
 data CopyMode
   = CmCopy      -- ^ 實體複製。預設,遊戲 repo 需要自足
@@ -226,6 +267,8 @@ instance TextEnum NoteKind where
 instance ToJSON AssetKind   where toJSON = toJSON . toTextEnum
 instance ToJSON KindPrefix  where toJSON = toJSON . toTextEnum
 instance ToJSON AssetStatus where toJSON = toJSON . toTextEnum
+instance ToJSON PackStatus  where toJSON = toJSON . toTextEnum
+instance ToJSON AiDisclosure where toJSON = toJSON . toTextEnum
 instance ToJSON CopyMode    where toJSON = toJSON . toTextEnum
 instance ToJSON TagSource   where toJSON = toJSON . toTextEnum
 instance ToJSON EntityType  where toJSON = toJSON . toTextEnum
@@ -235,6 +278,8 @@ instance ToJSON NoteKind    where toJSON = toJSON . toTextEnum
 instance FromJSON AssetKind   where parseJSON = withText "AssetKind"   jsonTextEnum
 instance FromJSON KindPrefix  where parseJSON = withText "KindPrefix"  jsonTextEnum
 instance FromJSON AssetStatus where parseJSON = withText "AssetStatus" jsonTextEnum
+instance FromJSON PackStatus  where parseJSON = withText "PackStatus"  jsonTextEnum
+instance FromJSON AiDisclosure where parseJSON = withText "AiDisclosure" jsonTextEnum
 instance FromJSON CopyMode    where parseJSON = withText "CopyMode"    jsonTextEnum
 instance FromJSON TagSource   where parseJSON = withText "TagSource"   jsonTextEnum
 instance FromJSON EntityType  where parseJSON = withText "EntityType"  jsonTextEnum

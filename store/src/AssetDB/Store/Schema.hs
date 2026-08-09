@@ -61,41 +61,77 @@ sources =
     \  kind    TEXT    NOT NULL CHECK (kind IN ('packs','reference','studio')), \
     \  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0,1)) \
     \)"
-  , "CREATE TABLE authors ( \
-    \  id   INTEGER PRIMARY KEY, \
-    \  name TEXT NOT NULL UNIQUE, \
-    \  url  TEXT \
+  , -- contact 是匯入時的必填項之一。素材出問題要找人時,
+    -- 「作者叫 Kibyra」沒有用,要有 itch.io 商店頁或 Discord。
+    "CREATE TABLE authors ( \
+    \  id      INTEGER PRIMARY KEY, \
+    \  name    TEXT NOT NULL UNIQUE, \
+    \  url     TEXT, \
+    \  contact TEXT, \
+    \  notes   TEXT \
     \)"
-  , -- commercial 刻意 NOT NULL 且**沒有預設值**。
-    -- 建專案的授權閘門讀這個欄位;漏填時寧可寫入失敗,
+  , -- 授權的各個維度分開存,而不是塞在一段自由文字裡,
+    -- 因為建專案的閘門要能程式判讀。
+    --
+    -- commercial 刻意 NOT NULL 且**沒有預設值**:漏填時寧可寫入失敗,
     -- 也不要預設成允許而放行 Non-Commercial 素材。
+    --
+    -- 其餘布林值**允許 NULL**,而且 NULL 與 0 意義不同:
+    -- NULL 是「授權條款沒寫,我們不知道」,0 是「明確禁止」。
+    -- 把未知當成禁止會讓一堆素材無故不可用,當成允許則是法律風險。
     "CREATE TABLE licenses ( \
-    \  id                   INTEGER PRIMARY KEY, \
-    \  name                 TEXT    NOT NULL UNIQUE, \
-    \  commercial           INTEGER NOT NULL CHECK (commercial IN (0,1)), \
-    \  attribution_required INTEGER NOT NULL DEFAULT 0 CHECK (attribution_required IN (0,1)), \
-    \  notes                TEXT, \
-    \  entry_path           TEXT \
+    \  id                     INTEGER PRIMARY KEY, \
+    \  name                   TEXT    NOT NULL UNIQUE, \
+    \  commercial             INTEGER NOT NULL CHECK (commercial IN (0,1)), \
+    \  attribution_required   INTEGER NOT NULL CHECK (attribution_required IN (0,1)), \
+    \  credit_text            TEXT, \
+    \  modification_allowed   INTEGER CHECK (modification_allowed   IN (0,1)), \
+    \  redistribution_allowed INTEGER CHECK (redistribution_allowed IN (0,1)), \
+    \  resale_allowed         INTEGER CHECK (resale_allowed         IN (0,1)), \
+    \  nft_allowed            INTEGER CHECK (nft_allowed            IN (0,1)), \
+    \  source_url             TEXT, \
+    \  full_text              TEXT, \
+    \  notes                  TEXT, \
+    \  entry_path             TEXT \
     \)"
-  , "CREATE TABLE packs ( \
-    \  id          INTEGER PRIMARY KEY, \
-    \  ulid        TEXT NOT NULL UNIQUE, \
-    \  slug        TEXT NOT NULL, \
-    \  name        TEXT NOT NULL, \
-    \  vendor      TEXT, \
-    \  author_id   INTEGER REFERENCES authors(id), \
-    \  source_url  TEXT, \
-    \  version     TEXT, \
-    \  acquired    TEXT, \
-    \  license_id  INTEGER REFERENCES licenses(id), \
-    \  root_id     INTEGER NOT NULL REFERENCES roots(id), \
-    \  rel_dir     TEXT NOT NULL, \
-    \  toml_sha256 TEXT, \
-    \  created_at  TEXT NOT NULL, \
-    \  updated_at  TEXT NOT NULL, \
-    \  UNIQUE (root_id, rel_dir) \
+  , -- status 是匯入流程的核心機制。
+    --
+    -- 廠商壓縮檔裡常常什麼中繼資料都沒有(現有素材庫的四個 Effects 包
+    -- 就完全沒有 readme 或 license),作者與授權得回賣場頁翻。
+    -- 強迫當場填完會讓匯入卡住;乾脆不填則會讓授權風險靜靜累積。
+    --
+    -- 折衷:'draft' 的素材照樣入庫、算雜湊、產縮圖,但不進搜尋預設結果、
+    -- 不可用於建專案。授權缺漏因此是一個看得見的待辦,而不是看不見的風險。
+    --
+    -- ai_disclosure 不是可有可無的欄位:itch.io 已經把它做成商品頁必填,
+    -- Steam 上架也要求申報。'unknown'(還沒查)與 'none'(作者明確聲明未使用)
+    -- 意義不同,發行前稽核只接受後者。
+    "CREATE TABLE packs ( \
+    \  id            INTEGER PRIMARY KEY, \
+    \  ulid          TEXT NOT NULL UNIQUE, \
+    \  slug          TEXT NOT NULL, \
+    \  name          TEXT NOT NULL, \
+    \  vendor        TEXT, \
+    \  author_id     INTEGER REFERENCES authors(id), \
+    \  source_url    TEXT, \
+    \  version       TEXT, \
+    \  acquired      TEXT, \
+    \  price_usd     REAL, \
+    \  license_id    INTEGER REFERENCES licenses(id), \
+    \  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready')), \
+    \  ai_disclosure TEXT NOT NULL DEFAULT 'unknown' \
+    \                CHECK (ai_disclosure IN ('unknown','none','assisted','generated')), \
+    \  ai_notes      TEXT, \
+    \  root_id       INTEGER NOT NULL REFERENCES roots(id), \
+    \  rel_dir       TEXT NOT NULL, \
+    \  toml_sha256   TEXT, \
+    \  created_at    TEXT NOT NULL, \
+    \  updated_at    TEXT NOT NULL, \
+    \  UNIQUE (root_id, rel_dir), \
+    \  CHECK (status = 'draft' OR (license_id IS NOT NULL AND author_id IS NOT NULL)) \
     \)"
   , "CREATE INDEX packs_slug_idx ON packs(slug)"
+  , "CREATE INDEX packs_status_idx ON packs(status)"
   ]
 
 --------------------------------------------------------------------------------
@@ -441,6 +477,34 @@ seeds =
     \  ('variant','huge'),('variant','wide'),('variant','tall'), \
     \  ('variant','wood'),('variant','stone'),('variant','iron'),('variant','bronze'), \
     \  ('variant','steel'),('variant','mithril')"
+  , -- 現有素材庫實際持有的授權,全部逐字取自壓縮檔內的 License 檔或商品頁。
+    --
+    -- 把它們寫進 migration 而不是留給人工輸入,是因為這些條款是**查證過的證據**,
+    -- 重打一次就是重新引入打錯的機會。資料庫因此可以從程式碼完整重建。
+    --
+    -- 刻意**不**收錄的:Magic Shader All(來源不明)。
+    -- 沒有查證過的授權不該存在於資料庫裡 —— 那會讓閘門建立在猜測上。
+    "INSERT INTO licenses \
+    \  (name, commercial, attribution_required, credit_text, modification_allowed, \
+    \   redistribution_allowed, resale_allowed, nft_allowed, source_url, notes) VALUES \
+    \  ('Crusenho Asset License', 1, 1, \
+    \   'Give appropriate credit, or provide a link to this product page, and indicate if changes were made.', \
+    \   1, 0, 0, 0, 'https://crusenho.itch.io', \
+    \   '逐字取自壓縮檔內 License.txt。全庫唯一明確要求署名的授權。'), \
+    \  ('Cainos Asset License', 1, 0, NULL, 1, 0, 0, NULL, 'https://cainos.itch.io', \
+    \   'Credit is not needed but appreciated. 取自商品頁 LICENCE 區塊。'), \
+    \  ('Shikashi Fantasy Icons', 1, 1, \
+    \   'Matt Firth (shikashipx), game-icons.net', \
+    \   1, NULL, NULL, NULL, 'https://shikashipx.itch.io', \
+    \   '部分圖示衍生自 game-icons.net。我們持有的 v2 內附 txt 寫 CC BY 3.0,商品頁現寫 CC BY 4.0 —— 版本不同,以手上這份為準。'), \
+    \  ('Idylwild Runic Codex', 1, 0, NULL, 1, 1, NULL, NULL, 'https://idylwild.itch.io', \
+    \   'Attribution - You may attribute me, but it is not mandatory. 這批素材裡唯一允許再散布的。'), \
+    \  ('Kibyra Asset License', 1, 0, NULL, 1, 0, 0, NULL, 'https://kibyra.itch.io', \
+    \   'Do not resell or redistribute the file as-is. Do not upload this asset elsewhere as your own.'), \
+    \  ('Adventurer 2D Pixel Art', 1, 0, NULL, 1, 0, 0, 0, NULL, \
+    \   'Credit is not required but it is appreciated. 逐字取自壓縮檔內 License.txt。'), \
+    \  ('BDragon1727 Full License', 1, 0, NULL, 1, 0, 0, NULL, 'https://bdragon1727.itch.io', \
+    \   '取自商品頁 LICENSE: FULL 區塊,pack 1 與 pack 2 條款完全相同。明文允許個人、商業與非商業用途。禁再散布:no matter how much you modify it you can use it but not share or re-sell it。')"
   , -- 頂層分類。子分類由匯入時的規則與人工建立。
     "INSERT INTO categories (parent_id, name, slug, path) VALUES \
     \  (NULL,'GUI','gui','gui'), \

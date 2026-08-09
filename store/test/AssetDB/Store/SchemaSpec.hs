@@ -82,9 +82,102 @@ spec = around withMigrated $ do
       r <- tryDB $ execute_ (storeConn st) "INSERT INTO licenses (name) VALUES ('unknown')"
       r `shouldSatisfy` failed
 
+    it "attribution_required 同樣沒有預設值" $ \st -> do
+      -- 猜錯的方向都有代價:預設不需署名會漏掉 Crusenho 那種必須署名的授權;
+      -- 預設需要署名則會產生一堆多餘的致謝。兩邊都不猜,強迫填。
+      r <- tryDB $ execute_ (storeConn st) "INSERT INTO licenses (name,commercial) VALUES ('half',1)"
+      r `shouldSatisfy` failed
+
     it "commercial 只接受 0 或 1" $ \st -> do
       r <- tryDB $ execute_ (storeConn st) "INSERT INTO licenses (name,commercial) VALUES ('weird',2)"
       r `shouldSatisfy` failed
+
+    it "未知的維度可以是 NULL,而且 NULL 與 0 意義不同" $ \st -> do
+      -- NULL = 授權條款沒寫;0 = 明確禁止。把未知當禁止會讓素材無故不可用,
+      -- 當允許則是法律風險。
+      execute_
+        (storeConn st)
+        "INSERT INTO licenses (name,commercial,attribution_required,nft_allowed) \
+        \VALUES ('partial',1,0,NULL)"
+      r <- query_ (storeConn st) "SELECT nft_allowed IS NULL FROM licenses WHERE name='partial'"
+      map fromOnly r `shouldBe` [1 :: Int]
+
+  describe "素材包完備狀態" $ do
+    -- 使用者匯入時必須填授權與作者。強制方式不是靠應用層自律,
+    -- 而是「ready 狀態的 pack 必須兩者皆備」這條 CHECK。
+    it "draft 允許授權與作者留空 —— 否則匯入會卡住" $ \st -> do
+      seedRoot st
+      insertPack st "draft" "NULL" "NULL" `shouldReturn` ()
+
+    it "ready 但沒有授權時寫不進去" $ \st -> do
+      seedRoot st
+      seedAuthor st
+      r <- tryDB $ insertPack st "ready" "NULL" "1"
+      r `shouldSatisfy` failed
+
+    it "ready 但沒有作者時寫不進去" $ \st -> do
+      seedRoot st
+      seedLicense st
+      r <- tryDB $ insertPack st "ready" "1" "NULL"
+      r `shouldSatisfy` failed
+
+    it "兩者皆備才能是 ready" $ \st -> do
+      seedRoot st
+      seedAuthor st
+      seedLicense st
+      insertPack st "ready" "1" "1" `shouldReturn` ()
+
+    it "draft 升級為 ready 時同樣受檢查" $ \st -> do
+      seedRoot st
+      insertPack st "draft" "NULL" "NULL"
+      r <- tryDB $ execute_ (storeConn st) "UPDATE packs SET status='ready' WHERE id=1"
+      r `shouldSatisfy` failed
+
+  describe "AI 使用揭露" $ do
+    it "預設是 unknown,不是 none" $ \st -> do
+      -- 「還沒查」與「作者聲明未使用」是不同的事。發行前稽核只接受後者。
+      seedRoot st
+      insertPack st "draft" "NULL" "NULL"
+      r <- query_ (storeConn st) "SELECT ai_disclosure FROM packs WHERE id=1"
+      map fromOnly r `shouldBe` (["unknown"] :: [String])
+
+    it "只接受已知的揭露值" $ \st -> do
+      seedRoot st
+      r <-
+        tryDB $
+          execute_
+            (storeConn st)
+            "INSERT INTO packs (id,ulid,slug,name,root_id,rel_dir,ai_disclosure,created_at,updated_at) \
+            \VALUES (2,'01P9','x','X',1,'v/x','maybe','t','t')"
+      r `shouldSatisfy` failed
+
+  describe "已查證的授權種子資料" $ do
+    it "只收錄有授權全文可查的" $ \st -> do
+      names <- query_ (storeConn st) "SELECT name FROM licenses ORDER BY name" :: IO [Only String]
+      map fromOnly names
+        `shouldBe` [ "Adventurer 2D Pixel Art"
+                   , "BDragon1727 Full License"
+                   , "Cainos Asset License"
+                   , "Crusenho Asset License"
+                   , "Idylwild Runic Codex"
+                   , "Kibyra Asset License"
+                   , "Shikashi Fantasy Icons"
+                   ]
+
+    it "Crusenho 是唯一要求署名的,且帶有致謝字句" $ \st -> do
+      r <-
+        query_
+          (storeConn st)
+          "SELECT name FROM licenses WHERE attribution_required=1 AND credit_text IS NOT NULL ORDER BY name"
+      map fromOnly r `shouldBe` (["Crusenho Asset License", "Shikashi Fantasy Icons"] :: [String])
+
+    it "Idylwild 是唯一允許再散布的" $ \st -> do
+      r <- query_ (storeConn st) "SELECT name FROM licenses WHERE redistribution_allowed=1"
+      map fromOnly r `shouldBe` (["Idylwild Runic Codex"] :: [String])
+
+    it "全部允許商用 —— 未查證的授權刻意不收錄" $ \st -> do
+      n <- countWhere st "licenses" "commercial=0"
+      n `shouldBe` 0
 
   describe "列舉欄位" $ do
     it "status 只接受已知值" $ \st -> do
@@ -162,6 +255,36 @@ seedPack st = do
     (storeConn st)
     "INSERT OR IGNORE INTO packs (id,ulid,slug,name,root_id,rel_dir,created_at,updated_at) \
     \VALUES (1,'01P0','demo','Demo Pack',1,'vendor/demo','t','t')"
+
+seedAuthor :: Store -> IO ()
+seedAuthor st =
+  execute_
+    (storeConn st)
+    "INSERT OR IGNORE INTO authors (id,name,url,contact) \
+    \VALUES (1,'Demo Author','https://demo.itch.io','demo@example.com')"
+
+seedLicense :: Store -> IO ()
+seedLicense st =
+  execute_
+    (storeConn st)
+    "INSERT OR IGNORE INTO licenses (id,name,commercial,attribution_required) \
+    \VALUES (1,'Demo License',1,0)"
+
+-- | 以指定的 status / license_id / author_id 建立素材包。
+-- 後兩者以 SQL 字面字串傳入,才能表達 NULL。
+insertPack :: Store -> String -> String -> String -> IO ()
+insertPack st status licenseId authorId =
+  execute_ (storeConn st) $
+    Query $
+      T.pack $
+        "INSERT INTO packs (id,ulid,slug,name,root_id,rel_dir,status,license_id,author_id,created_at,updated_at) \
+        \VALUES (1,'01P1','demo','Demo Pack',1,'vendor/demo','"
+          <> status
+          <> "',"
+          <> licenseId
+          <> ","
+          <> authorId
+          <> ",'t','t')"
 
 seedArchive :: Store -> IO ()
 seedArchive st = do

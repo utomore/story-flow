@@ -1,13 +1,9 @@
 # 素材包清冊
 
-現有素材庫的完整盤點,作為 `pack.toml` 的種子資料。
+現有素材庫的完整盤點,作為 `pack.toml` 與 `licenses` 資料表的種子。
 
-> **狀態:待你逐項核對。** 標記 `?` 的欄位是壓縮檔內沒有中繼資料、
-> 我無法從內容證實的部分,需要從原始下載頁補齊。
-> 我不從資料夾名稱推測作者 —— 猜錯的授權資訊比沒有授權資訊更危險。
-
-盤點方式:以 7-Zip **串流讀取**每個壓縮檔內的 `readme` / `License` / `.url`,
-完全不解壓。這正是 ingest pipeline 之後會自動做的事。
+盤點方式:以 7-Zip **串流讀取**壓縮檔內的 `readme` / `License` / `.url`(完全不解壓),
+再由使用者從 itch.io 商品頁補齊壓縮檔內沒有的部分。
 
 ---
 
@@ -21,7 +17,7 @@
 | **已被壓縮檔涵蓋** | **5,424** |
 | 未涵蓋 | 5 |
 
-未涵蓋的 5 個檔案全部是工作室自有內容,不屬於刪除範圍:
+未涵蓋的 5 個全部是工作室自有內容,不屬於刪除範圍:
 
 ```
 GameProjects\Col\game-design-doc.md
@@ -31,73 +27,153 @@ Papers\Apecs - A Type-Driven Entity-Component-System Framework.pdf
 行銷\2024-Media-ebook_iKala-Cloud.pdf
 ```
 
-> ⚠️ **這是前置檢查,不是刪除依據。** 比對用的是 `(檔名, 大小)` 代理指標,
-> 理論上存在同名同大小的假陽性。正式驗證由 `assetdb scan` 以 SHA-256 逐筆執行,
-> 刪除閘門只認雜湊。
+> ⚠️ **這是前置檢查,不是刪除依據。** 比對用的是 `(檔名, 大小)` 代理指標。
+> 正式驗證由 `assetdb scan` 以 SHA-256 逐筆執行,刪除閘門只認雜湊。
+
+---
+
+## 授權總覽
+
+已寫入 `licenses` 資料表的七份授權,全部有可查證的全文:
+
+| 授權 | 商用 | 署名 | 修改 | 再散布 | 轉售 | NFT |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Crusenho Asset License | ✅ | ⚠️ **必須** | ✅ | ❌ | ❌ | ❌ |
+| Cainos Asset License | ✅ | 否 | ✅ | ❌ | ❌ | ? |
+| Shikashi Fantasy Icons | ✅ | ⚠️ **必須** | ✅ | ? | ? | ? |
+| Idylwild Runic Codex | ✅ | 否 | ✅ | ✅ | ? | ? |
+| Kibyra Asset License | ✅ | 否 | ✅ | ❌ | ❌ | ? |
+| Adventurer 2D Pixel Art | ✅ | 否 | ✅ | ❌ | ❌ | ❌ |
+| BDragon1727 Full License | ✅ | 否 | ✅ | ❌ | ❌ | ? |
+
+`?` 在資料庫裡是 **NULL,不是 0**。NULL 是「條款沒寫」,0 是「明確禁止」。
+把未知當禁止會讓素材無故不可用,當允許則是法律風險 —— 兩者都不猜。
+
+### 必須出現在專案致謝的兩份
+
+**Crusenho** — 1,693 個檔案,全庫最大的一包:
+
+> Give appropriate credit, or provide a link to this product page, and indicate if changes were made.
+
+**Shikashi** — 致謝字句由作者指定:
+
+> Credit "Matt Firth (shikashipx)" and "game-icons.net".
+
+`assetdb new-project` 會依專案實際使用的素材產生致謝清單。
 
 ---
 
 ## 商業素材包
 
-### 已從壓縮檔內容證實
+### Crusenho Agus Hennihuno
 
-| 壓縮檔 | 散檔 | 作者 | 來源 | 授權 | 需署名 |
-|---|---:|---|---|---|---|
-| `[GUI] Complete_UI_Book_Styles_Pack_Full.7z` | 1,693 | **Crusenho Agus Hennihuno** | [crusenho.itch.io/complete-ui-book-styles-pack](https://crusenho.itch.io/complete-ui-book-styles-pack) | 商用可;禁轉售、禁 NFT | ✅ **是** |
-| `[Map] Pixel Art Top Down - Village v1.0.9.zip` | 73 | **Cainos** | [docs.cainos.net/pixel-art-top-down-village](https://docs.cainos.net/pixel-art-top-down-village) | ? | ? |
-| `[Map] Pixel Art Top Down - Basic v1.2.3.zip` | 16 | **Cainos** | docs.cainos.net | ? | ? |
-| `[GUI] Shikashi's Fantasy Icons Pack v2.zip` | 18 | **Shikashi** | ? | 商用可 | ⚠️ 部分圖示源自 game-icons.net,**CC BY 3.0** |
-| `[Characters] FULL_Adventurer 2D Pixel Art.zip` | 38 | ? | ? | 商用可;禁轉售、禁 NFT | ❌ 否(「appreciated」但非必要) |
-
-**Crusenho 那一包是最大的一包,而且是唯一明確要求署名的。**
-授權原文:
-
-> Give appropriate credit, or provide a link to this product page, and indicate if changes were made.
-
-專案的致謝名單必須包含它。授權閘門在建專案時會提醒。
-
-### 待補作者與來源
-
-| 壓縮檔 | 散檔 | 內部結構 | 需要你補 |
+| 壓縮檔 | 散檔 | 來源 | AI |
 |---|---:|---|---|
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2.0 Full.rar` | 1,269 | `32x32/` | 作者、來源、授權 |
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 1 Full.rar` | 407 | | 同上 |
-| `[Effects] 60 Retro Effect 32x32 Pack 1 Free.rar` | 20 | | 同上 |
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2 Free.rar` | 0 | | 同上;內容應為 Full 版的子集,待確認 |
-| `[Fonts] Idylwild's Runic Codex.zip` | 680 | `runes/`、`runic_codex.ase`、`Runes Reference Sheet.rtf` | 來源、授權 |
-| `[GUI] Pixel Art Icon Pack - Food.zip` | 366 | `No Outline/`、`Outlined/`、`TIFF/` | 作者、來源、授權 |
-| `[GUI] Pixel Art Icon Pack - RPG.zip` | 107 | `Food/`、`Material/`、`Potion/`、`Weapon & Tool/` 等 8 類 | 作者、來源、授權 |
+| `[GUI] Complete_UI_Book_Styles_Pack_Full.7z` | 1,693 | [crusenho.itch.io/complete-ui-book-styles-pack](https://crusenho.itch.io/complete-ui-book-styles-pack) | 未聲明 |
 
-四個 Effects 壓縮檔內完全沒有 readme 或 license,無法從內容取得任何出處。
+授權逐字取自壓縮檔內 `License.txt`。禁轉售、禁再散布、禁 NFT。
 
-### Kibyra 圖示系列(11 包)
+### Cainos
 
-每包都有 `readme.txt`,但內容只描述張數與主題,**不含作者名或授權條款**。
+四包同一作者、同一授權。原本我把兩個 Icon Pack 標成作者未知,商品頁證實也是 Cainos。
+
+| 壓縮檔 | 散檔 | 價格 | 發佈 | AI |
+|---|---:|---|---|---|
+| `[Map] Pixel Art Top Down - Village v1.0.9.zip` | 73 | $39.99 | 2025-04-29 | 聲明未使用 |
+| `[GUI] Pixel Art Icon Pack - Food.zip` | 366 | $4.99 | 2019-03-26(更新 2021-10-19) | 聲明未使用 |
+| `[GUI] Pixel Art Icon Pack - RPG.zip` | 107 | ? | ? | ? |
+| `[Map] Pixel Art Top Down - Basic v1.2.3.zip` | 16 | ? | ? | ? |
+
+文件:[docs.cainos.net/pixel-art-top-down-village](https://docs.cainos.net/pixel-art-top-down-village)
+Food 包是 122 個 32×32 圖示,同時附 PNG 與**含圖層的 TIFF** —— 那 122 個 `.tif` 屬於 `KSource`,不進遊戲。
+
+### Shikashi(Matt Firth)
+
+| 壓縮檔 | 散檔 | 來源 |
+|---|---:|---|
+| `[GUI] Shikashi's Fantasy Icons Pack v2.zip` | 18 | [shikashipx.itch.io](https://shikashipx.itch.io) |
+
+⚠️ **版本差異必須記錄。** 我們持有的 v2 內附 txt 寫「209 unique icons and 36 recolours,
+245 icons in total」與 **CC BY 3.0**;商品頁現在寫 284 icons 與 **CC BY 4.0**。
+以手上這份為準,不要照抄網頁。
+
+作者另有新版 [shikashis-600-icon-pack](https://shikashipx.itch.io/shikashis-600-icon-pack)(607 個圖示),
+若日後升級要當成**新的一包**匯入,不是覆蓋。
+
+### BDragon1727
+
+**已購買 FULL 版**,因此四個壓縮檔一律適用 FULL 授權。
+
+| 壓縮檔 | 散檔 | 內容 | 價格 |
+|---|---:|---|---|
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2.0 Full.rar` | 1,269 | 140 種特效 × 9 色系 | $4+ |
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 1 Full.rar` | 407 | 60 種特效 × 7 色系 | $3.50+ |
+| `[Effects] 60 Retro Effect 32x32 Pack 1 Free.rar` | 20 | 20 種特效 | 免費 |
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2 Free.rar` | 0 | 35 種特效 | 免費 |
+
+每個特效 9–12 格。畫布 32×32,色盤 **ENDESGA 32**。
+發佈 2023-10-20 / 2023-10-24,更新 2026-04-11。聲明未使用生成式 AI。
+
+授權(pack 1 與 pack 2 條款逐字相同):
+
+> - You may use these assets in personal, commercial or non-commercial projects.
+> - You may modify these assets to suit your needs.
+> - Credit is not necessary, but highly appreciated.
+> - You can NOT re-distribute the file, no matter how much you modify it you can use it but not share or re-sell it.
+
+⚠️ **兩個 Free 壓縮檔可能是純重複。** Free 版分別是 20 / 35 種特效,
+Full 版是 60 / 140 種 —— 若 Free 的內容確為 Full 的子集,保留它們只是佔空間。
+前置檢查中 `pack 2 Free.rar` 貢獻 0 個獨有散檔,與此一致;但 `Pack 1 Free.rar` 的
+20 個是因為字典序先被它認領,不代表 Full 版沒有。**待 `assetdb scan` 以 SHA-256 判定。**
+
+即使確認重複也不會自動刪除 —— 廠商原始下載檔屬於溯源證據,刪不刪是你的決定。
+
+### Idylwild
+
+| 壓縮檔 | 散檔 | 價格 | 發佈 |
+|---|---:|---|---|
+| `[Fonts] Idylwild's Runic Codex.zip` | 680 | 免費(自行出價) | 2026-01-14 |
+
+> Attribution - You may attribute me, but it is not mandatory.
+
+**這批素材裡唯一允許再散布的。** 商品頁另附 `Runes Reference Sheet.rtf`(440 kB),
+壓縮檔內也有一份。標籤含 `No AI`。
+
+### Kibyra(11 包)
+
+| 壓縮檔 | 散檔 | | 壓縮檔 | 散檔 |
+|---|---:|---|---|---:|
+| `crafting-materials-icons.zip` | 72 | | `weather-icons.zip` | 66 |
+| `animal-icons.zip` | 71 | | `treasure-icons.zip` | 66 |
+| `ingots&refinedmetals-icons.zip` | 67 | | `food-icons.zip` | 66 |
+| `monsterparts-icons.zip` | 66 | | `herbs&medicinal-plants.zip` | 66 |
+| `ores-minerals-icons.zip` | 66 | | `book-icons.zip` | 66 |
+| | | | `Magic Potions.zip` | 65 |
+
+每包 $2.00,或 Fantasy Pixel Art Icon Bundle $11.99 含 11 包。
+
+🟡 **AI Disclosure:AI Assisted(Graphics)。** 這是 11 包共 737 個圖示的共同屬性。
+Steam 等平台上架要求申報生成式 AI 使用,發行前必須交代。
+資料庫的 `packs.ai_disclosure = 'assisted'`。
+
+### Adventurer 2D Pixel Art
 
 | 壓縮檔 | 散檔 |
 |---|---:|
-| `crafting-materials-icons.zip` | 72 |
-| `animal-icons.zip` | 71 |
-| `ingots&refinedmetals-icons.zip` | 67 |
-| `monsterparts-icons.zip` | 66 |
-| `ores-minerals-icons.zip` | 66 |
-| `weather-icons.zip` | 66 |
-| `treasure-icons.zip` | 66 |
-| `food-icons.zip` | 66 |
-| `herbs&medicinal-plants.zip` | 66 |
-| `book-icons.zip` | 66 |
-| `Magic Potions.zip` | 65 |
+| `[Characters] FULL_Adventurer 2D Pixel Art.zip` | 38 |
 
-「Kibyra」目前只是資料夾名。**需要確認賣場頁與授權條款** ——
-11 包共 737 個圖示,是庫裡第二大的來源。
+授權逐字取自壓縮檔內 `License.txt`:商用可、禁轉售、禁 NFT、署名非必要。
+🔴 **作者名待補** —— License.txt 本身沒有署名。
 
 ---
 
 ## 非商業
 
-| 壓縮檔 | 狀態 | 備註 |
-|---|---|---|
-| `Magic Shader All.zip`(197 MB) | 從未解壓 | 目前唯一的 Non-Commercial 素材。`commercial = false`,建商業專案時會被閘門擋下。作者與授權待補 |
+| 壓縮檔 | 狀態 |
+|---|---|
+| `Magic Shader All.zip`(197 MB) | 從未解壓。🔴 作者、來源、授權全部未知 |
+
+目前唯一的非商業素材。在授權查清之前維持 `draft`,建商業專案時會被閘門擋下。
 
 ---
 
@@ -109,20 +185,54 @@ Papers\Apecs - A Type-Driven Entity-Component-System Framework.pdf
 | `金門地道.rar` | 674 MB | 1990 年代台灣金門地道 |
 | `福岡廟宇.rar` | ? | 日本福岡廟宇,266 張 HEIC |
 
-三者皆為自有素材,歸入 `library/reference/`,預設不進素材搜尋結果。
+三者皆自有,歸入 `library/reference/`,預設不進素材搜尋結果。
 HEIC 需要 ImageMagick sidecar 才能產生縮圖。
 
 ---
 
-## 對重構的影響
+## 匯入時的必填欄位
 
-1. **授權不是資料夾。** Crusenho 要求署名這件事,目前的
-   `Commercial/` 資料夾完全表達不出來。它會進 `pack.toml` 的
-   `attribution_required = true`,並在建專案時產生致謝清單。
+從這次盤點得到的教訓:**廠商壓縮檔裡有沒有授權資訊完全看運氣。**
+Crusenho 與 Adventurer 附了完整 License.txt;Cainos 只附一個 `.url`;
+四個 Effects 包什麼都沒有。所以授權資訊不能倚賴自動抽取。
 
-2. **11 個 Kibyra 包各自獨立。** 它們會變成
-   `library/packs/kibyra/<slug>/` 十一個目錄,而不是一個。
-   一包一目錄是備份與溯源的單位。
+`assetdb import` 因此要求以下欄位,缺一則素材包維持 `draft`:
 
-3. **四個 Effects 包沒有任何內部中繼資料。** 這類包只能靠人工填 `pack.toml`,
-   正好說明為什麼 `pack.toml` 要人可編輯而不是純自動產生。
+| 欄位 | 必填 | 說明 |
+|---|:-:|---|
+| 作者名 | ✅ | |
+| 作者聯絡方式 | ✅ | 商店頁 URL / Discord / email。「作者叫 Kibyra」在出問題時沒有用 |
+| 授權 | ✅ | 從已知授權挑選,或新建 |
+| 可否商用 | 自動 | 由授權推導,不重複問 |
+| 需否署名 + 致謝字句 | 自動 | 同上 |
+| AI 使用揭露 | ✅ | `unknown` / `none` / `assisted` / `generated` |
+| 來源 URL | | |
+| 版本、取得日期、價格 | | |
+
+### `draft` 的意義
+
+`draft` 的素材包**照樣入庫、照樣算雜湊與縮圖**,只是不進搜尋預設結果、
+不可用於建專案。強迫當場填完會讓匯入卡住,乾脆不填則會讓授權風險靜靜累積 ——
+`draft` 讓授權缺漏變成一個看得見的待辦。
+
+資料庫層以 CHECK 約束強制,不靠應用層自律:
+
+```sql
+CHECK (status = 'draft' OR (license_id IS NOT NULL AND author_id IS NOT NULL))
+```
+
+`ready` 的素材包必須兩者皆備,連 `UPDATE ... SET status='ready'` 也擋。
+
+---
+
+## 待辦
+
+| 項目 | 影響檔案數 |
+|---|---:|
+| 🔴 Magic Shader All 的作者、來源、授權 | — |
+| 🔴 Adventurer 2D Pixel Art 的作者名(License.txt 沒署名) | 38 |
+| 🟡 Cainos Icon Pack RPG / Map Basic 的價格與發佈日 | 123 |
+| 🟡 Kibyra 各包的發佈日與版本 | 737 |
+| 🟡 BDragon1727 兩個 Free 檔是否為 Full 的子集(待 SHA-256) | 20 |
+
+授權未查證的素材包只剩 **Magic Shader All** 一個。其餘全部可以升級為 `ready`。

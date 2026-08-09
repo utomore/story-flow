@@ -162,6 +162,7 @@ spec = around withMigrated $ do
                    , "Idylwild Runic Codex"
                    , "Kibyra Asset License"
                    , "Shikashi Fantasy Icons"
+                   , "Studio Owned"
                    ]
 
     it "Crusenho 是唯一要求署名的,且帶有致謝字句" $ \st -> do
@@ -171,8 +172,12 @@ spec = around withMigrated $ do
           "SELECT name FROM licenses WHERE attribution_required=1 AND credit_text IS NOT NULL ORDER BY name"
       map fromOnly r `shouldBe` (["Crusenho Asset License", "Shikashi Fantasy Icons"] :: [String])
 
-    it "Idylwild 是唯一允許再散布的" $ \st -> do
-      r <- query_ (storeConn st) "SELECT name FROM licenses WHERE redistribution_allowed=1"
+    it "第三方授權中只有 Idylwild 允許再散布" $ \st -> do
+      -- Studio Owned 是我們自己的素材,不受此限。
+      r <-
+        query_
+          (storeConn st)
+          "SELECT name FROM licenses WHERE redistribution_allowed=1 AND name <> 'Studio Owned' ORDER BY name"
       map fromOnly r `shouldBe` (["Idylwild Runic Codex"] :: [String])
 
     it "全部允許商用 —— 未查證的授權刻意不收錄" $ \st -> do

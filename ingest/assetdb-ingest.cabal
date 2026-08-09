@@ -19,6 +19,7 @@ library
         AssetDB.Ingest
         AssetDB.Ingest.Hash
         AssetDB.Ingest.Handler
+        AssetDB.Ingest.Catalogue
         AssetDB.Ingest.Scan
         AssetDB.Ingest.Report
     hs-source-dirs:   src
@@ -36,6 +37,7 @@ library
         , JuicyPixels    >=3.3
         , sqlite-simple  >=0.4.18
         , temporary      >=1.3
+        , toml-parser    >=2.0
         , text           >=2.0
         , time           >=1.12
     default-language: GHC2021
@@ -53,6 +55,7 @@ test-suite assetdb-ingest-test
     other-modules:
         AssetDB.Ingest.HashSpec
         AssetDB.Ingest.HandlerSpec
+        AssetDB.Ingest.CatalogueSpec
         AssetDB.Ingest.ScanSpec
     hs-source-dirs:   test
     build-depends:

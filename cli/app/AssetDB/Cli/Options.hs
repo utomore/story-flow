@@ -23,6 +23,8 @@ data Command
   = CmdScan ScanArgs
   | CmdTools
   | CmdDoctor
+  | CmdPackList
+  | CmdPackApply FilePath
 
 data ScanArgs = ScanArgs
   { saRoot :: FilePath
@@ -59,6 +61,19 @@ commandP =
     ( command "scan" (info (CmdScan <$> scanP) (progDesc "掃描素材庫,計算內容雜湊並建立索引"))
         <> command "tools" (info (pure CmdTools) (progDesc "檢查外部工具(7-Zip)是否可用"))
         <> command "doctor" (info (pure CmdDoctor) (progDesc "檢查資料庫狀態與待辦"))
+        <> command "pack" (info packP (progDesc "素材包的授權與作者中繼資料"))
+    )
+
+packP :: Parser Command
+packP =
+  hsubparser
+    ( command "list" (info (pure CmdPackList) (progDesc "列出素材包與其授權狀態"))
+        <> command
+          "apply"
+          ( info
+              (CmdPackApply <$> strOption (long "catalogue" <> metavar "FILE" <> help "packs.toml 的路徑"))
+              (progDesc "從 packs.toml 套用作者與授權")
+          )
     )
 
 scanP :: Parser ScanArgs

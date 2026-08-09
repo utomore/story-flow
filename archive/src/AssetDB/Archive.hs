@@ -16,6 +16,8 @@ module AssetDB.Archive
     -- * 操作
   , listEntries
   , readEntry
+  , extractAllTo
+  , prefersBulkExtraction
 
     -- * 重新匯出
   , module AssetDB.Archive.Types
@@ -120,3 +122,23 @@ readEntry tools path entry =
     Just fmt -> case atSevenZip tools of
       Nothing -> pure (Left (SidecarNotFound fmt sevenZipCandidates))
       Just sz -> readViaSidecar sz path entry
+
+-- | 這個格式是否該整包解一次,而不是逐筆抽取?
+--
+-- rar 與 7z 預設使用 **solid 壓縮**:多個檔案當成單一資料流壓縮,
+-- 抽取第 N 個檔案必須從 solid block 開頭重新解壓。逐筆抽取因此是
+-- O(n²) 的解壓量,對 1,269 個項目的壓縮檔完全不可行。
+--
+-- ZIP 每個項目獨立壓縮,逐筆讀只是一次 seek,不需要中間檔案。
+prefersBulkExtraction :: ArchiveFormat -> Bool
+prefersBulkExtraction = needsSidecar
+
+-- | 整包解到指定目錄。掃描時用來一次取得所有項目內容以計算雜湊,
+-- 呼叫端負責在用完後刪除目錄。
+extractAllTo :: ArchiveTools -> FilePath -> FilePath -> IO (Either ArchiveError ())
+extractAllTo tools path destDir =
+  case detectFormat path of
+    Nothing -> pure (Left (UnsupportedExtension path))
+    Just fmt -> case atSevenZip tools of
+      Nothing -> pure (Left (SidecarNotFound fmt sevenZipCandidates))
+      Just sz -> extractAllViaSidecar sz path destDir

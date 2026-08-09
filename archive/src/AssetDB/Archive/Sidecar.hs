@@ -9,6 +9,7 @@ module AssetDB.Archive.Sidecar
   , sevenZipCandidates
   , listViaSidecar
   , readViaSidecar
+  , extractAllViaSidecar
 
     -- * 輸出解析(匯出供測試)
   , parseListing
@@ -99,10 +100,7 @@ parseListing raw =
     toEntry b = do
       let kvs = mapMaybe splitKV b
       p <- lookup "Path" kvs
-      let attrs = fromMaybe "" (lookup "Attributes" kvs)
-          isDir =
-            lookup "Folder" kvs == Just "+"
-              || T.isPrefixOf "D" attrs
+      let isDir = lookup "Folder" kvs == Just "+" || hasDirAttr (lookup "Attributes" kvs)
       pure
         ArchiveEntry
           { aePath = normalizeEntryPath p
@@ -118,6 +116,26 @@ parseListing raw =
         (k, v) | not (T.null v) -> Just (T.strip k, T.strip (T.drop 3 v))
         _ -> Nothing
 
+-- | 目錄判定。**兩種格式的輸出長得不一樣,而且不是小差異。**
+--
+-- @
+-- .zip 的目錄   Folder = +        Attributes = D drwxrwxrwx
+-- .7z  的目錄   (沒有 Folder 欄位) Attributes = RD
+-- @
+--
+-- 原本只檢查 @Attributes@ 的開頭是不是 @D@ —— 對 zip 正確,對 7z 全數漏判,
+-- 結果 1,693 個檔案的素材包多出 38 筆「讀不到內容」的假項目。
+--
+-- 正確作法是把第一個空白分隔的權杖當成 Windows 屬性旗標集合,檢查 @D@ 是否在其中。
+-- 檔案的旗標是 @A@ / @RA@ / @_@,不含 @D@;Unix 風格的 @drwxrwxrwx@ 是小寫,
+-- 不會誤判。
+hasDirAttr :: Maybe Text -> Bool
+hasDirAttr Nothing = False
+hasDirAttr (Just attrs) =
+  case T.words attrs of
+    (flags : _) -> T.any (== 'D') flags
+    [] -> False
+
 readDecimal :: Text -> Maybe Word64
 readDecimal t
   | T.null t' || not (T.all (\c -> c >= '0' && c <= '9') t') = Nothing
@@ -130,9 +148,14 @@ readCrc t = case readHex (T.unpack (T.strip t)) of
   [(v, "")] -> Just v
   _ -> Nothing
 
+-- | @.7z@ 的時間戳帶小數秒(@2025-04-02 16:12:47.3249489@),@.zip@ 的沒有。
+-- @%Q@ 對兩者都適用 —— 它匹配可選的小數部分。
+--
+-- 用 @%S@ 搭配嚴格模式解析 7z 的時間會全數失敗,而失敗是靜默的:
+-- 每一筆的 modified 都變成 Nothing,沒有任何錯誤訊息。
 parseModified :: Text -> Maybe UTCTime
 parseModified t =
-  parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack (T.strip t))
+  parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q" (T.unpack (T.strip t))
 
 --------------------------------------------------------------------------------
 -- 讀取單筆
@@ -153,6 +176,30 @@ readViaSidecar sz path entry = do
       | otherwise -> Left (SidecarFailed path code err)
   where
     native = toNativeEntryPath (normalizeEntryPath entry)
+
+-- | 把整個壓縮檔解到指定目錄,保留內部路徑結構。
+--
+-- == 為什麼需要這個,明明整套系統的原則是「不解壓」
+--
+-- 掃描時要為**每一筆**項目算 SHA-256,也就是每一筆都得解壓一次。
+-- 對 rar 與 7z 而言逐筆呼叫外部程式有兩個致命問題:
+--
+-- 1. 5,694 次 process 啟動。
+-- 2. **solid 壓縮**(rar 與 7z 的預設)把多個檔案當成單一資料流壓縮,
+--    抽取第 N 個檔案必須從 solid block 開頭重新解壓。逐筆抽取因此是
+--    O(n²) 的解壓量 —— 1,269 個項目的壓縮檔會跑到天荒地老。
+--
+-- 整包解一次是 O(n)。解出來的檔案在算完雜湊後立刻刪除,
+-- 不違反「不保留解壓副本」的原則 —— 那條原則講的是儲存,不是禁止解壓。
+--
+-- ZIP 不走這條路:它不是 solid 的,'readViaSidecar' 等價物在原生實作裡
+-- 只是一次 seek,逐筆讀反而省下磁碟往返。
+extractAllViaSidecar :: SevenZip -> FilePath -> FilePath -> IO (Either ArchiveError ())
+extractAllViaSidecar sz path destDir = do
+  r <- runSevenZip sz ["x", "-y", "-bd", "-sccUTF-8", "-o" <> destDir, "--", path]
+  pure $ case r of
+    Left (code, err) -> Left (SidecarFailed path code err)
+    Right _ -> Right ()
 
 --------------------------------------------------------------------------------
 

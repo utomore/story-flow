@@ -482,8 +482,7 @@ seeds =
     -- 把它們寫進 migration 而不是留給人工輸入,是因為這些條款是**查證過的證據**,
     -- 重打一次就是重新引入打錯的機會。資料庫因此可以從程式碼完整重建。
     --
-    -- 刻意**不**收錄的:BDragon1727(itch.io 只有 "Royalty Free" 標籤,
-    -- 沒有授權全文)與 Magic Shader All(來源不明)。
+    -- 刻意**不**收錄的:Magic Shader All(來源不明)。
     -- 沒有查證過的授權不該存在於資料庫裡 —— 那會讓閘門建立在猜測上。
     "INSERT INTO licenses \
     \  (name, commercial, attribution_required, credit_text, modification_allowed, \
@@ -503,7 +502,9 @@ seeds =
     \  ('Kibyra Asset License', 1, 0, NULL, 1, 0, 0, NULL, 'https://kibyra.itch.io', \
     \   'Do not resell or redistribute the file as-is. Do not upload this asset elsewhere as your own.'), \
     \  ('Adventurer 2D Pixel Art', 1, 0, NULL, 1, 0, 0, 0, NULL, \
-    \   'Credit is not required but it is appreciated. 逐字取自壓縮檔內 License.txt。')"
+    \   'Credit is not required but it is appreciated. 逐字取自壓縮檔內 License.txt。'), \
+    \  ('BDragon1727 Full License', 1, 0, NULL, 1, 0, 0, NULL, 'https://bdragon1727.itch.io', \
+    \   '取自商品頁 LICENSE: FULL 區塊,pack 1 與 pack 2 條款完全相同。明文允許個人、商業與非商業用途。禁再散布:no matter how much you modify it you can use it but not share or re-sell it。')"
   , -- 頂層分類。子分類由匯入時的規則與人工建立。
     "INSERT INTO categories (parent_id, name, slug, path) VALUES \
     \  (NULL,'GUI','gui','gui'), \

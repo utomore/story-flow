@@ -156,6 +156,7 @@ spec = around withMigrated $ do
       names <- query_ (storeConn st) "SELECT name FROM licenses ORDER BY name" :: IO [Only String]
       map fromOnly names
         `shouldBe` [ "Adventurer 2D Pixel Art"
+                   , "BDragon1727 Full License"
                    , "Cainos Asset License"
                    , "Crusenho Asset License"
                    , "Idylwild Runic Codex"

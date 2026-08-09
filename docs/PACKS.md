@@ -34,7 +34,7 @@ Papers\Apecs - A Type-Driven Entity-Component-System Framework.pdf
 
 ## 授權總覽
 
-已寫入 `licenses` 資料表的六份授權,全部有可查證的全文:
+已寫入 `licenses` 資料表的七份授權,全部有可查證的全文:
 
 | 授權 | 商用 | 署名 | 修改 | 再散布 | 轉售 | NFT |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -44,6 +44,7 @@ Papers\Apecs - A Type-Driven Entity-Component-System Framework.pdf
 | Idylwild Runic Codex | ✅ | 否 | ✅ | ✅ | ? | ? |
 | Kibyra Asset License | ✅ | 否 | ✅ | ❌ | ❌ | ? |
 | Adventurer 2D Pixel Art | ✅ | 否 | ✅ | ❌ | ❌ | ❌ |
+| BDragon1727 Full License | ✅ | 否 | ✅ | ❌ | ❌ | ? |
 
 `?` 在資料庫裡是 **NULL,不是 0**。NULL 是「條款沒寫」,0 是「明確禁止」。
 把未知當禁止會讓素材無故不可用,當允許則是法律風險 —— 兩者都不猜。
@@ -101,20 +102,31 @@ Food 包是 122 個 32×32 圖示,同時附 PNG 與**含圖層的 TIFF** —— 
 
 ### BDragon1727
 
-| 壓縮檔 | 散檔 | 價格 |
-|---|---:|---|
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2.0 Full.rar` | 1,269 | $4+ |
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 1 Full.rar` | 407 | $3.50+ |
-| `[Effects] 60 Retro Effect 32x32 Pack 1 Free.rar` | 20 | **免費** |
-| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2 Free.rar` | 0 | **免費** |
+**已購買 FULL 版**,因此四個壓縮檔一律適用 FULL 授權。
 
-發佈 2023-10-20 / 2023-10-24,更新 2026-04-11。色盤 **ENDESGA 32**。聲明未使用生成式 AI。
+| 壓縮檔 | 散檔 | 內容 | 價格 |
+|---|---:|---|---|
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2.0 Full.rar` | 1,269 | 140 種特效 × 9 色系 | $4+ |
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 1 Full.rar` | 407 | 60 種特效 × 7 色系 | $3.50+ |
+| `[Effects] 60 Retro Effect 32x32 Pack 1 Free.rar` | 20 | 20 種特效 | 免費 |
+| `[Effects] Super Package Retro Pixel Effects 32x32 pack 2 Free.rar` | 0 | 35 種特效 | 免費 |
 
-兩個 Free 版是免費下載(自行出價),Full 版付費。Free 版的內容應為 Full 版的子集 ——
-`pack 2 Free.rar` 的 0 個獨有散檔正好與此一致,但仍待 SHA-256 確認。
+每個特效 9–12 格。畫布 32×32,色盤 **ENDESGA 32**。
+發佈 2023-10-20 / 2023-10-24,更新 2026-04-11。聲明未使用生成式 AI。
 
-🔴 **授權全文仍待確認。** itch.io 只有「Royalty Free」標籤,那是分類標籤不是授權條款。
-四包共 1,696 個檔案,是庫裡第二大的來源。**在確認之前這四包維持 `draft`,不可用於專案。**
+授權(pack 1 與 pack 2 條款逐字相同):
+
+> - You may use these assets in personal, commercial or non-commercial projects.
+> - You may modify these assets to suit your needs.
+> - Credit is not necessary, but highly appreciated.
+> - You can NOT re-distribute the file, no matter how much you modify it you can use it but not share or re-sell it.
+
+⚠️ **兩個 Free 壓縮檔可能是純重複。** Free 版分別是 20 / 35 種特效,
+Full 版是 60 / 140 種 —— 若 Free 的內容確為 Full 的子集,保留它們只是佔空間。
+前置檢查中 `pack 2 Free.rar` 貢獻 0 個獨有散檔,與此一致;但 `Pack 1 Free.rar` 的
+20 個是因為字典序先被它認領,不代表 Full 版沒有。**待 `assetdb scan` 以 SHA-256 判定。**
+
+即使確認重複也不會自動刪除 —— 廠商原始下載檔屬於溯源證據,刪不刪是你的決定。
 
 ### Idylwild
 
@@ -217,8 +229,10 @@ CHECK (status = 'draft' OR (license_id IS NOT NULL AND author_id IS NOT NULL))
 
 | 項目 | 影響檔案數 |
 |---|---:|
-| 🔴 BDragon1727 四包的授權全文 | 1,696 |
 | 🔴 Magic Shader All 的作者、來源、授權 | — |
-| 🔴 Adventurer 2D Pixel Art 的作者名 | 38 |
+| 🔴 Adventurer 2D Pixel Art 的作者名(License.txt 沒署名) | 38 |
 | 🟡 Cainos Icon Pack RPG / Map Basic 的價格與發佈日 | 123 |
 | 🟡 Kibyra 各包的發佈日與版本 | 737 |
+| 🟡 BDragon1727 兩個 Free 檔是否為 Full 的子集(待 SHA-256) | 20 |
+
+授權未查證的素材包只剩 **Magic Shader All** 一個。其餘全部可以升級為 `ready`。

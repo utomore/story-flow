@@ -1,0 +1,42 @@
+cabal-version:      3.4
+name:               assetdb-cli
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — 命令列介面
+description:
+  無頭操作。前端還沒出現之前這是唯一的入口,
+  之後也仍然是腳本與自動化的入口。
+
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+executable assetdb
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:
+        AssetDB.Cli.Options
+        AssetDB.Cli.Scan
+        AssetDB.Cli.Doctor
+    hs-source-dirs:   app
+    ghc-options:      -threaded -rtsopts
+    build-depends:
+        , assetdb-archive
+        , assetdb-core
+        , assetdb-ingest
+        , assetdb-store
+        , base                 >=4.17 && <5
+        , directory            >=1.3
+        , filepath             >=1.4
+        , optparse-applicative >=0.17
+        , sqlite-simple        >=0.4.18
+        , text                 >=2.0
+        , time                 >=1.12
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards

@@ -46,6 +46,25 @@ spec = do
       parseListing "" `shouldBe` []
       parseListing "沒有分隔線的垃圾" `shouldBe` []
 
+  describe ".7z 與 .zip 的輸出差異" $ do
+    -- 這組測試來自一個真實的漏判:.7z 的目錄項目被當成檔案,
+    -- 1,693 個檔案的素材包因此多出 38 筆「讀不到內容」的假項目。
+    let es = parseListing sevenZipOutput
+
+    it "7z 的目錄沒有 Folder 欄位,且 D 不在 Attributes 開頭" $
+      -- .zip 是 `Folder = +` 加 `Attributes = D drwxrwxrwx`
+      -- .7z  是完全沒有 Folder,而且 `Attributes = RD`
+      map aeIsDir es `shouldBe` [True, True, False]
+
+    it "只留下真正的檔案" $
+      map aePath (filter (not . aeIsDir) es)
+        `shouldBe` ["Pack_v1.0/01_TravelBook/Sprites/UI_TravelBook_Frame01a.png"]
+
+    it "帶小數秒的時間戳解析得出來" $
+      -- .7z 是 `2025-04-02 16:12:47.3249489`,.zip 沒有小數部分。
+      -- 用 %S 嚴格解析會全數失敗,而且是靜默失敗。
+      length (filter (/= Nothing) (map aeModified es)) `shouldBe` 3
+
   describe "parseListing 的邊界" $ do
     it "檔名裡有 ' = ' 時只切第一個" $ do
       let out = separator <> "Path = weird = name.png\nSize = 10\n"
@@ -76,6 +95,44 @@ spec = do
 
 separator :: Text
 separator = "----------\n"
+
+-- | 逐字取自對 @.7z@ 檔案執行的真實輸出。與 zip 的差異是本模組最容易踩的坑。
+sevenZipOutput :: Text
+sevenZipOutput =
+  T.unlines
+    [ "7-Zip 26.02 (x64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-06-25"
+    , ""
+    , "--"
+    , "Path = C:\\Raw\\Pack.7z"
+    , "Type = 7z"
+    , "Headers Size = 21113"
+    , "Solid = -"
+    , "Blocks = 1693"
+    , ""
+    , "----------"
+    , "Path = Pack_v1.0"
+    , "Size = 0"
+    , "Packed Size = 0"
+    , "Modified = 2025-04-02 16:12:47.3249489"
+    , "Attributes = RD"
+    , "CRC = "
+    , "Method = "
+    , ""
+    , "Path = Pack_v1.0\\01_TravelBook"
+    , "Size = 0"
+    , "Packed Size = 0"
+    , "Modified = 2025-04-02 16:12:43.7220809"
+    , "Attributes = RD"
+    , "CRC = "
+    , ""
+    , "Path = Pack_v1.0\\01_TravelBook\\Sprites\\UI_TravelBook_Frame01a.png"
+    , "Size = 1146"
+    , "Packed Size = 1146"
+    , "Modified = 2025-03-02 11:04:18.0000000"
+    , "Attributes = RA"
+    , "CRC = 1A2B3C4D"
+    , "Method = LZMA2:24"
+    ]
 
 -- | 逐字取自 @7z l -slt -sccUTF-8@(7-Zip 26.02)的真實輸出,
 -- 為了測試長度只保留四個項目。CRC 值是為了測試可讀性而改寫的。

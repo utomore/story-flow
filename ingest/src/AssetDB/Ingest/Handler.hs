@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | 格式處理器註冊表。
 --
 -- == 這個模組就是「加音效不需重構」的實作
@@ -27,6 +28,7 @@ import AssetDB.Types
 import Codec.Picture qualified as P
 import Data.Aeson (Value, object, (.=))
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Char (toLower)
 import Data.List (find)
 import Data.Set qualified as Set
@@ -213,17 +215,73 @@ archiveHandler =
     , hProbe = const Nothing
     }
 
--- | 音效目前只認副檔名,不解碼。
+-- | 音效。
 --
--- **這一筆存在就是設計正確性的證明**:素材庫現在一個音效檔都沒有,
--- 但音效進來時它會被正確分類、正確索引、正確出現在 facet 篩選裡,
--- 不需要動任何資料表。真正實作解碼(取得 durationMs \/ sampleRate \/ channels)
--- 時,唯一要改的是這裡的 'hProbe'。
+-- **這一筆是「加一種 kind 不需要重構」的實證。** 它從一開始就在清單裡,
+-- 當時只認副檔名不解碼;加入 WAV 解析時唯一改動的就是這個 'hProbe' ——
+-- 沒有新資料表、沒有 migration、沒有動 @assets@ 或 @blobs@。
+-- metadata 走 @meta_json@,所以「音效的欄位與圖片不同」不會變成
+-- 資料表結構的差異。
+--
+-- WAV 之外的格式(ogg \/ mp3 \/ flac)仍然只分類不解碼。加入它們同樣
+-- 只需要擴充這一個函式。
 audioHandlerStub :: Handler
 audioHandlerStub =
   Handler
     { hName = "audio"
     , hExtensions = [".wav", ".ogg", ".mp3", ".flac", ".aiff", ".m4a", ".opus"]
     , hKind = KAudio
-    , hProbe = const Nothing
+    , hProbe = probeWav
     }
+
+-- | 解析 RIFF\/WAVE 檔頭。
+--
+-- 不引入音訊解碼函式庫:我們要的只是取樣率、聲道數與長度,那三個值全部
+-- 在 @fmt @ 與 @data@ 兩個 chunk 的檔頭裡,不需要解開任何音訊資料。
+-- 這與「讀 PNG 的 IHDR 就能得到尺寸」是同一個道理。
+--
+-- chunk 必須**逐個走訪**而不是假設固定位移 —— 真實世界的 WAV 常常在
+-- @fmt @ 與 @data@ 之間夾著 @LIST@ 或 @fact@ chunk。
+probeWav :: ByteString -> Maybe Value
+probeWav bs = do
+  guardTrue (BS.length bs >= 44)
+  guardTrue (BS.take 4 bs == "RIFF" && BS.take 4 (BS.drop 8 bs) == "WAVE")
+  (channels, sampleRate, byteRate, bits) <- findFmt (BS.drop 12 bs)
+  dataBytes <- findData (BS.drop 12 bs)
+  guardTrue (byteRate > 0)
+  pure $
+    object
+      [ "channels" .= channels
+      , "sampleRate" .= sampleRate
+      , "bitsPerSample" .= bits
+      , "durationMs" .= ((dataBytes * 1000) `div` byteRate)
+      ]
+  where
+    guardTrue c = if c then Just () else Nothing
+
+    findFmt :: ByteString -> Maybe (Int, Int, Int, Int)
+    findData :: ByteString -> Maybe Int
+    chunks :: ByteString -> [(ByteString, ByteString)]
+    le16, le32 :: ByteString -> Int
+
+    chunks b
+      | BS.length b < 8 = []
+      | otherwise =
+          let cid = BS.take 4 b
+              sz = le32 (BS.drop 4 b)
+              body = BS.take sz (BS.drop 8 b)
+              -- chunk 以偶數位元組對齊,奇數長度後面補一個 padding byte。
+              step = 8 + sz + (sz `mod` 2)
+           in (cid, body) : chunks (BS.drop step b)
+
+    findFmt b = case [c | ("fmt ", c) <- chunks b] of
+      (c : _) | BS.length c >= 16 -> Just (le16 (BS.drop 2 c), le32 (BS.drop 4 c), le32 (BS.drop 8 c), le16 (BS.drop 14 c))
+      _ -> Nothing
+
+    findData b = case [BS.length c | ("data", c) <- chunks b] of
+      (n : _) -> Just n
+      _ -> Nothing
+
+    le16 b = fromIntegral (BS.index b 0) + 256 * fromIntegral (BS.index b 1)
+    le32 b =
+      sum [fromIntegral (BS.index b i) * (256 ^ i) | i <- [0 .. 3]]

@@ -468,16 +468,49 @@ uiGuiTravelBookFrame01a = AssetKey "ui_gui_travel-book-frame_01a"
 | **2** | `assetdb-ingest` + CLI `scan`:掃描現況、SHA-256、blobs | ✅ |
 | **2b** | `packs.toml` 中繼資料目錄 + CLI `pack` | ✅ |
 | **3** | CLI `reorganize`:dry-run → 執行 → 對帳 → 刪散檔 → undo | ✅ **已對真實素材庫執行** |
-| **4** | 叢集推論:把 6,393 筆的命名決策壓成約 100 次確認 | |
-| **5** | FTS5 + facet 查詢 + CLI `search` | |
-| **6** | 縮圖 pipeline(JuicyPixels + ImageMagick sidecar) | |
-| **7** | `assetdb-server` + OpenAPI → TS 型別 | |
-| **8** | React 前端:虛擬化網格、facet 側欄、匯入、叢集確認 UI | |
-| **9** | `assetdb-project`:樣板、單筆解壓、manifest、`Assets.hs` | |
-| **10** | `notes`(知識庫 / 行銷)+ `links` 圖譜 | |
-| **11** | 音效驗證:加 `wavHandler` —— **不動任何核心表** | |
+| **4** | 叢集推論:把 6,393 筆的命名決策壓成約 100 次確認 | ✅ **6 次確認命名 1,653 筆** |
+| **5** | FTS5 + facet 查詢 + CLI `search` | ✅ |
+| **6** | 縮圖 pipeline(JuicyPixels,內容定址快取) | ✅ |
+| **7** | `assetdb-server` + `--emit-types` → TS 型別 | ✅ |
+| **8** | React 前端:虛擬化網格、facet 側欄 | ✅ |
+| **9** | `assetdb-project`:樣板、單筆解壓、manifest、`Assets.hs` | ✅ |
+| **10** | `notes`(知識庫 / 行銷)+ `links` 圖譜 | ✅ |
+| **11** | 音效驗證:`probeWav` —— **不動任何核心表** | ✅ **已驗證,見下** |
 
 階段 11 是設計正確性的實證,不該省略。
+
+### 階段 11 的實際結果(2026-08-11 執行)
+
+四個手工產生的 `.wav`(不同取樣率、聲道數、位元深度)放進 `library/studio/shared/audio/`,
+`scan` 之後:
+
+```
+kind=audio 的 meta_json
+  ui_click.wav          {"bitsPerSample":16,"channels":2,"durationMs":250, "sampleRate":44100}
+  ui_page_turn.wav      {"bitsPerSample":16,"channels":1,"durationMs":600, "sampleRate":44100}
+  bgm_village_loop.wav  {"bitsPerSample":16,"channels":2,"durationMs":2000,"sampleRate":22050}
+  sfx_rune_charge.wav   {"bitsPerSample":8, "channels":1,"durationMs":1500,"sampleRate":8000}
+```
+
+四筆的值與產生時指定的參數逐一相符。facet 面板自動長出 `audio 4`,
+`search -q village --kind audio` 的全文與 kind 條件組合正常。
+
+**這一階段改動的檔案只有兩個,都在 `assetdb-ingest`:**
+
+```
+M ingest/src/AssetDB/Ingest/Handler.hs       -- audioHandlerStub 的 hProbe 換成 probeWav
+M ingest/test/AssetDB/Ingest/HandlerSpec.hs
+```
+
+`git diff --stat HEAD -- store/src/AssetDB/Store/Schema.hs store/src/AssetDB/Store/Migrate.hs`
+輸出為空 —— 沒有新資料表、沒有 migration、沒有動 `assets` 或 `blobs`。
+原則 4「核心模型不認識圖片」到此不再是宣稱,而是可覆核的事實。
+
+順帶證實的一件事:`probeWav` 不引入音訊解碼函式庫。取樣率、聲道數、長度三個值
+全部在 `fmt ` 與 `data` 兩個 chunk 的檔頭裡,與「讀 PNG 的 IHDR 就能得到尺寸」同理。
+chunk 逐個走訪而非假設固定位移 —— 真實 WAV 常在 `fmt ` 與 `data` 之間夾 `LIST`,
+而且 RIFF 要求奇數長度的 chunk 補一個 padding byte,漏掉會讓後續全部位移錯一格。
+這兩件事各有一個測試。
 
 ### 階段 3 的實際結果(2026-08-09 執行)
 

@@ -10,6 +10,7 @@ import AssetDB.Cli.Scan (runScan)
 import AssetDB.Cli.Search (runIndex, runSearch)
 import AssetDB.Cli.Thumbs (runThumbs)
 import AssetDB.Cli.Project (runNewProject)
+import AssetDB.Cli.Notes (runLink, runNoteImport, runNoteList)
 import Data.Text.IO qualified as TIO
 import System.IO
 
@@ -37,3 +38,6 @@ main = do
     CmdIndex -> resolveDbPath global >>= runIndex
     CmdThumbs f -> resolveDbPath global >>= \db -> runThumbs db f
     CmdNewProject a -> resolveDbPath global >>= \db -> runNewProject db a
+    CmdNoteImport a -> resolveDbPath global >>= \db -> runNoteImport db a
+    CmdNoteList k -> resolveDbPath global >>= \db -> runNoteList db k
+    CmdLink a -> resolveDbPath global >>= \db -> runLink db a

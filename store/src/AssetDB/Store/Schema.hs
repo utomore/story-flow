@@ -22,7 +22,7 @@ schemaVersion :: Int
 schemaVersion = maximum (map migVersion migrations)
 
 migrations :: [Migration]
-migrations = [migration001]
+migrations = [migration001, migration002]
 
 --------------------------------------------------------------------------------
 
@@ -529,3 +529,25 @@ seeds =
 -- | 單一 SQL 敘述。用 alias 只是為了讓上面的清單讀起來就是一疊 SQL,
 -- 不被型別雜訊打斷。
 type Query' = Query
+
+--------------------------------------------------------------------------------
+
+-- | 第一個**真正的** migration。
+--
+-- 在此之前 schema 的改動都是直接編輯 migration 001 —— 當時沒有任何資料庫
+-- 從它建立過,為一個從未實體化的 schema 寫遷移是儀式而非工程。
+--
+-- 這一版不同:已經有一個帶著確認過的叢集規則與重構稽核紀錄的資料庫在跑,
+-- 重建會損失真實的人工工作。從這裡開始,schema 改動一律新增 migration。
+migration002 :: Migration
+migration002 =
+  Migration
+    { migVersion = 2
+    , migName = "筆記以 source_path 為唯一鍵"
+    , migStatements =
+        [ -- 筆記會被反覆編輯,重複匯入必須是更新而不是新增,
+          -- 否則同一份文件會在資料庫裡散成好幾個版本。
+          "CREATE UNIQUE INDEX notes_source_idx ON notes(source_path) \
+          \  WHERE source_path IS NOT NULL"
+        ]
+    }

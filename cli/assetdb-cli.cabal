@@ -27,6 +27,7 @@ executable assetdb
         AssetDB.Cli.Search
         AssetDB.Cli.Thumbs
         AssetDB.Cli.Project
+        AssetDB.Cli.Notes
     hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts
     build-depends:

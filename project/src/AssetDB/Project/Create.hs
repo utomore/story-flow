@@ -6,7 +6,7 @@ module AssetDB.Project.Create
   ) where
 
 import AssetDB.Archive
-import AssetDB.Id (parseULID)
+import AssetDB.Id (newULID, parseULID, unULID)
 import AssetDB.Manifest
 import AssetDB.Naming (validateLogicalName)
 import AssetDB.Project.Assets
@@ -22,6 +22,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (getCurrentTime)
+import Data.Time.Format.ISO8601 (iso8601Show)
 import Database.SQLite.Simple
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, listDirectory)
 import System.FilePath (takeDirectory, (</>))
@@ -110,11 +111,51 @@ createProject st tools CreateOptions {..} = do
 
       writeUtf8 (coPath </> T.unpack coName <> ".cabal") (cabalFile coName)
 
+      -- 專案要登記進資料庫,否則 links 無從指向它,而且沒有人回答得了
+      -- 「這個素材被哪些專案用了」—— 那個反向查詢與正向一樣重要。
+      registerProject st coName coPath copied
+
       pure (CreateResult (length copied) skipped blocked)
   where
     relOf p = T.pack ("assets/" <> T.unpack (kindDefaultDir (pkKind p))) <> "/" <> pkName p <> extOf (pkEntry p)
 
 --------------------------------------------------------------------------------
+
+-- | 把專案與它使用的素材寫進資料庫。
+--
+-- @copied_sha256@ 記錄複製當下的內容雜湊,讓之後能分辨兩種不同的狀況:
+-- 「專案裡的素材被改過」與「來源壓縮檔更新了」。
+registerProject :: Store -> Text -> FilePath -> [Pick] -> IO ()
+registerProject st name path picks = do
+  let conn = storeConn st
+  now <- T.pack . iso8601Show <$> getCurrentTime
+  u <- unULID <$> newULID
+  withTransaction conn $ do
+    execute
+      conn
+      "INSERT INTO projects (ulid,name,path,template,created_at,updated_at) VALUES (?,?,?,?,?,?) \
+      \ON CONFLICT (name) DO UPDATE SET path = excluded.path, updated_at = excluded.updated_at"
+      (u, name, T.pack path, "haskell-raylib-2d" :: Text, now, now)
+    rows <- query conn "SELECT id FROM projects WHERE name = ?" (Only name) :: IO [Only Int]
+    case rows of
+      (Only pid : _) -> do
+        execute conn "DELETE FROM project_assets WHERE project_id = ?" (Only pid)
+        mapM_
+          ( \p ->
+              execute
+                conn
+                "INSERT OR IGNORE INTO project_assets \
+                \  (project_id, asset_id, dest_rel_path, copy_mode, copied_sha256, added_at) \
+                \SELECT ?, a.id, ?, 'copy', ?, ? FROM assets a WHERE a.ulid = ?"
+                ( pid
+                , "assets/" <> kindDefaultDir (pkKind p) <> "/" <> pkName p <> extOf (pkEntry p)
+                , pkSha p
+                , now
+                , pkUlid p
+                )
+          )
+          picks
+      [] -> pure ()
 
 selectAssets :: Connection -> [Text] -> Maybe Text -> IO [Pick]
 selectAssets conn packs q = do

@@ -1,6 +1,15 @@
 # 素材包清冊
 
-現有素材庫的完整盤點,作為 `pack.toml` 與 `licenses` 資料表的種子。
+現有素材庫的完整盤點。
+
+> **這份文件是說明,不是資料。** 機器讀的是 [`data/packs.toml`](../data/packs.toml),
+> 套用方式:
+>
+> ```bash
+> assetdb pack apply --catalogue data/packs.toml
+> ```
+>
+> 買新素材包時改那個檔案,不是這一份。
 
 盤點方式:以 7-Zip **串流讀取**壓縮檔內的 `readme` / `License` / `.url`(完全不解壓),
 再由使用者從 itch.io 商品頁補齊壓縮檔內沒有的部分。
@@ -227,12 +236,26 @@ CHECK (status = 'draft' OR (license_id IS NOT NULL AND author_id IS NOT NULL))
 
 ## 待辦
 
+**27 個素材包中 25 個已是 `ready`。** 剩下兩個:
+
 | 項目 | 影響檔案數 |
 |---|---:|
 | 🔴 Magic Shader All 的作者、來源、授權 | — |
-| 🔴 Adventurer 2D Pixel Art 的作者名(License.txt 沒署名) | 38 |
+| 🔴 Adventurer 2D Pixel Art 的作者名(壓縮檔內 License.txt 沒署名) | 38 |
+| 🟡 Crusenho 與 Shikashi 的 AI 使用揭露(商品頁未標示) | 1,711 |
 | 🟡 Cainos Icon Pack RPG / Map Basic 的價格與發佈日 | 123 |
 | 🟡 Kibyra 各包的發佈日與版本 | 737 |
-| 🟡 BDragon1727 兩個 Free 檔是否為 Full 的子集(待 SHA-256) | 20 |
 
-授權未查證的素材包只剩 **Magic Shader All** 一個。其餘全部可以升級為 `ready`。
+兩個 🔴 的素材包維持 `draft`,不可用於建專案 —— 授權閘門會擋下。
+
+## BDragon1727 的 Free 版:先前的推測是錯的
+
+我原本依據 `(檔名, 大小)` 推測兩個 Free 壓縮檔可能是 Full 版的純子集。
+SHA-256 掃描證明不是:
+
+```
+90%  20/22   60 Retro Effect 32x32 Pack 1 Free.rar   ← 2 筆獨有
+ 0%    —     Super Package pack 2 Free.rar           ← 完全沒有重疊
+```
+
+**刪掉會真的損失內容。** 兩個 Free 檔都保留。

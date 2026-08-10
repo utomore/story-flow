@@ -503,6 +503,8 @@ seeds =
     \   'Do not resell or redistribute the file as-is. Do not upload this asset elsewhere as your own.'), \
     \  ('Adventurer 2D Pixel Art', 1, 0, NULL, 1, 0, 0, 0, NULL, \
     \   'Credit is not required but it is appreciated. 逐字取自壓縮檔內 License.txt。'), \
+    \  ('Studio Owned', 1, 0, NULL, 1, 1, 1, 1, NULL, \
+    \   '工作室自有素材(自製或自行拍攝)。所有權利在我們手上,沒有外部限制。'), \
     \  ('BDragon1727 Full License', 1, 0, NULL, 1, 0, 0, NULL, 'https://bdragon1727.itch.io', \
     \   '取自商品頁 LICENSE: FULL 區塊,pack 1 與 pack 2 條款完全相同。明文允許個人、商業與非商業用途。禁再散布:no matter how much you modify it you can use it but not share or re-sell it。')"
   , -- 頂層分類。子分類由匯入時的規則與人工建立。

@@ -3,6 +3,7 @@ module Main (main) where
 import AssetDB.Archive (describeTools, discoverTools)
 import AssetDB.Cli.Doctor (runDoctor)
 import AssetDB.Cli.Options
+import AssetDB.Cli.Pack (runPackApply, runPackList)
 import AssetDB.Cli.Scan (runScan)
 import Data.Text.IO qualified as TIO
 import System.IO
@@ -21,3 +22,5 @@ main = do
     CmdTools -> discoverTools >>= TIO.putStrLn . describeTools
     CmdScan args -> resolveDbPath global >>= \db -> runScan db args
     CmdDoctor -> resolveDbPath global >>= runDoctor
+    CmdPackList -> resolveDbPath global >>= runPackList
+    CmdPackApply f -> resolveDbPath global >>= \db -> runPackApply db f

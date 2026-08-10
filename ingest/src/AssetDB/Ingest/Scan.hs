@@ -375,10 +375,15 @@ ensureRoot st path label kind = do
 ensurePack :: Store -> Int -> Text -> FilePath -> Text -> IO Int
 ensurePack st rootId relPath path now = do
   let conn = storeConn st
-      relDir = T.pack (takeDirectory (T.unpack relPath))
       name = T.pack (takeBaseName path)
-      slug = slugify name
-      key = relDir <> "/" <> slug
+      slug = slugify name `orElse` slugify relPath `orElse` "pack"
+      -- 識別鍵用**壓縮檔的相對路徑**,不是衍生出來的 slug。
+      --
+      -- 這不是任意選擇:slugify 對純中文名稱會產生空字串
+      -- (所有非 ASCII 字元被替換後折疊掉),於是「金門建築.rar」與
+      -- 「金門地道.rar」的 slug 都是空的,兩個素材包被靜默合併成一個。
+      -- 相對路徑則保證唯一。
+      key = relPath
   rows <- query conn "SELECT id FROM packs WHERE root_id = ? AND rel_dir = ?" (rootId, key)
   case rows of
     (Only i : _) -> pure i
@@ -390,6 +395,13 @@ ensurePack st rootId relPath path now = do
         \VALUES (?,?,?,?,?,'draft',?,?)"
         (u, slug, name, rootId, key, now, now)
       fromIntegral <$> lastInsertRowId conn
+
+-- | 空字串時退回下一個候選。
+--
+-- 純中文的素材包名稱 slugify 之後什麼都不剩,需要有東西頂上。
+-- 真正的 slug 由 @packs.toml@ 指定 —— 自動推導只要非空且不誤導即可。
+orElse :: Text -> Text -> Text
+orElse a b = if T.null a then b else a
 
 -- | 素材包名稱含空格、方括號、@&@、撇號。slug 只留下路徑安全的字元。
 slugify :: Text -> Text

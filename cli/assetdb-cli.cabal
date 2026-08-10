@@ -21,12 +21,14 @@ executable assetdb
         AssetDB.Cli.Options
         AssetDB.Cli.Scan
         AssetDB.Cli.Doctor
+        AssetDB.Cli.Pack
     hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts
     build-depends:
         , assetdb-archive
         , assetdb-core
         , assetdb-ingest
+        , bytestring
         , assetdb-store
         , base                 >=4.17 && <5
         , directory            >=1.3

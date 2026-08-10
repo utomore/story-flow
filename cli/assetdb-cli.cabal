@@ -26,12 +26,14 @@ executable assetdb
         AssetDB.Cli.Cluster
         AssetDB.Cli.Search
         AssetDB.Cli.Thumbs
+        AssetDB.Cli.Project
     hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts
     build-depends:
         , assetdb-archive
         , assetdb-core
         , assetdb-ingest
+        , assetdb-project
         , assetdb-reorg
         , bytestring
         , containers           >=0.6

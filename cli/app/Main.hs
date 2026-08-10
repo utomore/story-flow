@@ -9,6 +9,7 @@ import AssetDB.Cli.Reorg (runReorg)
 import AssetDB.Cli.Scan (runScan)
 import AssetDB.Cli.Search (runIndex, runSearch)
 import AssetDB.Cli.Thumbs (runThumbs)
+import AssetDB.Cli.Project (runNewProject)
 import Data.Text.IO qualified as TIO
 import System.IO
 
@@ -35,3 +36,4 @@ main = do
     CmdSearch a -> resolveDbPath global >>= \db -> runSearch db a
     CmdIndex -> resolveDbPath global >>= runIndex
     CmdThumbs f -> resolveDbPath global >>= \db -> runThumbs db f
+    CmdNewProject a -> resolveDbPath global >>= \db -> runNewProject db a

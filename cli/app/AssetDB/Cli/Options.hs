@@ -5,6 +5,7 @@ module AssetDB.Cli.Options
   , ReorgMode (..)
   , RuleArgs (..)
   , SearchArgs (..)
+  , ProjectArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -15,6 +16,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import AssetDB.Cli.Cluster (RuleArgs (..))
 import AssetDB.Cli.Search (SearchArgs (..))
+import AssetDB.Cli.Project (ProjectArgs (..))
 import Options.Applicative
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
@@ -38,6 +40,7 @@ data Command
   | CmdSearch SearchArgs
   | CmdIndex
   | CmdThumbs Bool
+  | CmdNewProject ProjectArgs
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -102,7 +105,20 @@ commandP =
               (CmdThumbs <$> switch (long "force" <> help "重新產生已存在的縮圖"))
               (progDesc "產生縮圖(內容定址,每份唯一內容只算一次)")
           )
+        <> command "new-project" (info (CmdNewProject <$> projectP) (progDesc "建立遊戲專案並放入選定素材"))
     )
+
+projectP :: Parser ProjectArgs
+projectP =
+  ProjectArgs
+    <$> option (T.pack <$> str) (long "name" <> metavar "NAME" <> help "專案名稱,也是 cabal 套件名")
+    <*> strOption (long "path" <> metavar "PATH" <> help "專案目錄。必須不存在或為空")
+    <*> many (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "納入整個素材包,可重複"))
+    <*> optional (option (T.pack <$> str) (long "match" <> metavar "Q" <> help "只納入邏輯名稱含此字串的素材"))
+    <*> switch
+      ( long "allow-non-commercial"
+          <> help "略過授權閘門。**只在確定專案不商業發行時使用**"
+      )
 
 searchP :: Parser SearchArgs
 searchP =

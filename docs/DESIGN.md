@@ -462,12 +462,13 @@ uiGuiTravelBookFrame01a = AssetKey "ui_gui_travel-book-frame_01a"
 
 | 階段 | 內容 | 狀態 |
 |---|---|---|
-| **0** | `assetdb-core`:型別、ULID、命名文法、Manifest schema | ✅ **完成,89 測試通過** |
-| **0b** | `assetdb-store`:schema、migrations、FTS5 trigram | 進行中 |
-| **1** | `assetdb-archive`:ZIP 原生列表與串流讀取;rar/7z sidecar | |
-| **2** | `assetdb-ingest` + CLI `scan`:掃描現況、SHA-256、blobs | |
-| **3** | CLI `reorganize`:dry-run → 執行 → 對帳 → 刪散檔 → undo | |
-| **4** | 叢集推論 + `pack.toml` 讀寫 | |
+| **0** | `assetdb-core`:型別、ULID、命名文法、Manifest schema | ✅ |
+| **0b** | `assetdb-store`:schema、migrations、FTS5 + 中日韓 n-gram | ✅ |
+| **1** | `assetdb-archive`:ZIP 原生列表與串流讀取;rar/7z sidecar | ✅ |
+| **2** | `assetdb-ingest` + CLI `scan`:掃描現況、SHA-256、blobs | ✅ |
+| **2b** | `packs.toml` 中繼資料目錄 + CLI `pack` | ✅ |
+| **3** | CLI `reorganize`:dry-run → 執行 → 對帳 → 刪散檔 → undo | ✅ **已對真實素材庫執行** |
+| **4** | 叢集推論:把 6,393 筆的命名決策壓成約 100 次確認 | |
 | **5** | FTS5 + facet 查詢 + CLI `search` | |
 | **6** | 縮圖 pipeline(JuicyPixels + ImageMagick sidecar) | |
 | **7** | `assetdb-server` + OpenAPI → TS 型別 | |
@@ -476,8 +477,18 @@ uiGuiTravelBookFrame01a = AssetKey "ui_gui_travel-book-frame_01a"
 | **10** | `notes`(知識庫 / 行銷)+ `links` 圖譜 | |
 | **11** | 音效驗證:加 `wavHandler` —— **不動任何核心表** | |
 
-階段 2–3 是最高價值的單點:跑完就從「翻資料夾」變成「查得到」,而且儲存乾淨了。
 階段 11 是設計正確性的實證,不該省略。
+
+### 階段 3 的實際結果(2026-08-09 執行)
+
+```
+搬移      32 個檔案(3.2 GiB)     對帳 27/27 通過
+寫入      27 份 pack.toml
+刪除    5424 個散檔、146 個空目錄
+```
+
+**5,456 → 59 個檔案。** 磁碟只省下 131.9 MiB —— 散檔全是幾百 bytes 的小圖示,
+先前估的 1.4 GB 是錯的。真正的收益是**雲端備份的檔案數從五千多降到 59**。
 
 ---
 

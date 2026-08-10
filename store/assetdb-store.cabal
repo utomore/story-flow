@@ -22,6 +22,8 @@ library
         AssetDB.Store.Schema
         AssetDB.Store.Orphans
         AssetDB.Store.Tokenize
+        AssetDB.Store.Index
+        AssetDB.Store.Search
     hs-source-dirs:   src
     build-depends:
         , assetdb-core
@@ -47,6 +49,7 @@ test-suite assetdb-store-test
         AssetDB.Store.SchemaSpec
         AssetDB.Store.FtsSpec
         AssetDB.Store.TokenizeSpec
+        AssetDB.Store.SearchSpec
     hs-source-dirs:   test
     build-depends:
         , assetdb-core

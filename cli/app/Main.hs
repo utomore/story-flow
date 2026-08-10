@@ -7,6 +7,7 @@ import AssetDB.Cli.Options
 import AssetDB.Cli.Pack (runPackApply, runPackList)
 import AssetDB.Cli.Reorg (runReorg)
 import AssetDB.Cli.Scan (runScan)
+import AssetDB.Cli.Search (runIndex, runSearch)
 import Data.Text.IO qualified as TIO
 import System.IO
 
@@ -30,3 +31,5 @@ main = do
     CmdClusterList s -> resolveDbPath global >>= \db -> runClusterList db s
     CmdClusterRule a -> resolveDbPath global >>= \db -> runClusterRule db a
     CmdClusterApply s -> resolveDbPath global >>= \db -> runClusterApply db s
+    CmdSearch a -> resolveDbPath global >>= \db -> runSearch db a
+    CmdIndex -> resolveDbPath global >>= runIndex

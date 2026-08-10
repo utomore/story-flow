@@ -24,6 +24,7 @@ executable assetdb
         AssetDB.Cli.Pack
         AssetDB.Cli.Reorg
         AssetDB.Cli.Cluster
+        AssetDB.Cli.Search
     hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts
     build-depends:

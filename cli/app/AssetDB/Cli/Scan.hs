@@ -46,6 +46,11 @@ runScan dbPath ScanArgs {..} = do
           , soOnEvent = onEvent
           }
 
+    -- 掃描改變了被索引的內容,所以索引一定要跟著重建。
+    -- 留給使用者記得下另一個指令,就是在製造「搜尋結果不完整而且沒人知道」。
+    n <- reindexFts (storeConn st)
+    TIO.putStrLn ("\n全文索引已重建:" <> tshow n <> " 筆")
+
     finished <- getCurrentTime
     TIO.putStrLn (renderReport report)
     TIO.putStrLn ("耗時 " <> tshow (round (diffUTCTime finished started) :: Int) <> " 秒")

@@ -7,6 +7,7 @@ packages:
   archive/
   ingest/
   reorg/
+  server/
   cli/
 
 -- GHC 9.14 (base-4.22) 仍是新版本,部分套件的 base 上界尚未放寬。
@@ -41,3 +42,6 @@ package assetdb-cli
 
 package assetdb-reorg
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-server
+  ghc-options: -Wall -Wcompat

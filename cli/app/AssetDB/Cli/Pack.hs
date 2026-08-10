@@ -2,8 +2,10 @@ module AssetDB.Cli.Pack (runPackList, runPackApply) where
 
 import AssetDB.Ingest.Catalogue
 import AssetDB.Store
+import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (decodeUtf8)
 import Data.Text.IO qualified as TIO
 import Database.SQLite.Simple
 import System.Exit (exitFailure)
@@ -42,7 +44,10 @@ runPackList dbPath =
 
 runPackApply :: FilePath -> FilePath -> IO ()
 runPackApply dbPath cataloguePath = do
-  src <- TIO.readFile cataloguePath
+  -- 明確以 UTF-8 解碼。Data.Text.IO.readFile 用的是 locale 編碼,
+  -- Windows 上可能是 CP950 —— 那會把 packs.toml 裡的中文解成亂碼,
+  -- 或直接因為無法解碼而拋例外。TOML 規格本身就規定 UTF-8。
+  src <- decodeUtf8 <$> BS.readFile cataloguePath
   case parseCatalogue src of
     Left err -> TIO.putStrLn ("✗ 目錄解析失敗:\n" <> err) >> exitFailure
     Right cat ->

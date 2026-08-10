@@ -87,7 +87,7 @@ GHC 在 Windows 上的封存器 `llvm-ar` 無法處理含空格的建置路徑,
 
   重掃時壓縮檔雜湊未變就整包跳過,所以第二次執行是 0 秒。
 
-## 四個實測發現
+## 五個實測發現
 
 **1. GHC 的 `llvm-ar` 不吃含空格的路徑。** 見上。
 
@@ -113,7 +113,16 @@ GHC 在 Windows 上的封存器 `llvm-ar` 無法處理含空格的建置路徑,
 
 `.7z` 的時間戳還帶小數秒(`16:12:47.3249489`),用 `%S` 嚴格解析會**靜默**全數失敗。
 
-**4. GHC 在 Windows 上預設以系統 ANSI 字碼頁寫 stdout。**
+**4. `Data.Text.IO` 的讀寫都用 locale 編碼,不是 UTF-8。**
+
+這比 stdout 那個嚴重:它會**寫壞我們自己產生的檔案**。`pack.toml` 含中文註解與
+`⚠`,在 Windows 上 `TIO.writeFile` 直接拋 `cannot encode character '\9888'`;
+讀回來時 `TIO.readFile` 又 `cannot decode byte sequence starting from 231`。
+
+所有文字檔 I/O 一律 `BS.writeFile p (encodeUtf8 t)` 與 `decodeUtf8 <$> BS.readFile p`。
+**讀與寫都要明確** —— 只修一邊會變成寫得出去讀不回來。
+
+**5. GHC 在 Windows 上預設以系統 ANSI 字碼頁寫 stdout。**
 素材路徑與素材包名稱大量含有中文,不設 `hSetEncoding stdout utf8` 的話輸出全是亂碼
 —— 而且重導向到檔案時同樣壞掉,所以不是終端機顯示問題,是真的寫錯位元組。
 **每個執行檔的 `main` 都要設。**

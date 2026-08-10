@@ -389,7 +389,8 @@ audit =
     \  id        INTEGER PRIMARY KEY, \
     \  batch_id  TEXT    NOT NULL, \
     \  ts        TEXT    NOT NULL, \
-    \  action    TEXT    NOT NULL CHECK (action IN ('move','copy','delete','mkdir')), \
+    \  action    TEXT    NOT NULL \
+    \            CHECK (action IN ('move','copy','write','delete','mkdir')), \
     \  from_path TEXT, \
     \  to_path   TEXT, \
     \  sha256    TEXT, \

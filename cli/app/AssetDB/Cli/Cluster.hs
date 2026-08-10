@@ -140,6 +140,10 @@ runClusterApply dbPath mSlug =
     results <- mapM (\pk -> (,) pk <$> applyNames st defaultVocab (pkId pk)) packs
 
     mapM_ report results
+
+    -- 命名改變了 logical_name,而那是全文索引的主要欄位。
+    _ <- reindexFts (storeConn st)
+
     let named = sum [anNamed r | (_, r) <- results]
         skipped = sum [anSkipped r | (_, r) <- results]
         problems = sum [length (anFailed r) + length (anCollisions r) | (_, r) <- results]

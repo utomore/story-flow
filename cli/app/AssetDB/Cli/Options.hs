@@ -4,6 +4,7 @@ module AssetDB.Cli.Options
   , ReorgArgs (..)
   , ReorgMode (..)
   , RuleArgs (..)
+  , SearchArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -13,6 +14,7 @@ module AssetDB.Cli.Options
 import Data.Text (Text)
 import Data.Text qualified as T
 import AssetDB.Cli.Cluster (RuleArgs (..))
+import AssetDB.Cli.Search (SearchArgs (..))
 import Options.Applicative
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
@@ -33,6 +35,8 @@ data Command
   | CmdClusterList (Maybe Text)
   | CmdClusterRule RuleArgs
   | CmdClusterApply (Maybe Text)
+  | CmdSearch SearchArgs
+  | CmdIndex
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -89,7 +93,24 @@ commandP =
         <> command "pack" (info packP (progDesc "素材包的授權與作者中繼資料"))
         <> command "reorganize" (info reorgP (progDesc "素材庫重構:dry-run / apply / undo"))
         <> command "cluster" (info clusterP (progDesc "檔名叢集:把命名決策從逐筆降到逐群"))
+        <> command "search" (info (CmdSearch <$> searchP) (progDesc "全文 + facet 搜尋"))
+        <> command "index" (info (pure CmdIndex) (progDesc "重建全文索引"))
     )
+
+searchP :: Parser SearchArgs
+searchP =
+  SearchArgs
+    <$> optional (option (T.pack <$> str) (long "text" <> short 'q' <> metavar "Q" <> help "全文查詢。中英文皆可"))
+    <*> many (option (T.pack <$> str) (long "kind" <> metavar "K" <> help "image / audio / font / …,可重複"))
+    <*> many (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "素材包,可重複"))
+    <*> many (option (T.pack <$> str) (long "author" <> metavar "A" <> help "作者,可重複"))
+    <*> many (option (T.pack <$> str) (long "vendor" <> metavar "V" <> help "廠商,可重複"))
+    <*> switch (long "commercial" <> help "只要可商用的")
+    <*> switch (long "named" <> help "只要已指定邏輯名稱的")
+    <*> switch (long "include-excluded" <> help "納入被判定為非素材的項目(宣傳圖等)")
+    <*> switch (long "include-reference" <> help "納入參考資料。預設排除 —— 找 GUI 框時不該跳出廟宇照片")
+    <*> option auto (long "limit" <> metavar "N" <> value 20 <> showDefault <> help "顯示筆數")
+    <*> switch (long "facets" <> help "同時顯示各 facet 的計數")
 
 clusterP :: Parser Command
 clusterP =

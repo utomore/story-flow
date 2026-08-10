@@ -69,21 +69,41 @@ spec = do
       _ <- runApply env True
       doesDirectoryExist (src env </> "Game Assets itchio/extracted") `shouldReturn` False
 
-  describe "前置檢查" $ do
-    it "目標目錄非空時拒絕動作" $ withLib $ \env -> do
-      createDirectoryIfMissing True (dst env)
-      writeFile (dst env </> "squatter.txt") "x"
-      r <- runApply env False
-      arMoved r `shouldBe` 0
-      arErrors r `shouldSatisfy` any (T.isInfixOf "已存在且非空")
-      -- 沒有動任何來源檔案
-      doesFileExist (src env </> "Game Assets itchio/Raw/demo.zip") `shouldReturn` True
+  describe "冪等性" $ do
+    -- 兩階段設計要求這件事:階段 A 跑完、使用者確認結果無誤之後,
+    -- 才會加上 --delete-covered 再跑一次執行階段 B。
+    -- 第二次跑的時候目標目錄當然非空 —— 那是第一次的成果,不是障礙。
+    it "階段 A 跑過之後,再跑一次會跳過已完成的搬移" $ withLib $ \env -> do
+      r1 <- runApply env False
+      arMoved r1 `shouldBe` 2
+      r2 <- runApply env False
+      arMoved r2 `shouldBe` 0
+      arErrors r2 `shouldBe` []
+      -- 對帳仍然執行,所以「已完成」不等於「不再驗證」
+      arReconciled r2 `shouldBe` 1
 
-    it "來源檔案消失時拒絕動作(計畫過期)" $ withLib $ \env -> do
+    it "階段 B 可以在階段 A 之後單獨執行" $ withLib $ \env -> do
+      _ <- runApply env False
+      r <- runApply env True
+      arErrors r `shouldBe` []
+      arDeleted r `shouldBe` 2
+      doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` False
+
+  describe "前置檢查" $ do
+    it "來源與目標都找不到時拒絕動作(計畫過期)" $ withLib $ \env -> do
       removeFile (src env </> "Game Assets itchio/Raw/demo.zip")
       r <- runApply env False
       arMoved r `shouldBe` 0
-      arErrors r `shouldSatisfy` any (T.isInfixOf "已經不存在")
+      arErrors r `shouldSatisfy` any (T.isInfixOf "都找不到")
+
+    it "來源與目標同時存在時拒絕動作(上次中斷)" $ withLib $ \env -> do
+      -- 曖昧狀態:不知道哪一份才是正確的,所以不猜。
+      let to = dst env </> "library/packs/unknown/demo/demo.zip"
+      createDirectoryIfMissing True (dst env </> "library/packs/unknown/demo")
+      copyFile (src env </> "Game Assets itchio/Raw/demo.zip") to
+      r <- runApply env False
+      arErrors r `shouldSatisfy` any (T.isInfixOf "同時存在")
+      doesFileExist (src env </> "Game Assets itchio/Raw/demo.zip") `shouldReturn` True
 
   describe "回退" $ do
     it "把搬移倒回原位" $ withLib $ \env -> do

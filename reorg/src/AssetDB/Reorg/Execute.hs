@@ -127,34 +127,50 @@ applyPlan st snap opts@ApplyOptions {..} plan = do
 --
 -- 每一項都是「發生了會很難收拾」的事。寧可在動任何檔案之前就拒絕。
 
+-- | 前置檢查。
+--
+-- == 為什麼不能只看「目標目錄是不是空的」
+--
+-- 兩階段設計要求 apply 是**冪等的**:階段 A 跑完之後,使用者確認結果無誤,
+-- 才會加上 @--delete-covered@ 再跑一次執行階段 B。第二次跑的時候目標目錄
+-- 當然非空 —— 那是第一次跑的成果,不是障礙。
+--
+-- 所以檢查的對象是每一筆搬移的**狀態**,而不是目錄的空滿:
+--
+-- * 來源在、目標不在 → 還沒做
+-- * 來源不在、目標在 → 已經做過,跳過
+-- * 兩邊都不在      → 計畫過期或檔案遺失,**拒絕動作**
+-- * 兩邊都在        → 曖昧狀態,可能上次中斷,**拒絕動作**
 preflight :: ApplyOptions -> FilePath -> FilePath -> Plan -> IO [Text]
 preflight ApplyOptions {..} src dst plan = do
-  aoOnEvent (EvPreflight "檢查來源與目標")
+  aoOnEvent (EvPreflight "檢查來源目錄")
   srcOk <- doesDirectoryExist src
-  dstExists <- doesDirectoryExist dst
-  dstEmpty <- if dstExists then null <$> listDirectory dst else pure True
 
-  -- 來源檔案必須全部還在。計畫可能是幾天前產生的。
-  aoOnEvent (EvPreflight "檢查計畫裡的來源檔案是否都還在")
-  missing <-
-    filterM
-      (fmap not . doesPathExist . (src </>) . T.unpack)
-      [f | OpMove f _ _ _ <- planOps plan]
+  aoOnEvent (EvPreflight "逐筆檢查搬移狀態")
+  states <- forM [(f, t) | OpMove f t _ _ <- planOps plan] $ \(f, t) -> do
+    hasFrom <- doesPathExist (src </> T.unpack f)
+    hasTo <- doesPathExist (dst </> T.unpack t)
+    pure (f, hasFrom, hasTo)
+
+  let gone = [f | (f, False, False) <- states]
+      both = [f | (f, True, True) <- states]
+      done = length [() | (_, False, True) <- states]
+
+  when (done > 0) $
+    aoOnEvent (EvNote (tshow done <> " 筆搬移已經完成過,將跳過"))
 
   pure $
     concat
       [ ["來源目錄不存在:" <> T.pack src | not srcOk]
-      , [ "目標目錄已存在且非空:" <> T.pack dst
-            <> "\n  重構會在裡面建立結構,非空目錄可能導致覆蓋。請先清空或改用別的路徑。"
-        | dstExists && not dstEmpty
+      , [ "有 " <> tshow (length gone) <> " 個檔案在來源與目標都找不到。\n"
+            <> "  計畫可能已經過期,或檔案遺失。請重新產生計畫。\n"
+            <> T.unlines (map ("    " <>) (take 5 gone))
+        | not (null gone)
         ]
-      , [ "計畫裡有 " <> tshow (length missing) <> " 個來源檔案已經不存在。\n"
-            <> "  計畫可能已經過期 —— 請重新產生。\n"
-            <> T.unlines (map ("    " <>) (take 5 missing))
-        | not (null missing)
-        ]
-      , [ "同一個 batch id 已經執行過:" <> aoBatchId
-        | False -- 由呼叫端保證唯一;留在這裡是為了說明它是刻意的責任分工
+      , [ "有 " <> tshow (length both) <> " 個檔案在來源與目標同時存在。\n"
+            <> "  這通常代表上一次執行中斷了。請先確認哪一份是正確的。\n"
+            <> T.unlines (map ("    " <>) (take 5 both))
+        | not (null both)
         ]
       ]
 
@@ -179,16 +195,22 @@ runMoves st ApplyOptions {..} src dst plan acc = do
   foldM (step total) acc (zip [1 ..] moves)
   where
     step total a (i, (f, t, b)) = do
-      aoOnEvent (EvProgress i total f)
       let from = src </> T.unpack f
           to = dst </> T.unpack t
-      createDirectoryIfMissing True (takeDirectory to)
-      r <- moveFile from to
-      case r of
-        Left err -> pure a {arErrors = arErrors a <> [f <> ":" <> err]}
-        Right () -> do
-          recordMove st aoBatchId "move" (Just f) (Just t) b
-          pure a {arMoved = arMoved a + 1, arBytesMoved = arBytesMoved a + b}
+      -- 已經搬過就跳過。前置檢查已經排除「兩邊都在」與「兩邊都不在」,
+      -- 所以來源不在就等於已完成。
+      alreadyDone <- not <$> doesPathExist from
+      if alreadyDone
+        then pure a
+        else do
+          aoOnEvent (EvProgress i total f)
+          createDirectoryIfMissing True (takeDirectory to)
+          r <- moveFile from to
+          case r of
+            Left err -> pure a {arErrors = arErrors a <> [f <> ":" <> err]}
+            Right () -> do
+              recordMove st aoBatchId "move" (Just f) (Just t) b
+              pure a {arMoved = arMoved a + 1, arBytesMoved = arBytesMoved a + b}
 
 -- | 先試 rename(同磁碟區時是原子操作且瞬間完成),失敗再退回複製。
 --

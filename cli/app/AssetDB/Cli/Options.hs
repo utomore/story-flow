@@ -2,6 +2,7 @@ module AssetDB.Cli.Options
   ( Command (..)
   , ScanArgs (..)
   , ReorgArgs (..)
+  , ReorgMode (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -31,9 +32,19 @@ data Command
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
   , raTarget :: FilePath
-  , raOut :: Maybe FilePath
-  , raVerbose :: Bool
+  , raMode :: ReorgMode
   }
+
+-- | 模式互斥,而且**沒有預設值**。
+--
+-- 沒有預設模式是刻意的:其中一個模式會刪掉五千個檔案,
+-- 「忘記給旗標」不該落進任何一個會動到檔案的模式。
+data ReorgMode
+  = ModeDryRun (Maybe FilePath) Bool
+  | -- | 'Bool' 是 @--delete-covered@:階段 B,不可回退。
+    ModeApply Bool
+  | ModeUndo Text
+  | ModeListBatches
 
 data ScanArgs = ScanArgs
   { saRoot :: FilePath
@@ -74,24 +85,50 @@ commandP =
         <> command "reorganize" (info reorgP (progDesc "素材庫重構。目前只支援 --dry-run"))
     )
 
--- | 目前**只有** dry-run。
---
--- 把 @--dry-run@ 做成必填而不是預設值,是刻意的:這個指令未來會有
--- 能刪掉五千個檔案的模式,而「忘記加旗標」不該是通往那個模式的路。
 reorgP :: Parser Command
 reorgP =
   CmdReorgPlan
     <$> ( ReorgArgs
             <$> strOption (long "source" <> metavar "PATH" <> help "現有素材庫根目錄")
             <*> strOption (long "target" <> metavar "PATH" <> help "重構後的根目錄")
-            <*> optional (strOption (long "out" <> metavar "FILE" <> help "把完整計畫寫進檔案,終端機只顯示摘要"))
-            <*> switch (long "verbose" <> help "列出每一個要刪除的檔案,而不是只顯示分組數量")
+            <*> modeP
         )
-    <* flag'
-      ()
-      ( long "dry-run"
-          <> help "必填。目前唯一支援的模式 —— 不會改動任何檔案"
-      )
+
+modeP :: Parser ReorgMode
+modeP =
+  dryRunP <|> applyP <|> undoP <|> listP
+  where
+    dryRunP =
+      flag' ()
+        ( long "dry-run"
+            <> help "產生計畫但不改動任何檔案"
+        )
+        *> ( ModeDryRun
+              <$> optional (strOption (long "out" <> metavar "FILE" <> help "把完整計畫寫進檔案,終端機只顯示摘要"))
+              <*> switch (long "verbose" <> help "列出每一個要刪除的檔案,而不是只顯示分組數量")
+           )
+
+    -- 階段 A 與階段 B 需要兩個旗標。階段 A 完全可回退,階段 B 不可 ——
+    -- 綁在一起等於讓可回退的部分被不可回退的部分綁架。
+    applyP =
+      flag' ()
+        ( long "apply"
+            <> help "執行階段 A:建目錄、搬壓縮檔、寫 pack.toml。完全可回退"
+        )
+        *> ( ModeApply
+              <$> switch
+                ( long "delete-covered"
+                    <> help "同時執行階段 B:刪除已由 SHA-256 證明存在於壓縮檔內的散檔。**不可回退**"
+                )
+           )
+
+    undoP =
+      ModeUndo
+        <$> option
+          (T.pack <$> str)
+          (long "undo" <> metavar "BATCH" <> help "回退某個批次的搬移(刪除無法回退)")
+
+    listP = flag' ModeListBatches (long "list-batches" <> help "列出已執行的批次")
 
 packP :: Parser Command
 packP =

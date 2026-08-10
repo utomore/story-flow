@@ -56,9 +56,9 @@ renderAssetsModule projectName refs =
     header =
       [ "-- | " <> projectName <> " 的素材 key。"
       , "--"
-      , "-- **由 assetdb 產生,請勿手動編輯。** 重新產生:"
-      , "--"
-      , "-- @assetdb project sync@"
+      , "-- **由 assetdb 產生,請勿手動編輯。** 手動加的常數下次重新產生就沒了,"
+      , "-- 而且它指向的檔案不在 manifest 裡,載入器查不到。"
+      , "-- 重新產生的方式見 SKILL.md 的「加入新素材」。"
       , "--"
       , "-- 用這些常數而不是字串字面值:打錯是編譯錯誤,不是執行期黑畫面。"
       , "module Assets where"

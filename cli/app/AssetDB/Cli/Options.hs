@@ -37,6 +37,7 @@ data Command
   | CmdClusterApply (Maybe Text)
   | CmdSearch SearchArgs
   | CmdIndex
+  | CmdThumbs Bool
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -95,6 +96,12 @@ commandP =
         <> command "cluster" (info clusterP (progDesc "檔名叢集:把命名決策從逐筆降到逐群"))
         <> command "search" (info (CmdSearch <$> searchP) (progDesc "全文 + facet 搜尋"))
         <> command "index" (info (pure CmdIndex) (progDesc "重建全文索引"))
+        <> command
+          "thumbs"
+          ( info
+              (CmdThumbs <$> switch (long "force" <> help "重新產生已存在的縮圖"))
+              (progDesc "產生縮圖(內容定址,每份唯一內容只算一次)")
+          )
     )
 
 searchP :: Parser SearchArgs

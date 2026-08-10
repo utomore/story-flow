@@ -4,6 +4,7 @@ import AssetDB.Archive (describeTools, discoverTools)
 import AssetDB.Cli.Options
 import AssetDB.Ingest
 import AssetDB.Store
+import AssetDB.Store.Index (reindexFts)
 import Data.IORef
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO

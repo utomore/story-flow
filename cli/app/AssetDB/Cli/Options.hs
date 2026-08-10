@@ -28,6 +28,7 @@ data Command
   | CmdPackList
   | CmdPackApply FilePath
   | CmdReorgPlan ReorgArgs
+  | CmdClusterList (Maybe Text)
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -82,7 +83,21 @@ commandP =
         <> command "tools" (info (pure CmdTools) (progDesc "檢查外部工具(7-Zip)是否可用"))
         <> command "doctor" (info (pure CmdDoctor) (progDesc "檢查資料庫狀態與待辦"))
         <> command "pack" (info packP (progDesc "素材包的授權與作者中繼資料"))
-        <> command "reorganize" (info reorgP (progDesc "素材庫重構。目前只支援 --dry-run"))
+        <> command "reorganize" (info reorgP (progDesc "素材庫重構:dry-run / apply / undo"))
+        <> command "cluster" (info clusterP (progDesc "檔名叢集:把命名決策從逐筆降到逐群"))
+    )
+
+clusterP :: Parser Command
+clusterP =
+  hsubparser
+    ( command
+        "list"
+        ( info
+            ( CmdClusterList
+                <$> optional (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "只看某一包"))
+            )
+            (progDesc "列出每個素材包的命名叢集")
+        )
     )
 
 reorgP :: Parser Command

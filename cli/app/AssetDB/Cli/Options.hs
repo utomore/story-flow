@@ -1,6 +1,7 @@
 module AssetDB.Cli.Options
   ( Command (..)
   , ScanArgs (..)
+  , ReorgArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -25,6 +26,14 @@ data Command
   | CmdDoctor
   | CmdPackList
   | CmdPackApply FilePath
+  | CmdReorgPlan ReorgArgs
+
+data ReorgArgs = ReorgArgs
+  { raSource :: FilePath
+  , raTarget :: FilePath
+  , raOut :: Maybe FilePath
+  , raVerbose :: Bool
+  }
 
 data ScanArgs = ScanArgs
   { saRoot :: FilePath
@@ -62,7 +71,27 @@ commandP =
         <> command "tools" (info (pure CmdTools) (progDesc "檢查外部工具(7-Zip)是否可用"))
         <> command "doctor" (info (pure CmdDoctor) (progDesc "檢查資料庫狀態與待辦"))
         <> command "pack" (info packP (progDesc "素材包的授權與作者中繼資料"))
+        <> command "reorganize" (info reorgP (progDesc "素材庫重構。目前只支援 --dry-run"))
     )
+
+-- | 目前**只有** dry-run。
+--
+-- 把 @--dry-run@ 做成必填而不是預設值,是刻意的:這個指令未來會有
+-- 能刪掉五千個檔案的模式,而「忘記加旗標」不該是通往那個模式的路。
+reorgP :: Parser Command
+reorgP =
+  CmdReorgPlan
+    <$> ( ReorgArgs
+            <$> strOption (long "source" <> metavar "PATH" <> help "現有素材庫根目錄")
+            <*> strOption (long "target" <> metavar "PATH" <> help "重構後的根目錄")
+            <*> optional (strOption (long "out" <> metavar "FILE" <> help "把完整計畫寫進檔案,終端機只顯示摘要"))
+            <*> switch (long "verbose" <> help "列出每一個要刪除的檔案,而不是只顯示分組數量")
+        )
+    <* flag'
+      ()
+      ( long "dry-run"
+          <> help "必填。目前唯一支援的模式 —— 不會改動任何檔案"
+      )
 
 packP :: Parser Command
 packP =

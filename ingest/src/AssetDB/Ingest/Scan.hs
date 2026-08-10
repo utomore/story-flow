@@ -125,9 +125,20 @@ discover root = go root ([], [])
       if isDir
         then go p acc
         else
-          pure $ case detectFormat p of
-            Just _ -> (p : as, ls)
-            Nothing -> (as, p : ls)
+          pure $
+            if isMetadata p
+              then acc
+              else case detectFormat p of
+                Just _ -> (p : as, ls)
+                Nothing -> (as, p : ls)
+
+-- | 系統自己產生的中繼資料檔案不是素材。
+--
+-- @pack.toml@ 描述它所在的素材包 —— 把它索引成資源會讓「這包有幾個檔案」
+-- 多出一筆,而且它永遠不會出現在任何壓縮檔內,所以覆蓋率報告會永遠掛著
+-- 一個假的「未覆蓋」項目。
+isMetadata :: FilePath -> Bool
+isMetadata p = takeFileName p `elem` ["pack.toml", "manifest.json"]
 
 --------------------------------------------------------------------------------
 -- 壓縮檔

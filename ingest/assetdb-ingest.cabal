@@ -21,6 +21,7 @@ library
         AssetDB.Ingest.Handler
         AssetDB.Ingest.Catalogue
         AssetDB.Ingest.Cluster
+        AssetDB.Ingest.ClusterDb
         AssetDB.Ingest.Scan
         AssetDB.Ingest.Report
     hs-source-dirs:   src
@@ -58,6 +59,7 @@ test-suite assetdb-ingest-test
         AssetDB.Ingest.HandlerSpec
         AssetDB.Ingest.CatalogueSpec
         AssetDB.Ingest.ClusterSpec
+        AssetDB.Ingest.ClusterDbSpec
         AssetDB.Ingest.ScanSpec
     hs-source-dirs:   test
     build-depends:
@@ -66,6 +68,7 @@ test-suite assetdb-ingest-test
         , assetdb-ingest
         , assetdb-store
         , aeson
+        , containers
         , base
         , bytestring
         , directory

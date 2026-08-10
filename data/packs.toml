@@ -157,7 +157,7 @@ notes   = "免費版,35 種特效。與其他壓縮檔**完全沒有內容重疊
 [[pack]]
 archive = "[Fonts] Idylwild's Runic Codex.zip"
 name    = "Idylwild's Runic Codex"
-slug    = "idylwild-runic-codex"
+slug    = "runic-codex"
 vendor  = "Idylwild"
 author  = "Idylwild"
 author_url = "https://idylwild.itch.io"
@@ -184,7 +184,7 @@ notes   = "⚠ 作者名待補 —— 壓縮檔內的 License.txt 沒有署名,�
 [[pack]]
 archive = "animal-icons.zip"
 name = "Animal Icons"
-slug = "kibyra-animal-icons"
+slug = "animal-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -195,7 +195,7 @@ price_usd = 2.0
 [[pack]]
 archive = "book-icons.zip"
 name = "Book Icons"
-slug = "kibyra-book-icons"
+slug = "book-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -207,7 +207,7 @@ acquired = "2026-04-22"
 [[pack]]
 archive = "crafting-materials-icons.zip"
 name = "Crafting Materials Icons"
-slug = "kibyra-crafting-materials-icons"
+slug = "crafting-materials-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -218,7 +218,7 @@ price_usd = 2.0
 [[pack]]
 archive = "food-icons.zip"
 name = "Food Icons"
-slug = "kibyra-food-icons"
+slug = "food-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -229,7 +229,7 @@ price_usd = 2.0
 [[pack]]
 archive = "herbs&medicinal-plants.zip"
 name = "Herbs & Medicinal Plants"
-slug = "kibyra-herbs-medicinal-plants"
+slug = "herbs-medicinal-plants"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -240,7 +240,7 @@ price_usd = 2.0
 [[pack]]
 archive = "ingots&refinedmetals-icons.zip"
 name = "Ingots & Refined Metals Icons"
-slug = "kibyra-ingots-refined-metals-icons"
+slug = "ingots-refined-metals-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -251,7 +251,7 @@ price_usd = 2.0
 [[pack]]
 archive = "monsterparts-icons.zip"
 name = "Monster Parts Icons"
-slug = "kibyra-monster-parts-icons"
+slug = "monster-parts-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -262,7 +262,7 @@ price_usd = 2.0
 [[pack]]
 archive = "ores-minerals-icons.zip"
 name = "Ores & Minerals Icons"
-slug = "kibyra-ores-minerals-icons"
+slug = "ores-minerals-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -273,7 +273,7 @@ price_usd = 2.0
 [[pack]]
 archive = "treasure-icons.zip"
 name = "Treasure Icons"
-slug = "kibyra-treasure-icons"
+slug = "treasure-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -284,7 +284,7 @@ price_usd = 2.0
 [[pack]]
 archive = "weather-icons.zip"
 name = "Weather Icons"
-slug = "kibyra-weather-icons"
+slug = "weather-icons"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -295,7 +295,7 @@ price_usd = 2.0
 [[pack]]
 archive = "Magic Potions.zip"
 name = "Magic Potions"
-slug = "kibyra-magic-potions"
+slug = "magic-potions"
 vendor = "Kibyra"
 author = "Kibyra"
 author_url = "https://kibyra.itch.io"
@@ -316,6 +316,7 @@ notes   = "⚠ 作者、來源、授權全部未知。維持 draft,建商業專�
 
 [[pack]]
 archive = "金門建築.rar"
+kind    = "reference"
 name    = "1990 年代金門建築"
 slug    = "ref-1990s-taiwan-jinmen-architecture"
 author  = "Alchbees Studio"
@@ -326,6 +327,7 @@ notes   = "自有攝影素材。歸入 reference,預設不進素材搜尋結果�
 
 [[pack]]
 archive = "金門地道.rar"
+kind    = "reference"
 name    = "1990 年代金門地道"
 slug    = "ref-1990s-taiwan-jinmen-tunnels"
 author  = "Alchbees Studio"
@@ -336,6 +338,7 @@ notes   = "自有攝影素材。與金門建築有 3 筆重複照片。"
 
 [[pack]]
 archive = "福岡廟宇.rar"
+kind    = "reference"
 name    = "日本福岡廟宇"
 slug    = "ref-1990s-japan-fukuoka-temples"
 author  = "Alchbees Studio"

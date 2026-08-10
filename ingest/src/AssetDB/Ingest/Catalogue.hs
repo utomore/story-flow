@@ -56,6 +56,13 @@ data PackEntry = PackEntry
   , peVersion :: Maybe Text
   , pePrice :: Maybe Double
   , peAcquired :: Maybe Text
+  , peKind :: Maybe Text
+  -- ^ @packs@(預設)/ @reference@ / @studio@。決定重構後落在
+  -- @library\/packs\/@ 還是 @library\/reference\/@。
+  --
+  -- 做成明確欄位而不是從路徑或授權推測:「金門建築是參考資料」這件事
+  -- 是人的判斷,不該由 @現實資源@ 這個資料夾名稱間接決定 —— 那個資料夾
+  -- 重構後就不存在了。
   , peNotes :: Maybe Text
   }
   deriving stock (Eq, Show)
@@ -82,6 +89,7 @@ instance FromValue PackEntry where
         <*> optKey "version"
         <*> optKey "price_usd"
         <*> optKey "acquired"
+        <*> optKey "kind"
         <*> optKey "notes"
 
 parseCatalogue :: Text -> Either Text Catalogue
@@ -145,7 +153,8 @@ applyOne conn now PackEntry {..} = do
             conn
             "UPDATE packs SET name=?, slug=?, vendor=?, author_id=?, license_id=?, \
             \  source_url=?, version=?, price_usd=?, acquired=?, \
-            \  ai_disclosure=COALESCE(?,ai_disclosure), status=?, updated_at=? \
+            \  ai_disclosure=COALESCE(?,ai_disclosure), kind=COALESCE(?,kind), \
+            \  notes=?, status=?, updated_at=? \
             \WHERE id=?"
             [ SQLText peName
             , SQLText peSlug
@@ -157,6 +166,8 @@ applyOne conn now PackEntry {..} = do
             , maybe SQLNull SQLFloat pePrice
             , maybeText peAcquired
             , maybeText peAi
+            , maybeText peKind
+            , maybeText peNotes
             , SQLText (if ready then "ready" else "draft")
             , SQLText now
             , SQLInteger (fromIntegral packId)

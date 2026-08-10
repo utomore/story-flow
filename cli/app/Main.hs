@@ -4,6 +4,7 @@ import AssetDB.Archive (describeTools, discoverTools)
 import AssetDB.Cli.Doctor (runDoctor)
 import AssetDB.Cli.Options
 import AssetDB.Cli.Pack (runPackApply, runPackList)
+import AssetDB.Cli.Reorg (runReorgPlan)
 import AssetDB.Cli.Scan (runScan)
 import Data.Text.IO qualified as TIO
 import System.IO
@@ -24,3 +25,6 @@ main = do
     CmdDoctor -> resolveDbPath global >>= runDoctor
     CmdPackList -> resolveDbPath global >>= runPackList
     CmdPackApply f -> resolveDbPath global >>= \db -> runPackApply db f
+    CmdReorgPlan a ->
+      resolveDbPath global >>= \db ->
+        runReorgPlan db (raSource a) (raTarget a) (raOut a) (raVerbose a)

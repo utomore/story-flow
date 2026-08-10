@@ -119,9 +119,12 @@ sources =
     \  price_usd     REAL, \
     \  license_id    INTEGER REFERENCES licenses(id), \
     \  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready')), \
+    \  kind          TEXT NOT NULL DEFAULT 'packs' \
+    \                CHECK (kind IN ('packs','reference','studio')), \
     \  ai_disclosure TEXT NOT NULL DEFAULT 'unknown' \
     \                CHECK (ai_disclosure IN ('unknown','none','assisted','generated')), \
     \  ai_notes      TEXT, \
+    \  notes         TEXT, \
     \  root_id       INTEGER NOT NULL REFERENCES roots(id), \
     \  rel_dir       TEXT NOT NULL, \
     \  toml_sha256   TEXT, \

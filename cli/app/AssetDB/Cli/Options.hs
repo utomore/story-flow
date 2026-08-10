@@ -3,6 +3,7 @@ module AssetDB.Cli.Options
   , ScanArgs (..)
   , ReorgArgs (..)
   , ReorgMode (..)
+  , RuleArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -11,6 +12,7 @@ module AssetDB.Cli.Options
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import AssetDB.Cli.Cluster (RuleArgs (..))
 import Options.Applicative
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
@@ -29,6 +31,8 @@ data Command
   | CmdPackApply FilePath
   | CmdReorgPlan ReorgArgs
   | CmdClusterList (Maybe Text)
+  | CmdClusterRule RuleArgs
+  | CmdClusterApply (Maybe Text)
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -93,12 +97,59 @@ clusterP =
     ( command
         "list"
         ( info
-            ( CmdClusterList
-                <$> optional (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "只看某一包"))
-            )
+            (CmdClusterList <$> optional packOpt)
             (progDesc "列出每個素材包的命名叢集")
         )
+        <> command
+          "rule"
+          ( info
+              (CmdClusterRule <$> ruleArgsP)
+              (progDesc "預覽或確認一個叢集的命名規則(預設只預覽)")
+          )
+        <> command
+          "apply"
+          ( info
+              (CmdClusterApply <$> optional packOpt)
+              (progDesc "把已確認的規則套用成邏輯名稱")
+          )
     )
+  where
+    packOpt = option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "限定某一包")
+
+ruleArgsP :: Parser RuleArgs
+ruleArgsP =
+  RuleArgs
+    <$> option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "素材包 slug")
+    <*> option (T.pack <$> str) (long "shape" <> metavar "KEY" <> help "叢集鍵,取自 cluster list")
+    <*> option (T.pack <$> str) (long "kind" <> metavar "K" <> help "spr / tex / ui / fnt / sfx …")
+    <*> option (T.pack <$> str) (long "domain" <> metavar "D" <> help "gui / ground / char / fx …")
+    <*> optional
+      ( option
+          (T.pack <$> str)
+          ( long "subject"
+              <> metavar "S"
+              <> help "固定主體前綴。檔名裡沒有主體時必填(如 idle_down.png)"
+          )
+      )
+    <*> many (option auto (long "drop" <> metavar "N" <> help "丟掉第 N 個權杖(0 起算),可重複"))
+    <*> option
+      auto
+      ( long "dirs"
+          <> metavar "N"
+          <> value 0
+          <> showDefault
+          <> help "把最後 N 層目錄名納入主體。純數字檔名時用來避免撞名"
+      )
+    <*> option
+      (T.pack <$> str)
+      ( long "numeric"
+          <> metavar "MODE"
+          <> value "auto"
+          <> showDefault
+          <> help "尾端數字的角色:auto / variant / index"
+      )
+    <*> many (option (T.pack <$> str) (long "tag" <> metavar "T" <> help "附加標籤,可重複"))
+    <*> switch (long "confirm" <> help "真的寫入規則。不加就只是預覽")
 
 reorgP :: Parser Command
 reorgP =

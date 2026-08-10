@@ -1,7 +1,7 @@
 module Main (main) where
 
 import AssetDB.Archive (describeTools, discoverTools)
-import AssetDB.Cli.Cluster (runClusterList)
+import AssetDB.Cli.Cluster (runClusterApply, runClusterList, runClusterRule)
 import AssetDB.Cli.Doctor (runDoctor)
 import AssetDB.Cli.Options
 import AssetDB.Cli.Pack (runPackApply, runPackList)
@@ -28,3 +28,5 @@ main = do
     CmdPackApply f -> resolveDbPath global >>= \db -> runPackApply db f
     CmdReorgPlan a -> resolveDbPath global >>= \db -> runReorg db a
     CmdClusterList s -> resolveDbPath global >>= \db -> runClusterList db s
+    CmdClusterRule a -> resolveDbPath global >>= \db -> runClusterRule db a
+    CmdClusterApply s -> resolveDbPath global >>= \db -> runClusterApply db s

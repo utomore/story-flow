@@ -36,6 +36,7 @@ module AssetDB.Ingest.Cluster
     -- * 叢集
   , ClusterKey (..)
   , clusterKeyText
+  , clusterKeyOf
   , Cluster (..)
   , clusterBy
 
@@ -47,6 +48,7 @@ module AssetDB.Ingest.Cluster
 
 import AssetDB.Naming
 import AssetDB.Types (KindPrefix)
+import Data.Aeson
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
@@ -201,20 +203,23 @@ data Cluster = Cluster
   }
   deriving stock (Eq, Show)
 
+-- | 單一路徑所屬的叢集。套用規則時要用它反查 —— 分群與反查必須是
+-- **同一段程式碼**,否則規則會套到錯的檔案上。
+clusterKeyOf :: Text -> ClusterKey
+clusterKeyOf p =
+  ClusterKey
+    { ckRole = dirRole p
+    , ckShape = fileShape (stemOf p)
+    , ckExt = extOf p
+    }
+
 -- | 把一包的項目路徑分群。
 clusterBy :: [Text] -> [Cluster]
 clusterBy paths =
   sortOn (negate . clCount) [toCluster k ps | (k, ps) <- Map.toList grouped]
   where
     grouped = foldr (flip add) Map.empty paths
-    add m p = Map.insertWith (<>) (keyOf p) [p] m
-
-    keyOf p =
-      ClusterKey
-        { ckRole = dirRole p
-        , ckShape = fileShape (stemOf p)
-        , ckExt = extOf p
-        }
+    add m p = Map.insertWith (<>) (clusterKeyOf p) [p] m
 
     toCluster k ps =
       let sorted = sortOn id ps
@@ -251,6 +256,16 @@ extOf p =
 data NumericRole = NumAuto | NumVariant | NumIndex
   deriving stock (Eq, Show)
 
+instance ToJSON NumericRole where
+  toJSON = \case NumAuto -> "auto"; NumVariant -> "variant"; NumIndex -> "index"
+
+instance FromJSON NumericRole where
+  parseJSON = withText "NumericRole" $ \case
+    "auto" -> pure NumAuto
+    "variant" -> pure NumVariant
+    "index" -> pure NumIndex
+    other -> fail ("未知的 numeric 角色:" <> T.unpack other)
+
 data NameRule = NameRule
   { nrKind :: KindPrefix
   , nrDomain :: Text
@@ -272,6 +287,32 @@ data NameRule = NameRule
   , nrTags :: [Text]
   }
   deriving stock (Eq, Show)
+
+-- 手寫而非 Generic:這個 JSON 存進資料庫的 @name_clusters.rule_json@,
+-- 是**跨越工具版本的持久化格式**。欄位名不該由 Haskell 的欄位名間接決定 ——
+-- 那種寫法在有人重新命名欄位時會讓既有的規則全部讀不回來。
+instance ToJSON NameRule where
+  toJSON NameRule {..} =
+    object
+      [ "kind" .= nrKind
+      , "domain" .= nrDomain
+      , "subject" .= nrSubject
+      , "dropTokens" .= nrDropTokens
+      , "includeDirs" .= nrIncludeDirs
+      , "numeric" .= nrNumeric
+      , "tags" .= nrTags
+      ]
+
+instance FromJSON NameRule where
+  parseJSON = withObject "NameRule" $ \o ->
+    NameRule
+      <$> o .: "kind"
+      <*> o .: "domain"
+      <*> o .:? "subject"
+      <*> o .:? "dropTokens" .!= []
+      <*> o .:? "includeDirs" .!= 0
+      <*> o .:? "numeric" .!= NumAuto
+      <*> o .:? "tags" .!= []
 
 -- | 對單一項目路徑套用規則,產生邏輯名稱。
 applyRule :: NamingVocab -> NameRule -> Text -> Either NameError LogicalName

@@ -1,0 +1,199 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+-- | 知識建檔與行銷資訊。
+--
+-- == 為什麼不需要獨立的子系統
+--
+-- 知識文件與行銷素材看起來是兩個新功能,實際上它們是同一張圖上的節點:
+-- @notes@ 是節點,@links@ 是邊,而素材與專案早就在同一張圖上了。
+--
+-- 所以「這篇筆記描述哪個素材」「這張截圖宣傳哪個專案」用的是與
+-- 「這個關卡使用哪些 tileset」完全相同的機制 —— 不是類比,是同一段程式碼。
+module AssetDB.Ingest.Notes
+  ( NoteDoc (..)
+  , parseFrontMatter
+  , importNotes
+  , listNotes
+  , linkEntities
+  , entityLinks
+  , reindexNotes
+  ) where
+
+import AssetDB.Id (newULID, unULID)
+import AssetDB.Store
+import AssetDB.Store.Tokenize
+import AssetDB.Types (LinkRel, NoteKind, TextEnum (..))
+import Control.Monad (forM, forM_)
+import Data.ByteString qualified as BS
+import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.Encoding (decodeUtf8Lenient)
+import Data.Time.Clock (getCurrentTime)
+import Data.Time.Format.ISO8601 (iso8601Show)
+import Database.SQLite.Simple
+import System.Directory (doesDirectoryExist, listDirectory)
+import System.FilePath (takeExtension, takeFileName, (</>))
+
+data NoteDoc = NoteDoc
+  { ndTitle :: Text
+  , ndBody :: Text
+  , ndFront :: [(Text, Text)]
+  , ndSource :: Text
+  }
+  deriving stock (Eq, Show)
+
+-- | 解析 YAML 風格的 front matter。
+--
+-- 刻意只支援 @key: value@ 這一種形式,不引入 YAML 函式庫。
+-- 筆記的 front matter 只需要標題、標籤、日期這幾個純量欄位;
+-- 支援巢狀結構只會讓人開始把資料塞進文件裡,而那些資料應該進資料庫。
+--
+-- 沒有 front matter 時,標題取自第一個 Markdown 標題,再退回檔名。
+parseFrontMatter :: Text -> Text -> NoteDoc
+parseFrontMatter source raw =
+  case T.stripPrefix "---" (T.stripStart raw) of
+    Just rest
+      | (block, body) <- T.breakOn "\n---" rest
+      , not (T.null body) ->
+          let front = [kv l | l <- T.lines block, T.isInfixOf ":" l]
+              content = T.drop 4 body
+           in NoteDoc (titleFrom front content) (T.strip content) front source
+    _ -> NoteDoc (titleFrom [] raw) (T.strip raw) [] source
+  where
+    kv l = let (k, v) = T.breakOn ":" l in (T.strip k, T.strip (T.drop 1 v))
+
+    titleFrom :: [(Text, Text)] -> Text -> Text
+    titleFrom front content =
+      case lookup "title" front of
+        Just t | not (T.null t) -> unquote t
+        _ -> case [T.strip h | l <- T.lines content, Just h <- [T.stripPrefix "# " l]] of
+          (h : _) -> h
+          [] -> T.pack (takeFileName (T.unpack source))
+
+    unquote t = maybe t id (T.stripSuffix "\"" =<< T.stripPrefix "\"" t)
+
+--------------------------------------------------------------------------------
+
+-- | 匯入一個目錄裡的 Markdown 檔案。
+--
+-- 以 @source_path@ 為識別鍵重複匯入是更新而不是新增 —— 筆記會被反覆編輯,
+-- 每次匯入都新增一筆會讓同一份文件散成好幾個版本。
+importNotes :: Store -> NoteKind -> FilePath -> IO [(Text, Text)]
+importNotes st kind dir = do
+  ok <- doesDirectoryExist dir
+  if not ok
+    then pure []
+    else do
+      names <- listDirectory dir
+      let mds = [n | n <- names, takeExtension n `elem` [".md", ".markdown"]]
+      now <- T.pack . iso8601Show <$> getCurrentTime
+      forM mds $ \n -> do
+        raw <- decodeUtf8Lenient <$> BS.readFile (dir </> n)
+        let doc = parseFrontMatter (T.pack n) raw
+        u <- unULID <$> newULID
+        -- 部分唯一索引的 ON CONFLICT **必須重複同樣的 WHERE 述詞**,
+        -- 否則 SQLite 認不出要用哪個索引來解衝突。
+        execute
+          (storeConn st)
+          "INSERT INTO notes (ulid, kind, title, body_md, front_matter_json, source_path, created_at, updated_at) \
+          \VALUES (?,?,?,?,?,?,?,?) \
+          \ON CONFLICT (source_path) WHERE source_path IS NOT NULL DO UPDATE SET \
+          \  title = excluded.title, body_md = excluded.body_md, \
+          \  front_matter_json = excluded.front_matter_json, updated_at = excluded.updated_at"
+          ( u
+          , toTextEnum kind
+          , ndTitle doc
+          , ndBody doc
+          , frontJson (ndFront doc)
+          , ndSource doc
+          , now
+          , now
+          )
+        pure (ndTitle doc, ndSource doc)
+  where
+    frontJson kvs =
+      "{" <> T.intercalate "," [quo k <> ":" <> quo v | (k, v) <- kvs] <> "}"
+    quo t = "\"" <> T.replace "\"" "\\\"" t <> "\""
+
+listNotes :: Store -> Maybe NoteKind -> IO [(Text, Text, Text, Text)]
+listNotes st mk =
+  query
+    (storeConn st)
+    "SELECT ulid, kind, title, COALESCE(source_path,'') FROM notes \
+    \WHERE (? IS NULL OR kind = ?) ORDER BY kind, title"
+    (fmap toTextEnum mk, fmap toTextEnum mk)
+
+--------------------------------------------------------------------------------
+-- 關聯圖
+
+-- | 建立一條邊。@(src, dst, rel)@ 三元組唯一,重複建立是無操作。
+linkEntities :: Store -> Text -> Text -> Text -> Text -> LinkRel -> Maybe Text -> IO ()
+linkEntities st srcType srcUlid dstType dstUlid rel notes = do
+  srcId <- resolve srcType srcUlid
+  dstId <- resolve dstType dstUlid
+  case (srcId, dstId) of
+    (Just s, Just d) ->
+      execute
+        (storeConn st)
+        "INSERT OR IGNORE INTO links (src_type, src_id, dst_type, dst_id, rel, notes) \
+        \VALUES (?,?,?,?,?,?)"
+        (srcType, s, dstType, d, toTextEnum rel, notes)
+    _ -> ioError (userError "找不到來源或目標實體")
+  where
+    resolve t u = do
+      rows <- query (storeConn st) (Query ("SELECT id FROM " <> tableOf t <> " WHERE ulid = ?")) (Only u)
+      pure (case rows of (Only i : _) -> Just (i :: Int); _ -> Nothing)
+
+tableOf :: Text -> Text
+tableOf = \case
+  "asset" -> "assets"
+  "project" -> "projects"
+  "note" -> "notes"
+  "collection" -> "collections"
+  "pack" -> "packs"
+  other -> error ("未知的實體型別 " <> T.unpack other)
+
+-- | 某個實體的所有邊,**雙向**。
+--
+-- 「改這張 tileset 會影響哪些關卡」是從目標端出發的查詢,
+-- 與「這個關卡用了哪些 tileset」一樣常見。只做單向等於做了一半。
+entityLinks :: Store -> Text -> Text -> IO [(Text, Text, Text, Text)]
+entityLinks st entType ulid = do
+  rows <-
+    query
+      (storeConn st)
+      ( Query
+          ( "SELECT 'out', l.rel, l.dst_type, l.dst_id FROM links l \
+            \JOIN " <> tableOf entType <> " e ON e.id = l.src_id \
+            \WHERE l.src_type = ? AND e.ulid = ? \
+            \UNION ALL \
+            \SELECT 'in', l.rel, l.src_type, l.src_id FROM links l \
+            \JOIN " <> tableOf entType <> " e ON e.id = l.dst_id \
+            \WHERE l.dst_type = ? AND e.ulid = ?"
+          )
+      )
+      (entType, ulid, entType, ulid) ::
+      IO [(Text, Text, Text, Int)]
+  pure [(d, r, t, T.pack (show i)) | (d, r, t, i) <- rows]
+
+--------------------------------------------------------------------------------
+
+-- | 重建筆記的全文索引。
+--
+-- 筆記內容全部是繁體中文,所以 bigram 索引在這裡不是備援而是**主力** ——
+-- trigram 對中文的三字元下限會讓「行銷」「素材」這種詞完全搜不到。
+reindexNotes :: Store -> IO Int
+reindexNotes st = do
+  let conn = storeConn st
+  rows <- query_ conn "SELECT id, title, body_md FROM notes" :: IO [(Int, Text, Text)]
+  withTransaction conn $ do
+    execute_ conn "INSERT INTO notes_fts(notes_fts) VALUES('delete-all')"
+    execute_ conn "INSERT INTO notes_cjk(notes_cjk) VALUES('delete-all')"
+    forM_ rows $ \(rid, title, body) -> do
+      execute conn "INSERT INTO notes_fts(rowid, title, body_md) VALUES (?,?,?)" (rid, title, body)
+      let blob = title <> " " <> body
+      if hasCJK blob
+        then do
+          let CjkIndex {..} = cjkIndex blob
+          execute conn "INSERT INTO notes_cjk(rowid, uni, bi) VALUES (?,?,?)" (rid, cjkUni, cjkBi)
+        else pure ()
+  pure (length rows)

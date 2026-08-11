@@ -64,37 +64,39 @@ renderPlan v p =
 
     warningsSection = warningLines p
 
+    -- 一律在 list comprehension 裡解構,不用選取子。opFrom / opTo 這些
+    -- 在 Op 這種 sum type 上是部分函數,用錯建構子會在執行期爆炸。
     mkdirSection =
-      section "建立目錄" [opPath o | o@OpMkDir {} <- ops] $ \paths ->
-        map ("  " <>) paths
+      section "建立目錄" [p' | OpMkDir p' <- ops] (map ("  " <>))
 
     moveSection =
-      section "搬移" [o | o@OpMove {} <- ops] $ \os ->
+      section "搬移" [(f, t, w) | OpMove f t _ w <- ops] $ \os ->
         concatMap
-          (\o -> ["  " <> opFrom o, "    → " <> opTo o <> "   [" <> opWhy o <> "]"])
-          (sortOn opTo os)
+          (\(f, t, w) -> ["  " <> f, "    → " <> t <> "   [" <> w <> "]"])
+          (sortOn (\(_, t, _) -> t) os)
 
     writeSection =
-      section "寫入" [o | o@OpWrite {} <- ops] $ \os ->
-        map (\o -> "  " <> opTo o) (sortOn opTo os)
+      section "寫入" [t | OpWrite t _ <- ops] $ \os ->
+        map ("  " <>) (sortOn id os)
 
     -- 刪除是唯一不可逆的部分,所以每一組都要標明證據來源。
     deleteSection =
-      section "刪除散檔(已由 SHA-256 證明存在於壓縮檔內)" [o | o@OpDelete {} <- ops] $ \os ->
-        let grouped = Map.toList (Map.fromListWith (<>) [(opCoveredBy o, [o]) | o <- os])
+      section "刪除散檔(已由 SHA-256 證明存在於壓縮檔內)" [(f, s, c) | OpDelete f s c _ <- ops] $ \os ->
+        let grouped = Map.toList (Map.fromListWith (<>) [(c, [(f, s)]) | (f, s, c) <- os])
          in concatMap renderGroup (sortOn fst grouped)
 
     renderGroup (archive, os) =
       [ "  " <> T.justifyRight 6 ' ' (tshow (length os)) <> " 個檔案  ← " <> archive
       ]
         <> case v of
-          Verbose -> map (\o -> "         " <> opFrom o <> "  " <> T.take 12 (opSha o)) (sortOn opFrom os)
-          Summary -> map (\o -> "         " <> opFrom o) (take 3 (sortOn opFrom os))
-            <> ["         …(其餘 " <> tshow (length os - 3) <> " 個以 --verbose 顯示)" | length os > 3]
+          Verbose -> map (\(f, s) -> "         " <> f <> "  " <> T.take 12 s) (sortOn fst os)
+          Summary ->
+            map (\(f, _) -> "         " <> f) (take 3 (sortOn fst os))
+              <> ["         …(其餘 " <> tshow (length os - 3) <> " 個以 --verbose 顯示)" | length os > 3]
 
     keepSection =
-      section "保留(需要人工決定)" [o | o@OpKeep {} <- ops] $ \os ->
-        map (\o -> "  " <> opFrom o <> "\n    " <> opWhy o) (sortOn opFrom os)
+      section "保留(需要人工決定)" [(f, w) | OpKeep f w <- ops] $ \os ->
+        map (\(f, w) -> "  " <> f <> "\n    " <> w) (sortOn fst os)
 
     footer =
       [ ""
@@ -127,11 +129,11 @@ warningLines p
 
 keepLines :: Plan -> [Text]
 keepLines p =
-  case [o | o@OpKeep {} <- planOps p] of
+  case [(f, w) | OpKeep f w <- planOps p] of
     [] -> []
     os ->
       ["## 保留(需要人工決定)(" <> tshow (length os) <> ")", ""]
-        <> map (\o -> "  " <> opFrom o <> "\n    " <> opWhy o) (sortOn opFrom os)
+        <> map (\(f, w) -> "  " <> f <> "\n    " <> w) (sortOn fst os)
         <> [""]
 
 humanBytes :: Integer -> Text

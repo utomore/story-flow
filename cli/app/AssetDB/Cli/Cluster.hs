@@ -9,6 +9,7 @@ import AssetDB.Ingest.Cluster
 import AssetDB.Ingest.ClusterDb
 import AssetDB.Naming (defaultVocab)
 import AssetDB.Store
+import AssetDB.Store.Index (reindexFts)
 import AssetDB.Types (KindPrefix, parseTextEnum)
 import Data.List (find)
 import Data.Map.Strict qualified as Map

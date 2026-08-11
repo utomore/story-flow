@@ -21,6 +21,8 @@ module AssetDB.Manifest
   , manifestIndex
   , lookupAsset
 
+  , AssetKey (..)
+
     -- * 條目
   , ManifestAsset (..)
   , ManifestPack (..)
@@ -60,6 +62,13 @@ data Manifest = Manifest
   , mLicenses :: [ManifestLicense]
   }
   deriving stock (Eq, Show)
+
+-- | 遊戲端的素材查表 key。
+--
+-- 產生的 .hs@ 把每個邏輯名稱變成一個這種型別的常數,
+-- 所以「素材名稱打錯」從執行期黑畫面變成編譯錯誤。
+newtype AssetKey = AssetKey {unAssetKey :: Text}
+  deriving newtype (Eq, Ord, Show, ToJSON, FromJSON)
 
 -- | 一筆素材。
 data ManifestAsset = ManifestAsset

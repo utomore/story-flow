@@ -22,6 +22,9 @@ library
         AssetDB.Ingest.Catalogue
         AssetDB.Ingest.Cluster
         AssetDB.Ingest.ClusterDb
+        AssetDB.Ingest.Thumb
+        AssetDB.Ingest.ThumbRun
+        AssetDB.Ingest.Notes
         AssetDB.Ingest.Scan
         AssetDB.Ingest.Report
     hs-source-dirs:   src
@@ -60,6 +63,8 @@ test-suite assetdb-ingest-test
         AssetDB.Ingest.CatalogueSpec
         AssetDB.Ingest.ClusterSpec
         AssetDB.Ingest.ClusterDbSpec
+        AssetDB.Ingest.ThumbSpec
+        AssetDB.Ingest.NotesSpec
         AssetDB.Ingest.ScanSpec
     hs-source-dirs:   test
     build-depends:

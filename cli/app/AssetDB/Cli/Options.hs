@@ -5,6 +5,9 @@ module AssetDB.Cli.Options
   , ReorgMode (..)
   , RuleArgs (..)
   , SearchArgs (..)
+  , ProjectArgs (..)
+  , NoteArgs (..)
+  , LinkArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -15,6 +18,8 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import AssetDB.Cli.Cluster (RuleArgs (..))
 import AssetDB.Cli.Search (SearchArgs (..))
+import AssetDB.Cli.Project (ProjectArgs (..))
+import AssetDB.Cli.Notes (LinkArgs (..), NoteArgs (..))
 import Options.Applicative
 import System.Directory (getCurrentDirectory)
 import System.FilePath ((</>))
@@ -37,6 +42,11 @@ data Command
   | CmdClusterApply (Maybe Text)
   | CmdSearch SearchArgs
   | CmdIndex
+  | CmdThumbs Bool
+  | CmdNewProject ProjectArgs
+  | CmdNoteImport NoteArgs
+  | CmdNoteList (Maybe Text)
+  | CmdLink LinkArgs
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -95,7 +105,70 @@ commandP =
         <> command "cluster" (info clusterP (progDesc "檔名叢集:把命名決策從逐筆降到逐群"))
         <> command "search" (info (CmdSearch <$> searchP) (progDesc "全文 + facet 搜尋"))
         <> command "index" (info (pure CmdIndex) (progDesc "重建全文索引"))
+        <> command
+          "thumbs"
+          ( info
+              (CmdThumbs <$> switch (long "force" <> help "重新產生已存在的縮圖"))
+              (progDesc "產生縮圖(內容定址,每份唯一內容只算一次)")
+          )
+        <> command "new-project" (info (CmdNewProject <$> projectP) (progDesc "建立遊戲專案並放入選定素材"))
+        <> command "note" (info noteP (progDesc "知識建檔與行銷資訊"))
+        <> command "link" (info (CmdLink <$> linkP) (progDesc "在實體之間建立關聯"))
     )
+
+noteP :: Parser Command
+noteP =
+  hsubparser
+    ( command
+        "import"
+        ( info
+            ( CmdNoteImport
+                <$> ( NoteArgs
+                        <$> option
+                          (T.pack <$> str)
+                          ( long "kind"
+                              <> metavar "K"
+                              <> value "knowledge"
+                              <> showDefault
+                              <> help "knowledge / marketing / decision / reference"
+                          )
+                        <*> strOption (long "path" <> metavar "DIR" <> help "含 Markdown 的目錄")
+                    )
+            )
+            (progDesc "匯入 Markdown。以 source_path 為鍵,重複匯入是更新")
+        )
+        <> command
+          "list"
+          ( info
+              (CmdNoteList <$> optional (option (T.pack <$> str) (long "kind" <> metavar "K")))
+              (progDesc "列出筆記")
+          )
+    )
+
+linkP :: Parser LinkArgs
+linkP =
+  LinkArgs
+    <$> option (T.pack <$> str) (long "from" <> metavar "REF" <> help "<型別>:<ULID>,如 asset:01ABC")
+    <*> option (T.pack <$> str) (long "to" <> metavar "REF" <> help "同上")
+    <*> option
+      (T.pack <$> str)
+      ( long "rel"
+          <> metavar "R"
+          <> help "uses / derives-from / variant-of / similar-to / documents / promotes"
+      )
+    <*> optional (option (T.pack <$> str) (long "note" <> metavar "TEXT" <> help "這條關聯的說明"))
+
+projectP :: Parser ProjectArgs
+projectP =
+  ProjectArgs
+    <$> option (T.pack <$> str) (long "name" <> metavar "NAME" <> help "專案名稱,也是 cabal 套件名")
+    <*> strOption (long "path" <> metavar "PATH" <> help "專案目錄。必須不存在或為空")
+    <*> many (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "納入整個素材包,可重複"))
+    <*> optional (option (T.pack <$> str) (long "match" <> metavar "Q" <> help "只納入邏輯名稱含此字串的素材"))
+    <*> switch
+      ( long "allow-non-commercial"
+          <> help "略過授權閘門。**只在確定專案不商業發行時使用**"
+      )
 
 searchP :: Parser SearchArgs
 searchP =

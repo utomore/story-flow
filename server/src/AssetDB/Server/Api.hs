@@ -131,6 +131,7 @@ type SearchParams a =
     :> QueryParams "pack" Text
     :> QueryParams "vendor" Text
     :> QueryParams "author" Text
+    :> QueryParams "category" Text
     :> QueryFlag "named"
     :> QueryFlag "reference"
     :> QueryFlag "excluded"

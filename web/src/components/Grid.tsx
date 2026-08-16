@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
 import { search, thumbUrl, type Query } from "../api/client";
 import type { SearchItem } from "../api/types";
+import { Lightbox } from "./Lightbox";
 
 const CELL = 132;
 const PAGE = 120;
@@ -28,6 +29,9 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
   const [items, setItems] = useState<(SearchItem | undefined)[]>([]);
   const [cols, setCols] = useState(6);
   const pending = useRef(new Set<number>());
+  // 放大檢視的位置。用索引而不是 SearchItem,前後筆才有意義 ——
+  // 而 items 就在這裡,沒必要把整份清單提到 App 去。
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   // 欄數隨容器寬度變。放在 effect 裡而不是 CSS grid,是因為虛擬化需要
   // 明確知道每列有幾個才能算出總列數。
@@ -45,6 +49,8 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
   useEffect(() => {
     const ac = new AbortController();
     pending.current.clear();
+    // 換查詢就關掉放大檢視。索引指向的是舊結果集,留著會顯示不相干的東西。
+    setOpenIdx(null);
     search(query, PAGE, 0, ac.signal)
       .then((r) => {
         const next: (SearchItem | undefined)[] = new Array(r.total);
@@ -90,6 +96,32 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
     }
   }, [virt.getVirtualItems(), cols, items, query]);
 
+  // 放大檢視用 ←/→ 可以走到可視範圍之外,而上面那個 effect 只補「看得到」的分頁。
+  // 沒有這段的話,連按方向鍵就會停在一個永遠是「載入中…」的空格上。
+  useEffect(() => {
+    if (openIdx === null || items[openIdx] !== undefined) return;
+    const off = Math.floor(openIdx / PAGE) * PAGE;
+    if (pending.current.has(off)) return;
+    pending.current.add(off);
+    search(query, PAGE, off)
+      .then((r) => {
+        setItems((prev) => {
+          const next = prev.slice();
+          r.items.forEach((it, i) => (next[off + i] = it));
+          return next;
+        });
+      })
+      .catch(console.error)
+      .finally(() => pending.current.delete(off));
+  }, [openIdx, items, query]);
+
+  // 放大檢視翻頁時,底下的選取跟著走 —— 關掉彈窗後停在哪裡不該是個謎。
+  useEffect(() => {
+    if (openIdx === null) return;
+    const it = items[openIdx];
+    if (it) onSelect(it);
+  }, [openIdx, items, onSelect]);
+
   return (
     <div ref={scrollRef} className="grid-scroll">
       <div style={{ height: virt.getTotalSize(), position: "relative" }}>
@@ -113,7 +145,11 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
                   <Card
                     item={item}
                     selected={!!item && selected?.ulid === item.ulid}
-                    onClick={() => item && onSelect(item)}
+                    onClick={() => {
+                      if (!item) return;
+                      onSelect(item);
+                      setOpenIdx(i);
+                    }}
                   />
                 </div>
               );
@@ -121,6 +157,17 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
           </div>
         ))}
       </div>
+
+      {openIdx !== null && (
+        <Lightbox
+          item={items[openIdx]}
+          hasPrev={openIdx > 0}
+          hasNext={openIdx < total - 1}
+          onPrev={() => setOpenIdx((i) => (i === null ? i : Math.max(0, i - 1)))}
+          onNext={() => setOpenIdx((i) => (i === null ? i : Math.min(total - 1, i + 1)))}
+          onClose={() => setOpenIdx(null)}
+        />
+      )}
     </div>
   );
 }
@@ -137,7 +184,20 @@ function Card({
   if (!item) return <div className="card" />;
   const src = thumbUrl(item.sha, 128);
   return (
-    <div className={`card${selected ? " selected" : ""}`} onClick={onClick}>
+    <div
+      className={`card${selected ? " selected" : ""}`}
+      onClick={onClick}
+      // 格子本來是純 div,鍵盤完全到不了。給它 button 語意,
+      // 六千張圖至少變成可以用 Tab + Enter 走完的東西。
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
       {src ? (
         <img src={src} alt={item.name ?? item.original} loading="lazy" />
       ) : (

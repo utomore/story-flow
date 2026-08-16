@@ -17,6 +17,7 @@ data SearchArgs = SearchArgs
   , sePacks :: [Text]
   , seAuthors :: [Text]
   , seVendors :: [Text]
+  , seCategories :: [Text]
   , seCommercial :: Bool
   , seNamed :: Bool
   , seIncludeExcluded :: Bool
@@ -43,6 +44,7 @@ runSearch dbPath SearchArgs {..} =
             , sqPacks = sePacks
             , sqAuthors = seAuthors
             , sqVendors = seVendors
+            , sqCategories = seCategories
             , sqCommercialOnly = seCommercial
             , sqNamedOnly = seNamed
             , sqIncludeExcluded = seIncludeExcluded
@@ -64,6 +66,7 @@ runSearch dbPath SearchArgs {..} =
       then do
         fc <- facetCounts conn q
         TIO.putStrLn ""
+        renderFacet "分類" (take 16 (fcCategories fc))
         renderFacet "類型" (fcKinds fc)
         renderFacet "廠商" (fcVendors fc)
         renderFacet "作者" (fcAuthors fc)

@@ -34,6 +34,13 @@ data SearchQuery = SearchQuery
   -- ^ 素材包 slug
   , sqAuthors :: [Text]
   , sqVendors :: [Text]
+  , sqCategories :: [Text]
+  -- ^ 分類路徑,如 @icon@ 或 @icon\/potion@。
+  --
+  -- **精確比對,不做前綴展開。** 分類器對每一筆素材同時寫入頂層與子分類
+  -- 兩列(icon 與 icon\/potion),所以選 @icon@ 本來就會涵蓋子分類 ——
+  -- 在查詢層再做一次 LIKE 前綴展開,只會讓「為什麼選了父分類卻多出
+  -- 沒被標成父分類的東西」變成一個沒人說得清的問題。
   , sqCommercialOnly :: Bool
   , sqNamedOnly :: Bool
   -- ^ 只要已指定邏輯名稱的。
@@ -53,6 +60,7 @@ emptyQuery =
     , sqPacks = []
     , sqAuthors = []
     , sqVendors = []
+    , sqCategories = []
     , sqCommercialOnly = False
     , sqNamedOnly = False
     , sqIncludeExcluded = False
@@ -91,6 +99,7 @@ whereClauses SearchQuery {..} =
     , ("pack",) <$> inCond "p.slug" sqPacks
     , ("author",) <$> inCond "au.name" sqAuthors
     , ("vendor",) <$> inCond "p.vendor" sqVendors
+    , ("category",) <$> categoryCond sqCategories
     , if sqCommercialOnly
         then Just ("commercial", Cond "l.commercial = 1" [])
         else Nothing
@@ -109,6 +118,24 @@ inCond :: Text -> [Text] -> Maybe Cond
 inCond _ [] = Nothing
 inCond col vs =
   Just (Cond (col <> " IN (" <> T.intercalate "," (map (const "?") vs) <> ")") (map SQLText vs))
+
+-- | 分類條件。
+--
+-- 用子查詢而不是把 @asset_categories@ 併進 'baseFrom':一筆素材有兩列分類
+-- (頂層 + 子分類),JOIN 進主查詢會讓每筆結果重複出現,而 COUNT 也會跟著
+-- 灌水。子查詢讓條件是純粹的成員判定,主查詢的列數不受影響。
+categoryCond :: [Text] -> Maybe Cond
+categoryCond [] = Nothing
+categoryCond vs =
+  Just
+    ( Cond
+        ( "a.id IN (SELECT ac.asset_id FROM asset_categories ac \
+          \JOIN categories c ON c.id = ac.category_id WHERE c.path IN ("
+            <> T.intercalate "," (map (const "?") vs)
+            <> "))"
+        )
+        (map SQLText vs)
+    )
 
 -- | 全文條件。含中日韓字元時聯集兩張索引。
 textCond :: Maybe Text -> Maybe Cond
@@ -171,6 +198,7 @@ data FacetCounts = FacetCounts
   , fcPacks :: [(Text, Int)]
   , fcAuthors :: [(Text, Int)]
   , fcVendors :: [(Text, Int)]
+  , fcCategories :: [(Text, Int)]
   }
   deriving stock (Eq, Show)
 
@@ -186,7 +214,27 @@ facetCounts conn q =
     <*> counts "pack" "p.slug"
     <*> counts "author" "au.name"
     <*> counts "vendor" "p.vendor"
+    <*> categoryCounts
   where
+    -- 分類要自己一份查詢:它的計數來自一張多對多表,而其餘四個 facet
+    -- 都是主查詢上的欄位。COUNT(DISTINCT a.id) 是必要的 —— 一筆素材同時
+    -- 掛在 icon 與 icon/potion 底下,不去重的話每個分類都會把它算進去
+    -- 兩次以上。
+    categoryCounts = do
+      let (whereSql, params) = assemble [c | c@(n, _) <- whereClauses q, n /= "category"]
+      query
+        conn
+        ( Query
+            ( "SELECT c.path, COUNT(DISTINCT a.id) "
+                <> baseFrom
+                <> "JOIN asset_categories ac ON ac.asset_id = a.id \
+                   \JOIN categories c ON c.id = ac.category_id "
+                <> whereSql
+                <> " GROUP BY c.path ORDER BY COUNT(DISTINCT a.id) DESC, c.path"
+            )
+        )
+        params
+
     counts skip col = do
       let (whereSql, params) = assemble [c | c@(n, _) <- whereClauses q, n /= skip]
       query

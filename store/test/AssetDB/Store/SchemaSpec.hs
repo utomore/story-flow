@@ -217,7 +217,50 @@ spec = around withMigrated $ do
     it "頂層分類已建立" $ \st -> do
       rows <- query_ (storeConn st) "SELECT slug FROM categories WHERE parent_id IS NULL ORDER BY slug"
       map fromOnly rows
-        `shouldBe` (["audio", "character", "font", "fx", "ground", "gui", "level", "prop", "reference"] :: [String])
+        `shouldBe` ( [ "audio"
+                     , "character"
+                     , "font"
+                     , "fx"
+                     , "ground"
+                     , "gui"
+                     , -- icon 與 gui 分開是刻意的:物品欄裡的東西與介面外框
+                       -- 是兩種素材,合併會讓全庫最大的 facet 失去意義。
+                       "icon"
+                     , "level"
+                     , "prop"
+                     , "reference"
+                     , "shader"
+                     ]
+                       :: [String]
+                   )
+
+    it "每個分類都有給模型看的定義與適用範圍" $ \st -> do
+      -- 定義缺一個,模型在那個分類上就是在猜。實測過猜的下場:
+      -- 一張牛排圖示被分到 audio。
+      missing <- countWhere st "categories" "definition IS NULL OR definition = ''"
+      missing `shouldBe` 0
+
+    it "視覺標註看得到的分類不含 audio 或 level" $ \st -> do
+      -- 這是「錯誤答案無法被表達」那條防線的斷言。ai_scope 一旦漂掉,
+      -- 模型就又有機會把圖片分類成音效。
+      rows <-
+        query_
+          (storeConn st)
+          "SELECT slug FROM categories \
+          \WHERE parent_id IS NULL AND ai_scope IN ('any','image') ORDER BY slug"
+      map fromOnly rows
+        `shouldBe` ( ["character", "font", "fx", "ground", "gui", "icon", "prop", "shader"] :: [String]
+                   )
+
+    it "第二層分類的 path 是 父/子 形式" $ \st -> do
+      bad <-
+        countWhere
+          st
+          "categories"
+          "parent_id IS NOT NULL AND path NOT LIKE '%/%'"
+      bad `shouldBe` 0
+      leaves <- countWhere st "categories" "parent_id IS NOT NULL"
+      leaves `shouldSatisfy` (>= 60)
 
 --------------------------------------------------------------------------------
 

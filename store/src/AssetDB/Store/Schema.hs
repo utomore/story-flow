@@ -22,7 +22,7 @@ schemaVersion :: Int
 schemaVersion = maximum (map migVersion migrations)
 
 migrations :: [Migration]
-migrations = [migration001, migration002]
+migrations = [migration001, migration002, migration003]
 
 --------------------------------------------------------------------------------
 
@@ -551,3 +551,251 @@ migration002 =
           \  WHERE source_path IS NOT NULL"
         ]
     }
+
+--------------------------------------------------------------------------------
+
+-- | AI 分類與標註的落地。
+--
+-- 三件事,順序有意義:
+--
+-- 1. 分類詞彙表加上**定義**與**適用範圍**。實測證實只給列舉值時,模型會替
+--    一張 512px 的牛排圖示選 @audio@ —— 缺的不是列舉,是定義。而 @ai_scope@
+--    讓「視覺標註」那批呼叫的列舉裡根本不出現 @audio@:錯誤答案在 GBNF
+--    文法層**無法被表達**,比在 prompt 裡拜託模型不要選有效得多。
+--
+-- 2. 建議先進暫存表,確認後才寫入正式表。與 cluster rule 的閘門同一個模式。
+--
+-- 3. @blobs@ 與 @name_clusters@ 各加一組 ai 狀態欄,逐字鏡像 @thumb_status@。
+--    失敗必須寫進資料庫,否則十小時的批次每次重跑都會重試同一批壞檔案。
+migration003 :: Migration
+migration003 =
+  Migration
+    { migVersion = 3
+    , migName = "AI 分類、標註建議與批次狀態"
+    , migStatements =
+        concat [aiVocabColumns, aiVocabSeeds, aiSuggestionTables, aiBatchStatus]
+    }
+
+-- | 詞彙表的三個新欄位。
+aiVocabColumns :: [Query']
+aiVocabColumns =
+  [ -- 定義是**給模型看的**,不是給人看的註解。它與餵給 JSON schema 的列舉
+    -- 出自同一列資料,所以兩者不可能漂移 —— 這比寫一個漂移偵測測試更徹底。
+    "ALTER TABLE categories ADD COLUMN definition TEXT"
+  , -- 適用範圍。視覺標註只跑在圖片上,那批呼叫的列舉就不該出現 audio。
+    -- none 表示這個分類永遠不交給模型判斷(如 reference —— 它由素材包的
+    -- kind 決定,不是由圖看出來的)。
+    "ALTER TABLE categories ADD COLUMN ai_scope TEXT NOT NULL DEFAULT 'any' \
+    \  CHECK (ai_scope IN ('any','image','audio','text','none'))"
+  , -- 列舉值的**順序**會影響模型的選擇偏誤。固定下來,結果才可重現。
+    "ALTER TABLE categories ADD COLUMN sort INTEGER NOT NULL DEFAULT 0"
+  , "CREATE INDEX categories_scope_idx ON categories(ai_scope)"
+  ]
+
+-- | 頂層分類的定義,以及第二層的 70 個葉節點。
+--
+-- 既有的 9 列只補欄位不重建 —— path 是穩定識別字,可能已經有
+-- asset_categories 指向它們。
+aiVocabSeeds :: [Query']
+aiVocabSeeds =
+  [ upd "gui" "介面外框(chrome):面板、按鈕、視窗、捲軸、進度條、對話框邊角。**不是**放在物品欄格子裡的物品圖示 —— 那是 icon。" "image" "10"
+  , upd "character" "角色或生物的 sprite、動畫格、頭像、立繪。" "image" "30"
+  , upd "fx" "特效動畫:爆炸、衝擊、法術、粒子、拖尾。通常是連續格。" "image" "40"
+  , upd "ground" "地形與可鋪排的貼圖:草地、石板、水面、牆面、autotile。" "image" "50"
+  , upd "prop" "場景中的物件:家具、建築、植被、容器、招牌、燈具、圍籬。" "image" "60"
+  , upd "font" "字型檔與字符圖表(glyph sheet)。" "any" "70"
+  , upd "level" "關卡資料與地圖檔,不是繪圖素材。" "text" "80"
+  , upd "audio" "音效、音樂、語音、環境音。" "audio" "100"
+  , upd "reference" "攝影或掃描的參考資料,不是遊戲素材。" "none" "110"
+  , -- icon 獨立於 gui,是這份詞彙表最重要的一項增補。Kibyra 十一包加上
+    -- Cainos 與 Shikashi 約一千筆是**物品欄內容**,而 UI Book Styles 的
+    -- 一千六百多筆是**介面外框**。合併會讓全庫最大的 facet 失去意義,
+    -- 而這正是模型最容易混淆的一對 —— 所以兩邊的定義都寫了反例。
+    "INSERT INTO categories (parent_id, name, slug, path, definition, ai_scope, sort) VALUES \
+    \  (NULL,'Icon','icon','icon', \
+    \   '放進物品欄或技能列的單一物件圖示,通常 32x32、背景透明、一格一個東西。**不是**介面外框 —— 那是 gui。', \
+    \   'image', 20), \
+    \  (NULL,'Shader','shader','shader','shader 原始碼,或其效果的預覽圖。','any', 90)"
+  , sub "gui" "image" "10"
+      "('Frame','frame','面板、視窗、對話框的外框與邊角。內容物不是它的一部分。',1)\
+      \,('Panel','panel','實心的底板或背景板,用來承載其他介面元素。',2)\
+      \,('Button','button','可按下的按鈕,常有 normal/hover/pressed 多態。',3)\
+      \,('Bar','bar','血條、魔力條、經驗條、進度條。',4)\
+      \,('Slot','slot','物品欄格子本身(空的容器),不是裡面的物品。',5)\
+      \,('Cursor','cursor','滑鼠游標與指標。',6)\
+      \,('Ribbon','ribbon','標題緞帶、名牌、標籤板。',7)\
+      \,('Decoration','decoration','角落花紋、分隔線、純裝飾的介面零件。',8)\
+      \,('Page','page','書頁、羊皮紙、卷軸的整頁背景。',9)"
+  , sub "icon" "image" "20"
+      "('Food','food','食物與料理:肉、麵包、水果、飲品。',1)\
+      \,('Potion','potion','藥水、藥劑、瓶裝物。',2)\
+      \,('Weapon','weapon','武器:劍、弓、杖、斧。',3)\
+      \,('Armor','armor','防具與服裝:盔甲、盾、頭盔、靴。',4)\
+      \,('Tool','tool','工具:鎬、鎚、鋸、釣竿。',5)\
+      \,('Material','material','製作材料:皮革、布、木板、繩。',6)\
+      \,('Ore','ore','礦石、礦物、錠、寶石原石。',7)\
+      \,('Herb','herb','藥草、植物、香料、種子。',8)\
+      \,('CreaturePart','creature-part','魔物素材:爪、牙、鱗、翅、骨。',9)\
+      \,('Treasure','treasure','錢幣、寶石、寶箱、戰利品。',10)\
+      \,('Book','book','書本、卷軸、地圖、文件圖示。',11)\
+      \,('Animal','animal','動物與生物的圖示(非可操作角色)。',12)\
+      \,('Weather','weather','天氣圖示:晴、雨、雪、雲。',13)\
+      \,('Skill','skill','技能與法術圖示。',14)\
+      \,('Currency','currency','貨幣單位圖示。',15)"
+  , sub "character" "image" "30"
+      "('Humanoid','humanoid','人形角色的 sprite 或動畫格。',1)\
+      \,('Creature','creature','非人形的生物、魔物、坐騎。',2)\
+      \,('Npc','npc','村民、商人等非戰鬥角色。',3)\
+      \,('Portrait','portrait','頭像或半身立繪。',4)\
+      \,('AnimationFrame','animation-frame','單獨的動作格或 spritesheet。',5)"
+  , sub "fx" "image" "40"
+      "('Impact','impact','命中、斬擊、打擊的瞬間特效。',1)\
+      \,('Explosion','explosion','爆炸與衝擊波。',2)\
+      \,('Magic','magic','施法、光環、法陣、符文圈。',3)\
+      \,('Projectile','projectile','飛行物:箭、火球、子彈。',4)\
+      \,('Smoke','smoke','煙、霧、塵。',5)\
+      \,('Fire','fire','火焰與燃燒。',6)\
+      \,('Electric','electric','雷電與電弧。',7)\
+      \,('Heal','heal','治療、增益特效。',8)\
+      \,('WeatherFx','weather','雨雪等覆蓋全畫面的天氣特效。',9)\
+      \,('Transition','transition','轉場與畫面遮罩動畫。',10)"
+  , sub "ground" "image" "50"
+      "('Terrain','terrain','草地、沙地、泥土等地表貼圖。',1)\
+      \,('Autotile','autotile','會依鄰接自動接邊的圖塊組。',2)\
+      \,('Wall','wall','牆面與牆頂。',3)\
+      \,('Water','water','水面、海、河。',4)\
+      \,('Path','path','道路、小徑、橋面。',5)\
+      \,('Cliff','cliff','斷崖、高低差、坡面。',6)\
+      \,('Decal','decal','鋪在地表上的裝飾:裂痕、青苔、腳印。',7)"
+  , sub "prop" "image" "60"
+      "('Furniture','furniture','桌椅、床、櫃、地毯。',1)\
+      \,('Building','building','房屋、塔、遺跡等建築整體。',2)\
+      \,('Vegetation','vegetation','樹、灌木、花草。',3)\
+      \,('Container','container','桶、箱、罐、袋。',4)\
+      \,('Sign','sign','招牌、路標、告示。',5)\
+      \,('Light','light','燈、火把、燭台、營火。',6)\
+      \,('Fence','fence','圍籬、柵欄、圍牆。',7)\
+      \,('Rock','rock','石頭、岩塊、礦脈。',8)"
+  , sub "font" "any" "70"
+      "('Bitmap','bitmap','點陣字型檔。',1)\
+      \,('GlyphSheet','glyph-sheet','把字符排在一起的圖表。',2)\
+      \,('Vector','vector','向量字型檔。',3)\
+      \,('Rune','rune','符文或自創文字的字符集。',4)"
+  , sub "level" "text" "80"
+      "('Map','map','整張地圖資料。',1),('Room','room','單一房間或關卡片段。',2)"
+  , sub "shader" "any" "90"
+      "('MaterialShader','material','材質 shader。',1)\
+      \,('Postprocess','postprocess','後製效果 shader。',2)"
+  , sub "audio" "audio" "100"
+      "('Sfx','sfx','音效。',1),('Bgm','bgm','背景音樂。',2)\
+      \,('Voice','voice','語音。',3),('Ambience','ambience','環境音。',4)"
+  , sub "reference" "none" "110"
+      "('Architecture','architecture','建築攝影。',1)\
+      \,('Landscape','landscape','風景攝影。',2)\
+      \,('TextureRef','texture','材質拍攝。',3)\
+      \,('Document','document','掃描文件。',4)"
+  ]
+  where
+    upd p d scope s =
+      "UPDATE categories SET definition = '"
+        <> d
+        <> "', ai_scope = '"
+        <> scope
+        <> "', sort = "
+        <> s
+        <> " WHERE path = '"
+        <> p
+        <> "'"
+    -- parent_id 用子查詢取,不寫死 rowid —— 種子資料的 rowid 是實作細節,
+    -- path 才是合約。同時滿足 UNIQUE(path) 與 UNIQUE(parent_id, slug)。
+    sub parent scope base rows =
+      "INSERT INTO categories (parent_id, name, slug, path, definition, ai_scope, sort) \
+      \SELECT p.id, v.n, v.s, '"
+        <> parent
+        <> "/' || v.s, v.d, '"
+        <> scope
+        <> "', "
+        <> base
+        <> " + v.o \
+           \FROM categories p, \
+           \     (SELECT column1 AS n, column2 AS s, column3 AS d, column4 AS o \
+           \      FROM (VALUES "
+        <> rows
+        <> ")) v \
+           \WHERE p.path = '"
+        <> parent
+        <> "'"
+
+-- | 建議暫存與批次記帳。
+aiSuggestionTables :: [Query']
+aiSuggestionTables =
+  [ -- 一次批次執行。十小時的工作需要一個可以問「跑到哪了」的錨點,
+    -- 而且伺服器要能報告一個**不是它啟動**的 CLI 批次的進度。
+    "CREATE TABLE ai_runs ( \
+    \  id          INTEGER PRIMARY KEY, \
+    \  ulid        TEXT    NOT NULL UNIQUE, \
+    \  kind        TEXT    NOT NULL CHECK (kind IN ('cluster','vision','query')), \
+    \  model       TEXT    NOT NULL, \
+    \  prompt_ver  TEXT    NOT NULL, \
+    \  params_json TEXT, \
+    \  status      TEXT    NOT NULL DEFAULT 'running' \
+    \              CHECK (status IN ('running','done','aborted')), \
+    \  total       INTEGER NOT NULL DEFAULT 0, \
+    \  done        INTEGER NOT NULL DEFAULT 0, \
+    \  failed      INTEGER NOT NULL DEFAULT 0, \
+    \  note        TEXT, \
+    \  started_at  TEXT    NOT NULL, \
+    \  ended_at    TEXT \
+    \)"
+  , "CREATE INDEX ai_runs_kind_idx ON ai_runs(kind, id)"
+  , -- 一張表涵蓋所有建議,而不是 ai_category_suggestions + ai_tag_suggestions。
+    -- 確認閘門、CLI 列表、伺服器端點、套用步驟四者的形狀完全相同;拆開等於
+    -- 把這四樣各寫兩份,換到的只有「facet 欄位不會是 NULL」。
+    --
+    -- target_key 的編碼:
+    --   blob    -> sha256
+    --   cluster -> pack_slug 與 shape 以直線分隔
+    --   asset   -> assets.ulid
+    --   pack    -> packs.slug
+    "CREATE TABLE ai_suggestions ( \
+    \  id          INTEGER PRIMARY KEY, \
+    \  run_id      INTEGER REFERENCES ai_runs(id) ON DELETE SET NULL, \
+    \  target_type TEXT    NOT NULL CHECK (target_type IN ('blob','cluster','asset','pack')), \
+    \  target_key  TEXT    NOT NULL, \
+    \  field       TEXT    NOT NULL CHECK (field IN ('category','tag','subject')), \
+    \  value       TEXT    NOT NULL, \
+    \  facet       TEXT    CHECK (facet IN ('style','theme','palette','free')), \
+    \  lang        TEXT    NOT NULL DEFAULT 'en' CHECK (lang IN ('en','zh')), \
+    \  confidence  REAL, \
+    \  rationale   TEXT, \
+    \  status      TEXT    NOT NULL DEFAULT 'pending' \
+    \              CHECK (status IN ('pending','confirmed','rejected','applied','stale')), \
+    \  decided_by  TEXT, \
+    \  decided_at  TEXT, \
+    \  created_at  TEXT    NOT NULL, \
+    \  UNIQUE (target_type, target_key, field, value, lang), \
+    \  CHECK ((field = 'tag') = (facet IS NOT NULL)) \
+    \)"
+  , "CREATE INDEX ai_sugg_status_idx ON ai_suggestions(status, target_type, field)"
+  , "CREATE INDEX ai_sugg_target_idx ON ai_suggestions(target_type, target_key)"
+  , "CREATE INDEX ai_sugg_run_idx ON ai_suggestions(run_id)"
+  ]
+
+-- | 逐筆的批次狀態。刻意逐字鏡像 @blobs.thumb_status@ —— 理由不是對稱美感,
+-- 是工作選取查詢可以原樣照抄,不必 JOIN 一張多型的狀態表。
+aiBatchStatus :: [Query']
+aiBatchStatus =
+  [ -- skipped 而不是 na:na 在 thumb_status 上表示「這份內容永遠不會有縮圖」,
+    -- 這裡表示「現在沒有縮圖可送」—— 先跑 assetdb thumbs 就會變回可做。
+    -- 不同的意思要用不同的字。
+    "ALTER TABLE blobs ADD COLUMN ai_status TEXT NOT NULL DEFAULT 'pending' \
+    \  CHECK (ai_status IN ('pending','ok','failed','skipped'))"
+  , "ALTER TABLE blobs ADD COLUMN ai_error TEXT"
+  , "ALTER TABLE blobs ADD COLUMN ai_seen_at TEXT"
+  , "CREATE INDEX blobs_ai_idx ON blobs(ai_status)"
+  ]
+
+-- 註:叢集**沒有**對應的狀態欄。name_clusters 存的是已確認的命名規則
+-- (整個資料庫目前 6 列),而 cluster list 看到的 132 個叢集是 packClusters
+-- 每次即時算出來的,沒有可以標記的列。叢集層的續跑因此改看 ai_suggestions:
+-- 某個 (pack_slug, shape) 已經有建議就跳過。少一組欄位,也少一個會腐爛的鏡像。

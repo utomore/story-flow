@@ -6,12 +6,11 @@ import Data.ByteString qualified as BS
 import Data.Text.Encoding (encodeUtf8)
 import System.Environment (getArgs)
 import System.FilePath (takeDirectory, (</>))
-import System.IO
+import AssetDB.Console (setupConsole)
 
 main :: IO ()
 main = do
-  hSetEncoding stdout utf8
-  hSetEncoding stderr utf8
+  setupConsole
   args <- getArgs
   case args of
     -- --help 必須在「第一個參數是 db 路徑」之前比對。否則它會被當成資料庫檔名,

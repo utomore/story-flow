@@ -7,6 +7,8 @@ export interface Query {
   packs: string[];
   vendors: string[];
   authors: string[];
+  /** 分類路徑,如 icon 或 icon/potion。由 assetdb ai classify 產生。 */
+  categories: string[];
   named: boolean;
   reference: boolean;
   excluded: boolean;
@@ -18,6 +20,7 @@ export const emptyQuery: Query = {
   packs: [],
   vendors: [],
   authors: [],
+  categories: [],
   named: false,
   reference: false,
   excluded: false,
@@ -30,6 +33,7 @@ function params(query: Query, extra: Record<string, string> = {}): string {
   for (const k of query.packs) p.append("pack", k);
   for (const k of query.vendors) p.append("vendor", k);
   for (const k of query.authors) p.append("author", k);
+  for (const k of query.categories) p.append("category", k);
   // servant 的 QueryFlag 認的是「參數存在與否」,不是值。
   if (query.named) p.set("named", "");
   if (query.reference) p.set("reference", "");

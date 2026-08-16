@@ -23,6 +23,7 @@ library
         AssetDB.Id
         AssetDB.Naming
         AssetDB.Manifest
+        AssetDB.Console
     hs-source-dirs:   src
     build-depends:
         , base          >=4.17 && <5
@@ -32,6 +33,11 @@ library
         , random        >=1.2.1
         , text          >=2.0
         , time          >=1.12
+    -- Win32 是 GHC boot package,不是新的外部相依。
+    -- 需要它才能設 console output code page —— hSetEncoding 只管產生位元組,
+    -- 管不到終端機怎麼解讀,兩者都要設才不會是亂碼。
+    if os(windows)
+        build-depends: Win32 >=2.13
     default-language: GHC2021
     default-extensions:
         DerivingStrategies

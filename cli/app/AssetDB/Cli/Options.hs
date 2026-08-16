@@ -8,6 +8,13 @@ module AssetDB.Cli.Options
   , ProjectArgs (..)
   , NoteArgs (..)
   , LinkArgs (..)
+  , AiConn (..)
+  , AiClassifyArgs (..)
+  , AiVisionArgs (..)
+  , AiListArgs (..)
+  , AiDecideArgs (..)
+  , AiApplyArgs (..)
+  , AiQueryArgs (..)
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
@@ -16,6 +23,15 @@ module AssetDB.Cli.Options
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import AssetDB.Cli.Ai
+  ( AiApplyArgs (..)
+  , AiClassifyArgs (..)
+  , AiConn (..)
+  , AiDecideArgs (..)
+  , AiListArgs (..)
+  , AiQueryArgs (..)
+  , AiVisionArgs (..)
+  )
 import AssetDB.Cli.Cluster (RuleArgs (..))
 import AssetDB.Cli.Search (SearchArgs (..))
 import AssetDB.Cli.Project (ProjectArgs (..))
@@ -47,6 +63,15 @@ data Command
   | CmdNoteImport NoteArgs
   | CmdNoteList (Maybe Text)
   | CmdLink LinkArgs
+  | CmdAiPing AiConn
+  | CmdAiClassify AiConn AiClassifyArgs
+  | CmdAiVision AiConn AiVisionArgs
+  | CmdAiSuggestList AiListArgs
+  | -- | confirm 與 reject 共用,以 'daDecision' 區分。
+    CmdAiDecide AiDecideArgs
+  | CmdAiApply AiApplyArgs
+  | CmdAiQuery AiConn AiQueryArgs
+  | CmdAiStatus
 
 data ReorgArgs = ReorgArgs
   { raSource :: FilePath
@@ -114,7 +139,130 @@ commandP =
         <> command "new-project" (info (CmdNewProject <$> projectP) (progDesc "建立遊戲專案並放入選定素材"))
         <> command "note" (info noteP (progDesc "知識建檔與行銷資訊"))
         <> command "link" (info (CmdLink <$> linkP) (progDesc "在實體之間建立關聯"))
+        <> command "ai" (info aiP (progDesc "本機 LLM:分類、標註與自然語句查詢"))
     )
+
+--------------------------------------------------------------------------------
+
+-- | @--llm-url@ / @--llm-model@ 只掛在需要模型的子指令上,不做成全域選項 ——
+-- 其餘十幾個指令與推論服務毫無關係,讓它們也長出這兩個旗標只會製造噪音。
+aiConnP :: Parser AiConn
+aiConnP =
+  AiConn
+    <$> optional
+      ( option
+          (T.pack <$> str)
+          (long "llm-url" <> metavar "URL" <> help "OpenAI 相容端點。預設 http://localhost:8080")
+      )
+    <*> optional
+      (option (T.pack <$> str) (long "llm-model" <> metavar "NAME" <> help "模型名稱"))
+    <*> switch
+      ( long "thinking"
+          <> help
+            "允許模型產生推理段落。預設關閉 —— 實測支援的模型快 24 倍且答案相同。\
+            \品質有疑慮時再打開比較"
+      )
+
+aiP :: Parser Command
+aiP =
+  hsubparser
+    ( command "ping" (info (CmdAiPing <$> aiConnP) (progDesc "檢查推論服務是否可用"))
+        <> command
+          "classify"
+          ( info
+              (CmdAiClassify <$> aiConnP <*> classifyP)
+              (progDesc "叢集層分類(純文字,約 132 次呼叫)")
+          )
+        <> command
+          "vision"
+          ( info
+              (CmdAiVision <$> aiConnP <*> visionP)
+              (progDesc "逐份內容的視覺標註(送縮圖,產生中英文標籤)")
+          )
+        <> command "suggest" (info suggestP (progDesc "檢視與決定 AI 建議"))
+        <> command
+          "apply"
+          ( info
+              ( CmdAiApply
+                  <$> ( AiApplyArgs
+                          <$> switch (long "confirm" <> help "真的寫入。不加就只是預覽")
+                      )
+              )
+              (progDesc "把已確認的建議寫入標籤與分類,並重建索引")
+          )
+        <> command
+          "query"
+          ( info
+              ( CmdAiQuery
+                  <$> aiConnP
+                  <*> ( AiQueryArgs
+                          <$> option (T.pack <$> str) (long "text" <> short 'q' <> metavar "Q" <> help "自然語句")
+                      )
+              )
+              (progDesc "把一句話翻成搜尋條件")
+          )
+        <> command "status" (info (pure CmdAiStatus) (progDesc "建議、標註進度與批次紀錄"))
+    )
+
+classifyP :: Parser AiClassifyArgs
+classifyP =
+  AiClassifyArgs
+    <$> optional (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "限定某一包"))
+    <*> option
+      auto
+      ( long "min-members"
+          <> metavar "N"
+          <> value 1
+          <> showDefault
+          <> help "只處理成員數達此數的叢集"
+      )
+    <*> optional (option auto (long "limit" <> metavar "N" <> help "最多處理幾個叢集"))
+    <*> switch (long "force" <> help "重跑已經有建議的叢集")
+
+visionP :: Parser AiVisionArgs
+visionP =
+  AiVisionArgs
+    <$> optional (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "限定某一包"))
+    <*> optional (option auto (long "limit" <> metavar "N" <> help "最多處理幾份內容"))
+    <*> switch (long "force" <> help "連已標註過的也重跑")
+    <*> switch (long "retry-failed" <> help "把先前失敗的重新排進佇列")
+    <*> switch (long "small" <> help "送 128px 而不是 512px 縮圖。快但看不清楚")
+
+suggestP :: Parser Command
+suggestP =
+  hsubparser
+    ( command
+        "list"
+        ( info
+            ( CmdAiSuggestList
+                <$> ( AiListArgs
+                        <$> optional
+                          ( option
+                              (T.pack <$> str)
+                              (long "status" <> metavar "S" <> help "pending / confirmed / rejected / applied")
+                          )
+                        <*> optional
+                          (option (T.pack <$> str) (long "target" <> metavar "T" <> help "blob / cluster / asset / pack"))
+                        <*> optional
+                          (option (T.pack <$> str) (long "field" <> metavar "F" <> help "category / tag / subject"))
+                        <*> optional (option auto (long "min-confidence" <> metavar "R" <> help "只看信心值達標的"))
+                        <*> option auto (long "limit" <> metavar "N" <> value 50 <> showDefault <> help "顯示筆數")
+                    )
+            )
+            (progDesc "列出建議")
+        )
+        <> command "confirm" (info (CmdAiDecide <$> decideP "confirmed") (progDesc "確認建議"))
+        <> command "reject" (info (CmdAiDecide <$> decideP "rejected") (progDesc "退回建議"))
+    )
+
+decideP :: Text -> Parser AiDecideArgs
+decideP decision =
+  AiDecideArgs
+    <$> many (option auto (long "id" <> metavar "N" <> help "建議編號,可重複"))
+    <*> switch (long "all-pending" <> help "所有待確認的建議")
+    <*> optional (option auto (long "min-confidence" <> metavar "R" <> help "搭配 --all-pending 使用"))
+    <*> pure decision
+    <*> switch (long "confirm" <> help "真的寫入。不加就只是預覽")
 
 noteP :: Parser Command
 noteP =
@@ -178,6 +326,14 @@ searchP =
     <*> many (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "素材包,可重複"))
     <*> many (option (T.pack <$> str) (long "author" <> metavar "A" <> help "作者,可重複"))
     <*> many (option (T.pack <$> str) (long "vendor" <> metavar "V" <> help "廠商,可重複"))
+    <*> many
+      ( option
+          (T.pack <$> str)
+          ( long "category"
+              <> metavar "PATH"
+              <> help "分類路徑,如 icon 或 icon/potion,可重複。由 assetdb ai classify 產生"
+          )
+      )
     <*> switch (long "commercial" <> help "只要可商用的")
     <*> switch (long "named" <> help "只要已指定邏輯名稱的")
     <*> switch (long "include-excluded" <> help "納入被判定為非素材的項目(宣傳圖等)")

@@ -60,6 +60,8 @@ types =
       , TsField "vendors" "FacetValue[]"
       , TsField "authors" "FacetValue[]"
       , TsField "packs" "FacetValue[]"
+      , -- 分類路徑,如 icon 或 icon/potion。由 assetdb ai classify 產生。
+        TsField "categories" "FacetValue[]"
       ]
   , TsType
       "PackSummary"

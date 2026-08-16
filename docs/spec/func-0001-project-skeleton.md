@@ -3,7 +3,7 @@ id: func-0001
 type: spec
 title: project-skeleton
 description: 建立 cabal 多套件骨架與本機建置測試腳本
-status: open
+status: done
 created: 2026-08-16
 updated: 2026-08-16
 depends-on: []
@@ -302,13 +302,13 @@ P0 只產出佔位介面,實質內容由後續規格填入:
 
 ## TodoList
 
-- [ ] T1: 建立 `cabal.project`(4 套件、`allow-newer` 三項、`tests: True`、各套件 ghc-options、`direct-sqlite +fulltextsearch`)
-- [ ] T2: 建立 `storyflow-core` 套件(cabal 檔、`StoryFlow.Core` 佔位模組、test-suite)
-- [ ] T3: 建立 `storyflow-types` 套件(cabal 檔、`StoryFlow.Types` 佔位模組、test-suite,依賴 `storyflow-core`)
-- [ ] T4: 建立 `storyflow-md` 套件(cabal 檔、`StoryFlow.Md` 佔位模組、test-suite,依賴 `storyflow-core`)
-- [ ] T5: 建立 `storyflow-store` 套件(cabal 檔、`StoryFlow.Store` 佔位模組、test-suite,依賴 `storyflow-core` 與 sqlite)
-- [ ] T6: 四個 `test/Spec.hs` 統一設定 stdout/stderr UTF-8 編碼
-- [ ] T7: 建立 `scripts/check.ps1` 與 `scripts/check.sh`,並在 README 補「建置與測試」章節
+- [x] T1: 建立 `cabal.project`(4 套件、`allow-newer` 三項、`tests: True`、各套件 ghc-options、`direct-sqlite +fulltextsearch`)
+- [x] T2: 建立 `storyflow-core` 套件(cabal 檔、`StoryFlow.Core` 佔位模組、test-suite)
+- [x] T3: 建立 `storyflow-types` 套件(cabal 檔、`StoryFlow.Types` 佔位模組、test-suite,依賴 `storyflow-core`)
+- [x] T4: 建立 `storyflow-md` 套件(cabal 檔、`StoryFlow.Md` 佔位模組、test-suite,依賴 `storyflow-core`)
+- [x] T5: 建立 `storyflow-store` 套件(cabal 檔、`StoryFlow.Store` 佔位模組、test-suite,依賴 `storyflow-core` 與 sqlite)
+- [x] T6: 四個 `test/Spec.hs` 統一設定 stdout/stderr UTF-8 編碼
+- [x] T7: 建立 `scripts/check.ps1` 與 `scripts/check.sh`,並在 README 補「建置與測試」章節
 
 ## 1-to-1 測試對照表
 
@@ -318,10 +318,49 @@ P0 只產出佔位介面,實質內容由後續規格填入:
 | T2 | `StoryFlow.CoreSpec` — `coreVersion` 非空 | core 套件可建置、可被測試套件連結、測試被 `cabal test all` 執行到 |
 | T3 | `StoryFlow.TypesSpec` — 可 import `StoryFlow.Core` 並取得 `coreVersion` | 驗證 `types → core` 的依賴方向在 cabal 層真的接上了 |
 | T4 | `StoryFlow.MdSpec` — 可 import `StoryFlow.Core` 並取得 `coreVersion` | 驗證 `md → core` 的依賴方向接上 |
-| T5 | `StoryFlow.StoreSpec` — 建立 `fts5(tokenize='trigram')` 表並以「織紋」命中中文內容 | 一次驗證 FTS5 已編入、trigram tokenizer 存在、中文子字串檢索可行 |
+| T5 | `StoryFlow.StoreSpec` — 建立 `fts5(tokenize='trigram')` 表並以「織紋刀」命中中文內容;另一條斷言「織紋」(兩字)不命中 | 一次驗證 FTS5 已編入、trigram tokenizer 存在、中文子字串檢索可行,並釘住 trigram 的三字元下限(見實作備註偏差 1) |
 | T6 | `StoryFlow.CoreSpec` — 斷言 `hGetEncoding stdout` 為 UTF-8 | 確認測試進入點的編碼設定真的執行到,繁中描述不亂碼 |
 | T7 | `scripts/check.ps1` 執行後 exit code 0 且輸出 4 個測試套件結果 | 一鍵腳本可用;README 步驟照做即可得到相同結果 |
 
 ## 實作備註
 
-(撰寫時留空)
+### 偏差 1:FTS5 trigram 的查詢字串下限是 3 個字元(重要)
+
+本規格原本寫的 T5 測試以 `MATCH '織紋'`(兩個字)命中「埃提亞崩塌前的織紋刀」。實際執行時
+**建表與寫入都成功、查詢回傳空集合**。原因不是 `+fulltextsearch` 沒生效,而是 SQLite 的
+trigram tokenizer 以「連續三字元」為索引單位,查詢字串**少於 3 個字元時一律不命中**
+(SQLite 官方文件明載)。測試已改為 `MATCH '織紋刀'` 並通過。
+
+flag 本身是生效的——`CREATE VIRTUAL TABLE ... USING fts5(tokenize='trigram')` 沒有拋出
+`no such module: fts5` 或 `no such tokenizer: trigram`,這就是 T5 真正要驗證的事。
+
+同時新增一條測試把這個限制釘住:`MATCH '織紋'` 斷言回傳空集合。這樣它是一條有紀錄的
+已知行為,而不是 P4 才被重新發現的意外。
+
+**對後續階段的影響(需要在 func-0004 / P4 處理)**:中文的二字詞極為常見——角色名「琳達」、
+「塔主」都是兩個字。若衝突偵測第 2 層直接把關鍵詞丟進 FTS5,這類詞會全部撈不到候選,
+而且是**靜默**撈不到。可行的對策(留待該階段決定):
+
+- 二字以下的詞改走 `entities` / `entity_aliases` 表的 `LIKE '%詞%'`,不走 FTS
+- 或於索引時把 `title` / `aliases` 補進 FTS 欄位並在查詢端補字(如 `織紋*` 的前綴查詢)
+
+架構文件的「FTS5 trigram 承擔中文檢索」這句話本身沒錯,但它有這個下限,建議在 P4 的規格
+裡明確寫出來。
+
+### 偏差 2:`scripts/check.ps1` 的離開碼判斷改用 `$LASTEXITCODE`
+
+規格原文寫 `if (-not $?) { exit 1 }`。在 PowerShell 中 `$?` 對原生執行檔(cabal.exe)的
+成敗判斷並不可靠——cabal 只要往 stderr 寫任何東西就可能讓 `$?` 為 `$false`,而
+`$ErrorActionPreference = 'Stop'` 也管不到原生執行檔的離開碼。已改為
+`if ($LASTEXITCODE -ne 0) { exit 1 }`,這是唯一能忠實反映 cabal 離開碼的寫法。
+`check.sh` 以 `set -euo pipefail` 達到等價效果,兩份腳本的指令內容仍然一致。
+
+### 其他
+
+- 各套件的 `.cabal` 以 `common warnings` / `common lang` 兩個區塊表達共同設定,library 與
+  test-suite 都 `import: warnings, lang`;`cabal.project` 的 `ghc-options` 再疊上
+  `-Wincomplete-record-updates -Wincomplete-uni-patterns`。
+- T6 的驗證方式:`StoryFlow.CoreSpec` 以 `hGetEncoding stdout` 斷言為 `UTF-8`,stderr 同。
+- `.gitignore` 建立本規格前即已存在且涵蓋 `dist-newstyle/` 等項目,未做修改。
+- 建置結果:`cabal build all` 無任何 warning;`cabal test all` 4 個測試套件全部被執行,
+  共 12 個 example、0 失敗;`scripts/check.ps1` exit code 0。

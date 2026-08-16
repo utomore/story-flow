@@ -8,14 +8,14 @@ created: 2026-08-16
 updated: 2026-08-16
 ---
 
-# story-flow 系統架構
+## story-flow 系統架構
 
 > 本專案以 `design-studio`(Python/FastAPI 的 AI 引導式設計工作坊)為範本重新構思,但**不是**
 > 它的改寫版本:資料模型從「模組 → 一份設計報告」換成「Entity 片段圖譜 + Level 場景樹」,
 > 語言從 Python 換成 Haskell,介面從網頁優先換成 API 優先。`design-studio` 保留在
 > `alchbees-dev/design-studio/` 並存不動(提示詞工房仍可使用),不做資料遷移。
 
-## 需求說明
+### 需求說明
 
 design-studio 解決了「和 LLM 一問一答沒有結構」的問題,但產出的粒度是**整份設計文件**。
 一旦世界觀累積到幾十份文件,真正的痛點浮現:
@@ -49,13 +49,13 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 
 明確**不在**本專案範圍內的:遊戲執行期的對話播放引擎、多人協作與權限、Web UI(P6 才評估)。
 
-## 架構規劃(含垂直切片說明)
+### 架構規劃(含垂直切片說明)
 
 依「純核心 → 落地 → 業務 → 介面」四層切,依賴單向向下,核心不知道介面存在:
 
 | 層 | 套件 | 職責 |
 |---|---|---|
-| 型別註冊表 | `types/registry/*.toml`(資料,非程式) | 宣告每個 Entity 型別的名稱、建議欄位、允許的關聯、工作坊階段。新增型別不改程式 |
+| 型別註冊表 | `types/registry/*.toml`(資料,非程式) | 宣告每個 Entity 型別的名稱、建議欄位、允許的關聯、工作坊階段、**檔案子目錄 `dir`** 與**所屬主體型別 `owner_type`**。新增型別不改程式 |
 | 純核心 | `storyflow-core` | `Meta` / `Entity` / `Link` / `Level` / `Node` / `LinkKind` 型別與純函式(樹的合法性、關聯遍歷、ID 生成、註冊表驗證)。**零 IO** |
 | 註冊表載入 | `storyflow-types` | 讀 `types/registry/*.toml`、解析、交給 `core` 的純驗證函式。唯一的 IO 是讀檔——`core` 零 IO 放不下這件事,因此獨立成薄套件 |
 | 解析 | `storyflow-md` | Markdown 分節格式 ↔ 核心型別的雙向轉換(解析與寫回)。純函式,吃 `Text` 吐型別 |
@@ -64,13 +64,27 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 | 衝突偵測 | `storyflow-conflict` | 三層偵測:圖遍歷 → FTS5 候選撈取 → LLM 判斷 |
 | LLM 存取 | `storyflow-llm` | OpenAI 相容端點抽象(地端/雲端),與 design-studio 的 `llm.py` 同一個思路 |
 | 工作坊 | `storyflow-workshop` | 階段式引導對話的狀態機,產出的東西寫進圖譜。**Entity 的產生器之一,核心不依賴它** |
+| API 契約 | `storyflow-api` | **只有** servant API 型別與 `ToSchema` 實例的薄套件,不含 server 也不含 client。`server` 與 `cli --remote` 各自依賴它,因此 CLI 不會被拖進 `warp`,而兩者共用的仍是同一份型別 |
 | 介面 1 | `storyflow-server` | servant REST API,綁 loopback |
 | 介面 2 | `storyflow-cli` | `story-flow` 指令,預設內嵌呼叫 `Service`,`--remote` 改走 servant-client |
 | 介面 3 | `storyflow-mcp` | MCP adapter,薄層,打同一組 HTTP API |
 
 **垂直切片 1(新增一個 Entity 型別)**:在 `types/registry/` 加一份 `.toml`。CLI 的 `--type` 選項、
-API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟進,`core`/`service`/`server`/`cli`
-不改一行。這是直接繼承 design-studio 最成功的設計(宣告式模組註冊表,已被 8 個模組驗證)。
+API 的型別清單、工作坊階段、該型別允許的關聯、**新建檔案落在哪個子目錄**全部自動跟進,
+`core`/`service`/`server`/`cli` 不改一行。這是直接繼承 design-studio 最成功的設計
+(宣告式模組註冊表,已被 8 個模組驗證)。
+
+`dir` 與 `owner_type` 是為了讓「新建一份主題檔要放哪裡」也是宣告式的。`owner_type` 同時補上
+一個資料裡本來就有、註冊表卻沒表達的事實:檔案層主體寫 `type: character`、節層片段寫
+`type: character-fragment`,前者原本不在註冊表裡,查目錄與型別驗證都會落空。宣告
+`owner_type = "character"` 之後,兩個鍵都命中同一筆宣告。`level` 是保留鍵不可出現在註冊表,
+Level 檔的目錄因此固定為 `levels/`。
+
+**註冊表在執行期怎麼被找到**:`types/registry/*.toml` 隨程式碼版控,但 `cabal install` 之後的
+執行檔沒有原始碼樹的相對路徑。因此 `storyflow-types` 以 cabal `data-files` 帶著它們,
+執行期由 `defaultRegistryDir` 定位;環境變數 `STORYFLOW_REGISTRY` 優先——開發時指向工作目錄,
+作者要自訂型別時也不必重編譯。載入失敗一律讓程序失敗,**不退回空註冊表**:空註冊表會讓每個
+Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 
 **垂直切片 2(新增一個業務操作)**:在 `storyflow-service` 加一個函式 → 在 servant API 型別加
 一條路由 → 在 CLI 加一個子指令。三處都是薄的,業務邏輯只有一份;MCP adapter 依 API 型別自動
@@ -79,24 +93,27 @@ API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟�
 **垂直切片 3(新增一種衝突偵測規則)**:`storyflow-conflict` 的三層各自可獨立擴充——結構層加
 一種關聯推論、檢索層調整候選策略、判斷層換 prompt,彼此不互相牽動。
 
-## 使用的技術
+### 使用的技術
 
 - **語言/建置**:Haskell,GHC 9.14.1 / cabal 3.16.x,多套件 `cabal.project`,**不使用 stack**
   ——與 `assetdb` 完全一致的工具鏈(見 ADR-0001)
 - **儲存**:Markdown 檔為真相來源 + SQLite 為可重建索引;`direct-sqlite` 開啟 `+fulltextsearch`
   以取得 FTS5 與中文搜尋所需的 trigram tokenizer(assetdb 已驗證此作法)
-- **API**:`servant` + `servant-server` + `warp`,API 型別即契約;`servant-client` 供 CLI 遠端模式
-- **CLI**:`optparse-applicative`,所有指令支援 `--json`
+- **API**:`servant` + `servant-server` + `warp`,API 型別即契約;`servant-client` 供 CLI 遠端模式;
+  `servant-openapi3` 由同一份型別推導出 OpenAPI 3 文件(`story-flow serve --openapi`)
+- **業務層**:`mtl` 的 `ReaderT` + `ExceptT` 疊成 `ServiceM`,讓多步驟的業務組合不必手工串 `Either`
+- **CLI**:`optparse-applicative`,所有指令支援 `--json`,輸出為統一信封
+  `{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`——AI Agent 只需 parse 一種形狀
 - **LLM**:`http-client` + `aeson` 直接打 OpenAI 相容端點(不引入重量級 SDK)
 - **設定**:Vault 內 `.storyflow/config.toml`,全域 `~/.config/story-flow/vaults.toml`
 - **測試**:`hspec`,`temporary` 建臨時 Vault 做落地層測試
 - **前端**:無(P6 才評估)
 
-## 架構圖
+### 架構圖
 
 依賴方向(單向向下,核心不知道介面存在):
 
-```
+```text
                    ┌──────────────────────────┐
                    │  types/registry/*.toml   │  宣告式型別註冊表(資料,非程式)
                    └────────────┬─────────────┘
@@ -125,7 +142,12 @@ API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟�
 │圖→FTS5→LLM 三層│◄─┤地端 / 雲端    ├─►│階段式引導狀態機 │
 └─────┬─────────┘  └───────────────┘  └───────────┬────┘
       └────────────────────┬───────────────────────┘
-          ┌────────────────┴────────────────┐
+                ┌──────────┴──────────┐
+                │  storyflow-api      │  ★ 唯一 API 契約
+                │  servant 型別       │    只有型別:無 server、無 client、無 warp
+                │  + ToSchema         │    server / cli / OpenAPI 三者由它產生
+                └────────┬────────────┘
+          ┌──────────────┴──────────────────┐
    ┌──────┴───────────┐            ┌────────┴──────────┐
    │storyflow-server  │            │storyflow-cli      │
    │servant REST      │            │預設內嵌 Service   │
@@ -140,9 +162,14 @@ API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟�
    claude code / codex
 ```
 
+`storyflow-cli` 同時依賴 `storyflow-service`(內嵌模式)與 `storyflow-api`(遠端模式);
+`storyflow-server` 依賴兩者。API 型別獨立成套件的理由是 **CLI 的遠端模式需要它、但不需要
+`servant-server` 與 `warp`**——型別若住在 server 裡,一個預設根本不開伺服器的執行檔就得
+把整套 HTTP 伺服器拖進來。
+
 資料流 A(AI Agent 討論新劇情,含衝突偵測):
 
-```
+```text
 Agent 提出新劇情草稿
   → POST /conflict/check {draft, scope}
   → conflict 第 1 層:圖遍歷。順著 contradicts / supersedes 找草稿已引用片段的已知矛盾與被取代關係
@@ -156,7 +183,7 @@ Agent 提出新劇情草稿
 
 資料流 B(地端 LLM 階段式工作坊,承襲 design-studio):
 
-```
+```text
 選型別(如 character)+ 勾選要當硬約束的既有 Entity + 選後端模型 + 起始概念
   → workshop 依型別註冊表的階段清單逐階段對話
   → 每階段定案 → 產出多個片段 Entity(不是一份文件)
@@ -165,18 +192,18 @@ Agent 提出新劇情草稿
 
 資料流 C(索引重建,證明檔案才是真相來源):
 
-```
+```text
 rm .storyflow/index.db
   → story-flow index rebuild
   → 掃描 Vault 全部 .md → storyflow-md 解析 → 重建 entities/links/nodes/FTS5
   → 結果與刪除前等價
 ```
 
-## 資料結構的框架格式
+### 資料結構的框架格式
 
-### 目錄結構
+#### 目錄結構
 
-```
+```text
 alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
 ├── cabal.project
 ├── types/                          ← storyflow-types 套件
@@ -190,6 +217,7 @@ alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
 │       └── plot-fragment.toml
 ├── core/  md/  store/  service/    ← 各套件(每個一份 *.cabal)
 ├── conflict/  llm/  workshop/
+├── api/                            ← servant API 型別(只有型別)
 ├── server/  cli/  mcp/
 ├── scripts/                        ← check.ps1 / check.sh(本機建置測試)
 └── docs/
@@ -210,7 +238,7 @@ alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
 Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git 同一個心智模型);找不到時
 或明確指定 `--vault <名稱>` 時,查全域註冊表。這也讓跨 Vault 引用與遠端指定共用同一套解析。
 
-### 統一 Meta(Entity / Level / Node 共用同一組欄位)
+#### 統一 Meta(Entity / Level / Node 共用同一組欄位)
 
 所有實體共用同一份 `Meta`,只有少數欄位是各自專屬的。統一的用意是抽象與管理成本只付一次:
 索引表、API 序列化、CLI 輸出、衝突偵測全部對同一組欄位工作。
@@ -239,7 +267,7 @@ Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git �
   `kind`(`scene` / `cast` / `camera` / `interaction` / `dialogue` / `branch`)、
   `entities`([Text],關聯到的 Entity,允許多個但建議一個)
 
-### 核心關聯詞彙(`LinkKind`)
+#### 核心關聯詞彙(`LinkKind`)
 
 引擎認得下列關聯並據以推論;其餘可用自訂字串(如「師承於」「宿敵」),引擎當純標註儲存、
 可查詢、但**不驅動邏輯**。
@@ -255,7 +283,7 @@ Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git �
 | `references` | A 提到 B | 弱關聯,擴充檢索範圍 |
 | `convergesTo` | Node A 合流到 Node B | Level 樹的分支合流標註(見下) |
 
-### Markdown 分節格式(檔案為真相來源)
+#### Markdown 分節格式(檔案為真相來源)
 
 一個主題一份 `.md`,檔內以分節切出片段。檔案層 frontmatter 描述主體,節層以標題屬性帶 id、
 緊接一個 ` ```meta ` 區塊帶該片段的 Meta。節層未寫的欄位**繼承檔案層**(`vault`/`type`/
@@ -334,14 +362,14 @@ Markdown 子標題——一個節就是一個片段。
 **寫回策略**:未經修改的區塊逐字保留原始位元組,只有被修改的 `meta` 區塊重新序列化
 (ADR-0010)。作者的空行、YAML 註解、縮排風格不會被工具改掉。
 
-### Level 場景樹
+#### Level 場景樹
 
 Level 是**嚴格樹**:每個 Node 單一父節點、不成環,可無限展開。分支合流不改變樹結構,而是以
 `convergesTo` 關聯標註——結構的邊界因此永遠清楚,遍歷與渲染不需處理多路徑與防環。
 
 以「教室」場景為例(實線為樹,虛線為關聯):
 
-```
+```text
 lvl-3a01 教室
 └─ nod-0001 kind=scene       「午後的教室,窗外是崩塌後的天際線」
    │                          └╌involves╌→ ent-c41d(教室場地描述 Entity)
@@ -418,9 +446,9 @@ summary: 自窗外緩推至講台,焦段 35mm
 限制:Markdown 只有六級標題,根用 `##` 時最深五層。真的不夠時把子樹拆成另一個 Level
 以關聯串接(見 ADR-0009 的影響)。
 
-### SQLite 索引結構(可重建,不是真相來源)
+#### SQLite 索引結構(可重建,不是真相來源)
 
-```
+```text
 meta_info(key PK, value)                                -- schema_version、vault_root、vault_name
 files(path PK, mtime, size)                             -- 外部改動的過時偵測
 entities(id PK, vault, type, title, summary, status, timeline, timeline_order,
@@ -456,7 +484,7 @@ Node 任一種,靠 `src` 反查要三個子查詢。`meta_info` 記著 Vault 根
 `body` 進 FTS 但**不進 `entities` 表**——正文只有檔案有,索引只需要能搜到它。
 schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建。
 
-## 使用到的套件
+### 使用到的套件
 
 | 套件 | 用途 |
 |---|---|
@@ -465,6 +493,8 @@ schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建�
 | `sqlite-simple` + `direct-sqlite` (`+fulltextsearch`) | SQLite 與 FTS5 trigram |
 | `servant` / `servant-server` / `warp` | REST API,API 型別即契約 |
 | `servant-client` / `http-client` | CLI 遠端模式、LLM 端點呼叫 |
+| `servant-openapi3` + `openapi3` | 由 API 型別自動推導 OpenAPI 3 文件,讓 Agent 只靠文件就能接 |
+| `mtl` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`,業務層的組合 |
 | `optparse-applicative` | CLI 指令解析 |
 | `directory` / `filepath` / `temporary` | 檔案落地、mtime/size 過時偵測、測試用臨時 Vault |
 | `toml-reader` | 型別註冊表與 Vault 設定的 TOML 解析(純 Haskell、無 C 相依) |
@@ -476,14 +506,14 @@ YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固�
 
 前端無相依(P6 才評估)。
 
-## 開發階段
+### 開發階段
 
 | 階段 | 內容 | 完成標準 |
 |---|---|---|
 | P0 | 骨架:`cabal.project` 多套件(P1 所需的 `core` / `types` / `md` / `store` 四個,其餘各階段再加)、GHC 9.14.1、`-Wall` 設定、hspec 測試骨架、`scripts/check.ps1` 與 `check.sh` | `cabal build all` / `cabal test all` 綠燈;FTS5 trigram smoke test 通過(證明 `+fulltextsearch` 生效);`scripts/check` exit 0 |
 | P1 | `core` + `types` + `md` + `store`:統一 Meta 與五個核心型別、型別註冊表載入與驗證、Markdown 分節雙向解析、原子寫入、SQLite 索引與 FTS5、樂觀鎖 | `index rebuild` 後與重建前等價;round-trip 測試(解析→寫回→再解析)不失真 |
-| P2 | `service` + `cli`:Vault init/註冊、Entity 與 Link 的增刪查改、Level 樹編輯、全指令 `--json`、內嵌模式 | 能純用 CLI 把「教室」場景與琳達的片段從零建起來 |
-| P3 | `server`:servant REST 覆蓋 `service` 全部操作、綁 loopback、OpenAPI 輸出;CLI `--remote` | claude code 只靠 API 文件就能建/查片段與關聯 |
+| P2 | `store` 寫入能力補齊(建檔、增節、改寫、刪除、Level 節點——P1 只做出了改既有節的 meta)+ `service` + `cli`:Vault init/註冊、Entity 與 Link 的增刪查改、Level 樹編輯、全指令 `--json`、內嵌模式 | 能純用 CLI 把「教室」場景與琳達的片段從零建起來 |
+| P3 | `api` + `server`:servant API 型別獨立成套件、REST 覆蓋 `service` 全部操作、綁 loopback、OpenAPI 輸出;CLI `--remote` | claude code 只靠 API 文件就能建/查片段與關聯 |
 | P4 | `conflict`:圖遍歷、FTS5 候選撈取、LLM 判斷三層,以及 `context` 指令(只撈相關片段不判斷) | 拿真實草稿測出既有設定的矛盾,且能說出是哪個片段的哪一段 |
 | P5 | `llm` + `workshop` + `mcp`:地端 OpenAI 相容端點、階段式引導工作坊、MCP adapter | 地端模型能引導產出片段;claude code 以 MCP 直接操作 |
 | P6 | (選配)Web:Entity 關聯圖與 Level 樹視覺化 | 資料模型穩定後再評估是否值得做 |
@@ -494,12 +524,12 @@ YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固�
 **與 design-studio 的關係**:並存,不搬資料。design-studio 不再開發新功能,提示詞工房仍可使用;
 等 story-flow 走到 P4 且實際用在作品上,再決定 design-studio 是否封存。
 
-## 已知缺口
+### 已知缺口
 
 實作過程中發現、當下決定不補、但**未來要補得動**的洞。每一條都要說清楚缺什麼、為什麼現在
 不補、補的時候要動哪裡——否則它會變成沒人記得的技術債。
 
-### 檔案層主體(frontmatter)的 meta 改不動
+#### 檔案層主體(frontmatter)的 meta 改不動
 
 **現況**:`storyflow-md` 只提供節層的 `updateSection`,沒有任何改寫 frontmatter 的介面。
 因此 `storyflow-store` 的 `writeEntityMeta` 對「檔案層主體 Entity」(`section_anchor`
@@ -510,12 +540,24 @@ frontmatter。片段 Entity 不受影響,樂觀鎖與寫回在節層是完整的
 Meta 序列化、逐欄改寫、以及對應的 round-trip 測試,範圍與風險都不小,而 P1 的驗收標準
 (索引重建等價、round-trip 不失真)不依賴它。
 
+**何時補**:已排入 **func-0005**(P2 的前置),因為 P2 的驗收標準「能純用 CLI 從零建起來」
+必須寫得動主體 Entity。
+
 **補的時候要動哪裡**(三處,順序不能顛倒):
 
-1. `storyflow-md`:新增 `updateFrontmatter :: (MetaOverride -> MetaOverride) -> Document
-   -> Either MdError Document`,序列化規則沿用 `renderMetaBlock` 的固定欄位順序,並補
-   「未修改的節逐字不變」的 round-trip 測試。ADR-0010 的位元組保留保證必須由 md 一處守住,
-   **不可以**在 store 自己改寫 frontmatter——那會讓保證分裂成兩份
+1. `storyflow-md`:新增 `updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError
+   Document`,序列化規則沿用 `renderMetaBlock` 的固定欄位順序(另立 `frontmatterFieldOrder`
+   插入 `id` / `title`、去掉 `kind`),並補「未修改的節逐字不變」的 round-trip 測試。
+   ADR-0010 的位元組保留保證必須由 md 一處守住,**不可以**在 store 自己改寫 frontmatter
+   ——那會讓保證分裂成兩份。
+
+   函式型別吃 `Meta -> Meta` 而不是 `MetaOverride -> MetaOverride`:frontmatter 一定是
+   **完整的** `Meta`,而 `MetaOverride` 連 `id` 與 `title` 兩個欄位都沒有——改標題正是主體
+   Entity 最常見的修改。用「每欄 `Maybe`」的型別描述一份必然完整的資料,還會把「沒寫」與
+   「寫了空值」混成同一件事。
+
+   代價要講明:frontmatter 是**整段重新序列化**,作者寫在裡面的 YAML 註解會被抹掉。節層的
+   位元組保留不受影響,而那才是 ADR-0010 真正在保護的東西——片段是被工具高頻改寫的那一種。
 2. `storyflow-store`:`writeEntityMeta` 在 `section_anchor` 為 NULL 時改走
    `updateFrontmatter`,移除 `FrontmatterWriteUnsupported` 建構子
 3. 本節連同該建構子一起刪掉

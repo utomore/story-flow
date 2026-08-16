@@ -1,20 +1,15 @@
 module StoryFlow.StoreSpec (spec) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
 import Database.SQLite.Simple
 import StoryFlow.Core.Id (IdPrefix (PEnt), renderIdPrefix)
-import StoryFlow.Store (storeVersion)
 import Test.Hspec
 
 spec :: Spec
 spec = do
-  describe "storyflow-store 骨架" $ do
-    it "storeVersion 非空" $
-      T.null storeVersion `shouldBe` False
-
-    -- func-0001 T5:依賴方向的驗證。改用 core 的實際模組(func-0002 已把
-    -- StoryFlow.Core 佔位模組移除),意義不變。
+  describe "storyflow-store 骨架" $
+    -- func-0001 T5:依賴方向的驗證。func-0004 把佔位的 storeVersion 換成真正的
+    -- 門面模組後,這條改以 core 的實際函式證明同一件事。
     it "可 import storyflow-core,證明 store → core 的依賴方向已接上" $
       renderIdPrefix PEnt `shouldBe` "ent"
 
@@ -27,8 +22,8 @@ spec = do
         rows `shouldBe` [Only "埃提亞崩塌前的織紋刀"]
 
     -- trigram 以三字元為索引單位,查詢字串少於 3 個字元一律不命中。
-    -- 這不是 flag 沒生效,而是 tokenizer 的固有限制;P4 的候選撈取
-    -- 必須自己處理二字詞(例如角色名「琳達」),見 func-0001 實作備註。
+    -- 這不是 flag 沒生效,而是 tokenizer 的固有限制;searchEntities 因此對
+    -- 二字詞改走 LIKE 掃描(見 StoryFlow.Store.SearchSpec)。
     it "查詢字串少於 3 個字元時 trigram 不命中(已知限制)" $
       withTrigramTable $ \conn -> do
         rows <-

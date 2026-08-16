@@ -1,7 +1,8 @@
 ---
-id: enhance-0004
+id: enhance-2026-08-16-ts-types-drift-check
 type: enhance
 title: ts-types-drift-check
+description: 加上 CI 檢查確保前端型別檔是最新產物
 status: open
 created: 2026-08-16
 updated: 2026-08-16

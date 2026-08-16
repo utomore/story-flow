@@ -1,7 +1,8 @@
 ---
-id: enhance-0007
+id: enhance-2026-08-16-grid-effect-dependency-cleanup
 type: enhance
 title: grid-effect-dependency-cleanup
+description: 修正 Grid 的 effect 依賴,避免每次渲染重跑
 status: open
 created: 2026-08-16
 updated: 2026-08-16
@@ -31,7 +32,7 @@ related-spec: []
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | 人工驗證:捲動網格時 effect 觸發次數明顯減少且分頁載入行為不變 | 前端目前無測試設施(見 enhance-0014),此項以手動驗證為主 |
+| T1 | 人工驗證:捲動網格時 effect 觸發次數明顯減少且分頁載入行為不變 | 前端目前無測試設施(見 enhance-2026-08-16-test-coverage-gaps),此項以手動驗證為主 |
 
 ## 實作備註
 

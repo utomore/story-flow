@@ -2,6 +2,7 @@
 id: adr-0005
 type: adr
 title: native-zip-plus-7zip-sidecar
+description: ZIP 用原生 Haskell 讀取,RAR 與 7z 交給 sidecar
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

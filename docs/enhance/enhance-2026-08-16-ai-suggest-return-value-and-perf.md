@@ -1,7 +1,8 @@
 ---
-id: enhance-0003
+id: enhance-2026-08-16-ai-suggest-return-value-and-perf
 type: enhance
 title: ai-suggest-return-value-and-perf
+description: 修正建議回報值並消除叢集目標的全表掃描
 status: open
 created: 2026-08-16
 updated: 2026-08-16

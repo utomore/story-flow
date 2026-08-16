@@ -2,6 +2,7 @@
 id: bug-0004
 type: bug
 title: server-binds-all-interfaces
+description: Server 預設綁定所有網路介面且無驗證機制
 status: open
 created: 2026-08-16
 updated: 2026-08-16

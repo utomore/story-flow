@@ -1,7 +1,8 @@
 ---
-id: enhance-0012
+id: enhance-2026-08-16-reorg-onetime-rules-retirement
 type: enhance
 title: reorg-onetime-rules-retirement
+description: 退役已完成搬遷的一次性路徑規則
 status: open
 created: 2026-08-16
 updated: 2026-08-16

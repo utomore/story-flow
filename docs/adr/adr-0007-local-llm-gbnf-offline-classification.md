@@ -2,6 +2,7 @@
 id: adr-0007
 type: adr
 title: local-llm-gbnf-offline-classification
+description: 以本機 LLM 離線分類,輸出受 GBNF 文法約束
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

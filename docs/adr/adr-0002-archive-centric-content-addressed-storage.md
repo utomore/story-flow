@@ -2,6 +2,7 @@
 id: adr-0002
 type: adr
 title: archive-centric-content-addressed-storage
+description: 以壓縮檔為唯一真相,內容以 SHA-256 定址去重
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

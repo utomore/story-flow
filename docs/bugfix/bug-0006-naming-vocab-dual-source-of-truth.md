@@ -2,6 +2,7 @@
 id: bug-0006
 type: bug
 title: naming-vocab-dual-source-of-truth
+description: naming_vocab 表是死資料,詞彙實際由硬編碼生效
 status: open
 created: 2026-08-16
 updated: 2026-08-16

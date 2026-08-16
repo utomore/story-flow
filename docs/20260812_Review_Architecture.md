@@ -1,8 +1,8 @@
 # AssetDB 架構健康檢查報告
 
 > **2026-08-16 更新**:本報告的 P0/P1 問題已轉為 `docs/bugfix/bug-0001` 至 `bug-0006`,
-> P2/P3 與 magic number / 硬編碼 / DRY 章節的建議已轉為 `docs/enhance/enhance-0001` 至
-> `enhance-0014`,可執行 `/code-audit status` 追蹤修正進度。本報告維持原樣作為當時分析的
+> P2/P3 與 magic number / 硬編碼 / DRY 章節的建議已轉為 `docs/enhance/` 底下的 14 份改善提案,
+> 可執行 `/code-audit status` 追蹤修正進度。本報告維持原樣作為當時分析的
 > 完整記錄,不再更新。
 
 > 審查日期:2026-08-12(依檔名);實際逐檔閱讀完成於 2026-08-13。

@@ -1,7 +1,8 @@
 ---
-id: enhance-0001
+id: enhance-2026-08-16-notes-input-handling-robustness
 type: enhance
 title: notes-input-handling-robustness
+description: 強化 Notes 的輸入處理健壯性
 status: open
 created: 2026-08-16
 updated: 2026-08-16

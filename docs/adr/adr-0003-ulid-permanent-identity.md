@@ -2,6 +2,7 @@
 id: adr-0003
 type: adr
 title: ulid-permanent-identity
+description: 以 ULID 作永久識別碼,名稱與路徑皆可自由變更
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

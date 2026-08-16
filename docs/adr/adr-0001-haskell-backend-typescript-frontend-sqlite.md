@@ -2,6 +2,7 @@
 id: adr-0001
 type: adr
 title: haskell-backend-typescript-frontend-sqlite
+description: 後端用 Haskell、前端用 TypeScript、儲存用 SQLite
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

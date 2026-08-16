@@ -1,7 +1,8 @@
 ---
-id: enhance-0010
+id: enhance-2026-08-16-pagination-constants-consolidation
 type: enhance
 title: pagination-constants-consolidation
+description: 收斂四處各自為政的分頁常數
 status: open
 created: 2026-08-16
 updated: 2026-08-16

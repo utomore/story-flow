@@ -2,6 +2,7 @@
 id: adr-0004
 type: adr
 title: file-naming-grammar
+description: 統一檔案命名文法,並以檔名叢集推論輔助命名
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

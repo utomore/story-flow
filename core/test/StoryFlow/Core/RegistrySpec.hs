@@ -20,11 +20,18 @@ characterFragment =
         ]
     , etsAllowedLinks = [PartOf, OccursIn, Contradicts, Supersedes, References]
     , etsStages = ["定位", "外貌與舉止"]
+    , etsDir = Just "characters"
+    , etsOwnerType = Just "character"
     }
 
 loreFragment :: EntityTypeSpec
 loreFragment =
-  characterFragment {etsKey = "lore-fragment", etsName = "世界觀片段"}
+  characterFragment
+    { etsKey = "lore-fragment"
+    , etsName = "世界觀片段"
+    , etsDir = Just "lore"
+    , etsOwnerType = Just "lore"
+    }
 
 -- | 從合法宣告集建出來的註冊表。
 goodRegistry :: TypeRegistry
@@ -106,6 +113,59 @@ spec = do
     it "listTypes 依 key 排序,輸出穩定" $
       map etsKey (listTypes goodRegistry)
         `shouldBe` ["character-fragment", "lore-fragment"]
+
+  -- func-0005 T4:lookupDir 以 key 或 owner_type 命中,衝突宣告被擋下
+  describe "lookupDir" $ do
+    it "以 key 精確命中" $
+      lookupDir "character-fragment" goodRegistry `shouldBe` Just "characters"
+
+    it "以 owner_type 命中 —— 檔案層主體的 type 不在註冊表裡" $
+      lookupDir "character" goodRegistry `shouldBe` Just "characters"
+
+    it "兩個鍵指向同一筆宣告,目錄一致" $
+      lookupDir "character" goodRegistry
+        `shouldBe` lookupDir "character-fragment" goodRegistry
+
+    it "沒宣告 dir 的型別回 Nothing,由呼叫端決定丟哪裡" $
+      let reg = case validateRegistry [characterFragment {etsDir = Nothing}] of
+            Right r -> r
+            Left es -> error (show es)
+       in lookupDir "character-fragment" reg `shouldBe` Nothing
+
+    it "查不到的型別回 Nothing" $
+      lookupDir "npc" goodRegistry `shouldBe` Nothing
+
+    it "同一個 owner_type 被兩份宣告以不同 dir 認領時回 ConflictingOwnerDir" $
+      errsOf
+        [ characterFragment
+        , loreFragment {etsOwnerType = Just "character", etsDir = Just "lore"}
+        ]
+        `shouldBe` [ConflictingOwnerDir "character"]
+
+    it "同一個 owner_type 但 dir 相同不算衝突" $
+      isRight
+        ( validateRegistry
+            [ characterFragment
+            , loreFragment {etsOwnerType = Just "character", etsDir = Just "characters"}
+            ]
+        )
+        `shouldBe` True
+
+    it "兩份宣告共用同一個 dir 但 owner_type 不同不算衝突(lore/ 放兩種片段)" $
+      isRight
+        ( validateRegistry
+            [ characterFragment {etsDir = Just "lore", etsOwnerType = Just "lore"}
+            , loreFragment {etsOwnerType = Just "plot"}
+            ]
+        )
+        `shouldBe` True
+
+    it "缺 dir 與 owner_type 的舊格式宣告仍然通過驗證" $
+      isRight
+        ( validateRegistry
+            [characterFragment {etsDir = Nothing, etsOwnerType = Nothing}]
+        )
+        `shouldBe` True
 
   describe "checkEntity —— 警告而非錯誤(ADR-0005 引導而非阻擋)" $ do
     it "合規的 Entity 回空清單" $

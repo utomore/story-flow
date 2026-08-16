@@ -5,6 +5,12 @@
 key  = "character-fragment"
 name = "角色片段"
 
+# 新建一份主題檔要放哪個子目錄,以及這個片段型別所屬的主體型別鍵。
+# owner_type 讓「查 character 的目錄」與「查 character-fragment 的目錄」
+# 命中同一筆宣告 —— 檔案層主體寫的是 type: character,它不在註冊表裡。
+dir        = "characters"
+owner_type = "character"
+
 allowed_links = ["partOf", "occursIn", "involves", "contradicts", "supersedes", "references"]
 stages = ["定位", "外貌與舉止", "動機與過往", "關係網"]
 

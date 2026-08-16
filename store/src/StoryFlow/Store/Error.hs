@@ -18,7 +18,9 @@ import Control.Exception (Handler (..), catches)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple (FormatError, ResultError, SQLError)
-import StoryFlow.Core.Id (Id, IdPrefix, renderId, renderIdPrefix)
+import StoryFlow.Core.Id (Id, IdPrefix, Ref, renderId, renderIdPrefix, renderRef)
+import StoryFlow.Core.Link (Link (..), LinkKind, renderLinkKind)
+import StoryFlow.Core.Tree (TreeError, renderTreeError)
 import StoryFlow.Md.Error (MdError, renderMdError)
 
 data StoreError
@@ -35,9 +37,24 @@ data StoreError
   | -- | 檔案已寫成功,只有索引失敗。__不是資料遺失__
     IndexUpdateFailed FilePath Text
   | ParseFailed FilePath [MdError]
-  | -- | 檔案層主體(frontmatter)的 meta 目前改不動,見 architecture.md 末節的
-    -- 「已知缺口」。@storyflow-md@ 只提供節層的 'StoryFlow.Md.Render.updateSection'
-    FrontmatterWriteUnsupported Id
+  | -- | 被刪目標, 誰指向它。'DeleteSafe' 的拒絕理由,附上來源 id 讓呼叫端
+    -- 能直接告訴作者去改哪裡
+    ReferencedBy Id [(Id, Link)]
+  | -- | 對片段用了只能用在檔案層主體的操作(如 'addFragment')
+    NotAFileMain Id
+  | -- | 反之:對檔案層主體用了只能用在片段的操作
+    NotAFragment Id
+  | -- | 父 Node, 算出來的新層級。Markdown 只有六級標題
+    NodeDepthExceeded Id Int
+  | -- | 根 Node 刪不得——刪了整份 Level 檔就解析不出 @root@
+    CannotRemoveRootNode Id
+  | -- | 來源 id, 關聯種類, 目標。'removeEntityLink' 一筆都沒命中
+    LinkNotFound Id LinkKind Ref
+  | FileAlreadyExists FilePath
+  | -- | 編輯後的 Level 樹不合法。__已擋在寫檔之前__,檔案沒有被改到
+    TreeInvalid FilePath [TreeError]
+  | -- | 型別鍵。註冊表沒宣告 @dir@ 且呼叫端也沒給路徑
+    RegistryDirUnknown Text
   | SqliteError Text
   deriving stock (Show, Eq)
 
@@ -79,16 +96,61 @@ renderStoreError = \case
       <> ";資料是安全的,執行 story-flow index rebuild 即可"
   ParseFailed fp es ->
     pack fp <> ": 解析失敗\n" <> T.intercalate "\n" (map renderMdError es)
-  FrontmatterWriteUnsupported i ->
+  ReferencedBy i srcs ->
+    "刪除被拒絕:還有 "
+      <> tshow (length srcs)
+      <> " 筆關聯指向 "
+      <> renderId i
+      <> "\n"
+      <> T.intercalate "\n" (map srcLine srcs)
+      <> "\n請先移除這些關聯,或改用強制刪除(會留下指不到目標的孤兒關聯)"
+  NotAFileMain i ->
     renderId i
-      <> " 是檔案層主體,它的 meta 寫在 frontmatter;"
-      <> "目前只能以編輯器直接修改該檔案的 frontmatter"
+      <> " 是檔案裡的一個片段,不是檔案層主體;"
+      <> "請改用該檔案主體的 id(索引裡 section_anchor 為空的那一筆)"
+  NotAFragment i ->
+    renderId i
+      <> " 是檔案層主體,不是檔內的節;"
+      <> "請改用該檔案裡某一節的 id(Level 檔就是某個 Node 的 id)"
+  NodeDepthExceeded i lvl ->
+    "在 "
+      <> renderId i
+      <> " 底下新增會讓標題層級變成 "
+      <> tshow lvl
+      <> ",而 Markdown 只有六級標題;"
+      <> "請把這棵子樹拆成另一份 Level,再以關聯串接(見 ADR-0009)"
+  CannotRemoveRootNode i ->
+    renderId i
+      <> " 是這份 Level 的根 Node,刪掉之後整份檔案就解析不出 root;"
+      <> "要整份場景不要了請改用刪除 Level"
+  LinkNotFound i k target ->
+    renderId i
+      <> " 身上沒有「"
+      <> renderLinkKind k
+      <> " → "
+      <> renderRef target
+      <> "」這一筆關聯;請先確認關聯的種類與目標是否寫對"
+  FileAlreadyExists fp ->
+    pack fp <> ": 這個路徑已經有檔案了;請換一個標題,或明確指定另一個路徑"
+  TreeInvalid fp es ->
+    pack fp
+      <> ": 編輯後的場景樹不合法,檔案沒有被改到\n"
+      <> T.intercalate "\n" (map (("  " <>) . renderTreeError) es)
+      <> "\n請先在編輯器裡把標題層級修好,再重新執行這個操作"
+  RegistryDirUnknown k ->
+    "型別「"
+      <> k
+      <> "」沒有在 types/registry/ 宣告 dir,不知道新檔案該放哪個目錄;"
+      <> "請在該型別的 .toml 補上 dir(或 owner_type),或直接指定檔案路徑"
   SqliteError msg ->
     "索引操作失敗 —— " <> msg
   where
     pack = T.pack
     tshow :: Int -> Text
     tshow = T.pack . show
+
+    srcLine (src, l) =
+      "  " <> renderId src <> " —— " <> renderLinkKind (linkKind l)
 
 -- | 本套件與 SQLite 之間的唯一邊界。
 --

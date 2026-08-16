@@ -22,6 +22,11 @@ module StoryFlow.Store.Fixtures
   , scalarInt
   , textsOf
 
+    -- * 建構輔助
+  , idOf
+  , refOf
+  , testRegistry
+
     -- * 範例檔
   , sampleFiles
   , lindaMd
@@ -41,6 +46,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple
+import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
+import StoryFlow.Core.Registry
+  ( EntityTypeSpec (..)
+  , TypeRegistry
+  , validateRegistry
+  )
 import StoryFlow.Store.Error (StoreError, renderStoreError)
 import StoryFlow.Store.Index (rebuildIndex)
 import StoryFlow.Store.Schema (closeIndex, openIndex)
@@ -91,6 +102,48 @@ withSampleIndex act = withSampleVault $ \v ->
   bracket (orDie =<< openIndex v) closeIndex $ \conn -> do
     _ <- orDie =<< rebuildIndex conn v
     act v conn
+
+-- 建構輔助 --------------------------------------------------------------------
+
+idOf :: Text -> Id
+idOf t = case parseId t of
+  Right (_, i) -> i
+  Left e -> error ("測試裡的 id 不合法:" <> show e)
+
+refOf :: Text -> Ref
+refOf t = case parseRef t of
+  Right r -> r
+  Left e -> error ("測試裡的 ref 不合法:" <> show e)
+
+-- | 測試用的型別註冊表。
+--
+-- 刻意__不去讀 @types\/registry\/@ 的實檔__:那是 @storyflow-types@ 的測試
+-- 範圍(func-0005 T5),落地層的測試不該因為別人改了一份 TOML 而變紅。
+-- 這裡只需要「dir 查得到」與「dir 查不到」兩種型別。
+testRegistry :: TypeRegistry
+testRegistry = case validateRegistry specs of
+  Right r -> r
+  Left es -> error ("測試註冊表不合法:" <> show es)
+  where
+    specs =
+      [ spec_ "character-fragment" (Just "characters") (Just "character")
+      , spec_ "lore-fragment" (Just "lore") (Just "lore")
+      , spec_ "item-fragment" (Just "items") (Just "item")
+      , spec_ "dialogue" (Just "dialogues") Nothing
+      , -- 沒宣告 dir 的型別:createEntityFile 該回 RegistryDirUnknown
+        spec_ "sketch" Nothing Nothing
+      ]
+
+    spec_ k d o =
+      EntityTypeSpec
+        { etsKey = k
+        , etsName = k
+        , etsFields = []
+        , etsAllowedLinks = []
+        , etsStages = []
+        , etsDir = d
+        , etsOwnerType = o
+        }
 
 countRows :: Connection -> Text -> IO Int
 countRows conn table = scalarInt conn (Query ("SELECT count(*) FROM " <> table)) ()

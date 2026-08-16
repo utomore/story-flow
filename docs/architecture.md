@@ -362,6 +362,13 @@ Markdown 子標題——一個節就是一個片段。
 **寫回策略**:未經修改的區塊逐字保留原始位元組,只有被修改的 `meta` 區塊重新序列化
 (ADR-0010)。作者的空行、YAML 註解、縮排風格不會被工具改掉。
 
+**檔案層 frontmatter 是例外**:它是一整塊 YAML,沒有像節那樣「只有 `meta` 區塊要換」的細界線
+可切,因此改它是**整段重新序列化**(`updateFrontmatter :: (Meta -> Meta) -> Document ->
+Either MdError Document`),寫在 frontmatter 裡的 YAML 註解會被抹掉。節層的位元組保留不受
+影響,而那才是 ADR-0010 真正在保護的東西——片段是被工具高頻改寫的那一種。簽名吃完整的 `Meta`
+而不是每欄 `Maybe` 的 `MetaOverride`:frontmatter 一定有 `id` 與 `title`,而改標題正是檔案層
+主體最常見的修改(func-0005)。
+
 #### Level 場景樹
 
 Level 是**嚴格樹**:每個 Node 單一父節點、不成環,可無限展開。分支合流不改變樹結構,而是以
@@ -523,41 +530,3 @@ YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固�
 
 **與 design-studio 的關係**:並存,不搬資料。design-studio 不再開發新功能,提示詞工房仍可使用;
 等 story-flow 走到 P4 且實際用在作品上,再決定 design-studio 是否封存。
-
-### 已知缺口
-
-實作過程中發現、當下決定不補、但**未來要補得動**的洞。每一條都要說清楚缺什麼、為什麼現在
-不補、補的時候要動哪裡——否則它會變成沒人記得的技術債。
-
-#### 檔案層主體(frontmatter)的 meta 改不動
-
-**現況**:`storyflow-md` 只提供節層的 `updateSection`,沒有任何改寫 frontmatter 的介面。
-因此 `storyflow-store` 的 `writeEntityMeta` 對「檔案層主體 Entity」(`section_anchor`
-為 NULL 的那一份)一律回 `FrontmatterWriteUnsupported`,只能請作者用編輯器直接改該檔的
-frontmatter。片段 Entity 不受影響,樂觀鎖與寫回在節層是完整的。
-
-**為什麼 P1 不補**:補它等於回頭擴充已經完成並合併的 func-0003——要新增 frontmatter 的
-Meta 序列化、逐欄改寫、以及對應的 round-trip 測試,範圍與風險都不小,而 P1 的驗收標準
-(索引重建等價、round-trip 不失真)不依賴它。
-
-**何時補**:已排入 **func-0005**(P2 的前置),因為 P2 的驗收標準「能純用 CLI 從零建起來」
-必須寫得動主體 Entity。
-
-**補的時候要動哪裡**(三處,順序不能顛倒):
-
-1. `storyflow-md`:新增 `updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError
-   Document`,序列化規則沿用 `renderMetaBlock` 的固定欄位順序(另立 `frontmatterFieldOrder`
-   插入 `id` / `title`、去掉 `kind`),並補「未修改的節逐字不變」的 round-trip 測試。
-   ADR-0010 的位元組保留保證必須由 md 一處守住,**不可以**在 store 自己改寫 frontmatter
-   ——那會讓保證分裂成兩份。
-
-   函式型別吃 `Meta -> Meta` 而不是 `MetaOverride -> MetaOverride`:frontmatter 一定是
-   **完整的** `Meta`,而 `MetaOverride` 連 `id` 與 `title` 兩個欄位都沒有——改標題正是主體
-   Entity 最常見的修改。用「每欄 `Maybe`」的型別描述一份必然完整的資料,還會把「沒寫」與
-   「寫了空值」混成同一件事。
-
-   代價要講明:frontmatter 是**整段重新序列化**,作者寫在裡面的 YAML 註解會被抹掉。節層的
-   位元組保留不受影響,而那才是 ADR-0010 真正在保護的東西——片段是被工具高頻改寫的那一種。
-2. `storyflow-store`:`writeEntityMeta` 在 `section_anchor` 為 NULL 時改走
-   `updateFrontmatter`,移除 `FrontmatterWriteUnsupported` 建構子
-3. 本節連同該建構子一起刪掉

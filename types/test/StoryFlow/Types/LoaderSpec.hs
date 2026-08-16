@@ -245,6 +245,54 @@ spec = do
       r <- loadRegistry projectRegistryDir
       fmap (filter (== "level") . map etsKey . listTypes) r `shouldBe` Right []
 
+  -- func-0005 T5:載入真實 registry 後五個型別都有 dir
+  describe "T5 —— dir / owner_type" $ do
+    it "五個型別的 dir 與 owner_type 與 func-0005 的規格表相符" $ do
+      r <- loadRegistry projectRegistryDir
+      case fmap listTypes r of
+        Right ts ->
+          [(etsKey s, etsDir s, etsOwnerType s) | s <- ts]
+            `shouldBe` [ ("character-fragment", Just "characters", Just "character")
+                       , ("dialogue", Just "dialogues", Nothing)
+                       , ("item-fragment", Just "items", Just "item")
+                       , ("lore-fragment", Just "lore", Just "lore")
+                       , ("plot-fragment", Just "lore", Just "plot")
+                       ]
+        Left es -> expectationFailure (show es)
+
+    it "每個型別都宣告了 dir —— 少一個就有型別建不出檔案" $ do
+      r <- loadRegistry projectRegistryDir
+      case fmap listTypes r of
+        Right ts -> mapM_ (\s -> etsDir s `shouldNotBe` Nothing) ts
+        Left es -> expectationFailure (show es)
+
+    it "主體型別鍵查得到目錄(lookupDir 走 owner_type 那一半)" $ do
+      r <- loadRegistry projectRegistryDir
+      case r of
+        Right reg -> do
+          lookupDir "character" reg `shouldBe` Just "characters"
+          lookupDir "item" reg `shouldBe` Just "items"
+          lookupDir "lore" reg `shouldBe` Just "lore"
+          lookupDir "plot" reg `shouldBe` Just "lore"
+          lookupDir "dialogue" reg `shouldBe` Just "dialogues"
+        Left es -> expectationFailure (show es)
+
+    it "缺這兩個鍵的舊格式 TOML 仍能載入,兩欄為 Nothing" $
+      withRegistryDir [("a.toml", goodToml "a-fragment" "甲片段")] $ \dir -> do
+        r <- loadRegistry dir
+        case fmap listTypes r of
+          Right [s] -> do
+            etsDir s `shouldBe` Nothing
+            etsOwnerType s `shouldBe` Nothing
+          other -> expectationFailure ("預期一個型別,卻得到:" <> show other)
+
+    it "dir 不是字串時回 BadFieldType" $
+      withRegistryDir
+        [("baddir.toml", "key = \"a-fragment\"\nname = \"甲\"\ndir = 42\n")]
+        $ \dir -> do
+          r <- loadRegistry dir
+          map fieldOf (errsOf r) `shouldBe` ["dir"]
+
 fieldOf :: LoadError -> Text
 fieldOf = \case
   MissingField _ k -> k

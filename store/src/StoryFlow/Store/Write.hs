@@ -1,47 +1,56 @@
--- | 樂觀鎖寫入(ADR-0003)。
+-- | 改既有實體:meta、正文、關聯(ADR-0003 的樂觀鎖)。
 --
--- 順序是不能調換的:__先寫檔、再更新索引__(ADR-0002)。最後一步失敗時檔案
--- 已經寫成功,這__不是資料遺失__,所以回的是 'IndexUpdateFailed' 而不是
--- 'FileWriteFailed' —— 呼叫端該說的是「資料已寫入,索引需重建」。
+-- 「建檔 / 增節 / 刪除」在 "StoryFlow.Store.Create",「Level 樹編輯」在
+-- "StoryFlow.Store.Node";三者共用的那條紀律(讀 → 鎖 → 純函式編輯 → 寫檔 →
+-- 索引)在 "StoryFlow.Store.Edit",本模組不重寫一遍。
 --
--- 第二步__重讀檔案__而不信任索引裡的 revision:作者可能剛用編輯器改過,
--- 索引還沒 refresh。拿過時的 revision 去比對,樂觀鎖就形同虛設。
---
--- 殘留競態見 "StoryFlow.Store.Atomic":重讀與 rename 之間的毫秒級窗口是
--- func-0004 明確接受的風險。
+-- 檔案層主體與片段走__同一組介面__:差別只在 @section_anchor@ 是不是 @NULL@,
+-- 而那件事由 'locate' 回答,不必呼叫端指定。片段改的是節的 @```meta@ 區塊
+-- (只有那一段被重新序列化),主體改的是 frontmatter(整段重新序列化,見
+-- 'StoryFlow.Md.Render.updateFrontmatter')。
 module StoryFlow.Store.Write
   ( WriteResult (..)
+
+    -- * Meta
   , writeEntityMeta
+
+    -- * 正文
+  , writeEntityBody
+
+    -- * 關聯
+  , addEntityLink
+  , removeEntityLink
+
+    -- * ID
   , allocateId
   ) where
 
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as T
 import Data.Time (Day, UTCTime, getCurrentTime, utctDay)
 import Database.SQLite.Simple
 import StoryFlow.Core.Entity (Entity (..))
-import StoryFlow.Core.Id (Id, IdPrefix, mkId, renderId)
-import StoryFlow.Core.Meta (Meta (..))
+import StoryFlow.Core.Id (Id, IdPrefix, Ref, mkId, renderId)
+import StoryFlow.Core.Link (Link (..), LinkKind)
+import StoryFlow.Core.Meta (Meta (..), bumpRevision)
 import StoryFlow.Md
-import StoryFlow.Store.Atomic (atomicWriteText, readTextFile)
-import StoryFlow.Store.Error (StoreError (..), renderStoreError, trySqlite)
-import StoryFlow.Store.Index (indexFile)
-import StoryFlow.Store.Vault (Vault, vaultAbsPath)
+import StoryFlow.Store.Edit
+import StoryFlow.Store.Error (StoreError (..), trySqlite)
+import StoryFlow.Store.Vault (Vault)
 
-data WriteResult = WriteResult
-  { wrNewRevision :: Int
-  , wrPath :: FilePath
-  -- ^ Vault 相對路徑,與索引裡存的形式一致
-  }
-  deriving stock (Show, Eq)
-
--- | 修改既有片段 Entity 的 Meta。
+-- | 修改既有 Entity 的 Meta。片段與檔案層主體都支援。
 --
 -- @expected@ 是呼叫端手上那份資料的 revision;與檔案裡的實際值不符就
 -- 'StaleRevision',__一個位元組都不寫__。
 --
--- 檔案層主體(frontmatter 那一份)目前不支援:@storyflow-md@ 只提供節層的
--- 'updateSection'。這個缺口記在 architecture.md 末節的「已知缺口」。
+-- 修改函式吃 'MetaOverride' 而不是 'Meta':片段的 meta 區塊本來就是「只寫與
+-- 檔案層不同的欄位」,寫成完整的 'Meta' 會讓每次修改都把繼承來的欄位全部釘死
+-- 在節上。檔案層主體沒有「目前的覆寫」可用,以
+-- 'StoryFlow.Md.Inherit.overrideOf' 把 'Meta' 展開成每欄都是 @Just@ 的覆寫,
+-- 改完再 'StoryFlow.Md.Inherit.applyOverride' 疊回去。
+--
+-- @id@ 與 @title@ 'MetaOverride' 表達不了,因此改不動——改標題請走 md 的
+-- 'StoryFlow.Md.Render.updateFrontmatter'(P2 的 service 會包一層)。
 writeEntityMeta
   :: Connection
   -> Vault
@@ -49,69 +58,125 @@ writeEntityMeta
   -> Int
   -> (MetaOverride -> MetaOverride)
   -> IO (Either StoreError WriteResult)
-writeEntityMeta conn v i expected f =
-  -- 1. 查索引取得檔案位置與節錨點
-  locate conn i >>= \case
-    Left e -> pure (Left e)
-    Right (_, Nothing) -> pure (Left (FrontmatterWriteUnsupported i))
-    Right (rel, Just _) ->
-      -- 2. 重讀檔案,不信任索引裡的 revision
-      readTextFile (vaultAbsPath v rel) >>= \case
-        Left e -> pure (Left e)
-        Right txt -> case reread rel i txt of
-          Left e -> pure (Left e)
-          Right (doc, actual)
-            -- 3. 比對
-            | actual /= expected -> pure (Left (StaleRevision i expected actual))
-            | otherwise -> do
-                today <- utctDay <$> getCurrentTime
-                -- 4 & 5. 套用修改,並重新序列化__只有這一節__的 meta 區塊
-                case updateSection i (bump today . f) doc of
-                  Left e -> pure (Left (ParseFailed rel [e]))
-                  Right doc' -> write rel doc' (actual + 1)
-  where
-    bump :: Day -> MetaOverride -> MetaOverride
-    bump today ov = ov {moRevision = Just (expected + 1), moUpdated = Just today}
+writeEntityMeta conn v i expected f = editEntityMeta conn v i expected (Right . f)
 
-    write rel doc' newRev =
-      -- 6. 先寫檔
-      atomicWriteText (vaultAbsPath v rel) (renderDocument doc') >>= \case
-        Left e -> pure (Left e)
-        Right () ->
-          -- 7. 再更新索引;失敗了資料仍然是安全的
-          indexFile conn v rel >>= \case
-            Left e -> pure (Left (IndexUpdateFailed rel (renderStoreError e)))
-            Right () -> pure (Right (WriteResult newRev rel))
-
--- | 索引裡的 @file_path@ 與 @section_anchor@。
-locate :: Connection -> Id -> IO (Either StoreError (FilePath, Maybe Text))
-locate conn i = do
-  r <-
-    trySqlite $
-      query
-        conn
-        "SELECT file_path, section_anchor FROM entities WHERE id = ?"
-        (Only (renderId i))
-  pure $ case r of
-    Left e -> Left e
-    Right (rows :: [(Text, Maybe Text)]) -> case rows of
-      ((fp, anchor) : _) -> Right (T.unpack fp, anchor)
-      [] -> Left (EntityNotFound i)
-
--- | 重讀後解析出這一節目前的 revision。
+-- | 換掉正文:片段換該節的 @secBodyRaw@,主體換 frontmatter 之後的 preamble。
 --
--- 索引說有、檔案裡卻找不到這一節,代表索引過時——回 'UnknownSectionId'
--- 而不是 'EntityNotFound':資料沒有不見,是索引跟不上。
-reread :: FilePath -> Id -> Text -> Either StoreError (Document, Int)
-reread rel i txt = do
-  doc <- orParseFailed (parseDocument rel txt)
-  (ef, _) <- orParseFailed (parseEntityFile doc)
-  case [entMeta e | e <- efFragments ef, metaId (entMeta e) == i] of
-    (m : _) -> Right (doc, metaRevision m)
-    [] -> Left (ParseFailed rel [mdError rel 1 (UnknownSectionId i)])
+-- 兩條路徑都會遞增 revision——正文才是片段真正的內容,改了它卻不動 revision,
+-- 樂觀鎖就對「內容被改過」視而不見。
+writeEntityBody
+  :: Connection
+  -> Vault
+  -> Id
+  -> Int
+  -> Text
+  -> IO (Either StoreError WriteResult)
+writeEntityBody conn v i expected body =
+  editEntity conn v i expected $ \today anchor rel doc _ -> case anchor of
+    Just _ -> do
+      cur <- orMd rel (overrideAt i doc)
+      doc' <- orMd rel (updateSection i (const (bumpOverride expected today cur)) doc)
+      orMd rel (replaceSectionBody i (sectionBodyRaw (docEnding doc) body) doc')
+    Nothing -> do
+      doc' <- orMd rel (updateFrontmatter (bumpRevision today) doc)
+      Right (replacePreamble body doc')
+
+-- | 加一筆關聯。
+--
+-- 關聯__只存在來源端__(ADR-0002),所以這是單邊、單檔操作:目標端的檔案
+-- 一個位元組都不會被碰到。反向查詢由索引負責。
+addEntityLink
+  :: Connection -> Vault -> Id -> Int -> Link -> IO (Either StoreError WriteResult)
+addEntityLink conn v i expected l =
+  editEntityMeta conn v i expected $ \ov ->
+    Right ov {moLinks = Just (fromMaybe [] (moLinks ov) ++ [l])}
+
+-- | 以 @(LinkKind, Ref)@ 配對刪除;同一對出現多次時全部刪掉。
+--
+-- __一筆都沒命中時回 'LinkNotFound' 而不是靜默成功__:呼叫端以為刪掉了、
+-- 實際上關聯還在,是最難查的那種錯。
+--
+-- 比對的是__檔案裡寫的那個 'Ref'__:作者寫 @liftgame:ent-7f3a@ 時要以同樣的
+-- 形式來刪。索引為了反向查詢會把本 Vault 的前綴正規化掉,檔案不會。
+removeEntityLink
+  :: Connection -> Vault -> Id -> Int -> LinkKind -> Ref -> IO (Either StoreError WriteResult)
+removeEntityLink conn v i expected k target =
+  editEntityMeta conn v i expected $ \ov ->
+    let current = fromMaybe [] (moLinks ov)
+        kept = [x | x <- current, not (hit x)]
+        hit x = linkKind x == k && linkTarget x == target
+     in if length kept == length current
+          then Left (LinkNotFound i k target)
+          else Right ov {moLinks = Just kept}
+
+-- 共同骨架 ---------------------------------------------------------------------
+
+-- | 「改一個既有 Entity 的 meta」的共同骨架。
+--
+-- 修改函式回 'Left' 時__整個操作中止且不寫檔__——'removeEntityLink' 的
+-- 'LinkNotFound' 走的就是這條。
+editEntityMeta
+  :: Connection
+  -> Vault
+  -> Id
+  -> Int
+  -> (MetaOverride -> Either StoreError MetaOverride)
+  -> IO (Either StoreError WriteResult)
+editEntityMeta conn v i expected f =
+  editEntity conn v i expected $ \today anchor rel doc m -> case anchor of
+    -- 節層:只有這一節的 meta 區塊被重新序列化,其餘逐字不動
+    Just _ -> do
+      cur <- orMd rel (overrideAt i doc)
+      ov <- f cur
+      orMd rel (updateSection i (const (bumpOverride expected today ov)) doc)
+    -- 檔案層主體:frontmatter 整段重新序列化
+    Nothing -> do
+      ov <- f (overrideOf m)
+      orMd rel (updateFrontmatter (bumpRevision today . applyOverride ov) doc)
+
+-- | 讀 → 樂觀鎖 → 純函式編輯 → 寫檔 → 索引。
+--
+-- 編輯函式拿到今天的日期、目標的 @section_anchor@、Vault 相對路徑、切好塊的
+-- 'Document',以及__目標實體目前的 'Meta'__(節層的那份已經套過繼承規則)。
+editEntity
+  :: Connection
+  -> Vault
+  -> Id
+  -> Int
+  -> (Day -> Maybe Text -> FilePath -> Document -> Meta -> Either StoreError Document)
+  -> IO (Either StoreError WriteResult)
+editEntity conn v i expected edit =
+  locate conn i >>? \(Located rel anchor) ->
+    readDocument v rel >>? \doc ->
+      entityFileOf rel doc ?>> \(ef, _) ->
+        currentMeta rel i anchor ef ?>> \m ->
+          checkRevision i expected (metaRevision m) ?>> \() -> do
+            today <- utctDay <$> getCurrentTime
+            edit today anchor rel doc m ?>> \doc' ->
+              commit conn v rel doc' (expected + 1)
+
+-- | 目標實體目前的 'Meta'。
+--
+-- 索引說有、檔案裡卻找不到,代表索引過時——回 'UnknownSectionId' 而不是
+-- 'EntityNotFound':資料沒有不見,是索引跟不上。
+currentMeta :: FilePath -> Id -> Maybe Text -> EntityFile -> Either StoreError Meta
+currentMeta rel i anchor ef = case anchor of
+  Nothing
+    | metaId (entMeta (efMain ef)) == i -> Right (entMeta (efMain ef))
+    | otherwise -> stale
+  Just _ -> case [entMeta e | e <- efFragments ef, metaId (entMeta e) == i] of
+    (m : _) -> Right m
+    [] -> stale
   where
-    orParseFailed :: Either [MdError] a -> Either StoreError a
-    orParseFailed = either (Left . ParseFailed rel) Right
+    stale = Left (ParseFailed rel [mdError rel 1 (UnknownSectionId i)])
+
+-- | revision +1、@updated@ 改今天。樂觀鎖的另一半:不遞增的話,兩個並發的
+-- 寫入拿同一個 revision 都會通過。
+bumpOverride :: Int -> Day -> MetaOverride -> MetaOverride
+bumpOverride expected today ov =
+  ov {moRevision = Just (expected + 1), moUpdated = Just today}
+
+-- ID ---------------------------------------------------------------------------
 
 -- | 產生一個索引裡還沒有人用的 ID。
 --

@@ -2,6 +2,9 @@
 key  = "item-fragment"
 name = "道具片段"
 
+dir        = "items"
+owner_type = "item"
+
 allowed_links = ["partOf", "involves", "occursIn", "derivedFrom", "contradicts", "supersedes", "references"]
 stages = ["定位", "外形與材質", "來歷", "誰持有、出現在哪"]
 

@@ -19,8 +19,10 @@
 -- @
 module StoryFlow.Store
   ( module StoryFlow.Store.Atomic
+  , module StoryFlow.Store.Create
   , module StoryFlow.Store.Error
   , module StoryFlow.Store.Index
+  , module StoryFlow.Store.Node
   , module StoryFlow.Store.Query
   , module StoryFlow.Store.Schema
   , module StoryFlow.Store.Vault
@@ -28,8 +30,10 @@ module StoryFlow.Store
   ) where
 
 import StoryFlow.Store.Atomic
+import StoryFlow.Store.Create
 import StoryFlow.Store.Error
 import StoryFlow.Store.Index
+import StoryFlow.Store.Node
 import StoryFlow.Store.Query
 import StoryFlow.Store.Schema
 import StoryFlow.Store.Vault

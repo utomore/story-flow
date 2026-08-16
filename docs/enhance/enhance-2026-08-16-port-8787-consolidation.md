@@ -2,7 +2,7 @@
 id: enhance-2026-08-16-port-8787-consolidation
 type: enhance
 title: port-8787-consolidation
-description: 預設埠號 8787 硬編碼於三處,改 port 需要記得同步修改且無機制提醒
+description: 收斂硬編碼於三處的預設埠號 8787
 status: open
 created: 2026-08-16
 updated: 2026-08-16

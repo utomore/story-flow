@@ -2,7 +2,7 @@
 id: enhance-2026-08-16-migration-sql-builder-safety
 type: enhance
 title: migration-sql-builder-safety
-description: migration003 以字串拼接組 SQL,無注入風險但加一個單引號就會在使用者機器上執行期炸掉
+description: 改掉 migration 以字串拼接組 SQL 的脆弱寫法
 status: open
 created: 2026-08-16
 updated: 2026-08-16

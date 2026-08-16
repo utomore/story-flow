@@ -2,7 +2,7 @@
 id: adr-0001
 type: adr
 title: haskell-backend-typescript-frontend-sqlite
-description: 後端 Haskell、前端 TypeScript、儲存 SQLite;manifest 型別與遊戲本體共用,schema 漂移在編譯期爆炸
+description: 後端用 Haskell、前端用 TypeScript、儲存用 SQLite
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

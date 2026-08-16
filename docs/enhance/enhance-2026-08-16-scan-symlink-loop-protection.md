@@ -2,7 +2,7 @@
 id: enhance-2026-08-16-scan-symlink-loop-protection
 type: enhance
 title: scan-symlink-loop-protection
-description: discover 遞迴走訪不防符號連結迴圈,Windows junction 可造成無窮遞迴
+description: 為目錄掃描加上符號連結迴圈防護
 status: open
 created: 2026-08-16
 updated: 2026-08-16

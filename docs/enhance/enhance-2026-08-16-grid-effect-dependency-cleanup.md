@@ -2,7 +2,7 @@
 id: enhance-2026-08-16-grid-effect-dependency-cleanup
 type: enhance
 title: grid-effect-dependency-cleanup
-description: Grid.tsx 的 effect 依賴每次渲染都變的新陣列參照,導致每次渲染都重跑
+description: 修正 Grid 的 effect 依賴,避免每次渲染重跑
 status: open
 created: 2026-08-16
 updated: 2026-08-16

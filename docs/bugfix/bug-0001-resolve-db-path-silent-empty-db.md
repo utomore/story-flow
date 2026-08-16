@@ -2,7 +2,7 @@
 id: bug-0001
 type: bug
 title: resolve-db-path-silent-empty-db
-description: CLI resolveDbPath 在錯誤目錄執行時靜默建立空資料庫,查詢回報 0 筆而非路徑錯誤
+description: CLI 在錯誤目錄執行時靜默建立空資料庫
 status: open
 created: 2026-08-16
 updated: 2026-08-16

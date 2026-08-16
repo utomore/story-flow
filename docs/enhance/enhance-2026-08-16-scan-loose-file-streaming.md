@@ -2,7 +2,7 @@
 id: enhance-2026-08-16-scan-loose-file-streaming
 type: enhance
 title: scan-loose-file-streaming
-description: 散檔掃描整檔載入記憶體,與同專案 sha256File 的串流讀取自我要求矛盾
+description: 散檔掃描改為串流讀取,不再整檔載入記憶體
 status: open
 created: 2026-08-16
 updated: 2026-08-16

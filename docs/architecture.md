@@ -2,7 +2,7 @@
 id: architecture
 type: architecture
 title: assetdb
-description: AssetDB 專案燈塔——需求、九個 Haskell 套件的分層架構、技術選型與開發階段
+description: 工作室素材庫的索引、檢索與專案素材配置系統
 status: active
 created: 2026-08-16
 updated: 2026-08-16

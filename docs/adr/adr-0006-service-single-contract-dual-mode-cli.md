@@ -6,15 +6,16 @@ description: Service 層為唯一業務契約,CLI 預設內嵌並可切換 HTTP 
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16
+related-spec: [func-0006, func-0007, func-0008]
 ---
 
-# ADR-0006: `service` 為唯一業務契約,CLI 採內嵌/遠端雙模式
+## ADR-0006: `service` 為唯一業務契約,CLI 採內嵌/遠端雙模式
 
-## 狀態(Status)
+### 狀態(Status)
 
 accepted
 
-## 背景(Context)
+### 背景(Context)
 
 需求是「後端服務變成 API 樣式呈現,讓未來更容易與 AI Skill 對接」,同時要有一個 `story-flow`
 CLI。理想上 CLI 是 API 的薄客戶端,這樣兩者行為保證一致——這正是 design-studio 最成功的
@@ -25,7 +26,7 @@ CLI。理想上 CLI 是 API 的薄客戶端,這樣兩者行為保證一致——
 
 同時,MCP adapter 與未來可能的 Web UI 確實需要走 HTTP;Vault 也可能哪天放在另一台機器上。
 
-## 決策(Decision)
+### 決策(Decision)
 
 **業務邏輯只存在於 `storyflow-service`,它是唯一的契約定義處。**
 
@@ -43,7 +44,7 @@ CLI。理想上 CLI 是 API 的薄客戶端,這樣兩者行為保證一致——
 與 client(`servant-client`)。兩條路徑無法悄悄長歪——API 型別一改,server 與 client 兩邊
 都不編譯。
 
-```
+```text
 CLI ─┬→ Service          (內嵌,預設)
      └→ servant-client ──→ HTTP ──→ servant-server ──→ Service
 MCP ────────────────────→ HTTP ──→ servant-server ──→ Service
@@ -52,7 +53,12 @@ MCP ────────────────────→ HTTP ──�
 server 預設綁 loopback。要綁非 loopback 位址必須明確加旗標並顯示警告(直接採納 design-studio
 的 enhance-0005 結論,不重蹈覆轍)。
 
-## 考慮過的替代方案(Alternatives Considered)
+**收緊(func-0008)**:「明確加旗標並顯示警告」在實作時被收緊為**綁非 loopback 時強制要求
+token,沒設就拒絕啟動**。理由是警告會被忽略,而「整個 Vault 暴露在區域網路上」不是可以靠
+使用者留意來緩解的後果。loopback 模式維持不變:token 為選配,設了(`STORYFLOW_TOKEN` 或
+Vault 設定)才驗證。token 比較用定時比較,不用 `==`——短路比較會洩漏前綴長度。
+
+### 考慮過的替代方案(Alternatives Considered)
 
 - **CLI 一律走 HTTP(必要時自動拉起背景 daemon)**:真的只有一條路徑,不可能行為不一致。
   但每次用 CLI 都要顧服務生命週期,除錯時堆疊斷在 HTTP 邊界,單人本機工具付這個代價不划算;
@@ -62,7 +68,7 @@ server 預設綁 loopback。要綁非 loopback 位址必須明確加旗標並顯
 - **不做 service 層,servant handler 直接寫業務邏輯**:少一層。但 CLI 內嵌模式就無法共用邏輯,
   只能複製一份或強制走 HTTP——回到上面兩個方案的困境。而且 handler 混了業務邏輯就很難單元測試。
 
-## 影響(Consequences)
+### 影響(Consequences)
 
 **正面**
 
@@ -82,3 +88,6 @@ server 預設綁 loopback。要綁非 loopback 位址必須明確加旗標並顯
 **中立**
 
 - P3 要輸出 OpenAPI 文件,讓 claude code 只靠文件就能接;這也是 MCP adapter 的生成依據
+- 雙模式逼出一個套件切分:servant API 型別必須獨立成 `storyflow-api`,不能住在
+  `storyflow-server` 裡。CLI 的遠端模式需要那份型別去產生 `servant-client`,但一個預設
+  根本不開伺服器的執行檔不該被拖進 `warp` 與 `servant-server`(func-0008)

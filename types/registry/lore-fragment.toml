@@ -1,0 +1,26 @@
+# 世界觀片段 —— 歷史、地理、勢力、規則。粒度是「某一段描述」,不是整份世界觀
+key  = "lore-fragment"
+name = "世界觀片段"
+
+allowed_links = ["partOf", "occursIn", "derivedFrom", "contradicts", "supersedes", "references"]
+stages = ["定位", "樣貌與規則", "歷史脈絡", "與其他設定的關係"]
+
+[[fields]]
+name = "summary"
+required = true
+hint = "一句話說明這個片段描述世界的哪一塊(地區樣貌、某個事件、某條規則)"
+
+[[fields]]
+name = "timeline"
+required = true
+hint = "這段設定屬於故事內的哪個時期。世界觀衝突有很大一部分是時序問題,盡量填"
+
+[[fields]]
+name = "aliases"
+required = false
+hint = "地名舊稱、勢力的別名。改朝換代後的舊名寫在這裡"
+
+[[fields]]
+name = "tags"
+required = false
+hint = "分組用的自由標籤,如「地理」「歷史」「勢力」"

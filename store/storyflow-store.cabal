@@ -1,0 +1,48 @@
+cabal-version:      3.4
+name:               storyflow-store
+version:            0.1.0.0
+synopsis:           story-flow 的檔案落地與 SQLite 索引
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        StoryFlow.Store
+    build-depends:
+        , base          >=4.14 && <5
+        , bytestring
+        , direct-sqlite
+        , sqlite-simple
+        , storyflow-core
+        , text
+
+test-suite storyflow-store-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        StoryFlow.StoreSpec
+    build-depends:
+        , base
+        , hspec
+        , sqlite-simple
+        , storyflow-core
+        , storyflow-store
+        , text

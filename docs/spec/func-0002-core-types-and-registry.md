@@ -3,7 +3,7 @@ id: func-0002
 type: spec
 title: core-types-and-registry
 description: 統一 Meta 與五個核心型別的純函式層與型別註冊表
-status: open
+status: done
 created: 2026-08-16
 updated: 2026-08-16
 depends-on: [func-0001]
@@ -412,23 +412,23 @@ func-0001 產出的建置骨架:
 
 ## TodoList
 
-- [ ] T1: `StoryFlow.Core.Id` —— `Id` / `IdPrefix` / `Ref`、FNV-1a 雜湊生成(含 salt)、解析與渲染、跨 Vault `<vault>:<id>` 定址
-- [ ] T2: `StoryFlow.Core.Meta` —— `Meta` 全欄位、`Status` / `Source` / `Timeline` 及其文字互轉、`bumpRevision`、`isCanon`
-- [ ] T3: `StoryFlow.Core.Link` —— `LinkKind` 八個核心建構子 + `Custom`、`Link`、雙向文字轉換、`suggestCoreKind`
-- [ ] T4: `StoryFlow.Core.Entity` 與 `StoryFlow.Core.Level` —— `Entity` / `Level` / `Node` / `NodeKind`
-- [ ] T5: `StoryFlow.Core.Tree` 的 `buildTree` 與 `TreeError` —— 五條不變量的檢查,一次回報全部錯誤
-- [ ] T6: `StoryFlow.Core.Tree` 的走訪函式 —— `preorder` / `subtreeAt` / `pathTo` / `nodesOfKind` / `entitiesIn` / `convergenceReport`
-- [ ] T7: `StoryFlow.Core.Graph` —— `buildGraph` / `follow`(深度上限與防環)/ `supersededSet`(遞移)/ `contradictionPairs`(去重正規化)
-- [ ] T8: `StoryFlow.Core.Registry` —— `EntityTypeSpec` 模型、`validateRegistry`、`lookupType`、`checkEntity`
-- [ ] T9: `StoryFlow.Core.Json` —— 全部核心型別的 aeson 編解碼
-- [ ] T10: `StoryFlow.Types.Loader` —— 掃描目錄、`toml-reader` 解析、錯誤彙整帶檔名
-- [ ] T11: 撰寫 `types/registry/` 下 5 份初始型別宣告 TOML
+- [x] T1: `StoryFlow.Core.Id` —— `Id` / `IdPrefix` / `Ref`、FNV-1a 雜湊生成(含 salt)、解析與渲染、跨 Vault `<vault>:<id>` 定址
+- [x] T2: `StoryFlow.Core.Meta` —— `Meta` 全欄位、`Status` / `Source` / `Timeline` 及其文字互轉、`bumpRevision`、`isCanon`
+- [x] T3: `StoryFlow.Core.Link` —— `LinkKind` 八個核心建構子 + `Custom`、`Link`、雙向文字轉換、`suggestCoreKind`
+- [x] T4: `StoryFlow.Core.Entity` 與 `StoryFlow.Core.Level` —— `Entity` / `Level` / `Node` / `NodeKind`
+- [x] T5: `StoryFlow.Core.Tree` 的 `buildTree` 與 `TreeError` —— 五條不變量的檢查,一次回報全部錯誤
+- [x] T6: `StoryFlow.Core.Tree` 的走訪函式 —— `preorder` / `subtreeAt` / `pathTo` / `nodesOfKind` / `entitiesIn` / `convergenceReport`
+- [x] T7: `StoryFlow.Core.Graph` —— `buildGraph` / `follow`(深度上限與防環)/ `supersededSet`(遞移)/ `contradictionPairs`(去重正規化)
+- [x] T8: `StoryFlow.Core.Registry` —— `EntityTypeSpec` 模型、`validateRegistry`、`lookupType`、`checkEntity`
+- [x] T9: `StoryFlow.Core.Json` —— 全部核心型別的 aeson 編解碼
+- [x] T10: `StoryFlow.Types.Loader` —— 掃描目錄、`toml-reader` 解析、錯誤彙整帶檔名
+- [x] T11: 撰寫 `types/registry/` 下 5 份初始型別宣告 TOML
 
 ## 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | `StoryFlow.Core.IdSpec` | 相同 (prefix, 內容, 時間, salt) 得相同 ID;任一項不同則 ID 不同;輸出符合 `<prefix>-<8 hex>`;salt 遞增可產生相異 ID;`parseRef "shared-lore:ent-7f3a"` 得跨 Vault `Ref`,`parseRef "ent-7f3a"` 得 `refVault = Nothing`;格式錯誤字串回 `Left` |
+| T1 | `StoryFlow.Core.IdSpec` | 相同 (prefix, 內容, 時間, salt) 得相同 ID;任一項不同則 ID 不同;`mkId` 輸出固定符合 `<prefix>-<8 hex>`;salt 遞增可產生相異 ID;`parseRef "shared-lore:ent-7f3a"` 得跨 Vault `Ref`,`parseRef "ent-7f3a"` 得 `refVault = Nothing`;格式錯誤字串回 `Left`(解析端接受 1–8 位,見實作備註偏差 1) |
 | T2 | `StoryFlow.Core.MetaSpec` | `Status` / `Source` / `Timeline` 的 `render` 與 `parse` 互為反函式(含 `agent:claude-code`、`workshop:character`);`bumpRevision` 使 `revision` 加一且 `updated` 更新為傳入日期;`isCanon` 只對 `Canon` 為真 |
 | T3 | `StoryFlow.Core.LinkSpec` | 八個核心關聯 `parse . render == id`;未知字串 `"師承於"` 解析為 `Custom "師承於"` 且不失真;`suggestCoreKind "矛盾於"` 回 `Just Contradicts`,`suggestCoreKind "宿敵"` 回 `Nothing` |
 | T4 | `StoryFlow.Core.EntitySpec` | `Entity` / `Level` / `Node` 可建構且欄位齊全,對照 architecture.md 欄位表逐項存在;`NodeKind` 六個建構子的 `render`/`parse` 互為反函式 |
@@ -437,9 +437,89 @@ func-0001 產出的建置骨架:
 | T7 | `StoryFlow.Core.GraphSpec` | `follow [PartOf] 1` 只走一層;`follow` 遇到 `derivedFrom` 環時因深度上限與已訪集合而終止不無限迴圈;`supersededSet` 對 A→B→C 的取代鏈回傳 `{B, C}`;`contradictionPairs` 對同一對矛盾只回一筆(正規化順序) |
 | T8 | `StoryFlow.Core.RegistrySpec` | 合法宣告集通過 `validateRegistry`;重複 `key` → `DuplicateTypeKey`;欄位名 `summry` → `UnknownMetaField`;`allowed_links` 含自訂關聯**不**產生錯誤;`checkEntity` 對缺少必填 `summary` 的 Entity 回警告,對使用未列於 `allowed_links` 的關聯回警告,合規 Entity 回空清單 |
 | T9 | `StoryFlow.Core.JsonSpec` | 對每個核心型別做 `decode . encode == Just x` 的 round-trip;`Timeline` 兩欄皆 `Nothing` 時編碼不產生空鍵;`Ref` 編碼為單一字串 `"vault:id"` 而非物件 |
-| T10 | `StoryFlow.Types.LoaderSpec` | 以 `temporary` 建臨時目錄放測試 TOML:正常 3 檔載入成功且 `listTypes` 得 3 筆;某檔 TOML 語法錯誤 → `TomlParseError` 帶該檔名,且**其餘檔案仍被讀取**、錯誤一次回報;缺 `key` → `MissingField` 帶檔名;空目錄回空註冊表而非錯誤 |
+| T10 | `StoryFlow.Types.LoaderSpec` | 以 `temporary` 建臨時目錄放測試 TOML:正常 3 檔載入成功且 `listTypes` 得 3 筆;某檔 TOML 語法錯誤 → `TomlParseError` 帶該檔名,且**其餘檔案仍被讀取**、錯誤一次回報;缺 `key` → `MissingField` 帶檔名;空目錄回空註冊表而非錯誤;目錄不存在 → `RegistryDirMissing`;`allowed_links` 誤寫在 `[[fields]]` 之後 → `UnknownKey` 而非靜默忽略(見實作備註偏差 2) |
 | T11 | `StoryFlow.Types.LoaderSpec`(實檔) | 載入專案實際的 `types/registry/` 得 5 個型別,`key` 分別為 `character-fragment` / `lore-fragment` / `item-fragment` / `dialogue` / `plot-fragment`,且全部通過 `validateRegistry` |
 
 ## 實作備註
 
-(撰寫時留空)
+實作結果:`cabal build all` 無 warning,`cabal test all` 4 個測試套件全綠,
+共 184 個 example(core 157、types 21、md 2、store 4)、0 失敗。
+
+### 偏差 1:`parseId` 放寬到 1–8 位十六進位(生成端仍固定 8 位)
+
+規格與 architecture.md 都寫 ID 是 `<prefix>-<8 hex>`,但兩份文件的**所有範例**用的都是
+4 位:`ent-7f3a`、`lvl-3a01`、`nod-0001`,連本規格 T1 的測試條目本身
+(`parseRef "shared-lore:ent-7f3a"` 得跨 Vault `Ref`)也是 4 位。嚴格只收 8 位的話,
+文件裡的範例檔全部變成非法輸入,func-0003 的解析器會拒收 architecture.md 自己的範例。
+
+處理方式:**生成端不放寬,解析端放寬**。
+
+- `mkId` 一律輸出 8 位(有測試斷言 200 組不同輸入的輸出長度恆為 8,不會因雜湊值小而變短)
+- `parseId` 接受 1–8 位小寫十六進位;9 位以上、含非法字元、空的一律 `Left BadIdFormat`
+
+作者手寫 `{#ent-7f3b}` 錨點時本來就會寫短的,解析端寬容是必要的。
+
+### 偏差 2:TOML 的 `allowed_links` / `stages` 必須寫在 `[[fields]]` **之前**
+
+本規格「初始型別宣告」那一節的範例 TOML 把 `allowed_links` 與 `stages` 寫在
+`[[fields]]` 區塊**之後**。依 TOML 的表頭語意,表頭之後的所有鍵值都屬於該表——
+所以那兩個鍵會靜默變成最後一個 field 的子鍵,型別的關聯清單與階段清單雙雙變成空的,
+**而載入不會報錯**。實作時照抄範例,測試立刻抓到 `etsAllowedLinks` 是 `[]`。
+
+兩項處理:
+
+1. 五份 `types/registry/*.toml` 都把 `allowed_links` / `stages` 移到所有 `[[fields]]`
+   之前,並在檔頭註記這個陷阱。
+2. 載入器**不容忍未知鍵**——新增 `UnknownKey FilePath Text`,最上層只接受
+   `key` / `name` / `fields` / `allowed_links` / `stages`,每個 `[[fields]]` 只接受
+   `name` / `required` / `hint`。誤放的鍵會以 `fields[].allowed_links` 的形式指名報錯,
+   錯誤訊息直接寫出「必須放在所有 [[fields]] 之前」。
+
+第 2 點是這份規格裡最值得留下的一條:ADR-0005 的負面影響明說「宣告寫錯只能在載入時
+檢查並報錯」,而寬容未知鍵正好讓最容易犯的錯**不報錯**。有一條測試釘住這個行為。
+
+### 新增的介面(規格未列,實作時判斷必要)
+
+| 介面 | 位置 | 理由 |
+|---|---|---|
+| `RegistryError` 的 `ReservedTypeKey Text` | `StoryFlow.Core.Registry` | architecture.md 規定 `level` 是保留型別鍵、不可出現在 `types/registry/`。註冊表驗證是唯一能執行這條規則的地方 |
+| `LoadError` 的 `UnknownKey FilePath Text` | `StoryFlow.Types.Loader` | 見偏差 2 |
+| `LoadError` 的 `BadFieldType FilePath Text Text` | `StoryFlow.Types.Loader` | 鍵存在但型別不對(`name = 42`)不是「缺少必填鍵」,混進 `TomlParseError` 會讓訊息誤導 |
+| `LoadError` 的 `RegistryDirMissing FilePath` | `StoryFlow.Types.Loader` | 空目錄是合法的(規格明訂),目錄不存在不是。兩者必須分得開 |
+| `loadRegistryFrom :: [FilePath] -> IO (...)` | `StoryFlow.Types.Loader` | `loadRegistry` 的下層。供未來「程式碼內建 + Vault 覆蓋」兩層註冊表(ADR-0005 末段)使用 |
+| `Meta` 的 `metaFieldNames :: [Text]` | `StoryFlow.Core.Meta` | `validateRegistry` 判斷 `UnknownMetaField` 的依據。放在 `Meta` 旁邊,新增欄位時不會漏改 |
+| `Link` 的 `coreLinkKinds` / `isCoreKind` | `StoryFlow.Core.Link` | 八個核心關聯的清單本來就要有一份;`suggestCoreKind` 與測試都用它 |
+| `Level` 的 `allNodeKinds`、`Registry` 的 `emptyRegistry` / `reservedTypeKeys`、`Id` 的 `localRef` / `idPrefix` / `fnv1a64` | 各模組 | 小的便利函式,測試與後續套件都會用到 |
+
+### 實作決策(規格留白處)
+
+- **`RegistryError` 的 `UnknownLinkInAllowed` 保留但不產生**。規格已註明它是警告等級,
+  而 ADR-0005 明說自訂關聯本來就合法,因此 `validateRegistry` 不會回傳它。建構子留著,
+  留給未來需要警告等級輸出的呼叫端。
+- **`checkEntity` 的 `allowed_links` 為空視為「未宣告限制」**,不產生任何關聯警告。
+  否則一個還沒填 `allowed_links` 的新型別會對每一筆關聯都叫。
+- **`entitiesIn` 只看 `nodEntities` 欄位**,不自己去掃 `involves` / `references` 關聯。
+  由 func-0003 解析 Markdown 時把那兩種關聯的 target 填進 `nodEntities`——推導規則只該有一份,
+  放在解析層而不是走訪層。
+- **`convergenceReport` 對跨 Vault 的 target 一律標記為不存在**,因為它不可能指向本 Level
+  內的 Node。
+- **JSON 的 `Entity` / `Level` / `Node` 是扁平的**(`Meta` 欄位與專屬欄位同一層),
+  與 Markdown frontmatter 的形狀一致,func-0003 的 ` ```meta ` 區塊可以直接套用同一組實例。
+- **`StoryFlow.Core.Json` 用 `-Wno-orphans`**。規格要求把 aeson 實例集中在一個模組,
+  這必然產生孤兒實例;`-Wall` 含 `-Worphans`,因此在該模組頂端明確關掉並註明理由。
+- **`Timeline` 兩欄皆 `Nothing` 時,`Meta` 整個不輸出 `timeline` 鍵**(不是輸出 `{}`)。
+- **`follow` 只對本 Vault 的參照繼續展開**;跨 Vault 的 target 會被收進結果集,但它的關聯
+  不在這張圖裡,無從展開。
+- **FNV-1a 的雜湊輸入**是 `內容 \x1f 時間 \x1f salt`,以 `\x1f`(單元分隔符)分隔,
+  避免「內容尾端剛好長得像時間」造成的混淆。有測試對 `fnv1a64 ""` 與 `fnv1a64 "a"`
+  斷言教科書值,確保雜湊實作本身沒寫錯。
+
+### 對 func-0001 產出的兩處調整
+
+- 依本規格「使用到的既有串接介面」的規劃,移除了 `StoryFlow.Core` 與 `StoryFlow.Types`
+  兩個佔位模組。`StoryFlow.Md` 與 `StoryFlow.Store` 的佔位模組保留,由 func-0003 / func-0004
+  各自移除。
+- `md` 與 `store` 的測試原本以 `coreVersion` 驗證依賴方向,改為 `StoryFlow.Core.Id` 的
+  `renderIdPrefix PEnt`。func-0001 T4 / T5 要驗證的「依賴方向在 cabal 層真的接上了」不變。
+- `core` 的 test-suite 進入點改為掛載本規格的 8 個 spec 模組 + func-0001 T6 的編碼檢查,
+  每個 `describe` 以 `T1`…`T9` 標號,對得回 TodoList。

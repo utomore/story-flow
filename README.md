@@ -40,12 +40,38 @@ Agent ─┼─ MCP adapter ────┼─→ REST API ─→ service ─→
 地端模型(llama.cpp 等 OpenAI 相容端點)與外部 AI Agent(claude code、codex)兩條路徑
 寫進同一個圖譜。
 
+## 建置與測試
+
+需求:GHC 9.14.1、cabal 3.16.x(不使用 stack)。
+
+```
+git clone <repo> && cd story-flow
+cabal build all
+cabal test all --test-show-details=direct
+```
+
+一鍵版本(建置 + 測試,exit code 0 表示全綠):
+
+```
+./scripts/check.ps1     # Windows
+./scripts/check.sh      # POSIX / WSL
+```
+
+`check.ps1` 會先切到 UTF-8 code page,測試描述的繁體中文才不會在 Windows 終端亂碼。
+本專案**不使用 CI**,`scripts/check` 就是它的替代品——推送前跑一次。
+
+`direct-sqlite` 在 `cabal.project` 開啟 `+fulltextsearch`,以取得中文搜尋所需的
+FTS5 trigram tokenizer;`storyflow-store` 的測試會直接驗證這個 flag 有生效。
+
 ## 狀態
 
-設計階段。架構與技術決策已定案,尚未開始實作。
+開發中。P0 骨架完成;P1 的 `core`(統一 Meta 與五個核心型別、樹與關聯圖的純函式)與
+`types`(型別註冊表載入)完成,`md` 與 `store` 尚未開工。
 
 - [`docs/architecture.md`](./docs/architecture.md) —— 專案燈塔:需求、架構、資料結構、開發階段
-- [`docs/adr/`](./docs/adr) —— 8 份架構決策紀錄
+- [`docs/adr/`](./docs/adr) —— 10 份架構決策紀錄
+- [`docs/spec/`](./docs/spec) —— 功能規格書,含 TodoList 與 1-to-1 測試對照表
+- [`types/registry/`](./types/registry) —— 宣告式 Entity 型別註冊表(加一份 `.toml` 就是新增一個型別)
 
 開發階段:P0 骨架 → P1 core/md/store → P2 CLI → P3 REST API → P4 衝突偵測 →
 P5 MCP + 地端 LLM 工作坊 → P6(選配)Web 視覺化。

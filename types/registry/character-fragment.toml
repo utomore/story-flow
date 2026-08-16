@@ -1,0 +1,29 @@
+# 角色片段 —— 一個角色由多個片段組成:外貌、動機、與某人的過節……
+#
+# 注意 TOML 的表頭語意:allowed_links 與 stages 必須寫在所有 [[fields]] 之前,
+# 否則它們會變成最後一個 field 的子鍵。載入器會擋下這個錯,但不要去試。
+key  = "character-fragment"
+name = "角色片段"
+
+allowed_links = ["partOf", "occursIn", "involves", "contradicts", "supersedes", "references"]
+stages = ["定位", "外貌與舉止", "動機與過往", "關係網"]
+
+[[fields]]
+name = "summary"
+required = true
+hint = "一句話說明這個片段講角色的哪一面(外貌、動機、與某人的關係)"
+
+[[fields]]
+name = "timeline"
+required = false
+hint = "這段設定屬於故事內的哪個時期,可模糊如「崩塌前」"
+
+[[fields]]
+name = "aliases"
+required = false
+hint = "這個角色的化名與別稱。不寫的話全文檢索撈不到用別名提及的段落"
+
+[[fields]]
+name = "tags"
+required = false
+hint = "分組用的自由標籤,如「外觀」「動機」「仇恨」"

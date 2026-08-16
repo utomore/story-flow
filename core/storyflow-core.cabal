@@ -1,0 +1,66 @@
+cabal-version:      3.4
+name:               storyflow-core
+version:            0.1.0.0
+synopsis:           story-flow 的純型別與純函式核心(零 IO)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        StoryFlow.Core.Entity
+        StoryFlow.Core.Graph
+        StoryFlow.Core.Id
+        StoryFlow.Core.Json
+        StoryFlow.Core.Level
+        StoryFlow.Core.Link
+        StoryFlow.Core.Meta
+        StoryFlow.Core.Registry
+        StoryFlow.Core.Tree
+    build-depends:
+        , aeson
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , text
+        , time
+
+test-suite storyflow-core-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        StoryFlow.Core.EntitySpec
+        StoryFlow.Core.Fixtures
+        StoryFlow.Core.GraphSpec
+        StoryFlow.Core.IdSpec
+        StoryFlow.Core.JsonSpec
+        StoryFlow.Core.LinkSpec
+        StoryFlow.Core.MetaSpec
+        StoryFlow.Core.RegistrySpec
+        StoryFlow.Core.TreeSpec
+        StoryFlow.CoreSpec
+    build-depends:
+        , aeson
+        , base
+        , containers
+        , hspec
+        , storyflow-core
+        , text
+        , time

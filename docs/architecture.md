@@ -421,18 +421,30 @@ summary: 自窗外緩推至講台,焦段 35mm
 ### SQLite 索引結構(可重建,不是真相來源)
 
 ```
-meta_info(key PK, value)                                -- schema_version 等
+meta_info(key PK, value)                                -- schema_version、vault_root、vault_name
 files(path PK, mtime, size)                             -- 外部改動的過時偵測
 entities(id PK, vault, type, title, summary, status, timeline, timeline_order,
          source, revision, created, updated, file_path, section_anchor)
 entity_aliases(entity_id, alias)
-links(src, dst_vault, dst, kind, note)                  -- 有方向,src → dst
+entity_tags(entity_id, tag)                             -- efTag 過濾;與 aliases 對稱
+links(src, dst_vault, dst, kind, note, file_path)       -- 有方向,src → dst
 levels(id PK, vault, title, summary, root, ...)
 nodes(id PK, level_id, parent_id, order_idx, kind, title, summary, ...)
 node_entities(node_id, entity_id)
-entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram, contentless
+entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram
 fts_map(rowid PK, entity_id)                             -- FTS5 的整數 rowid ↔ 字串 id
 ```
+
+`entities_fts` **不是 contentless**:contentless 的 FTS5 表既不支援 `snippet()`(檢索要回傳
+命中片段),也不支援刪除單列(單檔重新索引要能整批換掉舊記錄)。代價是 body 在索引裡多存
+一份副本——索引本來就是可丟棄的,這個代價划算(func-0004 實作備註 1)。
+
+`links` 的 `file_path` 讓單檔重新索引變成一次外鍵級聯:關聯的來源可能是 Entity / Level /
+Node 任一種,靠 `src` 反查要三個子查詢。`meta_info` 記著 Vault 根目錄,讓「只拿到一個索引
+連線」的查詢函式也能回讀檔案取得 body。
+
+中文檢索的 trigram 以三字元為索引單位,**二字詞(角色名、道具名)`MATCH` 一定不命中**;
+`searchEntities` 對兩字元以下的查詢改走 `LIKE` 掃描(func-0004 實作備註 4)。
 
 `file_path` + `section_anchor` 讓索引能回指原始檔案的哪一節,CLI/API 回傳結果時可直接給出
 「去改哪個檔案的哪一段」。
@@ -481,3 +493,29 @@ YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固�
 
 **與 design-studio 的關係**:並存,不搬資料。design-studio 不再開發新功能,提示詞工房仍可使用;
 等 story-flow 走到 P4 且實際用在作品上,再決定 design-studio 是否封存。
+
+## 已知缺口
+
+實作過程中發現、當下決定不補、但**未來要補得動**的洞。每一條都要說清楚缺什麼、為什麼現在
+不補、補的時候要動哪裡——否則它會變成沒人記得的技術債。
+
+### 檔案層主體(frontmatter)的 meta 改不動
+
+**現況**:`storyflow-md` 只提供節層的 `updateSection`,沒有任何改寫 frontmatter 的介面。
+因此 `storyflow-store` 的 `writeEntityMeta` 對「檔案層主體 Entity」(`section_anchor`
+為 NULL 的那一份)一律回 `FrontmatterWriteUnsupported`,只能請作者用編輯器直接改該檔的
+frontmatter。片段 Entity 不受影響,樂觀鎖與寫回在節層是完整的。
+
+**為什麼 P1 不補**:補它等於回頭擴充已經完成並合併的 func-0003——要新增 frontmatter 的
+Meta 序列化、逐欄改寫、以及對應的 round-trip 測試,範圍與風險都不小,而 P1 的驗收標準
+(索引重建等價、round-trip 不失真)不依賴它。
+
+**補的時候要動哪裡**(三處,順序不能顛倒):
+
+1. `storyflow-md`:新增 `updateFrontmatter :: (MetaOverride -> MetaOverride) -> Document
+   -> Either MdError Document`,序列化規則沿用 `renderMetaBlock` 的固定欄位順序,並補
+   「未修改的節逐字不變」的 round-trip 測試。ADR-0010 的位元組保留保證必須由 md 一處守住,
+   **不可以**在 store 自己改寫 frontmatter——那會讓保證分裂成兩份
+2. `storyflow-store`:`writeEntityMeta` 在 `section_anchor` 為 NULL 時改走
+   `updateFrontmatter`,移除 `FrontmatterWriteUnsupported` 建構子
+3. 本節連同該建構子一起刪掉

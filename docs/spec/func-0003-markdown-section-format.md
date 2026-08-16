@@ -50,10 +50,18 @@ Markdown 檔是唯一的真相來源(ADR-0002),所以這個套件的正確性直
 `depends-on: [func-0002]` —— 需要 core 的全部型別(`Meta` / `Entity` / `Level` / `Node` /
 `Link` / `Id`)與其 aeson 實例。
 
-**可與 func-0004(store)平行開發**:兩者都只依賴 func-0002,彼此沒有介面往來。
-唯一的交會點是 func-0004 的「索引重建」需要呼叫本套件的 `parseDocument`——因此
-func-0004 的 T6/T7(rebuild 與等價性)必須等本規格完成,其餘 9 項不受影響。
-兩份規格由不同人同時開工是安全的,合流點只有 `parseDocument` 一個函式簽名。
+**本規格不依賴 func-0004,但 func-0004 依賴本規格**:相依是單向的,`storyflow-md` 純函式、
+不碰 IO;`storyflow-store` 則在型別層就引用本套件的 `MdError` 與 `MetaOverride`,
+`build-depends` 必須含 `storyflow-md`。
+
+兩份規格由不同人同時開工是安全的,但要清楚交會面有多寬:func-0004 只有 T1–T4
+(Vault 定位、init、原子寫入、schema DDL)完全不受本規格進度影響,**T5(`indexFile`)起
+全部需要本套件的實作**——包含 T9 的樂觀鎖寫入(`parseDocument` / `updateSection` /
+`renderDocument`)與 T10 的 `lookupEntity`(回讀檔案取 `body`)。
+
+合流點的完整清單:`parseDocument`、`documentKind`、`parseEntityFile`、`parseLevelFile`、
+`updateSection`、`renderDocument`、`data MdError`、`data MetaOverride`。這些簽名在下方
+「新增的介面」已經定死,func-0004 先寫呼叫端再等本規格補上實作是可行的做法。
 
 ## 實作方式
 

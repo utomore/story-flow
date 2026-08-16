@@ -3,10 +3,10 @@ id: func-0004
 type: spec
 title: store-vault-io-and-index
 description: Vault 檔案原子寫入與 SQLite 可重建索引及 FTS5 檢索
-status: open
+status: done
 created: 2026-08-16
 updated: 2026-08-16
-depends-on: [func-0002]
+depends-on: [func-0002, func-0003]
 related-adr: [adr-0002, adr-0003, adr-0008]
 related-spec: [func-0001, func-0002, func-0003]
 ---
@@ -45,19 +45,55 @@ CLI 與 API(P2/P3)、跨 Vault 的查詢合併(P2,本規格只保證單 Vault �
 
 ## 相依性
 
-`depends-on: [func-0002]` —— 需要 core 的全部型別與純函式。
+`depends-on: [func-0002, func-0003]` —— 需要 core 的全部型別與純函式,以及 md 的解析與寫回。
 
-**與 func-0003(md 解析)的部分相依**:本規格 11 項任務中,T1–T5 與 T8–T11 只依賴 core,
-**可與 func-0003 完全平行開發**;只有 **T6(全量重建)與 T7(重建等價性)** 需要呼叫
-`StoryFlow.Md.parseDocument` 才能把 `.md` 變成型別,必須等 func-0003 完成。
+**對 func-0003 的相依是型別層級的,不是選擇性的**。`storyflow-store` 沒有 `storyflow-md`
+無法編譯,理由有三處:
 
-因此 frontmatter 的 `depends-on` 只列 func-0002,func-0003 列在 `related-spec`。
-兩份規格建議同時開工,合流點只有 `parseDocument` / `parseEntityFile` / `parseLevelFile`
-三個函式簽名——這三個簽名在 func-0003 的「新增的介面」已經定死,先寫 T6 的呼叫端程式碼
-再等 func-0003 補上實作也是可行的做法。
+1. `StoreError` 的 `ParseFailed FilePath [MdError]` 與 `data IndexIssue = IndexIssue FilePath [MdError]`
+   直接引用 func-0003 的 `MdError`。`StoryFlow.Store.Error` 是本套件每個模組都要 import 的,
+   因此連 T1 也繞不開。
+2. `writeEntityMeta` 的簽名含 `MetaOverride`,該型別定義在 `StoryFlow.Md.Inherit`,core 沒有。
+3. `indexFile` 吃 `FilePath`,必須讀檔後呼叫 `parseDocument` / `parseEntityFile` / `parseLevelFile`
+   才能得到要寫進索引的型別值。
+
+**平行開發的邊界在 T4 與 T5 之間**:
+
+| 任務 | 是否需要 md 的實作 |
+|---|---|
+| T1 `resolveVault` / T2 `initVault` / T3 `atomicWriteText` | 否(僅需 `MdError` 的型別宣告可見) |
+| T4 `Schema` 的 DDL 與 PRAGMA | 否;但「版本不符自動重建」會呼叫 `rebuildIndex`,該路徑需要 |
+| T5 `indexFile` | 是 —— 真正呼叫解析器的地方 |
+| T6 `rebuildIndex` / T7 等價性 | 是(經由 T5) |
+| T8 `refreshStale` | 是(經由 T5) |
+| T9 `writeEntityMeta` | 是 —— `parseDocument`(步驟 2)、`updateSection`(步驟 5)、`renderDocument`(步驟 6) |
+| T10 `lookupEntity` | 是 —— `body` 需回讀檔案並解析 |
+| T11 `searchEntities` | SQL 本體不需要,但測試資料要靠 T5 灌進索引 |
+
+**func-0003 已於 8c9eaa3 完成並合併**(status: done,160 examples 全綠),合流點的實作
+已可直接使用,本規格 11 項任務不再有等待。
+
+合流點清單(型別也算介面):`parseDocument`、`documentKind`、`parseEntityFile`、
+`parseLevelFile`、`updateSection`、`renderDocument`、`data MdError`、`data MdWarning`、
+`data MetaOverride`。
+
+**開工前需吸收 func-0003 的三點實作結果**(見其「實作備註」):
+
+- `parseEntityFile` / `parseLevelFile` 的實際簽名是
+  `Document -> Either [MdError] (EntityFile, [MdWarning])` ——**帶警告**。原本的
+  `IndexIssue FilePath [MdError]` 沒有地方放警告,索引時 `MissingSummary` /
+  `CustomLinkKind` / `EmptyBody` 會被靜靜丟掉;已於「錯誤處理」節改為
+  `IndexIssue FilePath [MdError] [MdWarning]`。
+- `MetaOverride` 比本規格引用時多了 `moKind :: Maybe NodeKind`,序列化欄位順序也隨之
+  變成 13 欄。T9 的 `writeEntityMeta` 因此同樣能安全地改 Level 檔的 Node 節,不會在
+  重寫時把 `kind:` 抹掉。
+- `MdErrorKind` 多了 `UnknownSectionId Id`;T9 步驟 5 呼叫 `updateSection` 時,
+  「索引有記錄但檔案裡找不到該節」會以這個錯誤回來,`StoreError` 需要能轉譯它
+  (語意上接近 `EntityNotFound`,但成因是索引過時而非資料不存在,建議走 `ParseFailed`
+  或另立建構子)。
 
 `storyflow-store` 的 `build-depends` 因此包含 `storyflow-md`(架構圖中 `md` 與 `core`
-同時匯入 `store`),func-0001 建立骨架時的依賴清單需在本規格開工時補上這一條。
+同時匯入 `store`);func-0001 建立骨架時漏了這一條,已於本規格修正時補上。
 
 ## 實作方式
 
@@ -307,8 +343,12 @@ data StoreError
   | ParseFailed FilePath [MdError]
   | SqliteError Text
 
-data IndexIssue = IndexIssue FilePath [MdError]
+data IndexIssue = IndexIssue FilePath [MdError] [MdWarning]
 ```
+
+`IndexIssue` 帶 `[MdWarning]`:`storyflow-md` 是純函式庫,警告只能靠呼叫端輸出。
+索引是唯一會走過 Vault 全部檔案的地方,不在這裡收集,`MissingSummary` /
+`CustomLinkKind` / `EmptyBody` 就永遠不會被作者看到。
 
 `IndexUpdateFailed` 與 `FileWriteFailed` 分開是刻意的:前者資料安全,重建即可;
 後者是真正的失敗。呼叫端必須能區分。
@@ -336,16 +376,17 @@ func-0002(core):
 | `bumpRevision :: Day -> Meta -> Meta` | 樂觀鎖寫入的第 4 步 |
 | `type LinkGraph`, `buildGraph :: [Meta] -> LinkGraph` | `loadLinkGraph` 的組裝 |
 
-func-0003(md,僅 T6/T7 需要):
+func-0003(md,T5 起全面需要):
 
-| 介面 | 用途 |
-|---|---|
-| `parseDocument :: FilePath -> Text -> Either [MdError] Document` | 讀檔後的第一步 |
-| `documentKind :: Document -> Either [MdError] DocKind` | 判別 Entity 檔或 Level 檔 |
-| `parseEntityFile` / `parseLevelFile` | 取得要索引的型別值 |
-| `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 樂觀鎖寫入的第 5 步 |
-| `renderDocument :: Document -> Text` | 產生要寫回的檔案內容 |
-| `data MdError`, `renderMdError` | `ParseFailed` / `IndexIssue` 的內容 |
+| 介面 | 用途 | 任務 |
+|---|---|---|
+| `parseDocument :: FilePath -> Text -> Either [MdError] Document` | 讀檔後的第一步 | T5 / T9 / T10 |
+| `documentKind :: Document -> Either [MdError] DocKind` | 判別 Entity 檔或 Level 檔 | T5 |
+| `parseEntityFile` / `parseLevelFile` | 取得要索引的型別值 | T5 / T10 |
+| `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 樂觀鎖寫入的第 5 步 | T9 |
+| `renderDocument :: Document -> Text` | 產生要寫回的檔案內容 | T9 |
+| `data MetaOverride` | `writeEntityMeta` 的修改函式型別 | T9 |
+| `data MdError`, `renderMdError` | `ParseFailed` / `IndexIssue` 的內容 | 全部(經 `StoreError`) |
 
 func-0001:`storyflow-store` 套件骨架與其 FTS5 smoke test。
 
@@ -379,17 +420,17 @@ rowid → entity_id。
 
 ## TodoList
 
-- [ ] T1: `StoryFlow.Store.Vault` —— 向上搜尋 `.storyflow/`、全域註冊表查詢、`--vault` 三條定位路徑與 `config.toml` 解析
-- [ ] T2: `initVault` —— 建立 `.storyflow/`、`config.toml`、子目錄骨架,`.gitignore` 追加而不覆寫
-- [ ] T3: `StoryFlow.Store.Atomic` —— 同目錄暫存檔 + rename 覆蓋,Windows 覆蓋行為處理,失敗清理
-- [ ] T4: `StoryFlow.Store.Schema` —— 全部表與 `entities_fts`(trigram)DDL、`schema_version`、PRAGMA 設定、版本不符自動重建
-- [ ] T5: `indexFile` / `unindexFile` —— 單檔整檔替換,包 transaction,涵蓋 entities / aliases / links / levels / nodes / node_entities / FTS
-- [ ] T6: `rebuildIndex` —— 掃描全 Vault 的 `.md`,單檔失敗不中斷並收集為 `IndexIssue`
-- [ ] T7: 重建等價性 —— 刪除 `index.db` 後重建的結果與刪除前逐表逐筆相同
-- [ ] T8: `staleFiles` / `refreshStale` —— 以 mtime + size 偵測外部改動與檔案刪除
-- [ ] T9: `writeEntityMeta` —— 重讀比對 revision、`StaleRevision` 拒絕、寫檔成功但索引失敗的語意分離;`allocateId` 的碰撞重試
-- [ ] T10: `StoryFlow.Store.Query` —— `lookupEntity`(回讀 body)/ `listEntities` / `linksFrom` / `linksTo` / `loadLinkGraph` / `lookupLevel`
-- [ ] T11: `searchEntities` —— FTS5 trigram 中文檢索、查詢字串跳脫、snippet 回傳、與 `EntityFilter` 併用
+- [x] T1: `StoryFlow.Store.Vault` —— 向上搜尋 `.storyflow/`、全域註冊表查詢、`--vault` 三條定位路徑與 `config.toml` 解析
+- [x] T2: `initVault` —— 建立 `.storyflow/`、`config.toml`、子目錄骨架,`.gitignore` 追加而不覆寫
+- [x] T3: `StoryFlow.Store.Atomic` —— 同目錄暫存檔 + rename 覆蓋,Windows 覆蓋行為處理,失敗清理
+- [x] T4: `StoryFlow.Store.Schema` —— 全部表與 `entities_fts`(trigram)DDL、`schema_version`、PRAGMA 設定、版本不符自動重建
+- [x] T5: `indexFile` / `unindexFile` —— 單檔整檔替換,包 transaction,涵蓋 entities / aliases / links / levels / nodes / node_entities / FTS
+- [x] T6: `rebuildIndex` —— 掃描全 Vault 的 `.md`,單檔失敗不中斷並收集為 `IndexIssue`
+- [x] T7: 重建等價性 —— 刪除 `index.db` 後重建的結果與刪除前逐表逐筆相同
+- [x] T8: `staleFiles` / `refreshStale` —— 以 mtime + size 偵測外部改動與檔案刪除
+- [x] T9: `writeEntityMeta` —— 重讀比對 revision、`StaleRevision` 拒絕、寫檔成功但索引失敗的語意分離;`allocateId` 的碰撞重試
+- [x] T10: `StoryFlow.Store.Query` —— `lookupEntity`(回讀 body)/ `listEntities` / `linksFrom` / `linksTo` / `loadLinkGraph` / `lookupLevel`
+- [x] T11: `searchEntities` —— FTS5 trigram 中文檢索、查詢字串跳脫、snippet 回傳、與 `EntityFilter` 併用
 
 ## 1-to-1 測試對照表
 
@@ -409,4 +450,114 @@ rowid → entity_id。
 
 ## 實作備註
 
-(撰寫時留空)
+實作於 2026-08-16 完成,`storyflow-store` 72 examples 全綠(`cabal test all` 四個套件
+共 410 examples 全綠)。以下是與本規格原文不同、或規格沒寫而實作必須決定的地方。
+
+### 1. `entities_fts` 不用 contentless(開發者確認)
+
+規格與 architecture.md 都寫 `content=''`。實作時碰到兩個硬限制:contentless 的 FTS5 表
+**不支援 `snippet()`**(T11 明確要求回傳命中片段),也**不支援刪除單列**(T5 要求單檔
+重新索引時舊 FTS 記錄全部消失;contentless 只能以原始欄位值下 `'delete'` 指令,而那些值
+正是 contentless 沒存的東西)。
+
+改用一般 FTS5 表:`fts5(title, summary, body, aliases, tags, tokenize='trigram')`,
+`fts_map` 對應 rowid → entity_id 的設計不變。代價是 body 在 `index.db` 裡多存一份——
+索引本來就是可丟棄的衍生物,這個代價是划算的。已回寫 architecture.md。
+
+### 2. 新增 `entity_tags` 表(開發者確認)
+
+`EntityFilter.efTag` 要依 tag 過濾,而原本的索引結構只有 FTS 的 `tags` 欄位,沒有可查詢的
+地方。新增 `entity_tags(entity_id, tag)`,與 `entity_aliases` 對稱。已回寫 architecture.md。
+
+### 3. `links` 多一個 `file_path` 欄位
+
+關聯的來源可能是 Entity / Level / Node 三種表的任一種,靠 `src` 反查要三個子查詢。帶上
+檔案路徑後,單檔重新索引就只是一次外鍵級聯(`DELETE FROM files WHERE path = ?`)。
+
+`unindexFile` 因此只有兩條 SQL:先算出 rowid 清掉 FTS(FTS 沒有外鍵),再刪 `files` 一列,
+其餘全部級聯。這也是 `PRAGMA foreign_keys = ON` 在本層是正確性前提而非潔癖的原因。
+
+### 4. 二字詞檢索走 LIKE 掃描
+
+驗收標準寫「以『織紋』搜尋能命中『織紋刀』」,但 trigram 以三字元為索引單位,二字詞
+`MATCH` 一定不命中——func-0001 的 smoke test 已經把這個限制寫成一條測試。`searchEntities`
+因此分兩條路徑:三字元以上走 `MATCH`,兩字元以下走 `LIKE '%…%'` 全表掃描並自己產生
+snippet。角色名與道具名常常就是兩個字,這一段是本層必須自己補的。
+
+### 5. 檔案層主體的 meta 目前寫不動
+
+`updateSection` 只能改「節」,`storyflow-md` 沒有任何改 frontmatter 的介面。對
+`section_anchor` 為 NULL 的 Entity,`writeEntityMeta` 回新增的
+`FrontmatterWriteUnsupported Id` 並在訊息裡說明要改該檔的 frontmatter。缺口已記在
+architecture.md 末節的「已知缺口」,留給後續 spec 補 `storyflow-md` 的 `updateFrontmatter`。
+
+### 6. `StoreError` 多了 `FileReadFailed`
+
+規格的錯誤清單只有寫入方向。索引與樂觀鎖都要讀檔,讀不到或不是合法 UTF-8 時既不是
+`ParseFailed`(還沒進到解析)也不是 `SqliteError`,所以另立一個建構子。
+
+### 7. `openIndex` 只管 schema 版本,資料層重建在 `openVaultIndex`
+
+規格寫「`openIndex` 讀到的 `schema_version` 不符時自動觸發全量重建」,但重建要呼叫
+`rebuildIndex`,而 `Schema` 不能 import `Index`(會循環相依)。拆成兩段:
+
+- `Schema.openIndex` 版本不符時砍掉重建 schema(表變空)
+- 新增 `Index.openVaultIndex :: Vault -> IO (Either StoreError (Connection, [IndexIssue]))`,
+  開完連線後跑一次 `refreshStale`。schema 被重建後 `files` 表是空的,於是每一份 `.md`
+  都被判定為過時而重新索引——資料自然回來
+
+`openVaultIndex` 是 P2 的 `service` 該用的進入點:它同時涵蓋「版本不符要重建」與
+「作者剛用編輯器改過檔案」兩件事。
+
+### 8. Vault 定位多了可指定註冊表路徑的版本
+
+`resolveVaultWith :: FilePath -> Maybe Text -> FilePath -> IO ...` 與
+`loadVaultRegistryFrom :: FilePath -> IO ...`:測試不能去讀開發者本機真正的
+`~/.config/story-flow/vaults.toml`。無參數版沿用規格簽名。
+
+規格內文一處寫 `loadRegistryFile`、介面表寫 `loadVaultRegistry`,實作採用後者。
+
+`vaultRelPath` **一律以 `/` 分隔**——索引可能被跨平台重建,而
+`characters\琳達.md` 與 `characters/琳達.md` 是兩個不同的字串主鍵。另補
+`vaultAbsPath` 做反向轉換。
+
+### 9. 原子寫入:暫存檔命名與 fsync
+
+- 暫存檔改用 `openBinaryTempFile <目錄> "<檔名>.tmp"` 而不是規格寫的
+  `<target>.tmp-<pid>`:`base` 在 Windows 上沒有取 pid 的介面,而 `openBinaryTempFile`
+  是同目錄、原子建立、跨行程唯一的
+- **`renamePath` 在 Windows 上會覆蓋既有檔案**(以 T3 的測試實測確認),因此
+  `Win32.moveFileEx` 的 CPP 條件編譯**沒有做**,`Win32` 也沒有進 build-depends
+- **沒有 fsync**:`base` 沒有跨平台的檔案同步介面(`unix` 的 `fileSynchronise` 與
+  Windows 的 `flushFileBuffers` 都要另外相依)。目前是 `hFlush` + `hClose` + rename,
+  防的是「半寫的檔案」而不是「作業系統當掉」。要防後者是另一個層級的成本,P1 不付
+
+### 10. `meta_info` 多存 `vault_root` / `vault_name`
+
+`lookupEntity :: Connection -> Id -> IO (Maybe Entity)` 的簽名裡沒有 `Vault`,但 body
+要回讀檔案。把 Vault 根目錄記在 `meta_info` 裡,連線就是自足的,規格簽名得以原樣保留。
+`openIndex` 與每次 `indexFile` 都會更新這兩列。
+
+### 11. 新增內部模組 `StoryFlow.Store.Row`
+
+核心型別 ↔ 資料列的轉換集中在一處(理由與 `StoryFlow.Core.Json` 相同):寫入與讀出
+必須是同一套規則,而「刪掉 index.db 重建後等價」這條保證完全建立在兩邊一致上。
+不對外承諾介面。
+
+### 12. 其他實作決定
+
+- `files.mtime` 存**奈秒**:同一秒內改兩次是測試與人手都做得到的事,秒級解析度會漏掉
+- `IndexIssue` 也用來承載「成功索引但有品質警告」的檔案(`[MdError]` 為空);
+  `issueHasError` 區分兩者。`indexFile` 這個介面上警告會被丟掉,要收集請走
+  `rebuildIndex` / `refreshStale`
+- Level 與 Node **不進 FTS、不進 `entity_aliases` / `entity_tags`**:衝突偵測只面對
+  Entity(ADR-0003),結構節點進檢索只會製造雜訊
+- `node_entities.entity_id` 存的是 `Ref` 的字串形式(可能是 `<vault>:<id>`),因此不下外鍵
+- 索引時把指向本 Vault 的 `dst_vault` 正規化成 NULL,否則 `liftgame:ent-7f3a` 與
+  `ent-7f3a` 會變成反向查詢互相看不見的兩個東西
+- T3 的「目標路徑不可寫」改以「目標是一個既有目錄」來造:這是 Windows 與 POSIX 上
+  行為一致的失敗方式(唯讀屬性在兩邊的語意不同)
+- T9 的「索引更新失敗但檔案已寫成功」以 `PRAGMA query_only = ON` 造出「讀得到、寫不了」
+  的連線,正好對應該情境
+- T5 的「transaction 中途失敗」以「另一份檔案的第二個片段與既有 id 相撞」造出主鍵衝突,
+  是真正的中途失敗而非第一條 SQL 就失敗

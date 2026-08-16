@@ -24,13 +24,27 @@ library
     hs-source-dirs:   src
     exposed-modules:
         StoryFlow.Store
+        StoryFlow.Store.Atomic
+        StoryFlow.Store.Error
+        StoryFlow.Store.Index
+        StoryFlow.Store.Query
+        StoryFlow.Store.Row
+        StoryFlow.Store.Schema
+        StoryFlow.Store.Vault
+        StoryFlow.Store.Write
     build-depends:
         , base          >=4.14 && <5
         , bytestring
+        , containers
         , direct-sqlite
+        , directory
+        , filepath
         , sqlite-simple
         , storyflow-core
+        , storyflow-md
         , text
+        , time
+        , toml-reader
 
 test-suite storyflow-store-test
     import:           warnings, lang
@@ -38,11 +52,30 @@ test-suite storyflow-store-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        StoryFlow.Store.AtomicSpec
+        StoryFlow.Store.Fixtures
+        StoryFlow.Store.IndexSpec
+        StoryFlow.Store.InitSpec
+        StoryFlow.Store.QuerySpec
+        StoryFlow.Store.RebuildSpec
+        StoryFlow.Store.SchemaSpec
+        StoryFlow.Store.SearchSpec
+        StoryFlow.Store.StaleSpec
+        StoryFlow.Store.VaultSpec
+        StoryFlow.Store.WriteSpec
         StoryFlow.StoreSpec
     build-depends:
         , base
+        , bytestring
+        , containers
+        , directory
+        , filepath
         , hspec
         , sqlite-simple
         , storyflow-core
+        , storyflow-md
         , storyflow-store
+        , temporary
         , text
+        , time
+        , toml-reader

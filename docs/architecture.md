@@ -55,8 +55,9 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 
 | 層 | 套件 | 職責 |
 |---|---|---|
-| 型別註冊表 | `types/*.toml`(資料,非程式) | 宣告每個 Entity 型別的名稱、建議欄位、允許的關聯、工作坊階段。新增型別不改程式 |
-| 純核心 | `storyflow-core` | `Meta` / `Entity` / `Link` / `Level` / `Node` / `LinkKind` 型別與純函式(樹的合法性、關聯遍歷、ID 生成)。**零 IO** |
+| 型別註冊表 | `types/registry/*.toml`(資料,非程式) | 宣告每個 Entity 型別的名稱、建議欄位、允許的關聯、工作坊階段。新增型別不改程式 |
+| 純核心 | `storyflow-core` | `Meta` / `Entity` / `Link` / `Level` / `Node` / `LinkKind` 型別與純函式(樹的合法性、關聯遍歷、ID 生成、註冊表驗證)。**零 IO** |
+| 註冊表載入 | `storyflow-types` | 讀 `types/registry/*.toml`、解析、交給 `core` 的純驗證函式。唯一的 IO 是讀檔——`core` 零 IO 放不下這件事,因此獨立成薄套件 |
 | 解析 | `storyflow-md` | Markdown 分節格式 ↔ 核心型別的雙向轉換(解析與寫回)。純函式,吃 `Text` 吐型別 |
 | 落地 | `storyflow-store` | 檔案讀寫(原子寫入)、SQLite 索引建立與重建、FTS5 trigram 檢索、樂觀鎖 |
 | 業務契約 | `storyflow-service` | **所有業務操作的唯一定義處**。CLI 與 server 都只是它的包裝 |
@@ -67,7 +68,7 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 | 介面 2 | `storyflow-cli` | `story-flow` 指令,預設內嵌呼叫 `Service`,`--remote` 改走 servant-client |
 | 介面 3 | `storyflow-mcp` | MCP adapter,薄層,打同一組 HTTP API |
 
-**垂直切片 1(新增一個 Entity 型別)**:在 `types/` 加一份 `.toml`。CLI 的 `--type` 選項、
+**垂直切片 1(新增一個 Entity 型別)**:在 `types/registry/` 加一份 `.toml`。CLI 的 `--type` 選項、
 API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟進,`core`/`service`/`server`/`cli`
 不改一行。這是直接繼承 design-studio 最成功的設計(宣告式模組註冊表,已被 8 個模組驗證)。
 
@@ -97,9 +98,13 @@ API 的型別清單、工作坊階段、該型別允許的關聯全部自動跟�
 
 ```
                    ┌──────────────────────────┐
-                   │  types/*.toml            │  宣告式型別註冊表(資料,非程式)
+                   │  types/registry/*.toml   │  宣告式型別註冊表(資料,非程式)
                    └────────────┬─────────────┘
-                                │ 載入
+                                │ 讀檔
+                   ┌────────────┴─────────────┐
+                   │  storyflow-types         │  TOML 解析 + 錯誤彙整(唯一 IO 是讀檔)
+                   └────────────┬─────────────┘
+                                │ 交給純驗證
    ┌────────────────┐  ┌────────┴─────────────┐
    │ storyflow-md   │  │  storyflow-core      │  Meta/Entity/Link/Level/Node
    │ Markdown ↔ 型別 ├──┤  純型別 + 純函式      │  零 IO,可完全單元測試
@@ -174,15 +179,19 @@ rm .storyflow/index.db
 ```
 alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
 ├── cabal.project
-├── types/                          ← 宣告式型別註冊表(隨程式碼一起版控)
-│   ├── character-fragment.toml
-│   ├── lore-fragment.toml
-│   ├── item-fragment.toml
-│   ├── dialogue.toml
-│   └── plot-fragment.toml
+├── types/                          ← storyflow-types 套件
+│   ├── storyflow-types.cabal
+│   ├── src/                        ← 載入器原始碼
+│   └── registry/                   ← 宣告式型別註冊表(隨程式碼一起版控)
+│       ├── character-fragment.toml
+│       ├── lore-fragment.toml
+│       ├── item-fragment.toml
+│       ├── dialogue.toml
+│       └── plot-fragment.toml
 ├── core/  md/  store/  service/    ← 各套件(每個一份 *.cabal)
 ├── conflict/  llm/  workshop/
 ├── server/  cli/  mcp/
+├── scripts/                        ← check.ps1 / check.sh(本機建置測試)
 └── docs/
 
 ~/story-vaults/liftgame/            ← 資料 Vault,自己的 git repo
@@ -208,7 +217,7 @@ Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git �
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
-| `id` | Text | 全域唯一。`<prefix>-<8 hex>`,prefix 為 `ent`/`lvl`/`nod`/`vlt`。從內容 + 時間雜湊,人類可讀性交給 `title` |
+| `id` | Text | 全域唯一。`<prefix>-<8 hex>`,prefix 為 `ent`/`lvl`/`nod`/`vlt`。以 FNV-1a 64-bit 對「內容 + 時間 + salt」雜湊後取低 32 位;`core` 零 IO 故時間由呼叫端提供,唯一性由持有索引的 `store` 以 salt 遞增重試保證。人類可讀性交給 `title` |
 | `vault` | Text | 所屬 Vault 名稱。跨 Vault 引用時用 `<vault>:<id>` 定址 |
 | `type` | Text | 型別註冊表中的鍵。core 只當它是字串,語意由註冊表決定 |
 | `title` | Text | 人類可讀標題 |
@@ -302,6 +311,21 @@ links:
 `{#id}` 是標準 Markdown 標題屬性語法(pandoc/kramdown 相容),編輯器與一般 Markdown 檢視器
 都不會顯示異常;` ```meta ` 是 YAML,不認得它的檢視器會當程式碼區塊原樣顯示,不會壞版。
 
+**節層繼承檔案層的精確規則**(「等」的定義,見 func-0003):
+
+| 欄位 | 規則 | 理由 |
+|---|---|---|
+| `id` / `title` | **不繼承**,來自節標題與其 `{#id}` | 每個片段必須有自己的身分 |
+| `vault` / `type` / `status` / `timeline` / `source` | 繼承 | 同檔片段幾乎總是同一個 vault/型別/狀態 |
+| `created` / `updated` | 繼承 | 作者不會想每節寫一次日期 |
+| `tags` | **聯集去重**(檔案層 + 節層) | 檔案層放共通標籤、節層放專屬標籤 |
+| `summary` | **不繼承**,缺漏產生警告 | 繼承主體的總結等於餵給衝突偵測假資訊 |
+| `aliases` / `links` | **不繼承** | 別名與關聯屬於各自的實體,繼承會讓每個片段莫名帶上主體的全部關聯 |
+| `revision` | **不繼承**,未寫時為 `1` | 繼承會讓多個片段共用同一個 revision,樂觀鎖就失去意義 |
+
+**寫回策略**:未經修改的區塊逐字保留原始位元組,只有被修改的 `meta` 區塊重新序列化
+(ADR-0010)。作者的空行、YAML 註解、縮排風格不會被工具改掉。
+
 ### Level 場景樹
 
 Level 是**嚴格樹**:每個 Node 單一父節點、不成環,可無限展開。分支合流不改變樹結構,而是以
@@ -330,9 +354,67 @@ Node 只承載結構與演出(順序、分支、鏡頭如何移動);「這句對
 是 Entity。同一段對話 Entity 因此能被多個場景重用,而衝突偵測也只需要面對 Entity 一種東西
 (見 ADR-0003)。
 
+**Level 檔的 Markdown 格式:標題階層即樹**(ADR-0009)。作者永遠不必手寫 `parent` 與 `order`
+——這兩個最易錯的欄位由標題層級與文件順序推導:
+
+````markdown
+---
+id: lvl-3a01
+vault: liftgame
+type: level
+title: 教室
+summary: 崩塌後的午後教室,琳達與塔主的第一次對峙
+status: canon
+---
+
+場景整體的說明寫在這裡(對應 Level 的 body,不進 Node)。
+
+## 午後的教室 {#nod-0001}
+
+```meta
+kind: scene
+summary: 午後的教室,窗外是崩塌後的天際線
+links:
+  - {kind: involves, target: ent-c41d}
+```
+
+### 出場人物 {#nod-0002}
+
+```meta
+kind: cast
+links:
+  - {kind: involves, target: ent-7f3a}
+  - {kind: involves, target: ent-8b20}
+```
+
+#### 琳達走向講台 {#nod-0004}
+
+```meta
+kind: interaction
+```
+
+### 鏡頭 {#nod-0003}
+
+```meta
+kind: camera
+summary: 自窗外緩推至講台,焦段 35mm
+```
+````
+
+規則:全檔最淺的標題層級是根 Node;層級 +1 即子節點;同一父節點下的第 n 個子節點
+`order = n`;`kind` 必填;Node 指向的 Entity 由 `involves` / `references` 關聯推導,
+不另設欄位;跳級(`##` 後直接 `####`)是錯誤;`convergesTo` 只是一筆 `links`,不影響結構。
+檔案層 frontmatter 的 `type: level` 是 Entity 檔與 Level 檔的判別依據,`level` 因此是
+保留型別鍵,不可出現在 `types/registry/`。
+
+限制:Markdown 只有六級標題,根用 `##` 時最深五層。真的不夠時把子樹拆成另一個 Level
+以關聯串接(見 ADR-0009 的影響)。
+
 ### SQLite 索引結構(可重建,不是真相來源)
 
 ```
+meta_info(key PK, value)                                -- schema_version 等
+files(path PK, mtime, size)                             -- 外部改動的過時偵測
 entities(id PK, vault, type, title, summary, status, timeline, timeline_order,
          source, revision, created, updated, file_path, section_anchor)
 entity_aliases(entity_id, alias)
@@ -340,11 +422,19 @@ links(src, dst_vault, dst, kind, note)                  -- 有方向,src → dst
 levels(id PK, vault, title, summary, root, ...)
 nodes(id PK, level_id, parent_id, order_idx, kind, title, summary, ...)
 node_entities(node_id, entity_id)
-entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram tokenizer
+entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram, contentless
+fts_map(rowid PK, entity_id)                             -- FTS5 的整數 rowid ↔ 字串 id
 ```
 
 `file_path` + `section_anchor` 讓索引能回指原始檔案的哪一節,CLI/API 回傳結果時可直接給出
 「去改哪個檔案的哪一段」。
+
+`files` 表存 mtime 與 size:作者用編輯器直接改檔案後,查詢前比對即可偵測過時並重讀該檔,
+不必手動 `index rebuild`(ADR-0002 要求 P1 就處理)。它同時讓「這個檔案的所有記錄」
+以外鍵級聯刪除,單檔重新索引就是整檔替換而非逐筆 diff。
+
+`body` 進 FTS 但**不進 `entities` 表**——正文只有檔案有,索引只需要能搜到它。
+schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建。
 
 ## 使用到的套件
 
@@ -356,9 +446,13 @@ entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram tokeni
 | `servant` / `servant-server` / `warp` | REST API,API 型別即契約 |
 | `servant-client` / `http-client` | CLI 遠端模式、LLM 端點呼叫 |
 | `optparse-applicative` | CLI 指令解析 |
-| `directory` / `filepath` / `temporary` | 檔案落地與測試用臨時 Vault |
-| `tomland` 或 `toml-reader` | 型別註冊表與 Vault 設定的 TOML 解析 |
+| `directory` / `filepath` / `temporary` | 檔案落地、mtime/size 過時偵測、測試用臨時 Vault |
+| `toml-reader` | 型別註冊表與 Vault 設定的 TOML 解析(純 Haskell、無 C 相依) |
+| `HsYAML` + `HsYAML-aeson` | Markdown frontmatter 與 ` ```meta ` 區塊的 YAML 解析(轉成 aeson `Value` 後套用 `core` 的 `FromJSON`,編碼規則全系統一份) |
+| `Win32`(僅 Windows,GHC boot package) | 原子寫入的 rename 覆蓋既有檔案 |
 | `hspec` | 測試 |
+
+YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固定欄位順序),見 ADR-0010。
 
 前端無相依(P6 才評估)。
 
@@ -366,8 +460,8 @@ entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram tokeni
 
 | 階段 | 內容 | 完成標準 |
 |---|---|---|
-| P0 | 骨架:`cabal.project` 多套件、GHC 9.14.1、`-Wall` 設定、hspec 測試骨架、CI | `cabal build all` / `cabal test all` 綠燈 |
-| P1 | `core` + `md` + `store`:統一 Meta 與五個核心型別、Markdown 分節雙向解析、原子寫入、SQLite 索引與 FTS5、樂觀鎖 | `index rebuild` 後與重建前等價;round-trip 測試(解析→寫回→再解析)不失真 |
+| P0 | 骨架:`cabal.project` 多套件(P1 所需的 `core` / `types` / `md` / `store` 四個,其餘各階段再加)、GHC 9.14.1、`-Wall` 設定、hspec 測試骨架、`scripts/check.ps1` 與 `check.sh` | `cabal build all` / `cabal test all` 綠燈;FTS5 trigram smoke test 通過(證明 `+fulltextsearch` 生效);`scripts/check` exit 0 |
+| P1 | `core` + `types` + `md` + `store`:統一 Meta 與五個核心型別、型別註冊表載入與驗證、Markdown 分節雙向解析、原子寫入、SQLite 索引與 FTS5、樂觀鎖 | `index rebuild` 後與重建前等價;round-trip 測試(解析→寫回→再解析)不失真 |
 | P2 | `service` + `cli`:Vault init/註冊、Entity 與 Link 的增刪查改、Level 樹編輯、全指令 `--json`、內嵌模式 | 能純用 CLI 把「教室」場景與琳達的片段從零建起來 |
 | P3 | `server`:servant REST 覆蓋 `service` 全部操作、綁 loopback、OpenAPI 輸出;CLI `--remote` | claude code 只靠 API 文件就能建/查片段與關聯 |
 | P4 | `conflict`:圖遍歷、FTS5 候選撈取、LLM 判斷三層,以及 `context` 指令(只撈相關片段不判斷) | 拿真實草稿測出既有設定的矛盾,且能說出是哪個片段的哪一段 |

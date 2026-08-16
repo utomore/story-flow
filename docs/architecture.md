@@ -8,14 +8,14 @@ created: 2026-08-16
 updated: 2026-08-16
 ---
 
-# AssetDB(Alchbees Asset & Project Management System)系統架構
+## AssetDB(Alchbees Asset & Project Management System)系統架構
 
 > 本文取代並整併 `docs/DESIGN.md`、`docs/AI.md`、`docs/PACKS.md` 三份舊文件的架構相關內容,
 > 三份原檔已移至 `docs/_archive/`。素材包盤點資料(非架構內容)請見 `docs/_archive/PACKS.md`
 > 與機器可讀的 `data/packs.toml`。AI 分類功能的完整操作手冊(troubleshooting、CLI 逐步流程)
 > 保留在 `docs/_archive/AI.md`,本文只收錄其架構決策。
 
-## 需求說明
+### 需求說明
 
 Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.42 GB,命名繼承自各廠商,
 至少五種互不相容的風格並存。沒有資料庫、沒有 script、沒有 manifest。三個具體問題驅動了本專案:
@@ -37,7 +37,7 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 使用者:單人工作室(目前),schema 已為多人協作預留欄位但不實作即時協作。
 
-## 架構規劃(含垂直切片說明)
+### 架構規劃(含垂直切片說明)
 
 專案依「資源生命週期」切成垂直切片,每片對應一個 cabal 套件,可獨立測試、獨立編譯:
 
@@ -57,7 +57,7 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 垂直切片之間**沒有循環依賴**,依賴方向嚴格向下收斂到 `core`(詳見下方架構圖)。這個形狀
 是「加音效不需要改核心表」「ai 不需要拖進 zip/圖片解碼函式庫」等低耦合特性的直接來源。
 
-## 使用的技術
+### 使用的技術
 
 - **後端**:Haskell(GHC 9.14.1 / cabal 3.16.1.0),`servant-server`、`sqlite-simple`、`aeson`、
   `zip`(ZIP 原生)、`toml-parser`、`JuicyPixels` / `JuicyPixels-extra`、`crypton`(SHA-256)、
@@ -69,11 +69,11 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
   ImageMagick(選配,TIFF/PSD/HEIC 縮圖)
 - **AI**:本機推論,GBNF 文法約束 JSON Schema 輸出,分類結果離線寫回索引,查詢時不呼叫 LLM
 
-## 架構圖
+### 架構圖
 
 依賴方向(由 `.cabal` 逐一確認,無循環):
 
-```
+```text
                     ┌─────────┐
                     │  core   │  型別、ULID、命名文法、Manifest(無任何內部依賴)
                     └────┬────┘
@@ -98,7 +98,7 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 資料流(日常匯入路徑):
 
-```
+```text
 前端拖入 pack.zip
   → 存進 library/packs/<vendor>/<slug>/
   → 讀 central directory,不解壓,一項一列進 assets
@@ -111,11 +111,11 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 建專案:搜尋 → 加入收藏集 → `new-project`,只對選中項目做單筆解壓,正規化命名後寫進 `assets/`。
 永遠不會整包解開壓縮檔。
 
-## 資料結構的框架格式
+### 資料結構的框架格式
 
 **實體資料夾**(工作室根目錄無空格,原因見 ADR-0005 相關實測記錄):
 
-```
+```text
 <studio-root>/
 ├── library/
 │   ├── packs/<vendor>/<pack-slug>/        ← 一包 = 一目錄 = 一個備份與溯源單位
@@ -176,18 +176,22 @@ CREATE VIRTUAL TABLE assets_cjk USING fts5(…, tokenize='unicode61 …');  -- �
 ```
 
 **命名文法**:`<kind>_<domain>_<subject>[_<variant>][_<state>][_<NNN>]`,規則 `^[a-z0-9]+(_[a-z0-9-]+)*$`,
-最長 64 字元、全域唯一、純 ASCII。`kind` 是封閉列舉、`domain` 是開放詞彙(見 ADR-0004)。
+最長 64 字元、全域唯一、純 ASCII。`kind` 是封閉列舉、`domain` 是開放詞彙(見 ADR-0004)——
+`domain` 不比對任何詞彙表,加一種素材領域連資料都不必動。`state` / `variant` 則相反,它們是
+**文法的一部分**(決定 `spr_item_potion_blue` 的 `blue` 是變體還是主體),唯一真相是
+`core/src/AssetDB/Naming.hs` 的 `defaultVocab`,跟著程式碼版本走而非執行期可改。原本打算扮演
+資料化來源的 `naming_vocab` 表從未被查詢過,已於 store migration 004 移除(bug-0006)。
 
 **前端型別契約**:後端 `server/src/AssetDB/Server/TsTypes.hs` 手寫產生器輸出 `web/src/api/types.ts`,
 以 `TsTypesSpec` 保證與 `Api.hs` 的 `ToJSON` 一致(不用 OpenAPI)。已知落地缺口見
 `docs/enhance/enhance-0014-ts-types-drift-check.md`。
 
-## 使用到的套件
+### 使用到的套件
 
 九個 cabal 套件(見上表)+ `web/` 一個 npm 套件。跨套件共用的小型純函數目前分散重複
 (`leafOf`/`slugify`/縮圖路徑規則等各 2–5 份),整併計畫見 `docs/enhance/`。
 
-## 開發階段
+### 開發階段
 
 | 階段 | 內容 | 狀態 |
 |---|---|---|

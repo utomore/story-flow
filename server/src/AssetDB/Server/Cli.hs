@@ -6,11 +6,12 @@ module AssetDB.Server.Cli
   ( CliCommand (..)
   , parseArgs
   , parsePort
+  , extractHost
   , defaultPort
   , usageText
   ) where
 
-import AssetDB.Server.App (ServerConfig (..))
+import AssetDB.Server.App (ServerConfig (..), defaultHost)
 import Data.List (partition)
 import System.FilePath (takeDirectory, (</>))
 import Text.Read (readMaybe)
@@ -31,16 +32,34 @@ parseArgs args
   -- @--help@ 必須在「第一個參數是 db 路徑」之前比對。否則它會被當成資料庫檔名,
   -- 伺服器直接啟動並阻塞 —— 一個想看用法的人得到的是一個掛住的終端機。
   | any (`elem` ["--help", "-h"]) args = Right ShowUsage
-  | otherwise =
+  | otherwise = do
+      (mHost, rest') <- extractHost args
+      let (initFlags, positional) = partition (== "--init") rest'
+          wantsInit = not (null initFlags)
+          host = maybe defaultHost id mHost
       case positional of
         ["--emit-types", out] -> Right (EmitTypes out)
-        (db : rest) | not (isFlag db) -> RunServer . mkConfig db wantsInit <$> parsePort rest
+        (db : rest) | not (isFlag db) -> RunServer . mkConfig db wantsInit host <$> parsePort rest
         [] -> Right ShowUsage
         (bad : _) -> Left ("無法辨識的參數:" <> bad <> "\n\n" <> usageText)
   where
-    (initFlags, positional) = partition (== "--init") args
-    wantsInit = not (null initFlags)
     isFlag s = take 1 s == "-"
+
+-- | 抽出 @--host \<位址\>@,回傳位址與其餘參數。後出現者勝。
+--
+-- 值長得像旗標時**拒絕**而不是照收:@--host --init@ 若照收,會安靜地把伺服器
+-- 綁到一個叫 @--init@ 的介面上(Warp 會當成主機名),而使用者以為自己開了
+-- @--init@。這與 bug-0003 的 partial read 是同一類錯誤 —— 參數被吃掉而沒人抗議。
+extractHost :: [String] -> Either String (Maybe String, [String])
+extractHost = go Nothing []
+  where
+    go acc seen [] = Right (acc, reverse seen)
+    go _ _ ["--host"] = Left ("--host 需要一個位址,例如 --host 0.0.0.0\n\n" <> usageText)
+    go _ seen ("--host" : v : rest)
+      | take 1 v == "-" = Left ("--host 的值不能是旗標,收到:" <> v <> "\n\n" <> usageText)
+      | null v = Left ("--host 的值不能是空字串\n\n" <> usageText)
+      | otherwise = go (Just v) seen rest
+    go acc seen (a : rest) = go acc (a : seen) rest
 
 -- | Port 一律走 'readMaybe'。用 'read' 的話打錯值只會拿到
 -- @Prelude.read: no parse@,看不出是哪個參數出錯。
@@ -53,12 +72,13 @@ parsePort (p : _) =
       | n >= 1 && n <= 65535 -> Right n
       | otherwise -> Left ("port 必須介於 1 到 65535,收到:" <> show (n :: Int))
 
-mkConfig :: FilePath -> Bool -> Int -> ServerConfig
-mkConfig db doInit port =
+mkConfig :: FilePath -> Bool -> String -> Int -> ServerConfig
+mkConfig db doInit host port =
   ServerConfig
     { scDbPath = db
     , scCacheRoot = assetdbDir </> "cache" </> "thumbs"
     , scWebRoot = takeDirectory assetdbDir </> "web"
+    , scHost = host
     , scPort = port
     , scInit = doInit
     }
@@ -68,11 +88,16 @@ mkConfig db doInit port =
 usageText :: String
 usageText =
   unlines
-    [ "用法:assetdb-server <db 路徑> [port] [--init]   預設 port " <> show defaultPort
+    [ "用法:assetdb-server <db 路徑> [port] [--host 位址] [--init]"
+    , "                                              預設 port " <> show defaultPort <> "、host " <> defaultHost
     , "     assetdb-server --emit-types <輸出檔>       產生前端的 TypeScript 型別"
     , ""
     , "--init  對不存在的路徑建立新資料庫。不加時找不到檔案就是錯誤,"
     , "        不會靜默建出一個查詢全回 0 筆的空庫。"
+    , ""
+    , "--host  要綁定的網路介面。預設 " <> defaultHost <> ",只有本機連得到。"
+    , "        本服務**沒有任何身分驗證**,填 0.0.0.0 或 * 等於把整個素材庫"
+    , "        開放給同網段的所有機器 —— 那是你的決定,不是預設值。"
     , ""
     , "靜態前端由 <db 的上上層目錄>/web 提供,縮圖由 <db 的上層目錄>/cache/thumbs 提供。"
     ]

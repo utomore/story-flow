@@ -3,10 +3,15 @@ module AssetDB.Server.App
   ( ServerConfig (..)
   , runServer
   , application
+  , serverSettings
+  , defaultHost
+  , isLoopbackHost
   , resolveServerDb
   , dbMissingMessage
   , startupBanner
   , countAssets
+  , isThumbSha
+  , thumbCacheControl
   ) where
 
 import AssetDB.Server.Api
@@ -16,7 +21,12 @@ import AssetDB.Store.Search
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (object, (.=))
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
+import Data.Char (isHexDigit)
+import Data.String (fromString)
+import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Database.SQLite.Simple
 import Network.Wai qualified
 import Network.Wai.Application.Static (defaultWebAppSettings, ssIndices)
@@ -32,6 +42,9 @@ data ServerConfig = ServerConfig
   { scDbPath :: FilePath
   , scCacheRoot :: FilePath
   , scWebRoot :: FilePath
+  , -- | 要綁定的網路介面。預設 'defaultHost' —— 這台機器很可能同時在
+    -- 工作室區網上,而本服務**沒有任何身分驗證**,預設值就該是最小暴露面。
+    scHost :: String
   , scPort :: Int
   , -- | 允許對不存在的路徑建立新資料庫。預設 False:「使用者打錯路徑」
     -- 遠比「這是第一次啟動」常見,而自動建檔會把打錯的路徑變成一個
@@ -39,6 +52,25 @@ data ServerConfig = ServerConfig
     scInit :: Bool
   }
   deriving stock (Eq, Show)
+
+-- | 預設只綁定回送介面。
+--
+-- Warp 的預設是 @*@(所有介面),對一個沒有驗證機制的服務來說,那等於
+-- 「同網段的任何人都能翻整個素材庫」。要開放得是使用者明講的決定
+-- (@--host@),不是我們替他選的預設值。
+defaultHost :: String
+defaultHost = "127.0.0.1"
+
+-- | 這個位址是否只有本機連得到。決定啟動時要不要印警告。
+isLoopbackHost :: String -> Bool
+isLoopbackHost h = h `elem` ["127.0.0.1", "::1", "localhost"]
+
+-- | Warp 設定。抽成獨立函式是為了讓「預設綁在哪」可被測試 ——
+-- 'runServer' 之後會阻塞在 Warp 上,測不動。
+serverSettings :: ServerConfig -> Warp.Settings
+serverSettings cfg =
+  Warp.setHost (fromString (scHost cfg)) $
+    Warp.setPort (scPort cfg) Warp.defaultSettings
 
 runServer :: ServerConfig -> IO ()
 runServer cfg =
@@ -48,8 +80,8 @@ runServer cfg =
       withStore dbPath $ \st -> do
         _ <- initSchema st
         n <- countAssets st
-        putStrLn (startupBanner (scPort cfg) dbPath n)
-        Warp.run (scPort cfg) (application cfg st)
+        putStrLn (startupBanner (scHost cfg) (scPort cfg) dbPath n)
+        Warp.runSettings (serverSettings cfg) (application cfg st)
 
 -- | 啟動前的資料庫路徑檢查,回傳絕對路徑或使用者看得懂的錯誤訊息。
 --
@@ -73,15 +105,21 @@ dbMissingMessage p =
     , "請確認路徑是否正確,或加上 --init 明確要求建立一個新資料庫。"
     ]
 
--- | 啟動訊息帶上實際連到的絕對路徑與筆數。「連到空資料庫」因此在啟動當下
--- 就看得見,不必等前端查詢回 0 筆才發現。
-startupBanner :: Int -> FilePath -> Int -> String
-startupBanner port dbPath n =
-  unlines
-    [ "assetdb-server  http://localhost:" <> show port
+-- | 啟動訊息帶上實際綁定的介面、連到的絕對路徑與筆數。「連到空資料庫」
+-- 因此在啟動當下就看得見,不必等前端查詢回 0 筆才發現。
+--
+-- 綁定位址同樣印出來:@--host@ 開放區網是一個沒有回饋的動作,不印的話
+-- 使用者不會知道自己剛把一個無驗證的服務放上區網。
+startupBanner :: String -> Int -> FilePath -> Int -> String
+startupBanner host port dbPath n =
+  unlines $
+    [ "assetdb-server  http://" <> host <> ":" <> show port
     , "資料庫:" <> dbPath
     , "assets:" <> show n <> " 筆"
     ]
+      <> [ "⚠ 綁定 " <> host <> ":同網段的其他機器都連得到,而本服務沒有任何身分驗證。"
+         | not (isLoopbackHost host)
+         ]
 
 countAssets :: Store -> IO Int
 countAssets st = do
@@ -158,19 +196,38 @@ handlers cfg st =
         <*> ftsStale conn
 
     -- 縮圖以內容雜湊定址,所以可以無限期快取。
-    thumbH sha size = do
-      let s = if size >= 512 then "512" else "128"
-          p = scCacheRoot cfg </> T.unpack (T.take 2 sha) </> T.unpack (sha <> "_" <> s <> ".png")
-      ok <- liftIO (doesFileExist p)
-      if ok
-        then liftIO (BS.readFile p)
-        else throwError err404 {errBody = "no thumbnail"}
+    thumbH sha size
+      -- sha 直接參與檔案路徑的組合。servant 的 Capture 會把 %2F 解碼回 '/',
+      -- 所以「呼叫端只會傳合法 sha」是呼叫端的紀律,不是伺服器的保證 ——
+      -- 外部輸入在用之前自己驗一次。
+      | not (isThumbSha sha) = throwError (utf8Err err400 "sha 必須是 64 位十六進位字串")
+      | otherwise = do
+          let s = if size >= 512 then "512" else "128"
+              p = scCacheRoot cfg </> T.unpack (T.take 2 sha) </> T.unpack (sha <> "_" <> s <> ".png")
+          ok <- liftIO (doesFileExist p)
+          if ok
+            then addHeader thumbCacheControl <$> liftIO (BS.readFile p)
+            else throwError (utf8Err err404 "找不到縮圖")
 
     staticH =
       serveDirectoryWith
         (defaultWebAppSettings (scWebRoot cfg))
           { ssIndices = [unsafeToPiece "index.html"]
           }
+
+-- | 縮圖 sha 的合法形狀:剛好 64 位十六進位字元(對應 @blobs.sha256@)。
+isThumbSha :: Text -> Bool
+isThumbSha sha = T.length sha == 64 && T.all isHexDigit sha
+
+-- | 縮圖的快取策略。內容定址代表同一個 URL 的位元組永遠不變,
+-- 所以可以給到 @immutable@ —— 瀏覽器連 revalidation 都不必發。
+thumbCacheControl :: Text
+thumbCacheControl = "public, max-age=31536000, immutable"
+
+-- | @errBody@ 是 lazy 'BL.ByteString'。用 'OverloadedStrings' 直接塞中文會
+-- 逐字元截成低位元組,訊息變亂碼;明確走 UTF-8 編碼。
+utf8Err :: ServerError -> Text -> ServerError
+utf8Err e msg = e {errBody = BL.fromStrict (encodeUtf8 msg)}
 
 toItem :: SearchHit -> SearchItem
 toItem SearchHit {..} =

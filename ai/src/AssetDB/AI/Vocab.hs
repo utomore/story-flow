@@ -7,8 +7,12 @@
 --
 -- 若列舉寫在 Haskell、定義寫在 SQL 種子裡,兩者就會漂移,而你只能寫一個
 -- 漂移偵測測試去追。從同一列資料同時產生兩者,漂移**不可能發生** ——
--- 這比測試更徹底。這也正是 @naming_vocab@ 當初存在的理由
--- (見 @Schema.hs@ 的 「加一個 domain 是 INSERT,不是重新編譯」)。
+-- 這比測試更徹底。
+--
+-- 這個理由**不**適用於命名文法的 states\/variants:那批詞決定既有名稱怎麼被
+-- 解析,事後改資料等於改變舊資料的意義,所以它留在 @core\/Naming.hs@ 裡跟著
+-- 程式碼版本走(bug-0006,原本的 @naming_vocab@ 表已於 store migration 004
+-- 移除)。分類詞彙沒有這個性質 —— 改了定義只影響**之後**的推論。
 module AssetDB.AI.Vocab
   ( Category (..)
   , Vocab (..)

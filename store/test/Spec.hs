@@ -1,8 +1,13 @@
 module Main (main) where
 
 import qualified StoryFlow.Store.AtomicSpec
+import qualified StoryFlow.Store.CreateSpec
+import qualified StoryFlow.Store.DeleteSpec
+import qualified StoryFlow.Store.EndToEndSpec
+import qualified StoryFlow.Store.ErrorSpec
 import qualified StoryFlow.Store.IndexSpec
 import qualified StoryFlow.Store.InitSpec
+import qualified StoryFlow.Store.NodeSpec
 import qualified StoryFlow.Store.QuerySpec
 import qualified StoryFlow.Store.RebuildSpec
 import qualified StoryFlow.Store.SchemaSpec
@@ -28,5 +33,10 @@ main = do
     StoryFlow.Store.RebuildSpec.spec
     StoryFlow.Store.StaleSpec.spec
     StoryFlow.Store.WriteSpec.spec
+    StoryFlow.Store.CreateSpec.spec
+    StoryFlow.Store.DeleteSpec.spec
+    StoryFlow.Store.NodeSpec.spec
+    StoryFlow.Store.ErrorSpec.spec
     StoryFlow.Store.QuerySpec.spec
     StoryFlow.Store.SearchSpec.spec
+    StoryFlow.Store.EndToEndSpec.spec

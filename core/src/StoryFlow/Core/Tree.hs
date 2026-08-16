@@ -7,6 +7,7 @@ module StoryFlow.Core.Tree
   ( -- * 樹
     NodeTree (..)
   , TreeError (..)
+  , renderTreeError
   , buildTree
 
     -- * 走訪
@@ -22,7 +23,9 @@ import Data.List (nub, sortOn)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as S
-import StoryFlow.Core.Id (Id, Ref (..))
+import Data.Text (Text)
+import qualified Data.Text as T
+import StoryFlow.Core.Id (Id, Ref (..), renderId)
 import StoryFlow.Core.Level (Level (..), Node (..), NodeKind)
 import StoryFlow.Core.Link (Link (..), LinkKind (ConvergesTo))
 import StoryFlow.Core.Meta (Meta (..))
@@ -50,6 +53,31 @@ data TreeError
   | -- | Level 宣告的 root, 實際找到的 root
     RootMismatch Id Id
   deriving stock (Show, Eq)
+
+-- | 給人看的訊息。樹壞掉幾乎都是作者手改標題層級造成的,所以每一則都指向
+-- 「去改哪一個標題」而不是描述資料結構。
+renderTreeError :: TreeError -> Text
+renderTreeError = \case
+  MultipleRoots is ->
+    "這份 Level 有多個根 Node(" <> ids is <> ");最淺的標題層級只能有一個"
+  NoRoot ->
+    "這份 Level 找不到根 Node;至少要有一個最淺層級的標題"
+  OrphanNode i p ->
+    "Node " <> renderId i <> " 的父節點 " <> renderId p <> " 不存在"
+  Cycle is ->
+    "Node 的父子關係成環:" <> ids is
+  DuplicateOrder p o is ->
+    "父節點 "
+      <> renderId p
+      <> " 底下有兩個以上的第 "
+      <> T.pack (show o)
+      <> " 個子節點(" <> ids is <> ")"
+  DuplicateNodeId i ->
+    "Node id " <> renderId i <> " 在同一份檔案裡出現多次"
+  RootMismatch declared actual ->
+    "frontmatter 宣告的 root " <> renderId declared <> " 與實際的根 Node " <> renderId actual <> " 不符"
+  where
+    ids = T.intercalate ", " . map renderId
 
 -- | 由 'Level' 與它的 'Node' 清單建樹。
 --

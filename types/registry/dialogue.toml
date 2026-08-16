@@ -2,6 +2,10 @@
 key  = "dialogue"
 name = "對話"
 
+# 對話本身就是主體(沒有「dialogue-fragment」這種節層型別),所以不需要
+# owner_type —— 以 key 精確查就命中。
+dir  = "dialogues"
+
 allowed_links = ["involves", "occursIn", "references", "contradicts", "supersedes"]
 stages = ["情境與目的", "雙方立場", "台詞", "收尾與後果"]
 

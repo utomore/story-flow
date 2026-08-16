@@ -2,6 +2,11 @@
 key  = "plot-fragment"
 name = "劇情片段"
 
+# 劇情片段與世界觀片段同放 lore/:兩者都是「世界的敘事層」,分兩個目錄
+# 只會讓作者猶豫該開哪一個。owner_type 不同,所以不算 ConflictingOwnerDir。
+dir        = "lore"
+owner_type = "plot"
+
 allowed_links = ["involves", "occursIn", "derivedFrom", "partOf", "contradicts", "supersedes", "references"]
 stages = ["定位", "起因", "經過", "後果與伏筆"]
 

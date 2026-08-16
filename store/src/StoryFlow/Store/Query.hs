@@ -14,6 +14,7 @@ module StoryFlow.Store.Query
   , lookupEntity
   , listEntities
   , lookupLevel
+  , listLevels
 
     -- * 關聯
   , linksFrom
@@ -158,6 +159,37 @@ lookupLevel conn i = do
         pure (Level m r, mapMaybe id nodes)
   where
     idOf t = either (const Nothing) (Just . snd) (parseId t)
+
+-- | 列出 Level 的 'Meta'(不含 Node)。
+--
+-- 'lookupLevel' 只能依 id 單查,「這個 Vault 有哪些場景」在 func-0004 之後
+-- 沒有任何函式回答得了——P2 的 @story-flow level list@ 就卡在這裡。
+--
+-- 沿用 'EntityFilter' 的 'efStatus' 與 'efLimit';'efType' 與 'efTag' 對 Level
+-- __無意義因此忽略__:Level 的 @type@ 恆為 @level@,而 @entity_tags@ 的外鍵
+-- 指向 @entities@,拿它去過濾 Level 只會得到空集合——那是靜默的錯誤答案,
+-- 比明講「這兩個條件不適用」糟得多。
+listLevels :: Connection -> EntityFilter -> IO [Meta]
+listLevels conn filt = do
+  let (cond, condArgs) = case efStatus filt of
+        Just s -> (" AND l.status = ?", [sText (renderStatus s)])
+        Nothing -> ("", [])
+      (lim, limArgs) = limitOf filt
+  rows <-
+    query
+      conn
+      ( Query
+          ( "SELECT "
+              <> metaColumns
+              <> ", root, file_path FROM levels l WHERE 1 = 1"
+              <> cond
+              <> " ORDER BY l.id"
+              <> lim
+          )
+      )
+      (condArgs ++ limArgs) ::
+      IO [LevelRow]
+  mapMaybe id <$> mapM (\(LevelRow mr _ _) -> hydrate conn mr) rows
 
 toNode :: Connection -> NodeRow -> IO (Maybe Node)
 toNode conn (NodeRow mr levelId parentId order kind _ _) = do

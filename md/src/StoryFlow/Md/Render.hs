@@ -17,6 +17,15 @@ module StoryFlow.Md.Render
   , insertSection
   , removeSection
   , mkSection
+  , replaceSectionBody
+  , replacePreamble
+  , overrideAt
+
+    -- * 檔案層 frontmatter
+  , updateFrontmatter
+  , renderFrontmatter
+  , frontmatterFieldOrder
+  , mkDocument
 
     -- * meta 區塊序列化
   , renderMetaBlock
@@ -36,7 +45,7 @@ import StoryFlow.Md.Document
 import StoryFlow.Md.Error
 import StoryFlow.Md.Inherit
 import StoryFlow.Md.Lexer (lineTerm, metaBlockYaml, splitLinesKeep)
-import StoryFlow.Md.Yaml (decodeMeta)
+import StoryFlow.Md.Yaml (decodeFrontmatter, decodeMeta)
 
 -- | 逐字重組。未經修改的 'Document' 保證
 -- @renderDocument (parseDocument p t) == t@。
@@ -58,6 +67,17 @@ updateSection i f doc@Document {..} = case sectionById i doc of
     old <- currentOverride docPath s
     let s' = s {secMetaRaw = Just (reserialize docEnding s (f old))}
     Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
+
+-- | 某一節目前的 @```meta@ 區塊解出來的覆寫;沒有區塊時是 'emptyOverride'。
+--
+-- 'updateSection' 內部已經做了同一件事,但呼叫端有時需要__先看過目前的值再
+-- 決定要不要改__('StoryFlow.Store.Write.removeEntityLink' 一筆都沒命中時要
+-- 中止而不是寫一份沒變的檔案)。把它公開出來,好過讓呼叫端自己去 decode
+-- 'secMetaRaw' ——那等於把 meta 區塊的解讀規則複製一份出去。
+overrideAt :: Id -> Document -> Either MdError MetaOverride
+overrideAt i doc@Document {..} = case sectionById i doc of
+  Nothing -> Left (MdError docPath 1 (UnknownSectionId i))
+  Just s -> currentOverride docPath s
 
 currentOverride :: FilePath -> Section -> Either MdError MetaOverride
 currentOverride path Section {..} = case secMetaRaw of
@@ -85,23 +105,78 @@ reserialize le Section {..} ov = lead <> trimTail (renderMetaBlock ov le)
 -- 指定該子樹的最後一節即可。
 insertSection :: Maybe Id -> Section -> Document -> Either MdError Document
 insertSection mAfter new doc@Document {..} = case mAfter of
-  Nothing -> Right doc {docSections = new : docSections}
+  Nothing -> Right doc {docPreamble = blankTail docEnding docPreamble, docSections = new : docSections}
   Just i
     | not (any ((== i) . secId) docSections) -> Left (MdError docPath 1 (UnknownSectionId i))
     | otherwise -> Right doc {docSections = go docSections}
     where
       go [] = []
       go (s : rest)
-        | secId s == i = (if null rest && not docFinalNL then padNL s else s) : new : rest
+        | secId s == i = pad s : new : rest
         | otherwise = s : go rest
-      -- 檔尾沒有換行時先補上,否則新節的標題會黏在原本的最後一行後面
-      padNL s = s {secBodyRaw = secBodyRaw s <> renderLineEnding docEnding}
+      pad s = s {secBodyRaw = blankTail docEnding (secBodyRaw s)}
+
+-- | 插入點之前那一段的結尾:__補到剛好隔一個空行__。
+--
+-- 兩個坑合在這一個函式裡:原檔尾沒有換行時新節的標題會黏在最後一行後面
+-- (func-0003 就已經在防的那個);有換行但沒有空行時檔案雖然解析得回來,
+-- 卻長得不像人寫的——而 Vault 是給人看的 git repo,工具產生的段落要與作者
+-- 手寫的分不出來。
+--
+-- 這一個行尾是插入__必然__帶來的改動,不違反 ADR-0010:被動到的是插入點,
+-- 不是「未經修改的區塊」。
+blankTail :: LineEnding -> Text -> Text
+blankTail le t
+  | T.null t = nl
+  | (nl <> nl) `T.isSuffixOf` t = t
+  | nl `T.isSuffixOf` t = t <> nl
+  | otherwise = t <> nl <> nl
+  where
+    nl = renderLineEnding le
 
 -- | 刪除節,連同它的 meta 區塊與正文。
 removeSection :: Id -> Document -> Either MdError Document
 removeSection i doc@Document {..}
   | not (any ((== i) . secId) docSections) = Left (MdError docPath 1 (UnknownSectionId i))
   | otherwise = Right doc {docSections = filter ((/= i) . secId) docSections}
+
+-- | 只換某一節的正文:'secHeadingRaw' 與 'secMetaRaw' __一個位元組都不動__。
+--
+-- 新正文不以行尾結尾、而它後面還有下一節時自動補一個——否則下一節的標題會
+-- 黏在正文最後一行後面(與 'insertSection' 的 @padNL@ 同一個坑)。
+replaceSectionBody :: Id -> Text -> Document -> Either MdError Document
+replaceSectionBody i body doc@Document {..}
+  | not (any ((== i) . secId) docSections) = Left (MdError docPath 1 (UnknownSectionId i))
+  | otherwise = Right doc {docSections = go docSections}
+  where
+    go [] = []
+    go (s : rest)
+      | secId s == i = s {secBodyRaw = pad (null rest) body} : rest
+      | otherwise = s : go rest
+
+    pad isLast t
+      | isLast = t
+      | T.null t = t
+      | T.null (lineTerm t) = t <> renderLineEnding docEnding
+      | otherwise = t
+
+-- | 只換 frontmatter 與第一個節之間的正文(檔案層主體的 @body@)。
+--
+-- 'docPreamble' 的第一個字元起算是__結尾界線 @---@ 的行尾__(見
+-- "StoryFlow.Md.Document" 的切片界線),那一段必須留著,否則
+-- 'renderDocument' 重組出來的 @---@ 會與正文黏成一行。
+replacePreamble :: Text -> Document -> Document
+replacePreamble body doc@Document {..} = doc {docPreamble = lead <> nl <> core}
+  where
+    nl = renderLineEnding docEnding
+    lead = case splitLinesKeep docPreamble of
+      (l : _) | not (T.null (lineTerm l)) -> lineTerm l
+      _ -> nl
+    stripped = T.dropWhileEnd (`elem` ['\r', '\n']) body
+    core
+      | T.null stripped = ""
+      | null docSections = stripped <> nl
+      | otherwise = stripped <> nl <> nl
 
 -- | 由零件組一個新的 'Section'(給 'insertSection' 用)。
 --
@@ -120,6 +195,106 @@ mkSection le level i title mOv body =
     }
   where
     nl = renderLineEnding le
+
+-- 檔案層 frontmatter --------------------------------------------------------
+
+-- | 改寫檔案層 frontmatter。
+--
+-- 與節層不同,這是__整段重新序列化__而不是逐欄改寫:frontmatter 是一整塊
+-- YAML,沒有像節那樣「只有 meta 區塊要換」的細界線可切。代價是作者寫在
+-- frontmatter 裡的 YAML 註解會被抹掉;節層的位元組保留不受影響,而那才是
+-- ADR-0010 真正在保護的東西——片段是被工具高頻改寫的那一種。
+--
+-- 吃 @'Meta' -> 'Meta'@ 而不是 @'MetaOverride' -> 'MetaOverride'@:frontmatter
+-- 一定是__完整的__ 'Meta',而 'MetaOverride' 連 @id@ 與 @title@ 都沒有——改標題
+-- 正是檔案層主體最常見的修改。
+--
+-- frontmatter 的 YAML 壞掉時回 'Left' 且__不覆蓋__:改不動一份讀不懂的東西。
+updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
+updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
+  Left msg -> Left (MdError docPath 1 (FrontmatterYaml msg))
+  Right meta -> Right doc {docFrontRaw = lead <> renderFrontmatter (f meta) docEnding}
+  where
+    -- docFrontRaw 由開頭界線的行尾字元起算,那個字元要原樣留著
+    lead = case splitLinesKeep docFrontRaw of
+      (l : _) | not (T.null (lineTerm l)) -> lineTerm l
+      _ -> renderLineEnding docEnding
+
+-- | 從零產生一份只有 frontmatter 與正文、還沒有任何節的 'Document'。
+--
+-- 三段切片依 'renderDocument' 的重組規則填:@---@ 兩條界線由它重生,
+-- 因此 'docFrontRaw' 以行尾開頭、'docPreamble' 以「界線的行尾 + 一行空白」開頭。
+--
+-- Entity 檔與 Level 檔共用同一個函式:Level 的 @root@ 由標題階層推導
+-- (ADR-0009)不寫進 frontmatter,兩者的差別只在 'metaType' 是不是 @level@。
+--
+-- @docPath@ 留空——新文件還不屬於任何檔案,要用於錯誤訊息時由呼叫端填。
+mkDocument :: LineEnding -> Meta -> Text -> Document
+mkDocument le meta body =
+  Document
+    { docPath = ""
+    , docFrontRaw = nl <> renderFrontmatter meta le
+    , docPreamble = nl <> nl <> body
+    , docSections = []
+    , docEnding = le
+    , docFinalNL = not (T.null (lineTerm body))
+    }
+  where
+    nl = renderLineEnding le
+
+-- | frontmatter 的固定欄位順序。
+--
+-- 'metaFieldOrder' 的相對順序原樣保留為子序列,只把 @id@ \/ @title@ 插進去、
+-- 拿掉 @kind@(frontmatter 描述的是 Entity 或 Level,不是 Node)。
+frontmatterFieldOrder :: [Text]
+frontmatterFieldOrder =
+  [ "id"
+  , "type"
+  , "vault"
+  , "title"
+  , "summary"
+  , "tags"
+  , "status"
+  , "timeline"
+  , "aliases"
+  , "source"
+  , "revision"
+  , "created"
+  , "updated"
+  , "links"
+  ]
+
+-- | 完整 'Meta' → frontmatter 內容(__不含__ @---@ 界線,含結尾行尾)。
+--
+-- 與 'renderMetaBlock' 不同,'Meta' 的欄位沒有 'Maybe',所以__每個欄位都會
+-- 輸出__。空值(@summary: ""@、@tags: []@)照樣寫出來,讓 frontmatter 自我
+-- 說明有哪些欄位。純量的引號規則與 @links@ \/ @timeline@ 的風格與
+-- 'renderMetaBlock' 共用同一組輔助函式,不複製一份——複製了兩處的跳脫規則
+-- 遲早分歧。
+renderFrontmatter :: Meta -> LineEnding -> Text
+renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFieldOrder]
+  where
+    nl = renderLineEnding le
+
+    field :: Text -> [Text]
+    field = \case
+      "id" -> ["id: " <> renderId (metaId m)]
+      "type" -> ["type: " <> scalar (metaType m)]
+      "vault" -> ["vault: " <> scalar (metaVault m)]
+      "title" -> ["title: " <> scalar (metaTitle m)]
+      "summary" -> ["summary: " <> scalar (metaSummary m)]
+      "tags" -> ["tags: " <> flowList (metaTags m)]
+      "status" -> ["status: " <> renderStatus (metaStatus m)]
+      "timeline" -> [timelineLine (metaTimeline m)]
+      "aliases" -> ["aliases: " <> flowList (metaAliases m)]
+      "source" -> ["source: " <> scalar (renderSource (metaSource m))]
+      "revision" -> ["revision: " <> T.pack (show (metaRevision m))]
+      "created" -> ["created: " <> T.pack (show (metaCreated m))]
+      "updated" -> ["updated: " <> T.pack (show (metaUpdated m))]
+      "links" -> case metaLinks m of
+        [] -> ["links: []"]
+        ls -> "links:" : map linkLine ls
+      _ -> []
 
 -- | 固定的欄位順序。func-0003 給的九個欄位順序原樣保留為子序列,
 -- @kind@ / @vault@ / @created@ / @updated@ 是實作補上的(實作備註 1)。

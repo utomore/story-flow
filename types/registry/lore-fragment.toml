@@ -2,6 +2,9 @@
 key  = "lore-fragment"
 name = "世界觀片段"
 
+dir        = "lore"
+owner_type = "lore"
+
 allowed_links = ["partOf", "occursIn", "derivedFrom", "contradicts", "supersedes", "references"]
 stages = ["定位", "樣貌與規則", "歷史脈絡", "與其他設定的關係"]
 

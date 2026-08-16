@@ -15,6 +15,8 @@ module StoryFlow.Md.Inherit
   ( MetaOverride (..)
   , emptyOverride
   , inheritMeta
+  , overrideOf
+  , applyOverride
   ) where
 
 import Data.Aeson
@@ -85,6 +87,55 @@ instance FromJSON MetaOverride where
       <*> o .:? "revision"
       <*> o .:? "created"
       <*> o .:? "updated"
+
+-- | 完整 'Meta' → 每一欄都是 @Just@ 的覆寫。
+--
+-- 檔案層主體沒有「節層 meta 區塊」可以當作目前的覆寫,但
+-- 'StoryFlow.Store.Write.writeEntityMeta' 的介面吃的是
+-- @'MetaOverride' -> 'MetaOverride'@ ——節層與主體共用同一個修改函式,
+-- 靠的就是這一對展開/套回。@moKind@ 一律 'Nothing':'Meta' 沒有這一欄。
+overrideOf :: Meta -> MetaOverride
+overrideOf Meta {..} =
+  MetaOverride
+    { moKind = Nothing
+    , moType = Just metaType
+    , moVault = Just metaVault
+    , moSummary = Just metaSummary
+    , moTags = Just metaTags
+    , moStatus = Just metaStatus
+    , moTimeline = Just metaTimeline
+    , moAliases = Just metaAliases
+    , moLinks = Just metaLinks
+    , moSource = Just metaSource
+    , moRevision = Just metaRevision
+    , moCreated = Just metaCreated
+    , moUpdated = Just metaUpdated
+    }
+
+-- | 把覆寫疊回一份完整的 'Meta':@Nothing@ 的欄位保留原值。
+--
+-- 與 'inheritMeta' 的規則__不同__且不該相同:那裡是「節繼承檔案層」,
+-- @tags@ 聯集、@summary@ 不繼承;這裡是「同一份 'Meta' 的部分修改」,
+-- 每一欄都是單純的覆蓋。@id@ 與 @title@ 'MetaOverride' 表達不了,原樣保留。
+applyOverride :: MetaOverride -> Meta -> Meta
+applyOverride MetaOverride {..} m =
+  m
+    { metaType = keep moType metaType
+    , metaVault = keep moVault metaVault
+    , metaSummary = keep moSummary metaSummary
+    , metaTags = keep moTags metaTags
+    , metaStatus = keep moStatus metaStatus
+    , metaTimeline = keep moTimeline metaTimeline
+    , metaAliases = keep moAliases metaAliases
+    , metaLinks = keep moLinks metaLinks
+    , metaSource = keep moSource metaSource
+    , metaRevision = keep moRevision metaRevision
+    , metaCreated = keep moCreated metaCreated
+    , metaUpdated = keep moUpdated metaUpdated
+    }
+  where
+    keep :: Maybe a -> (Meta -> a) -> a
+    keep mv get = maybe (get m) id mv
 
 -- | 檔案層 'Meta' + 節 id + 節標題 + 節層覆寫 → 節的 'Meta'。
 inheritMeta :: Meta -> Id -> Text -> MetaOverride -> (Meta, [MdWarning])

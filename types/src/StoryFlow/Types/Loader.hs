@@ -114,6 +114,8 @@ parseSpec fp tbl =
     efields = optArray fp tbl "fields" >>= traverse (fieldSpec fp)
     elinks = fmap (map parseLinkKind) (optStrings fp tbl "allowed_links")
     estages = optStrings fp tbl "stages"
+    edir = optMaybeString fp tbl "dir"
+    eowner = optMaybeString fp tbl "owner_type"
 
     unknownErrs =
       [UnknownKey fp k | k <- M.keys tbl, k `notElem` topLevelKeys]
@@ -125,6 +127,8 @@ parseSpec fp tbl =
         , lefts1 efields
         , lefts1 elinks
         , lefts1 estages
+        , lefts1 edir
+        , lefts1 eowner
         , unknownErrs
         ]
 
@@ -135,10 +139,15 @@ parseSpec fp tbl =
         <*> toMaybe efields
         <*> toMaybe elinks
         <*> toMaybe estages
+        <*> toMaybe edir
+        <*> toMaybe eowner
 
 -- | 型別宣告的最上層允許的鍵。
+--
+-- @dir@ 與 @owner_type@ 是 func-0005 補的,__兩個都是選配__:既有的宣告在
+-- 補上它們之前必須仍能載入。
 topLevelKeys :: [Text]
-topLevelKeys = ["key", "name", "fields", "allowed_links", "stages"]
+topLevelKeys = ["key", "name", "fields", "allowed_links", "stages", "dir", "owner_type"]
 
 -- | 每個 @[[fields]]@ 表允許的鍵。
 fieldKeys :: [Text]
@@ -166,6 +175,14 @@ optString :: FilePath -> TOML.Table -> Text -> Either [LoadError] Text
 optString fp t k = case M.lookup k t of
   Nothing -> Right ""
   Just (TOML.String s) -> Right s
+  Just _ -> Left [BadFieldType fp k "字串"]
+
+-- | 沒寫與寫了空字串是__不同的兩件事__(前者「這個型別沒宣告目錄」,
+-- 後者「宣告放在 Vault 根」),所以不能沿用 'optString' 的空字串預設值。
+optMaybeString :: FilePath -> TOML.Table -> Text -> Either [LoadError] (Maybe Text)
+optMaybeString fp t k = case M.lookup k t of
+  Nothing -> Right Nothing
+  Just (TOML.String s) -> Right (Just s)
   Just _ -> Left [BadFieldType fp k "字串"]
 
 optBool :: FilePath -> TOML.Table -> Text -> Either [LoadError] Bool

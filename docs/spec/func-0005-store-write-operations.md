@@ -3,7 +3,7 @@ id: func-0005
 type: spec
 title: store-write-operations
 description: 補齊建檔、增節、改寫、刪除與 Level 節點的落地寫入能力
-status: open
+status: done
 created: 2026-08-16
 updated: 2026-08-16
 depends-on: [func-0002, func-0003, func-0004]
@@ -11,9 +11,9 @@ related-adr: [adr-0002, adr-0003, adr-0005, adr-0009, adr-0010]
 related-spec: []
 ---
 
-# 落地層寫入能力補齊 功能規格
+## 落地層寫入能力補齊 功能規格
 
-## 功能概述
+### 功能概述
 
 func-0004 完成後,`storyflow-store` 的**寫入面只有兩個函式**:`writeEntityMeta`(改既有節的
 meta)與 `allocateId`。「新建一份主題檔」「往檔案加一個片段」「改正文」「刪除」「增刪關聯」
@@ -40,7 +40,7 @@ meta)與 `allocateId`。「新建一份主題檔」「往檔案加一個片段�
 作者直接改檔案的標題層級就是移動,工具層先不介入。跨檔案的交易(刪 Entity 時順手清掉別的
 檔案裡指向它的 link)也不做——見「刪除策略」。
 
-## 相依性
+### 相依性
 
 `depends-on: [func-0002, func-0003, func-0004]`,三者**都已 done**,沒有等待對象。
 
@@ -59,9 +59,9 @@ meta)與 `allocateId`。「新建一份主題檔」「往檔案加一個片段�
 func-0006(`service`)在介面約定確定前無法開工,**必須等本 spec 完成**。與本 spec 平行可做的
 只有不碰寫入的東西(例如 P3 的 servant 型別草稿),實務上建議序列進行。
 
-## 實作方式
+### 實作方式
 
-### 一、`storyflow-md` 擴充(純函式,零 IO)
+#### 一、`storyflow-md` 擴充(純函式,零 IO)
 
 md 已經有 `updateSection` / `insertSection` / `removeSection` / `mkSection` / `renderDocument`,
 節層編輯是完整的。缺的是三件事,全部加在 `StoryFlow.Md.Render`,理由與 ADR-0010 一致:
@@ -71,7 +71,7 @@ md 已經有 `updateSection` / `insertSection` / `removeSection` / `mkSection` /
 frontmatter 吃的是**完整的** `Meta`——它一定有 `id` 與 `title`,而 `MetaOverride` 根本沒有
 這兩個欄位。因此另開 `renderFrontmatter :: Meta -> LineEnding -> Text`,欄位順序 `id` 起頭:
 
-```
+```text
 frontmatterFieldOrder = [id, type, vault, title, summary, tags, status,
                          timeline, aliases, source, revision, created, updated, links]
 ```
@@ -119,7 +119,7 @@ docFinalNL  = body 以行尾結尾
 不寫進 frontmatter,所以 Entity 檔與 Level 檔共用同一個 `mkDocument`,差別只在 `metaType`
 是不是 `"level"`。
 
-### 二、`storyflow-core` / `storyflow-types` 擴充:型別註冊表宣告子目錄
+#### 二、`storyflow-core` / `storyflow-types` 擴充:型別註冊表宣告子目錄
 
 新建主題檔時「檔案放哪個目錄」必須是**宣告式**的,否則垂直切片 1(新增型別不改程式)就破了。
 `EntityTypeSpec` 加兩個欄位:
@@ -162,19 +162,19 @@ lookupDir :: Text -> TypeRegistry -> Maybe Text
 `level` 是保留鍵不可出現在註冊表,所以 Level 檔的目錄由 `store` 硬編為 `levels/`——
 `vaultSubdirs` 已經含它,`initVault` 也已經會建它。
 
-### 三、`storyflow-store` 擴充
+#### 三、`storyflow-store` 擴充
 
 新增模組 `StoryFlow.Store.Create`(建立與刪除)與 `StoryFlow.Store.Node`(Level 樹編輯),
 既有的 `StoryFlow.Store.Write` 保留給「改既有實體」。三個模組共用同一條紀律,寫成一個私有
 輔助函式避免每處各寫一遍:
 
-```
+```text
 讀檔 → 解析 → 樂觀鎖比對 → 純函式編輯 → atomicWriteText → indexFile
                                               ↑ 失敗 = FileWriteFailed(真失敗)
                                                           ↑ 失敗 = IndexUpdateFailed(資料安全)
 ```
 
-#### 建立主題檔
+##### 建立主題檔
 
 ```haskell
 data NewEntity = NewEntity
@@ -215,7 +215,7 @@ id 由 `allocateId conn PEnt (neTitle <> neSummary) now` 產生(內容 + 時間 
 `kind` 由呼叫端給)
 ——Level 檔沒有根 Node 就解析不出 `lvlRoot`,建一個空殼等於建一份壞檔。
 
-#### 往既有檔案加片段
+##### 往既有檔案加片段
 
 ```haskell
 addFragment
@@ -241,7 +241,7 @@ addFragment
 繼承規則)。但 `summary` / `revision` / `links` / `aliases` 不繼承,所以 `moSummary` 一定要
 給值——缺了會產生 `MdWarning`,回傳裡一併帶出。
 
-#### 改既有實體
+##### 改既有實體
 
 - **`writeEntityMeta` 擴充**:`section_anchor` 為 `NULL` 時改走 `updateFrontmatter`(把
   `MetaOverride` 疊到現有 `Meta` 上),`FrontmatterWriteUnsupported` 建構子刪除。節層路徑
@@ -254,7 +254,7 @@ addFragment
   `removeEntityLink` 以 `(LinkKind, Ref)` 配對刪除,同一對出現多次時全部刪掉;一筆都沒命中
   時回 `LinkNotFound`,而不是靜默成功
 
-#### 刪除
+##### 刪除
 
 ```haskell
 data DeleteMode = DeleteSafe | DeleteForce
@@ -278,10 +278,10 @@ deleteEntity
 `Int` 是被刪目標的 revision:刪除也走樂觀鎖,否則「作者剛改完、Agent 拿舊資料刪掉」會靜默
 生效。
 
-#### Level 節點
+##### Level 節點
 
 ```haskell
-addNode    :: Connection -> Vault -> Id -> Int -> NewNode -> IO (Either StoreError WriteResult)
+addNode    :: Connection -> Vault -> Id -> Int -> NewNode -> IO (Either StoreError CreateResult)
 removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode -> IO (Either StoreError WriteResult)
 ```
 
@@ -301,9 +301,10 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode -> IO (Either Store
 寫回後以 `parseLevelFile` + `buildTree` **驗證樹仍然合法**再 `indexFile`;`buildTree` 回
 `Left` 時不寫索引、回 `TreeInvalid`。檔案已經寫出去了,所以這是 `IndexUpdateFailed` 等級的
 處境——但這裡有更好的做法:**驗證放在寫檔之前**,對編輯後的 `Document` 先 `parseLevelFile`
-+ `buildTree`,通過才寫。純函式驗證不花 IO,沒有理由先寫壞檔再說。
 
-### 四、`StoreError` 變更
+- `buildTree`,通過才寫。純函式驗證不花 IO,沒有理由先寫壞檔再說。
+
+#### 四、`StoreError` 變更
 
 新增:`ReferencedBy Id [(Id, Link)]`、`NotAFileMain Id`、`NotAFragment Id`、
 `NodeDepthExceeded Id Int`、`CannotRemoveRootNode Id`、`LinkNotFound Id LinkKind Ref`、
@@ -312,7 +313,7 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode -> IO (Either Store
 **下一步該做什麼**(既有訊息全部是這個風格,如 `IndexUpdateFailed` 直接叫人跑
 `story-flow index rebuild`)。
 
-## 使用到的既有串接介面
+### 使用到的既有串接介面
 
 | 介面(含完整簽名) | 來源檔案 | 來源 spec | 用途 |
 |---|---|---|---|
@@ -377,9 +378,9 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode -> IO (Either Store
 | `openVaultIndex :: Vault -> IO (Either StoreError (Connection, [IndexIssue]))` | `store/src/StoryFlow/Store/Index.hs` | func-0004 | 測試建臨時 Vault 時取得連線 |
 | `rebuildIndex :: Connection -> Vault -> IO (Either StoreError [IndexIssue])` | `store/src/StoryFlow/Store/Index.hs` | func-0004 | 驗收標準 2:重建後結果須與寫入當下相同 |
 
-## 新增的介面
+### 新增的介面
 
-### `storyflow-core`(`StoryFlow.Core.Registry`)
+#### `storyflow-core`(`StoryFlow.Core.Registry`)
 
 ```haskell
 data EntityTypeSpec = EntityTypeSpec
@@ -399,7 +400,7 @@ lookupDir :: Text -> TypeRegistry -> Maybe Text
 data RegistryError = ... | ConflictingOwnerDir Text
 ```
 
-### `storyflow-md`(`StoryFlow.Md.Render` / `StoryFlow.Md.Document`)
+#### `storyflow-md`(`StoryFlow.Md.Render` / `StoryFlow.Md.Document`)
 
 ```haskell
 -- | frontmatter 的固定欄位順序。metaFieldOrder 的相對順序保留為子序列,
@@ -424,7 +425,7 @@ replacePreamble :: Text -> Document -> Document
 mkDocument :: LineEnding -> Meta -> Text -> Document
 ```
 
-### `storyflow-store`(`StoryFlow.Store.Create`)
+#### `storyflow-store`(`StoryFlow.Store.Create`)
 
 ```haskell
 data NewEntity = NewEntity
@@ -470,7 +471,7 @@ createLevelFile  :: Connection -> Vault -> NewLevel
 
 -- Id = 主體 Entity 的 id,Int = 主體的 revision(樂觀鎖)
 addFragment :: Connection -> Vault -> Id -> Int -> NewFragment
-            -> IO (Either StoreError WriteResult)
+            -> IO (Either StoreError CreateResult)   -- 見實作備註 1
 
 -- Id = 被刪目標,Int = 它的 revision
 deleteEntity :: Connection -> Vault -> Id -> Int -> DeleteMode
@@ -480,7 +481,7 @@ deleteLevel  :: Connection -> Vault -> Id -> Int -> DeleteMode
              -> IO (Either StoreError DeleteResult)
 ```
 
-### `storyflow-store`(`StoryFlow.Store.Write` 擴充)
+#### `storyflow-store`(`StoryFlow.Store.Write` 擴充)
 
 ```haskell
 data BodyTarget = BodyOfSection | BodyOfMain   -- 由 section_anchor 自動判定,不必呼叫端給
@@ -495,7 +496,7 @@ removeEntityLink :: Connection -> Vault -> Id -> Int -> LinkKind -> Ref
                  -> IO (Either StoreError WriteResult)
 ```
 
-### `storyflow-store`(`StoryFlow.Store.Query` 擴充)
+#### `storyflow-store`(`StoryFlow.Store.Query` 擴充)
 
 ```haskell
 -- | 列出 Level 的 Meta(不含 Node)。既有的 lookupLevel 只能依 id 單查,
@@ -504,19 +505,19 @@ removeEntityLink :: Connection -> Vault -> Id -> Int -> LinkKind -> Ref
 listLevels :: Connection -> EntityFilter -> IO [Meta]
 ```
 
-### `storyflow-store`(`StoryFlow.Store.Node`)
+#### `storyflow-store`(`StoryFlow.Store.Node`)
 
 ```haskell
 -- Id = 父 Node,Int = Level 主體的 revision
 addNode    :: Connection -> Vault -> Id -> Int -> NewNode
-           -> IO (Either StoreError WriteResult)
+           -> IO (Either StoreError CreateResult)    -- 見實作備註 1
 
 -- Id = 要刪的 Node(連整棵子樹),根 Node 回 CannotRemoveRootNode
 removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode
            -> IO (Either StoreError WriteResult)
 ```
 
-### `StoreError` 新增建構子
+#### `StoreError` 新增建構子
 
 ```haskell
   | ReferencedBy Id [(Id, Link)]      -- DeleteSafe 被拒,附上誰指向它
@@ -531,27 +532,27 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode
 -- 刪除:FrontmatterWriteUnsupported
 ```
 
-## TodoList
+### TodoList
 
-- [ ] T1: `md`:`frontmatterFieldOrder` / `renderFrontmatter` / `mkDocument`,共用既有純量與 links 序列化輔助函式  `dep: -`
-- [ ] T2: `md`:`updateFrontmatter`,整段重新序列化,frontmatter YAML 壞掉時不覆蓋  `dep: T1`
-- [ ] T3: `md`:`replaceSectionBody` / `replacePreamble`,標題行與 meta 區塊逐字不動  `dep: -`
-- [ ] T4: `core`:`EntityTypeSpec` 加 `etsDir` / `etsOwnerType`,新增 `lookupDir`,`validateRegistry` 加 `ConflictingOwnerDir` 檢查  `dep: -`
-- [ ] T5: `types`:`Loader` 解析 `dir` / `owner_type`;五份 `types/registry/*.toml` 補欄位  `dep: T4`
-- [ ] T6: `store`:新增 `StoryFlow.Store.Create` 與共用的「讀→鎖→編輯→寫檔→索引」私有輔助函式;實作 `createEntityFile`(路徑推導、檔名淨化、撞名遞增、建檔前存在檢查)  `dep: T1, T5`
-- [ ] T7: `store`:`addFragment`——主體 revision 樂觀鎖、插在檔尾、主體 revision 遞增  `dep: T2, T6`
-- [ ] T8: `store`:`writeEntityMeta` 支援 `section_anchor` 為 NULL 的主體,刪除 `FrontmatterWriteUnsupported`  `dep: T2`
-- [ ] T9: `store`:`writeEntityBody`,節層與主體兩條路徑  `dep: T3, T8`
-- [ ] T10: `store`:`addEntityLink` / `removeEntityLink`,單邊單檔,沒命中回 `LinkNotFound`  `dep: T8`
-- [ ] T11: `store`:`deleteEntity`——`linksTo` 檢查、`DeleteSafe`/`DeleteForce`、片段刪節 vs 主體刪檔  `dep: T8`
-- [ ] T12: `store`:`createLevelFile`,一併建出根 Node  `dep: T6`
-- [ ] T13: `store`:新增 `StoryFlow.Store.Node`,實作 `addNode`——層級 = 父+1、插在子樹尾端、六級上限、寫檔前 `buildTree` 驗證  `dep: T12`
-- [ ] T14: `store`:`removeNode`(連子樹、拒刪根)與 `deleteLevel`  `dep: T13`
-- [ ] T15: `StoreError` 九個新建構子的 `renderStoreError` 繁中訊息,每一則都要說出下一步該做什麼  `dep: T14`
-- [ ] T16: `store`:`StoryFlow.Store.Query` 新增 `listLevels`——`lookupLevel` 只能單查,「這個 Vault 有哪些場景」目前無人能答  `dep: -`
-- [ ] T17: 端到端:從空 Vault 建出 architecture.md 範例的 `characters/琳達.md` 與 `levels/教室.md`,`rebuildIndex` 後結果等價  `dep: T15, T16`
+- [x] T1: `md`:`frontmatterFieldOrder` / `renderFrontmatter` / `mkDocument`,共用既有純量與 links 序列化輔助函式  `dep: -`
+- [x] T2: `md`:`updateFrontmatter`,整段重新序列化,frontmatter YAML 壞掉時不覆蓋  `dep: T1`
+- [x] T3: `md`:`replaceSectionBody` / `replacePreamble`,標題行與 meta 區塊逐字不動  `dep: -`
+- [x] T4: `core`:`EntityTypeSpec` 加 `etsDir` / `etsOwnerType`,新增 `lookupDir`,`validateRegistry` 加 `ConflictingOwnerDir` 檢查  `dep: -`
+- [x] T5: `types`:`Loader` 解析 `dir` / `owner_type`;五份 `types/registry/*.toml` 補欄位  `dep: T4`
+- [x] T6: `store`:新增 `StoryFlow.Store.Create` 與共用的「讀→鎖→編輯→寫檔→索引」私有輔助函式;實作 `createEntityFile`(路徑推導、檔名淨化、撞名遞增、建檔前存在檢查)  `dep: T1, T5`
+- [x] T7: `store`:`addFragment`——主體 revision 樂觀鎖、插在檔尾、主體 revision 遞增  `dep: T2, T6`
+- [x] T8: `store`:`writeEntityMeta` 支援 `section_anchor` 為 NULL 的主體,刪除 `FrontmatterWriteUnsupported`  `dep: T2`
+- [x] T9: `store`:`writeEntityBody`,節層與主體兩條路徑  `dep: T3, T8`
+- [x] T10: `store`:`addEntityLink` / `removeEntityLink`,單邊單檔,沒命中回 `LinkNotFound`  `dep: T8`
+- [x] T11: `store`:`deleteEntity`——`linksTo` 檢查、`DeleteSafe`/`DeleteForce`、片段刪節 vs 主體刪檔  `dep: T8`
+- [x] T12: `store`:`createLevelFile`,一併建出根 Node  `dep: T6`
+- [x] T13: `store`:新增 `StoryFlow.Store.Node`,實作 `addNode`——層級 = 父+1、插在子樹尾端、六級上限、寫檔前 `buildTree` 驗證  `dep: T12`
+- [x] T14: `store`:`removeNode`(連子樹、拒刪根)與 `deleteLevel`  `dep: T13`
+- [x] T15: `StoreError` 九個新建構子的 `renderStoreError` 繁中訊息,每一則都要說出下一步該做什麼  `dep: T14`
+- [x] T16: `store`:`StoryFlow.Store.Query` 新增 `listLevels`——`lookupLevel` 只能單查,「這個 Vault 有哪些場景」目前無人能答  `dep: -`
+- [x] T17: 端到端:從空 Vault 建出 architecture.md 範例的 `characters/琳達.md` 與 `levels/教室.md`,`rebuildIndex` 後結果等價  `dep: T15, T16`
 
-## 1-to-1 測試對照表
+### 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
@@ -573,6 +574,66 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode
 | T16 | `store/test/.../QuerySpec.hs` → `listLevels 依 status 過濾並回傳全部 Level` | 建三份 Level(兩 canon 一 draft),不帶過濾時三份都在、`efStatus = Just Canon` 時只剩兩份、`efLimit` 生效 |
 | T17 | `store/test/.../EndToEndSpec.hs` → `從空 Vault 建出琳達與教室並通過索引重建等價` | 只用本 spec 的函式建出 architecture.md 的兩份範例檔;記下全部查詢結果 → `rm index.db` → `rebuildIndex` → 結果逐項相同 |
 
-## 實作備註
+### 實作備註
 
-(撰寫時留空)
+1. **`addFragment` / `addNode` 改回 `CreateResult`(與開發者確認過的偏差)**。規格書給的是
+   `WriteResult`,而它只有 `wrNewRevision` 與 `wrPath` —— **新片段 / 新 Node 的 id 拿不回來**。
+   那是呼叫端唯一沒有其他來源的資訊,少了它 func-0006 的 service 與 func-0007 的 CLI 只能
+   重讀檔案猜「最後一節就是剛剛那個」。改成與 `createEntityFile` 對稱的 `CreateResult`
+   (`crId` / `crPath` / `crWarnings`),缺 `summary` 之類的 `MdWarning` 也順帶帶得出來。
+   `removeNode` 維持 `WriteResult` —— 它沒有新 id 要回報。
+
+2. **`updateFrontmatter` 的 `Meta -> Meta` 偏差已確認並同步進 architecture.md**。原本
+   architecture.md「已知缺口」開的簽名是 `MetaOverride -> MetaOverride`。已依規格書的理由改為
+   `Meta -> Meta`,並把「已知缺口」整節刪除、把 frontmatter 整段重寫的代價寫進
+   architecture.md 的「Markdown 分節格式 → 寫回策略」。
+
+3. **新增 `StoryFlow.Store.Edit`(內部模組)**。規格書要求三個 store 模組共用一個私有輔助
+   函式;實際做下來共用的不只一個(`locate` / `locateNode` / `readDocument` / `checkRevision` /
+   `commit` / `ensureDir` / `sectionBodyRaw`,以及短路用的 `>>?` / `?>>`),而它們必須被
+   `Write` / `Create` / `Node` 三者共用,放在其中任何一個都會造成循環相依。因此獨立成一個模組,
+   並把 `WriteResult` 定義移進去(`Write` 原樣 re-export,既有呼叫端不受影響)。
+   本套件**不引入 `transformers`** 只為了短路:一個中綴運算子就夠了。
+
+4. **`Md.Inherit` 新增 `overrideOf` / `applyOverride`**。`writeEntityMeta` 的介面吃
+   `MetaOverride -> MetaOverride`,而檔案層主體沒有「目前的覆寫」可用。把 `Meta` 展開成每欄
+   都是 `Just` 的覆寫、改完再疊回去,節層與主體才共用得了同一個修改函式。這一對的規則與
+   `inheritMeta` **刻意不同**:那裡是「節繼承檔案層」(`tags` 聯集、`summary` 不繼承),
+   這裡是「同一份 `Meta` 的部分修改」(每欄單純覆蓋)。
+
+5. **`Md.Render` 新增 `overrideAt`**。`removeEntityLink` 必須先看過目前的 `links` 才知道要不要
+   中止(`LinkNotFound` 時**一個位元組都不寫**),而 `updateSection` 只吃純函式、沒有中止的
+   餘地。把「某一節目前的覆寫」公開出來,好過讓 store 自己去 decode `secMetaRaw` —— 那等於
+   把 meta 區塊的解讀規則複製一份到落地層。
+
+6. **`insertSection` 改為「補到剛好隔一個空行」**。func-0003 只防了「原檔尾沒有換行時標題會
+   黏在最後一行後面」;工具產生的節因此會緊貼前一段,長得不像人寫的。新的 `blankTail` 把
+   插入點補到剛好一個空行(已經有就不再補)。這一個行尾是插入**必然**帶來的改動,不違反
+   ADR-0010 —— 被動到的是插入點,不是「未經修改的區塊」。
+
+7. **Level 檔的 `root` 不寫進 frontmatter**。`renderFrontmatter` 只序列化 `Meta` 的欄位,而
+   `lvlRoot` 由標題階層推導(ADR-0009),`parseLevelFile` 在 frontmatter 沒有 `root` 時本來就
+   以第一個節填入。副作用要講明:對一份**原本手寫了 `root:`** 的 Level 檔做任何
+   `updateFrontmatter`(`addNode` / `removeNode` / `deleteLevel` 以外的改 meta),那一行會消失。
+   語意不變(root 是衍生值),但作者會在 git diff 上看到它。
+
+8. **`timeline` 空值寫成 `timeline: {}`**。規格書要求 frontmatter「每個欄位都會輸出」,而
+   `renderMetaBlock` 既有的 `timelineLine` 對空 `Timeline` 就是輸出 `{}`。它 round-trip 得回
+   `Timeline Nothing Nothing`,規則沿用不另開一套。
+
+9. **`removeEntityLink` 比對的是檔案裡寫的那個 `Ref`**。索引為了反向查詢會把本 Vault 的
+   `<vault>:` 前綴正規化掉,檔案不會。作者寫 `liftgame:ent-7f3a` 時就要以同樣的形式來刪;
+   service 層(func-0006)若要放寬,該在那一層做正規化,不該讓 store 猜。
+
+10. **`StoreError` 新增 `TreeInvalid` 但實務上很難觸發**。規格書已經指出「驗證放在寫檔之前」
+    才對,實作照做:`addNode` / `removeNode` 對編輯後的 `Document` 先 `parseLevelFile` +
+    `buildTree`,通過才 `atomicWriteText`。因此它是純函式驗證的守門員,不是「檔案已經寫壞了」
+    的事後回報 —— 錯誤訊息也明說「檔案沒有被改到」。
+
+11. **`core` 新增 `renderTreeError`**。T15 要求每個新建構子都有非空繁中訊息、且不含原始 `show`
+    痕跡,而 `TreeInvalid` 帶的是 `[TreeError]`。`core` 原本只有型別沒有 render,補上一份,
+    訊息一律指向「去改哪一個標題」而不是描述資料結構。
+
+12. **測試用的 `TypeRegistry` 不去讀 `types/registry/` 實檔**。那是 `storyflow-types` 的測試
+    範圍(T5 已經逐欄對照過);落地層的測試若依賴實檔,別人改一份 TOML 就會讓 store 變紅。
+    `StoryFlow.Store.Fixtures.testRegistry` 只需要「dir 查得到」與「dir 查不到」兩種型別。

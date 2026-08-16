@@ -25,8 +25,11 @@ library
     exposed-modules:
         StoryFlow.Store
         StoryFlow.Store.Atomic
+        StoryFlow.Store.Create
+        StoryFlow.Store.Edit
         StoryFlow.Store.Error
         StoryFlow.Store.Index
+        StoryFlow.Store.Node
         StoryFlow.Store.Query
         StoryFlow.Store.Row
         StoryFlow.Store.Schema
@@ -53,9 +56,14 @@ test-suite storyflow-store-test
     main-is:          Spec.hs
     other-modules:
         StoryFlow.Store.AtomicSpec
+        StoryFlow.Store.CreateSpec
+        StoryFlow.Store.DeleteSpec
+        StoryFlow.Store.EndToEndSpec
+        StoryFlow.Store.ErrorSpec
         StoryFlow.Store.Fixtures
         StoryFlow.Store.IndexSpec
         StoryFlow.Store.InitSpec
+        StoryFlow.Store.NodeSpec
         StoryFlow.Store.QuerySpec
         StoryFlow.Store.RebuildSpec
         StoryFlow.Store.SchemaSpec

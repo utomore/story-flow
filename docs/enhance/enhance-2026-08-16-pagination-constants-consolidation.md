@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-pagination-constants-consolidation
 type: enhance
 title: pagination-constants-consolidation
+description: 四個各自為政的分頁常數,server 端那個還沒有名字與註解
 status: open
 created: 2026-08-16
 updated: 2026-08-16

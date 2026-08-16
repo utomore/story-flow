@@ -2,6 +2,7 @@
 id: bug-0005
 type: bug
 title: thumb-endpoint-path-traversal-and-missing-cache-control
+description: 縮圖端點未驗證 sha 格式(受限路徑穿越),且註解宣稱的 Cache-Control 未實際設定
 status: open
 created: 2026-08-16
 updated: 2026-08-16

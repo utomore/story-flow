@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-cross-volume-move-non-atomic-design-note
 type: enhance
 title: cross-volume-move-non-atomic-design-note
+description: 記錄跨磁碟搬移為 copy+delete 非原子操作,已評估為自洽可接受的設計
 status: closed
 created: 2026-08-16
 updated: 2026-08-16

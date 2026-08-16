@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-reorg-onetime-rules-retirement
 type: enhance
 title: reorg-onetime-rules-retirement
+description: 一次性搬遷的路徑規則留在函式庫層,重構已完成、規則成為死碼加誤觸風險
 status: open
 created: 2026-08-16
 updated: 2026-08-16

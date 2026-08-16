@@ -2,6 +2,7 @@
 id: adr-0008
 type: adr
 title: textenum-stable-text-representation
+description: 所有列舉一律以穩定小寫文字存進 DB 與 JSON,不用序數,避免跨層漂移
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

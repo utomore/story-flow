@@ -2,6 +2,7 @@
 id: adr-0003
 type: adr
 title: ulid-permanent-identity
+description: 以 ULID 作永久識別碼,邏輯名稱與檔案路徑改動不會打斷任何引用
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

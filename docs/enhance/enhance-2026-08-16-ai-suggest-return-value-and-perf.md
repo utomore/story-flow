@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-ai-suggest-return-value-and-perf
 type: enhance
 title: ai-suggest-return-value-and-perf
+description: upsertSuggestions 回報值高估實際寫入數,applySuggestions 與 resolveCluster 對叢集目標全表掃描
 status: open
 created: 2026-08-16
 updated: 2026-08-16

@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-test-coverage-gaps
 type: enhance
 title: test-coverage-gaps
+description: 測試覆蓋缺口——cli 零測試、server 僅一個、web 零測試
 status: open
 created: 2026-08-16
 updated: 2026-08-16

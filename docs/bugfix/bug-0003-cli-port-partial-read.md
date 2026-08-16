@@ -2,6 +2,7 @@
 id: bug-0003
 type: bug
 title: cli-port-partial-read
+description: Server CLI 的 port 參數用 partial read,打錯值時噴無上下文的 Prelude.read 例外
 status: open
 created: 2026-08-16
 updated: 2026-08-16

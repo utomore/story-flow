@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-notes-input-handling-robustness
 type: enhance
 title: notes-input-handling-robustness
+description: ingest/Notes.hs 的手刻 JSON 轉義、partial function 與邊界值三項輸入健壯性強化
 status: open
 created: 2026-08-16
 updated: 2026-08-16

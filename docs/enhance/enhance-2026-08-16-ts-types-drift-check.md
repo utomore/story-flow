@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-ts-types-drift-check
 type: enhance
 title: ts-types-drift-check
+description: 缺少 CI 檢查確認 web/src/api/types.ts 是最新產物,忘記重新產生不會被發現
 status: open
 created: 2026-08-16
 updated: 2026-08-16

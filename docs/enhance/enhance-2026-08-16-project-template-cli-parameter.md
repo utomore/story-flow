@@ -2,6 +2,7 @@
 id: enhance-2026-08-16-project-template-cli-parameter
 type: enhance
 title: project-template-cli-parameter
+description: 專案模板名稱寫死,projects.template 欄位有多模板意圖但 CLI 無對應參數
 status: open
 created: 2026-08-16
 updated: 2026-08-16

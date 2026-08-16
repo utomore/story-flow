@@ -2,6 +2,7 @@
 id: adr-0006
 type: adr
 title: versioned-migrations-no-down-migration
+description: Schema 只做版本追蹤的正向 migration,回滾靠還原檔案備份而非反向 SQL
 status: accepted
 created: 2026-08-16
 updated: 2026-08-16

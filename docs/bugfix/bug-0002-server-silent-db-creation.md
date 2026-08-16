@@ -2,6 +2,7 @@
 id: bug-0002
 type: bug
 title: server-silent-db-creation
+description: Server 對不存在的 db 路徑直接建檔灌 schema,啟動時不印出實際路徑與筆數
 status: open
 created: 2026-08-16
 updated: 2026-08-16

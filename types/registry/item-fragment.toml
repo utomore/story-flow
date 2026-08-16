@@ -1,0 +1,26 @@
+# 道具片段 —— 器物、遺物、可被角色持有或在場景中出現的東西
+key  = "item-fragment"
+name = "道具片段"
+
+allowed_links = ["partOf", "involves", "occursIn", "derivedFrom", "contradicts", "supersedes", "references"]
+stages = ["定位", "外形與材質", "來歷", "誰持有、出現在哪"]
+
+[[fields]]
+name = "summary"
+required = true
+hint = "一句話說明這個道具是什麼、有什麼作用或意義"
+
+[[fields]]
+name = "timeline"
+required = false
+hint = "這個道具在故事內何時存在或被取得。「她那時候應該還沒拿到織紋刀」這類衝突靠它擋"
+
+[[fields]]
+name = "aliases"
+required = false
+hint = "道具的俗稱與舊名"
+
+[[fields]]
+name = "tags"
+required = false
+hint = "分組用的自由標籤,如「武器」「遺物」「信物」"

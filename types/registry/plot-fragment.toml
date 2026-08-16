@@ -1,0 +1,26 @@
+# 劇情片段 —— 敘事的一個轉折或事件。衝突偵測最常面對的型別
+key  = "plot-fragment"
+name = "劇情片段"
+
+allowed_links = ["involves", "occursIn", "derivedFrom", "partOf", "contradicts", "supersedes", "references"]
+stages = ["定位", "起因", "經過", "後果與伏筆"]
+
+[[fields]]
+name = "summary"
+required = true
+hint = "一句話說明這個片段發生了什麼事、造成什麼改變"
+
+[[fields]]
+name = "timeline"
+required = true
+hint = "這件事發生在故事內的哪個時間點。劇情衝突大多是時序問題,這欄必填"
+
+[[fields]]
+name = "tags"
+required = false
+hint = "分組用的自由標籤,如「轉折」「伏筆」「回收」"
+
+[[fields]]
+name = "links"
+required = false
+hint = "牽涉到的角色與道具、發生的地點。關聯寫得越完整,結構層的衝突偵測越準"

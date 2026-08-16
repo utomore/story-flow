@@ -65,11 +65,13 @@ FTS5 trigram tokenizer;`storyflow-store` 的測試會直接驗證這個 flag 有
 
 ## 狀態
 
-開發中。P0 骨架完成,P1 尚未開工。
+開發中。P0 骨架完成;P1 的 `core`(統一 Meta 與五個核心型別、樹與關聯圖的純函式)與
+`types`(型別註冊表載入)完成,`md` 與 `store` 尚未開工。
 
 - [`docs/architecture.md`](./docs/architecture.md) —— 專案燈塔:需求、架構、資料結構、開發階段
 - [`docs/adr/`](./docs/adr) —— 10 份架構決策紀錄
 - [`docs/spec/`](./docs/spec) —— 功能規格書,含 TodoList 與 1-to-1 測試對照表
+- [`types/registry/`](./types/registry) —— 宣告式 Entity 型別註冊表(加一份 `.toml` 就是新增一個型別)
 
 開發階段:P0 骨架 → P1 core/md/store → P2 CLI → P3 REST API → P4 衝突偵測 →
 P5 MCP + 地端 LLM 工作坊 → P6(選配)Web 視覺化。

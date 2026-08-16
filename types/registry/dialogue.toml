@@ -1,0 +1,21 @@
+# 對話 —— 對話的「內容」。它被 Level 的 dialogue Node 引用,而不是寫在 Node 上
+key  = "dialogue"
+name = "對話"
+
+allowed_links = ["involves", "occursIn", "references", "contradicts", "supersedes"]
+stages = ["情境與目的", "雙方立場", "台詞", "收尾與後果"]
+
+[[fields]]
+name = "summary"
+required = true
+hint = "一句話說明這段對話在講什麼、誰對誰說"
+
+[[fields]]
+name = "timeline"
+required = false
+hint = "這段對話發生在故事內的哪個時間點"
+
+[[fields]]
+name = "tags"
+required = false
+hint = "分組用的自由標籤,如「對峙」「試探」「告白」"

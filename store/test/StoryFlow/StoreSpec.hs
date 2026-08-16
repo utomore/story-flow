@@ -3,7 +3,7 @@ module StoryFlow.StoreSpec (spec) where
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
-import StoryFlow.Core (coreVersion)
+import StoryFlow.Core.Id (IdPrefix (PEnt), renderIdPrefix)
 import StoryFlow.Store (storeVersion)
 import Test.Hspec
 
@@ -13,8 +13,10 @@ spec = do
     it "storeVersion 非空" $
       T.null storeVersion `shouldBe` False
 
+    -- func-0001 T5:依賴方向的驗證。改用 core 的實際模組(func-0002 已把
+    -- StoryFlow.Core 佔位模組移除),意義不變。
     it "可 import storyflow-core,證明 store → core 的依賴方向已接上" $
-      coreVersion `shouldBe` storeVersion
+      renderIdPrefix PEnt `shouldBe` "ent"
 
   describe "SQLite 建置環境" $ do
     it "direct-sqlite 已編入 FTS5 且支援 trigram tokenizer" $

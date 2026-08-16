@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-ai-suggest-return-value-and-perf
+id: enhance-0001
 type: enhance
 title: ai-suggest-return-value-and-perf
 description: 修正建議回報值並消除叢集目標的全表掃描

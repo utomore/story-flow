@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-test-coverage-gaps
+id: enhance-0013
 type: enhance
 title: test-coverage-gaps
 description: 補齊 cli、server、web 的測試覆蓋缺口
@@ -31,13 +31,13 @@ related-spec: []
 
 1. **`resolveDbPath`**:已在 bug-0001 的 TodoList 中一併補測試,不重複列在此文件。
 2. **server handler**:至少覆蓋 `health`(最基本的存活檢查)與 `search`/`facets` 的
-   `limit` 夾制邏輯(直接關聯 enhance-2026-08-16-pagination-constants-consolidation
+   `limit` 夾制邏輯(直接關聯 enhance-0006
    的分頁常數問題)。
 3. **`project/Create.hs` 的 `nonCommercialPacks`**:NULL 授權也視為非商用的語意是
    法律風險防線(見 `docs/architecture.md` 授權閘門相關描述),值得一條直接的測試
    鎖住這個行為,防止未來重構時被意外改壞。
 4. **web 的測試投資報酬率較低**,可暫緩(前端邏輯相對薄,主要風險在型別契約,已由
-   enhance-2026-08-16-ts-types-drift-check 的漂移檢查覆蓋)。
+   enhance-0014 的漂移檢查覆蓋)。
 
 ## TodoList
 
@@ -51,7 +51,7 @@ related-spec: []
 | Todo | 測試 | 說明 |
 |------|------|------|
 | T1 | `AppSpec.health 回傳 200 與正確 JSON 結構` | 基本存活檢查 |
-| T2 | `AppSpec.search 對超過上限的 limit 正確夾制到最大值` | 鎖住 enhance-2026-08-16-pagination-constants-consolidation 的夾制邏輯 |
+| T2 | `AppSpec.search 對超過上限的 limit 正確夾制到最大值` | 鎖住 enhance-0006 的夾制邏輯 |
 | T3 | `CreateSpec.nonCommercialPacks 對 license_id 為 NULL 的素材包視為非商用並擋下` | 法律風險防線的直接測試 |
 | T4 | `CliSpec.主要指令的參數解析對合法輸入正確產生對應設定值` | 至少涵蓋 search/scan/new-project |
 

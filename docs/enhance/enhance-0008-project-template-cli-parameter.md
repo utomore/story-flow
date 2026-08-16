@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-project-template-cli-parameter
+id: enhance-0008
 type: enhance
 title: project-template-cli-parameter
 description: 讓 CLI 能指定專案模板,不再寫死單一模板

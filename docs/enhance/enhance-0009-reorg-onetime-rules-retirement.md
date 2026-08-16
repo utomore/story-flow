@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-reorg-onetime-rules-retirement
+id: enhance-0009
 type: enhance
 title: reorg-onetime-rules-retirement
 description: 退役已完成搬遷的一次性路徑規則

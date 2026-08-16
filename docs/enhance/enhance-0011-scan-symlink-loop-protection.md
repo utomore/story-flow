@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-scan-symlink-loop-protection
+id: enhance-0011
 type: enhance
 title: scan-symlink-loop-protection
 description: 為目錄掃描加上符號連結迴圈防護

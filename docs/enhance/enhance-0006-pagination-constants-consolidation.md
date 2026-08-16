@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-pagination-constants-consolidation
+id: enhance-0006
 type: enhance
 title: pagination-constants-consolidation
 description: 收斂四處各自為政的分頁常數

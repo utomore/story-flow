@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-migration-sql-builder-safety
+id: enhance-0004
 type: enhance
 title: migration-sql-builder-safety
 description: 改掉 migration 以字串拼接組 SQL 的脆弱寫法

@@ -1,3 +1,15 @@
+---
+id: report-2026-08-12-architecture-review
+type: report
+title: architecture-review
+description: 九個 Haskell 套件與前端的架構健康檢查結果
+status: done
+created: 2026-08-12
+updated: 2026-08-16
+related-adr: []
+related-spec: []
+---
+
 # AssetDB 架構健康檢查報告
 
 > **2026-08-16 更新**:本報告的 P0/P1 問題已轉為 `docs/bugfix/bug-0001` 至 `bug-0006`,

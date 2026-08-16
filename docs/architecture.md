@@ -180,7 +180,7 @@ CREATE VIRTUAL TABLE assets_cjk USING fts5(…, tokenize='unicode61 …');  -- �
 
 **前端型別契約**:後端 `server/src/AssetDB/Server/TsTypes.hs` 手寫產生器輸出 `web/src/api/types.ts`,
 以 `TsTypesSpec` 保證與 `Api.hs` 的 `ToJSON` 一致(不用 OpenAPI)。已知落地缺口見
-`docs/enhance/enhance-2026-08-16-ts-types-drift-check.md`。
+`docs/enhance/enhance-0014-ts-types-drift-check.md`。
 
 ## 使用到的套件
 
@@ -207,6 +207,7 @@ CREATE VIRTUAL TABLE assets_cjk USING fts5(…, tokenize='unicode61 …');  -- �
 | 11 | 音效格式驗證(`probeWav`,零核心表改動) | ✅ 已驗證(2026-08-11) |
 | 12 | AI 離線分類與標註(本機 LLM + GBNF) | ✅ 已對真實素材庫執行 |
 
-**目前狀態**:功能面已完整實作並驗證;下一階段是收斂 `docs/20260812_Review_Architecture.md`
+**目前狀態**:功能面已完整實作並驗證;下一階段是收斂
+`docs/analysis/report-2026-08-12-architecture-review.md`
 與 `docs/bugfix/`、`docs/enhance/` 中記錄的已知問題,而非新增功能切片。新功能規劃請用
 `/func-spec` 產出 `docs/spec/func-XXXX-*.md`,並在此文件的「開發階段」表補上對應列。

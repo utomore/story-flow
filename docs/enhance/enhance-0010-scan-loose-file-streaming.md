@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-scan-loose-file-streaming
+id: enhance-0010
 type: enhance
 title: scan-loose-file-streaming
 description: 散檔掃描改為串流讀取,不再整檔載入記憶體

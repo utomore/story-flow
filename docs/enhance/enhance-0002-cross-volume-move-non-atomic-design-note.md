@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-cross-volume-move-non-atomic-design-note
+id: enhance-0002
 type: enhance
 title: cross-volume-move-non-atomic-design-note
 description: 記錄跨磁碟搬移為非原子操作的評估結論

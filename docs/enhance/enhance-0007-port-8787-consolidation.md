@@ -1,5 +1,5 @@
 ---
-id: enhance-2026-08-16-port-8787-consolidation
+id: enhance-0007
 type: enhance
 title: port-8787-consolidation
 description: 收斂硬編碼於三處的預設埠號 8787

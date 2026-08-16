@@ -1,5 +1,5 @@
 ---
-id: enhance-0004
+id: enhance-2026-08-16-ts-types-drift-check
 type: enhance
 title: ts-types-drift-check
 status: open

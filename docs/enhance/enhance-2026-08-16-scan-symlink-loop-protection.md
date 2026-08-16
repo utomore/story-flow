@@ -1,5 +1,5 @@
 ---
-id: enhance-0006
+id: enhance-2026-08-16-scan-symlink-loop-protection
 type: enhance
 title: scan-symlink-loop-protection
 status: open

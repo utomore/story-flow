@@ -1,5 +1,5 @@
 ---
-id: enhance-0002
+id: enhance-2026-08-16-scan-loose-file-streaming
 type: enhance
 title: scan-loose-file-streaming
 status: open

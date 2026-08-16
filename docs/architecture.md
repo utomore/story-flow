@@ -179,7 +179,7 @@ CREATE VIRTUAL TABLE assets_cjk USING fts5(…, tokenize='unicode61 …');  -- �
 
 **前端型別契約**:後端 `server/src/AssetDB/Server/TsTypes.hs` 手寫產生器輸出 `web/src/api/types.ts`,
 以 `TsTypesSpec` 保證與 `Api.hs` 的 `ToJSON` 一致(不用 OpenAPI)。已知落地缺口見
-`docs/enhance/enhance-0004-ts-types-drift-check.md`。
+`docs/enhance/enhance-2026-08-16-ts-types-drift-check.md`。
 
 ## 使用到的套件
 

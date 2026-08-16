@@ -1,5 +1,5 @@
 ---
-id: enhance-0001
+id: enhance-2026-08-16-notes-input-handling-robustness
 type: enhance
 title: notes-input-handling-robustness
 status: open

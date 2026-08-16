@@ -1,5 +1,5 @@
 ---
-id: enhance-0010
+id: enhance-2026-08-16-pagination-constants-consolidation
 type: enhance
 title: pagination-constants-consolidation
 status: open

@@ -1,5 +1,5 @@
 ---
-id: enhance-0012
+id: enhance-2026-08-16-reorg-onetime-rules-retirement
 type: enhance
 title: reorg-onetime-rules-retirement
 status: open

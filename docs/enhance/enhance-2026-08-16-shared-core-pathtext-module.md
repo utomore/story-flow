@@ -1,5 +1,5 @@
 ---
-id: enhance-0009
+id: enhance-2026-08-16-shared-core-pathtext-module
 type: enhance
 title: shared-core-pathtext-module
 status: open

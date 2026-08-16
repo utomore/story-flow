@@ -1,5 +1,5 @@
 ---
-id: enhance-0005
+id: enhance-2026-08-16-migration-sql-builder-safety
 type: enhance
 title: migration-sql-builder-safety
 status: open

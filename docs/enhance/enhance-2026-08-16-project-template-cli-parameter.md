@@ -1,5 +1,5 @@
 ---
-id: enhance-0013
+id: enhance-2026-08-16-project-template-cli-parameter
 type: enhance
 title: project-template-cli-parameter
 status: open

@@ -18,7 +18,13 @@ module AssetDB.Cli.Options
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
-  , resolveDbPath
+  , findDbUpwards
+  , resolveDbPathForQuery
+  , resolveDbPathForInit
+  , dbNotFoundMessage
+  , dbMissingAtMessage
+  , dbDirName
+  , dbFileName
   ) where
 
 import Data.Text (Text)
@@ -37,8 +43,9 @@ import AssetDB.Cli.Search (SearchArgs (..))
 import AssetDB.Cli.Project (ProjectArgs (..))
 import AssetDB.Cli.Notes (LinkArgs (..), NoteArgs (..))
 import Options.Applicative
-import System.Directory (getCurrentDirectory)
-import System.FilePath ((</>))
+import System.Directory (doesFileExist, getCurrentDirectory, makeAbsolute)
+import System.Exit (die)
+import System.FilePath (takeDirectory, (</>))
 
 data GlobalArgs = GlobalArgs
   { gaDbPath :: Maybe FilePath
@@ -477,14 +484,74 @@ scanP =
       )
     <*> switch (long "quiet" <> help "只輸出最後的摘要")
 
--- | 資料庫預設放在工作目錄下的 @.assetdb\/@。
+--------------------------------------------------------------------------------
+-- 資料庫路徑
 --
--- 刻意**不**放進素材庫根目錄:資料庫是衍生物,而素材庫是備份目標 ——
--- 混在一起會讓每次掃描都弄髒備份。
-resolveDbPath :: GlobalArgs -> IO FilePath
-resolveDbPath GlobalArgs {..} =
+-- 「找到既有資料庫」與「決定新資料庫要建在哪」是兩件不同的事,這裡刻意用兩個
+-- 函式表示。合成一個、而且預設行為是後者的話,在錯誤的工作目錄下執行任何查詢
+-- 都會靜默建出一個空庫:查詢誠實回報 0 筆,使用者看到的卻是「查無結果」而不是
+-- 「你的資料庫路徑錯了」(bug-0001)。
+
+-- | 資料庫目錄名稱。刻意**不**放進素材庫根目錄:資料庫是衍生物,而素材庫是
+-- 備份目標 —— 混在一起會讓每次掃描都弄髒備份。
+dbDirName :: FilePath
+dbDirName = ".assetdb"
+
+dbFileName :: FilePath
+dbFileName = "assetdb.sqlite"
+
+-- | 從 @start@ 逐層往上找 @.assetdb\/assetdb.sqlite@,一路找到檔案系統根為止。
+-- 找不到回 'Nothing',不會拋例外、也不會建立任何東西。
+findDbUpwards :: FilePath -> IO (Maybe FilePath)
+findDbUpwards start = makeAbsolute start >>= go
+  where
+    go dir = do
+      let candidate = dir </> dbDirName </> dbFileName
+      found <- doesFileExist candidate
+      if found
+        then pure (Just candidate)
+        else do
+          let parent = takeDirectory dir
+          -- takeDirectory 在根目錄會回傳自己,以此當終止條件
+          if parent == dir then pure Nothing else go parent
+
+-- | 查詢類指令用:資料庫**必須已經存在**,找不到就結束,絕不建檔。
+resolveDbPathForQuery :: GlobalArgs -> IO FilePath
+resolveDbPathForQuery GlobalArgs {..} =
   case gaDbPath of
-    Just p -> pure p
+    Just p -> do
+      exists <- doesFileExist p
+      if exists then makeAbsolute p else die (dbMissingAtMessage p)
     Nothing -> do
       cwd <- getCurrentDirectory
-      pure (cwd </> ".assetdb" </> "assetdb.sqlite")
+      findDbUpwards cwd >>= \case
+        Just p -> pure p
+        Nothing -> die (dbNotFoundMessage cwd)
+
+-- | 初始化類指令用:找得到既有資料庫就用它,找不到才在工作目錄下開新的。
+--
+-- 先往上找是為了避免從子目錄執行 @scan@ 時建出第二個資料庫。
+resolveDbPathForInit :: GlobalArgs -> IO FilePath
+resolveDbPathForInit GlobalArgs {..} =
+  case gaDbPath of
+    Just p -> makeAbsolute p
+    Nothing -> do
+      cwd <- getCurrentDirectory
+      findDbUpwards cwd >>= \case
+        Just p -> pure p
+        Nothing -> pure (cwd </> dbDirName </> dbFileName)
+
+dbNotFoundMessage :: FilePath -> String
+dbNotFoundMessage cwd =
+  unlines
+    [ "找不到資料庫:從 " <> cwd <> " 一路往上都沒有 " <> dbDirName </> dbFileName
+    , "確認是否在專案目錄下執行,或用 --db <路徑> 指定資料庫。"
+    , "還沒建立索引的話,先執行:assetdb scan --root <素材庫路徑>"
+    ]
+
+dbMissingAtMessage :: FilePath -> String
+dbMissingAtMessage p =
+  unlines
+    [ "--db 指定的資料庫不存在:" <> p
+    , "確認路徑是否正確。要建立新索引請執行:assetdb scan --root <素材庫路徑>"
+    ]

@@ -14,10 +14,11 @@ build-type:         Simple
 common warnings
     ghc-options: -Wall -Wcompat
 
-executable assetdb
+-- 指令實作放在 library、只有 main 留在 executable。放在 executable 裡的
+-- 模組測不到,而路徑解析(bug-0001)與參數解析正是最需要測試的部分。
+library
     import:           warnings
-    main-is:          Main.hs
-    other-modules:
+    exposed-modules:
         AssetDB.Cli.Options
         AssetDB.Cli.Scan
         AssetDB.Cli.Doctor
@@ -30,7 +31,6 @@ executable assetdb
         AssetDB.Cli.Notes
         AssetDB.Cli.Ai
     hs-source-dirs:   app
-    ghc-options:      -threaded -rtsopts
     build-depends:
         , assetdb-ai
         , assetdb-archive
@@ -48,6 +48,49 @@ executable assetdb
         , sqlite-simple        >=0.4.18
         , text                 >=2.0
         , time                 >=1.12
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+
+executable assetdb
+    import:           warnings
+    main-is:          Main.hs
+    hs-source-dirs:   main
+    ghc-options:      -threaded -rtsopts
+    build-depends:
+        , assetdb-archive
+        , assetdb-cli
+        , assetdb-core
+        , base
+        , text
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+
+test-suite assetdb-cli-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.Cli.OptionsSpec
+        AssetDB.Cli.EndToEndSpec
+    hs-source-dirs:   test
+    build-depends:
+        , assetdb-cli
+        , base
+        , bytestring
+        , directory  >=1.3
+        , filepath   >=1.4
+        , hspec      >=2.10
+        , process    >=1.6
+        , temporary  >=1.3
+    build-tool-depends:
+        hspec-discover:hspec-discover
+        , assetdb-cli:assetdb
     default-language: GHC2021
     default-extensions:
         LambdaCase

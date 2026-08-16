@@ -8,6 +8,7 @@ packages:
   ingest/
   reorg/
   project/
+  ai/
   server/
   cli/
 
@@ -49,3 +50,6 @@ package assetdb-server
 
 package assetdb-project
   ghc-options: -Wall -Wcompat
+
+package assetdb-ai
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns

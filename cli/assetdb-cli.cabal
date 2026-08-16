@@ -28,9 +28,11 @@ executable assetdb
         AssetDB.Cli.Thumbs
         AssetDB.Cli.Project
         AssetDB.Cli.Notes
+        AssetDB.Cli.Ai
     hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts
     build-depends:
+        , assetdb-ai
         , assetdb-archive
         , assetdb-core
         , assetdb-ingest

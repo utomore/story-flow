@@ -27,6 +27,7 @@ export interface Facets {
   vendors: FacetValue[];
   authors: FacetValue[];
   packs: FacetValue[];
+  categories: FacetValue[];
 }
 
 export interface PackSummary {

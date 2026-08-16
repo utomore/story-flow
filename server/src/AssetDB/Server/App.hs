@@ -48,13 +48,14 @@ handlers cfg st =
   where
     conn = storeConn st
 
-    mkQuery q kinds packs vendors authors named ref excluded lim off =
+    mkQuery q kinds packs vendors authors cats named ref excluded lim off =
       emptyQuery
         { sqText = q
         , sqKinds = kinds
         , sqPacks = packs
         , sqVendors = vendors
         , sqAuthors = authors
+        , sqCategories = cats
         , sqNamedOnly = named
         , sqIncludeReference = ref
         , sqIncludeExcluded = excluded
@@ -62,20 +63,21 @@ handlers cfg st =
         , sqOffset = maybe 0 (max 0) off
         }
 
-    searchH q k p v a named ref exc lim off = liftIO $ do
-      let sq = mkQuery q k p v a named ref exc lim off
+    searchH q k p v a c named ref exc lim off = liftIO $ do
+      let sq = mkQuery q k p v a c named ref exc lim off
       total <- searchCount conn sq
       hits <- search conn sq
       pure (SearchResponse total (map toItem hits))
 
-    facetsH q k p v a named ref exc = liftIO $ do
-      fc <- facetCounts conn (mkQuery q k p v a named ref exc Nothing Nothing)
+    facetsH q k p v a c named ref exc = liftIO $ do
+      fc <- facetCounts conn (mkQuery q k p v a c named ref exc Nothing Nothing)
       pure $
         object
           [ "kinds" .= pairs (fcKinds fc)
           , "vendors" .= pairs (fcVendors fc)
           , "authors" .= pairs (fcAuthors fc)
           , "packs" .= pairs (fcPacks fc)
+          , "categories" .= pairs (fcCategories fc)
           ]
 
     pairs xs = [object ["value" .= v, "count" .= n] | (v, n) <- xs]

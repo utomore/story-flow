@@ -3,7 +3,7 @@ id: func-0003
 type: spec
 title: markdown-section-format
 description: Markdown 分節格式與核心型別的雙向解析與寫回
-status: open
+status: done
 created: 2026-08-16
 updated: 2026-08-16
 depends-on: [func-0002]
@@ -383,16 +383,16 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 
 ## TodoList
 
-- [ ] T1: `StoryFlow.Md.Document` —— `Document` / `Section` / `LineEnding` 型別與 `sectionById`
-- [ ] T2: `StoryFlow.Md.Lexer` —— 逐行切塊:frontmatter 界線、節標題行、` ```meta ` 區塊、正文,全部保留原始切片與行號
-- [ ] T3: 節標題 `{#id}` 屬性語法解析 —— 標題文字與 id 分離、缺 id / 重複 id / 前綴不符的錯誤
-- [ ] T4: `StoryFlow.Md.Yaml` —— HsYAML → aeson `Value` → core `FromJSON`,frontmatter 與 `meta` 區塊兩個入口
-- [ ] T5: `StoryFlow.Md.Inherit` —— 依上表的欄位規則合併,`tags` 聯集、`summary` 缺漏產生警告
-- [ ] T6: `parseEntityFile` —— 檔案層主體 Entity + 各節片段 Entity
-- [ ] T7: `parseLevelFile` —— 標題階層 → `parent` / `order`,`kind` 必填,`entities` 由關聯推導,跳級與越級的錯誤
-- [ ] T8: `renderDocument` —— 逐字重組,未修改時位元組相等
-- [ ] T9: `updateSection` / `insertSection` / `removeSection` 與 `renderMetaBlock` 的固定欄位順序序列化
-- [ ] T10: `StoryFlow.Md.Error` —— 錯誤與警告型別、`檔案:行號: 訊息` 渲染、多錯誤一次回報的收集機制
+- [x] T1: `StoryFlow.Md.Document` —— `Document` / `Section` / `LineEnding` 型別與 `sectionById`
+- [x] T2: `StoryFlow.Md.Lexer` —— 逐行切塊:frontmatter 界線、節標題行、` ```meta ` 區塊、正文,全部保留原始切片與行號
+- [x] T3: 節標題 `{#id}` 屬性語法解析 —— 標題文字與 id 分離、缺 id / 重複 id / 前綴不符的錯誤
+- [x] T4: `StoryFlow.Md.Yaml` —— HsYAML → aeson `Value` → core `FromJSON`,frontmatter 與 `meta` 區塊兩個入口
+- [x] T5: `StoryFlow.Md.Inherit` —— 依上表的欄位規則合併,`tags` 聯集、`summary` 缺漏產生警告
+- [x] T6: `parseEntityFile` —— 檔案層主體 Entity + 各節片段 Entity
+- [x] T7: `parseLevelFile` —— 標題階層 → `parent` / `order`,`kind` 必填,`entities` 由關聯推導,跳級與越級的錯誤
+- [x] T8: `renderDocument` —— 逐字重組,未修改時位元組相等
+- [x] T9: `updateSection` / `insertSection` / `removeSection` 與 `renderMetaBlock` 的固定欄位順序序列化
+- [x] T10: `StoryFlow.Md.Error` —— 錯誤與警告型別、`檔案:行號: 訊息` 渲染、多錯誤一次回報的收集機制
 
 ## 1-to-1 測試對照表
 
@@ -404,11 +404,68 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 | T4 | `StoryFlow.Md.YamlSpec` | 琳達的 `meta` 區塊解出 `type` / `summary` / `tags` / `timeline` / 三筆 `links`(含 `contradicts` 帶 `note`);YAML 語法錯誤回 `SectionYaml` 帶該節 id 與 HsYAML 訊息;未知欄位被忽略不報錯;`links` 的 `target` 為 `shared-lore:ent-1234` 時解析為跨 Vault `Ref` |
 | T5 | `StoryFlow.Md.InheritSpec` | 節層未寫 `vault`/`type`/`status`/`timeline`/`source`/`created`/`updated` 時全部繼承檔案層;節層寫了則覆寫;`tags` 為檔案層與節層的聯集去重;`summary` **不**繼承且缺漏時回 `MissingSummary` 警告;`links` / `aliases` 不繼承(節層未寫即空);`revision` 未寫為 `1` 而非繼承檔案層的值 |
 | T6 | `StoryFlow.Md.ParseEntitySpec` | architecture.md 的琳達範例檔解析得 1 個主體(`ent-7f3a`,body 為 preamble)+ 2 個片段(`ent-7f3b` / `ent-7f3c`),逐欄比對預期值;`ent-7f3c` 的三筆 links 與 `timeline` 正確 |
-| T7 | `StoryFlow.Md.ParseLevelSpec` | 本規格的教室範例檔解析得 1 個 Level + 7 個 Node;`nod-0002` 與 `nod-0003` 的 `parent` 皆為 `nod-0001` 且 `order` 分別為 1、2;`nod-0007` 的 parent 為 `nod-0005`;`entities` 由 `involves`/`references` 推導出琳達與塔主;缺 `kind` → `MissingNodeKind`;`##` 後接 `####` → `HeadingSkip`;frontmatter 的 `root` 與第一個節不符 → `RootMismatch`;產出的 `[Node]` 餵給 core 的 `buildTree` 成功建樹 |
+| T7 | `StoryFlow.Md.ParseLevelSpec` | 本規格的教室範例檔解析得 1 個 Level + 6 個 Node(範例檔共六個標題,原本寫 7 是筆誤,見實作備註 8);`nod-0002` 與 `nod-0003` 的 `parent` 皆為 `nod-0001` 且 `order` 分別為 1、2;`nod-0007` 的 parent 為 `nod-0005`;`entities` 由 `involves`/`references` 推導出琳達與塔主;缺 `kind` → `MissingNodeKind`;`##` 後接 `####` → `HeadingSkip`;frontmatter 的 `root` 與第一個節不符 → `RootMismatch`;產出的 `[Node]` 餵給 core 的 `buildTree` 成功建樹 |
 | T8 | `StoryFlow.Md.RenderSpec`(逐字) | 對 10 份風格各異的測試檔(LF、CRLF、混合行尾、YAML 含註解、縮排 2/4 空白、檔尾有無換行、preamble 為空、僅 frontmatter 無節)驗證 `renderDocument . parseDocument == id` 位元組相等 |
 | T9 | `StoryFlow.Md.EditSpec` | `updateSection` 改 `ent-7f3b` 的 `summary` 後,寫回結果與原檔逐行比對**只有該節 meta 區塊的 summary 那一行不同**;`renderMetaBlock` 的欄位順序固定且 `Nothing` 欄位不輸出;同一份資料連續序列化兩次結果相同;`insertSection` 插入後可再被 `parseDocument` 解析;`removeSection` 移除節連同其 meta 與正文;操作不存在的 id 回 `Left` |
 | T10 | `StoryFlow.Md.ErrorSpec` | `renderMdError` 輸出 `characters/琳達.md:12: ...` 格式;一份含三個獨立節錯誤的檔案**一次回報三筆**且行號各自正確;frontmatter 層級錯誤中止解析且只回一筆(不產生次生錯誤);`CustomLinkKind` 警告帶 `suggestCoreKind` 的建議 |
 
 ## 實作備註
 
-(撰寫時留空)
+實作於 2026-08-16 完成,`cabal build all` / `cabal test all` 綠燈(md 160 examples、
+core 157、types 21、store 4,`scripts/check.ps1` exit 0)。模組劃分、兩階段解析、
+繼承規則表、錯誤/警告的分界都照本規格實作,以下九點是規格沒寫死、實作時補齊或
+偏離的地方(1–4 已與開發者確認)。
+
+1. **`MetaOverride` 補了 `moKind :: Maybe NodeKind`**。規格的欄位表沒有 `kind`,
+   但 Level 檔的節一定有 `kind`;少了這一欄,`updateSection` 重新序列化時會把
+   `kind:` 整行刪掉,等於編輯一次就毀掉樹的語意。序列化順序因此改為
+   `kind` → `type` → `vault` → `summary` → `tags` → `status` → `timeline` →
+   `aliases` → `source` → `revision` → `created` → `updated` → `links`——規格給的
+   九個欄位順序原樣是它的子序列,補進來的四個(`kind`/`vault`/`created`/`updated`)
+   是為了「作者寫了什麼就留什麼」,不能在重寫時靜靜蒸發。
+
+2. **`timeline` 接受純字串簡寫**。architecture.md 的琳達範例寫
+   `timeline: 埃提亞崩塌前`,而 core 的 `FromJSON Timeline` 吃的是
+   `{label, order}` 物件——照規格「一律套 core 的實例」會讓文件自己的範例檔
+   變成非法輸入。作法:`StoryFlow.Md.Yaml` 在 aeson `Value` 層把字串補成
+   `{label: ...}` 再交給 core,編碼規則仍然只有一份,只是多接受一種表層寫法;
+   寫回時 `order` 為空就寫回字串簡寫,`git diff` 才不會因為工具的偏好而改寫。
+
+3. **`secMetaRaw` 的界線含前導空行**。規格說它是「原始 ` ```meta ` 區塊,含前後
+   fence 行」,但標題行與 fence 之間的空行(範例檔都有一行)必須有地方放,否則
+   位元組相等會破掉。定義改為「標題行之後到結尾 fence 行(含)的原始切片」,
+   重新序列化時保留前導空行、只換掉 fence 之間的內容。
+
+4. **切片含界線行的行尾字元**。`docFrontRaw` 由開頭 `---` 的行尾字元起算,
+   `docPreamble` 由結尾 `---` 的行尾字元起算,`renderDocument` 只重生 `---` 三個
+   字元本身。這樣連「frontmatter 界線用 LF、正文用 CRLF」的混合檔,位元組相等
+   也是結構保證而不是靠 `docEnding` 猜。代價是 frontmatter 界線行只接受剛好
+   `---`(不接受尾隨空白)。`docFinalNL` 因此在寫回時用不到(行尾已在切片裡),
+   保留是給 `insertSection` 在檔尾補節時判斷要不要先補一個換行。
+
+5. **`MdErrorKind` 補了 `UnknownSectionId Id`**。規格要求三個編輯函式在節不存在時
+   回 `Left`,卻沒有給對應的錯誤種類。
+
+6. **分節界線:第一個帶 `{#id}` 的標題才開始分節**。琳達範例的 `# 琳達` 因此留在
+   `docPreamble`(規格 T2 要的「1 段 preamble + 2 個 Section」);第一個節之後的
+   標題一律必須帶 `{#id}`,否則是 `HeadingWithoutId`(規格 T3 要的)。兩條驗收
+   標準只有這個讀法能同時滿足。副作用:片段正文裡不能再用 Markdown 子標題——
+   對「節即片段」的格式來說這是想要的行為。`{#id}` 存在但不是合法 ID(如
+   `{#zzz-0001}`)也回 `HeadingWithoutId`,因為 `IdPrefixMismatch` 需要一個
+   建構得出來的 `Id`。
+
+7. **`parseEntityFile` / `parseLevelFile` 採「新增的介面」表的簽名**,即
+   `Either [MdError] (EntityFile, [MdWarning])`;「實作方式」節裡不帶警告的那個
+   簽名是省略版。判別檔案身分的 `documentKind` 也照介面表實作。
+
+8. **教室範例檔是 6 個 Node 不是 7 個**:規格的範例檔只有六個標題
+   (`nod-0001`/`0002`/`0004`/`0005`/`0007`/`0003`),1-to-1 表原本寫 7 是筆誤,
+   已一併更正。T7 的其餘斷言(parent、order、`buildTree` 建樹)全部照原文驗證。
+
+9. **`EmptyBody` 警告只對 Entity 片段發**。Level 的 Node 承載的是結構與演出,
+   正文本來就常常是空的,對每個 Node 發一次警告只會讓真正的警告被淹沒。
+   `MissingSummary` 與 `CustomLinkKind` 則 Entity / Node 一視同仁。
+
+**回寫 architecture.md**:Level 檔的格式契約在 bcd20cc 已經寫進 architecture.md
+的「Level 場景樹」節,本次只補上實作備註 2 與 6 兩條格式規則(`timeline` 的字串
+簡寫、`# 標題` 留在 preamble),其餘與燈塔一致,無衝突。

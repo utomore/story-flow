@@ -24,10 +24,23 @@ library
     hs-source-dirs:   src
     exposed-modules:
         StoryFlow.Md
+        StoryFlow.Md.Document
+        StoryFlow.Md.Error
+        StoryFlow.Md.Inherit
+        StoryFlow.Md.Lexer
+        StoryFlow.Md.Parse
+        StoryFlow.Md.Render
+        StoryFlow.Md.Yaml
     build-depends:
-        , base       >=4.14 && <5
+        , aeson
+        , base            >=4.14 && <5
+        , bytestring
+        , containers
+        , HsYAML
+        , HsYAML-aeson
         , storyflow-core
         , text
+        , time
 
 test-suite storyflow-md-test
     import:           warnings, lang
@@ -35,10 +48,23 @@ test-suite storyflow-md-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        StoryFlow.Md.DocumentSpec
+        StoryFlow.Md.EditSpec
+        StoryFlow.Md.ErrorSpec
+        StoryFlow.Md.Fixtures
+        StoryFlow.Md.HeadingSpec
+        StoryFlow.Md.InheritSpec
+        StoryFlow.Md.LexerSpec
+        StoryFlow.Md.ParseEntitySpec
+        StoryFlow.Md.ParseLevelSpec
+        StoryFlow.Md.RenderSpec
+        StoryFlow.Md.YamlSpec
         StoryFlow.MdSpec
     build-depends:
         , base
+        , containers
         , hspec
         , storyflow-core
         , storyflow-md
         , text
+        , time

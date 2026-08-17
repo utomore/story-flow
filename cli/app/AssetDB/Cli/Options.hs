@@ -18,6 +18,7 @@ module AssetDB.Cli.Options
   , GlobalArgs (..)
   , Invocation (..)
   , parseInvocation
+  , invocationInfo
   , findDbUpwards
   , resolveDbPathForQuery
   , resolveDbPathForInit
@@ -106,14 +107,21 @@ data ScanArgs = ScanArgs
   }
 
 parseInvocation :: IO Invocation
-parseInvocation =
-  execParser $
-    info
-      (helper <*> (Invocation <$> globalP <*> commandP))
-      ( fullDesc
-          <> progDesc "Alchbees 資源與專案管理系統"
-          <> header "assetdb"
-      )
+parseInvocation = execParser invocationInfo
+
+-- | 完整的參數規格,與 'parseInvocation' 分開。
+--
+-- 'execParser' 讀 'getArgs' 而且在 @--help@ 或解析失敗時直接結束行程,測不動。
+-- 把規格本身留成一個值,測試就能用 @execParserPure@ 餵任意參數列進去,
+-- 拿回 @Success@ / @Failure@ 而不是被登出。
+invocationInfo :: ParserInfo Invocation
+invocationInfo =
+  info
+    (helper <*> (Invocation <$> globalP <*> commandP))
+    ( fullDesc
+        <> progDesc "Alchbees 資源與專案管理系統"
+        <> header "assetdb"
+    )
 
 globalP :: Parser GlobalArgs
 globalP =

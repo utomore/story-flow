@@ -9,6 +9,10 @@ module AssetDB.Store.Migrate
   , currentVersion
   , appliedVersions
   , MigrationError (..)
+
+    -- * 組裝 migration SQL
+  , lit
+  , num
   ) where
 
 import Control.Exception (Exception, throwIO)
@@ -36,6 +40,30 @@ data MigrationError
   deriving stock (Show)
 
 instance Exception MigrationError
+
+--------------------------------------------------------------------------------
+-- 組裝 migration SQL
+--
+-- 'migStatements' 一律以 'execute_' 執行,**不吃參數**。這是刻意的:migration
+-- 是一疊可以直接讀成 SQL 的敘述,把它們改成「查詢 + 參數列」的配對會讓
+-- schema 檔案的可讀性換走一個這裡並不存在的好處 —— migration 的值全部是
+-- 編譯期字面值,沒有任何外部輸入,所以從來不是注入問題。
+--
+-- 但少數 migration(如分類詞彙表的種子資料)仍需要把值組進 SQL 文字。在那裡
+-- 真正會發生的事是有人在中文定義裡寫了一個單引號,SQL 變成語法錯誤,而且要
+-- 等到 migration 在使用者的機器上執行時才炸開 —— 編譯器不會攔,測試如果沒跑
+-- 到那個 migration 也不會攔。'lit' 與 'num' 就是為此存在:值一律經過它們,
+-- 這一整類錯誤便不可能發生,寫定義的人也不必記得任何規則。
+--
+-- (以註解警告「請勿使用單引號」是不夠的 —— 註解攔不住任何東西。)
+
+-- | 把一個值組成 SQL 字面值:單引號加倍,再包上外層引號。
+lit :: Text -> Query
+lit t = Query ("'" <> T.replace "'" "''" t <> "'")
+
+-- | 數值同樣經過型別再進 SQL,而不是以 @\"10\"@ 這種字串形式傳遞。
+num :: Int -> Query
+num = Query . T.pack . show
 
 --------------------------------------------------------------------------------
 

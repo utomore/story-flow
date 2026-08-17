@@ -20,12 +20,17 @@ spec = around withMigrated $ do
       let expected =
             [ "archives", "asset_categories", "asset_tags", "assets", "authors"
             , "blobs", "categories", "collection_items", "collections", "events"
-            , "licenses", "links", "moves", "name_clusters", "naming_vocab"
+            , "licenses", "links", "moves", "name_clusters"
             , "notes", "packs", "project_assets", "projects", "roots"
             , "schema_migrations", "tags"
             ]
       -- FTS5 會另外產生一堆 *_data / *_idx 影子表,只檢查我們自己宣告的
       filter (`elem` expected) ts `shouldBe` sort expected
+
+    -- bug-0006:這張表從來沒有被任何程式碼查詢過,命名詞彙的唯一真相是
+    -- core/Naming.hs 的 defaultVocab。migration 004 把它連同播種一起送走。
+    it "migration 004 之後不再有 naming_vocab 表" $ \st ->
+      tableNames st >>= \ts -> ts `shouldNotContain` ["naming_vocab"]
 
   describe "assets 的位置約束" $ do
     -- 一筆資源要嘛在壓縮檔裡,要嘛是散檔。這個 CHECK 讓「兩者都填」
@@ -206,14 +211,6 @@ spec = around withMigrated $ do
       r `shouldSatisfy` failed
 
   describe "初始資料" $ do
-    it "命名詞彙表已填入" $ \st -> do
-      domains <- countWhere st "naming_vocab" "facet='domain'"
-      states <- countWhere st "naming_vocab" "facet='state'"
-      variants <- countWhere st "naming_vocab" "facet='variant'"
-      domains `shouldSatisfy` (>= 10)
-      states `shouldSatisfy` (>= 30)
-      variants `shouldSatisfy` (>= 20)
-
     it "頂層分類已建立" $ \st -> do
       rows <- query_ (storeConn st) "SELECT slug FROM categories WHERE parent_id IS NULL ORDER BY slug"
       map fromOnly rows

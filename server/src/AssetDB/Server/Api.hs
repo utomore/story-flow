@@ -7,6 +7,7 @@ module AssetDB.Server.Api
   , PackSummary (..)
   , Health (..)
   , PNG
+  , ThumbResponse
   ) where
 
 import Data.Aeson
@@ -137,6 +138,10 @@ type SearchParams a =
     :> QueryFlag "excluded"
     :> a
 
+-- | 縮圖回應。縮圖路徑是內容定址的,同一個 sha 永遠對應同一份位元組,
+-- 所以回應帶著長效的 @Cache-Control@ —— 標頭寫在型別裡,漏掉就編譯不過。
+type ThumbResponse = Headers '[Header "Cache-Control" Text] BS.ByteString
+
 type Api =
   "api"
     :> ( "search" :> SearchParams (QueryParam "limit" Int :> QueryParam "offset" Int :> Get '[JSON] SearchResponse)
@@ -144,7 +149,7 @@ type Api =
           :<|> "packs" :> Get '[JSON] [PackSummary]
           :<|> "health" :> Get '[JSON] Health
        )
-    :<|> "thumb" :> Capture "sha" Text :> Capture "size" Int :> Get '[PNG] BS.ByteString
+    :<|> "thumb" :> Capture "sha" Text :> Capture "size" Int :> Get '[PNG] ThumbResponse
     -- 前端的靜態檔案。放在最後,因為 Raw 會吃掉所有未匹配的路徑。
     :<|> Raw
 

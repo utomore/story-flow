@@ -22,7 +22,7 @@ schemaVersion :: Int
 schemaVersion = maximum (map migVersion migrations)
 
 migrations :: [Migration]
-migrations = [migration001, migration002, migration003]
+migrations = [migration001, migration002, migration003, migration004]
 
 --------------------------------------------------------------------------------
 
@@ -274,8 +274,12 @@ classification =
     \  sort          INTEGER NOT NULL DEFAULT 0, \
     \  PRIMARY KEY (collection_id, entity_type, entity_id) \
     \)"
-  , -- 命名詞彙表。AssetDB.Naming 的 NamingVocab 從這裡讀 ——
-    -- 「加一個新的 domain」是插一列資料,不是改程式碼重編譯。
+  , -- 命名詞彙表。**已於 migration 004 移除**,這裡保留原樣只因為 001 已經
+    -- 在真實資料庫上跑過,不回頭改。
+    --
+    -- 原註解宣稱「AssetDB.Naming 的 NamingVocab 從這裡讀」—— 那從未成立,
+    -- 實際生效的一直是 core/Naming.hs 的 defaultVocab。理由與取捨見
+    -- migration004 的說明與 docs/bugfix/bug-0006。
     "CREATE TABLE naming_vocab ( \
     \  id    INTEGER PRIMARY KEY, \
     \  facet TEXT NOT NULL CHECK (facet IN ('domain','state','variant')), \
@@ -454,6 +458,8 @@ fullTextSearch =
 --------------------------------------------------------------------------------
 -- 初始資料
 
+-- | 註:前三筆播種的是 @naming_vocab@,該表已於 migration 004 移除。
+-- 同樣因為 001 已經跑過而保留原樣 —— 新庫會先插入再連表一起 DROP。
 seeds :: [Query']
 seeds =
   [ "INSERT INTO naming_vocab (facet, value) VALUES \
@@ -799,3 +805,38 @@ aiBatchStatus =
 -- (整個資料庫目前 6 列),而 cluster list 看到的 132 個叢集是 packClusters
 -- 每次即時算出來的,沒有可以標記的列。叢集層的續跑因此改看 ai_suggestions:
 -- 某個 (pack_slug, shape) 已經有建議就跳過。少一組欄位,也少一個會腐爛的鏡像。
+
+--------------------------------------------------------------------------------
+
+-- | @naming_vocab@ 退場(bug-0006)。
+--
+-- 這張表從 migration 001 起就建了、也播了種,但**全庫沒有任何程式碼查詢它**;
+-- 實際生效的一直是 @core\/Naming.hs@ 的硬編碼 @defaultVocab@。兩份定義並存
+-- 而只有一份會被執行,漂移時 @parse ∘ render == id@ 會在沒人看得見的地方失效。
+--
+-- 選擇刪表而不是「接上載入」,理由是這張表想解決的問題其實不存在,而它
+-- 帶來的問題是真的:
+--
+-- 1. @domain@ 的開放性(ADR-0004 的原始訴求)**已經達成** —— 'parseLogicalName'
+--    根本不驗證 domain,任何合法分段都收。這張表的 @facet='domain'@ 那批
+--    從來就不是把關者,只是一份沒人讀的清單。
+-- 2. @state@ \/ @variant@ 不是設定,是**文法**。它們決定 @spr_item_potion_blue@
+--    的 @blue@ 是變體還是主體的一部分。做成執行期可 INSERT,等於讓使用者
+--    在事後改變已經寫進 @assets.logical_name@ 的舊名字的解析語意。這種東西
+--    該跟著程式碼版本走,不該跟著資料走。
+-- 3. 'validateLogicalName' 是純函數(@FromJSON LogicalName@ 用它),拿不到
+--    'Connection'。就算接上載入,@defaultVocab@ 也消不掉 —— 只會從
+--    「一份真相 + 一張死表」變成「兩份都活著的真相」,比現況更糟。
+--
+-- migration 001 不改(它已經在真實資料庫上跑過),所以新庫是建了再刪。
+-- 多一次 DDL 換到「schema 歷史逐字誠實」,划算。
+migration004 :: Migration
+migration004 =
+  Migration
+    { migVersion = 4
+    , migName = "naming_vocab 退場,命名詞彙以 core/Naming.hs 為唯一真相"
+    , migStatements =
+        [ -- IF EXISTS:這張表沒有任何外鍵指向它,手動刪過的資料庫不該卡在這裡。
+          "DROP TABLE IF EXISTS naming_vocab"
+        ]
+    }

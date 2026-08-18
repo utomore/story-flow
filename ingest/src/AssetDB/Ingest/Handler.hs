@@ -17,6 +17,7 @@ module AssetDB.Ingest.Handler
   , kindForPath
   , probeContent
   , extensionOf
+  , archiveExtensions
 
     -- * 個別處理器(匯出供測試)
   , pngHandler
@@ -24,12 +25,13 @@ module AssetDB.Ingest.Handler
   , audioHandlerStub
   ) where
 
+import AssetDB.Archive.Types (ArchiveFormat, formatExtensions)
+import AssetDB.PathText (extensionOf)
 import AssetDB.Types
 import Codec.Picture qualified as P
 import Data.Aeson (Value, object, (.=))
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.Char (toLower)
 import Data.List (find)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -76,14 +78,6 @@ probeContent :: Text -> ByteString -> Maybe Value
 probeContent path content = do
   h <- handlerFor (extensionOf path)
   hProbe h content
-
--- | 取小寫副檔名(含點號)。沒有副檔名時回空字串。
-extensionOf :: Text -> Text
-extensionOf path =
-  let leaf = last ("" : T.splitOn "/" path)
-   in case T.breakOnEnd "." leaf of
-        (pre, suf) | not (T.null pre) && not (T.null suf) -> T.pack (map toLower ('.' : T.unpack suf))
-        _ -> ""
 
 --------------------------------------------------------------------------------
 -- 圖片
@@ -206,11 +200,21 @@ docHandler =
     , hProbe = const Nothing
     }
 
+-- | 壓縮格式的副檔名,權威來源是 @archive@ 套件的 'formatExtensions'。
+--
+-- 這裡曾各寫一份並多列了 @.tar@/@.gz@ —— 但 @detectFormat@ 不認得它們,
+-- 掃描時被當散檔雜湊,造成「標為 KArchive 卻走散檔路徑」的不一致
+-- (enhance-0012)。引用同一個來源之後,tar/gz 歸為 'KSource'
+--(不認得的副檔名),與 archive 套件的認知一致。
+archiveExtensions :: [Text]
+archiveExtensions =
+  [T.pack e | f <- [minBound .. maxBound :: ArchiveFormat], e <- formatExtensions f]
+
 archiveHandler :: Handler
 archiveHandler =
   Handler
     { hName = "archive"
-    , hExtensions = [".zip", ".rar", ".7z", ".tar", ".gz"]
+    , hExtensions = archiveExtensions
     , hKind = KArchive
     , hProbe = const Nothing
     }

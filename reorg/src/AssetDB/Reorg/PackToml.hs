@@ -9,6 +9,7 @@
 -- 序列化器不會產生註解。
 module AssetDB.Reorg.PackToml (renderPackToml) where
 
+import AssetDB.PathText (leafOf)
 import AssetDB.Reorg.Snapshot
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -78,5 +79,3 @@ renderPackToml pk =
 quoted :: Text -> Text
 quoted t = "\"" <> T.replace "\"" "\\\"" (T.replace "\\" "\\\\" t) <> "\""
 
-leafOf :: Text -> Text
-leafOf p = last ("" : T.splitOn "/" p)

@@ -14,6 +14,7 @@ import AssetDB.Archive
 import AssetDB.Id (newULID, parseULID, unULID)
 import AssetDB.Manifest
 import AssetDB.Naming (validateLogicalName)
+import AssetDB.PathText (extensionOf)
 import AssetDB.Project.Assets
 import AssetDB.Project.Template
 import AssetDB.Store
@@ -297,12 +298,9 @@ toManifest _ p = do
       , maMeta = maybe Null id (pkMeta p >>= decodeStrict . encodeUtf8)
       }
 
+-- | 副檔名抽取的唯一實作在 core 的 AssetDB.PathText(enhance-0012)。
 extOf :: Text -> Text
-extOf p =
-  let leaf = last ("" : T.splitOn "/" p)
-   in case T.breakOnEnd "." leaf of
-        (pre, suf) | not (T.null pre) -> "." <> T.toLower suf
-        _ -> ""
+extOf = extensionOf
 
 cabalFile :: Text -> Text
 cabalFile name =

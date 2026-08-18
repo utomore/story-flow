@@ -33,8 +33,8 @@ module AssetDB.Reorg.Plan
   , slugify
   ) where
 
+import AssetDB.PathText (leafOf, slugify)
 import AssetDB.Reorg.Snapshot
-import Data.Char (isAscii, isDigit, isLower, toLower)
 import Data.List (sortOn)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -146,22 +146,9 @@ targetDirFor pk =
     vendorSlug = maybe "unknown" (nonEmpty . slugify) (prVendor pk)
     nonEmpty s = if T.null s then "unknown" else s
 
--- | 路徑安全的識別字串。非 ASCII 字元會被丟掉,所以結果可能是空的 ——
--- 呼叫端必須處理,不能假設它有內容。
-slugify :: Text -> Text
-slugify =
-  T.intercalate "-"
-    . filter (not . T.null)
-    . T.splitOn "-"
-    . T.map safeChar
-    . T.map toLower
-  where
-    safeChar c
-      | isAscii c && (isLower c || isDigit c) = c
-      | otherwise = '-'
-
-leafOf :: Text -> Text
-leafOf p = last ("" : T.splitOn "/" p)
+-- slugify 與 leafOf 的唯一實作在 core 的 AssetDB.PathText(enhance-0012):
+-- slugify 同時決定掃描端的 pack slug 與這裡的目錄名,兩份實作會分家。
+-- slugify 仍自本模組 re-export,呼叫端不變。
 
 dedupe :: Ord a => [a] -> [a]
 dedupe = go Set.empty

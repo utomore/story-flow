@@ -17,7 +17,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
 import Data.Text qualified as T
 import Database.SQLite.Simple
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, getFileSize)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -85,6 +85,31 @@ spec = around withScanned $ do
       srArchivesSkipped r `shouldBe` 0
       -- 重算之後筆數仍然一樣 —— 舊項目被刪掉重建,沒有殘留
       count st "assets" `shouldReturn` 5
+
+  -- enhance-0010:散檔雜湊分兩路 —— 圖片/音效整檔讀(探測本來就需要
+  -- 全部位元組),其餘 kind 走 sha256File 的串流路徑。兩路對同一份
+  -- 內容的結果都必須與串流雜湊一致,大小也必須正確。
+  describe "散檔雜湊策略" $ do
+    it "串流路徑(非媒體 kind)的雜湊與大小和整檔讀取一致" $ \(st, opts) -> do
+      -- .txt 的處理器不探測內容,走串流路徑。
+      let path = soRootPath opts </> "docs" </> "金門建築.txt"
+      expected <- unSha256 <$> sha256File path
+      rows <-
+        query_ (storeConn st) "SELECT sha256 FROM assets WHERE rel_path = 'docs/金門建築.txt'" ::
+          IO [Only Text]
+      map fromOnly rows `shouldBe` [expected]
+      size <- getFileSize path
+      brows <-
+        query (storeConn st) "SELECT bytes FROM blobs WHERE sha256 = ?" (Only expected) ::
+          IO [Only Integer]
+      map fromOnly brows `shouldBe` [size]
+
+    it "媒體路徑(整檔讀供探測)的雜湊與 sha256File 一致" $ \(st, opts) -> do
+      expected <- unSha256 <$> sha256File (soRootPath opts </> "extracted" </> "shared.png")
+      rows <-
+        query_ (storeConn st) "SELECT sha256 FROM assets WHERE rel_path = 'extracted/shared.png'" ::
+          IO [Only Text]
+      map fromOnly rows `shouldBe` [expected]
 
 --------------------------------------------------------------------------------
 

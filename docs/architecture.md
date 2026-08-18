@@ -5,7 +5,7 @@ title: assetdb
 description: 工作室素材庫的索引、檢索與專案素材配置系統
 status: active
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-19
 ---
 
 ## AssetDB(Alchbees Asset & Project Management System)系統架構
@@ -183,13 +183,15 @@ CREATE VIRTUAL TABLE assets_cjk USING fts5(…, tokenize='unicode61 …');  -- �
 資料化來源的 `naming_vocab` 表從未被查詢過,已於 store migration 004 移除(bug-0006)。
 
 **前端型別契約**:後端 `server/src/AssetDB/Server/TsTypes.hs` 手寫產生器輸出 `web/src/api/types.ts`,
-以 `TsTypesSpec` 保證與 `Api.hs` 的 `ToJSON` 一致(不用 OpenAPI)。已知落地缺口見
-`docs/enhance/enhance-0014-ts-types-drift-check.md`。
+以 `TsTypesSpec` 保證與 `Api.hs` 的 `ToJSON` 一致(不用 OpenAPI);`TsTypesDriftSpec`
+另比對磁碟上的 types.ts 是否為最新產物,漂移在 `cabal test all` 就會紅(enhance-0014)。
 
 ### 使用到的套件
 
-九個 cabal 套件(見上表)+ `web/` 一個 npm 套件。跨套件共用的小型純函數目前分散重複
-(`leafOf`/`slugify`/縮圖路徑規則等各 2–5 份),整併計畫見 `docs/enhance/`。
+九個 cabal 套件(見上表)+ `web/` 一個 npm 套件。跨套件共用的小型純函數
+(`leafOf`/`slugify`/縮圖路徑規則/`ThumbSize` 等)已收斂於 `core` 的
+`AssetDB.PathText`(enhance-0012,2026-08-19);壓縮格式副檔名清單的權威來源是
+`archive` 的 `formatExtensions`。
 
 ### 開發階段
 

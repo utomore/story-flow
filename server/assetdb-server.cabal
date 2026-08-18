@@ -69,6 +69,7 @@ test-suite assetdb-server-test
         AssetDB.Server.AppSpec
         AssetDB.Server.CliSpec
         AssetDB.Server.TsTypesSpec
+        AssetDB.Server.TsTypesDriftSpec
     hs-source-dirs:   test
     build-depends:
         , aeson

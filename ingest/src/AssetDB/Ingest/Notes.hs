@@ -11,10 +11,12 @@
 module AssetDB.Ingest.Notes
   ( NoteDoc (..)
   , parseFrontMatter
+  , frontJson
   , importNotes
   , listNotes
   , linkEntities
   , entityLinks
+  , tableOf
   , reindexNotes
   ) where
 
@@ -23,7 +25,10 @@ import AssetDB.Store
 import AssetDB.Store.Tokenize
 import AssetDB.Types (LinkRel, NoteKind, TextEnum (..))
 import Control.Monad (forM, forM_)
+import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8Lenient)
@@ -109,10 +114,14 @@ importNotes st kind dir = do
           , now
           )
         pure (ndTitle doc, ndSource doc)
-  where
-    frontJson kvs =
-      "{" <> T.intercalate "," [quo k <> ":" <> quo v | (k, v) <- kvs] <> "}"
-    quo t = "\"" <> T.replace "\"" "\\\"" t <> "\""
+
+-- | front matter → 存進 @notes.front_matter_json@ 的 JSON 文字。
+--
+-- 交給 aeson,不手刻拼接:值裡的反斜線與控制字元都要合法轉義,
+-- 手刻版本只處理了雙引號,寫出來的是不合法的 JSON(enhance-0005)。
+-- 重複的 key 後者為準 —— 與 JSON 物件的語意一致。
+frontJson :: [(Text, Text)] -> Text
+frontJson = decodeUtf8Lenient . BL.toStrict . Aeson.encode . Map.fromList
 
 listNotes :: Store -> Maybe NoteKind -> IO [(Text, Text, Text, Text)]
 listNotes st mk =
@@ -126,54 +135,81 @@ listNotes st mk =
 -- 關聯圖
 
 -- | 建立一條邊。@(src, dst, rel)@ 三元組唯一,重複建立是無操作。
-linkEntities :: Store -> Text -> Text -> Text -> Text -> LinkRel -> Maybe Text -> IO ()
-linkEntities st srcType srcUlid dstType dstUlid rel notes = do
-  srcId <- resolve srcType srcUlid
-  dstId <- resolve dstType dstUlid
-  case (srcId, dstId) of
-    (Just s, Just d) ->
-      execute
-        (storeConn st)
-        "INSERT OR IGNORE INTO links (src_type, src_id, dst_type, dst_id, rel, notes) \
-        \VALUES (?,?,?,?,?,?)"
-        (srcType, s, dstType, d, toTextEnum rel, notes)
-    _ -> ioError (userError "找不到來源或目標實體")
+--
+-- 失敗回 'Left' 帶著人看得懂的訊息 —— 型別字串與 ULID 都來自
+-- CLI 使用者的輸入,打錯不該是例外或崩潰。
+linkEntities :: Store -> Text -> Text -> Text -> Text -> LinkRel -> Maybe Text -> IO (Either Text ())
+linkEntities st srcType srcUlid dstType dstUlid rel notes =
+  case (,) <$> tableOf srcType <*> tableOf dstType of
+    Left e -> pure (Left e)
+    Right (srcTbl, dstTbl) -> do
+      srcId <- resolve srcTbl srcUlid
+      dstId <- resolve dstTbl dstUlid
+      case (srcId, dstId) of
+        (Just s, Just d) -> do
+          execute
+            (storeConn st)
+            "INSERT OR IGNORE INTO links (src_type, src_id, dst_type, dst_id, rel, notes) \
+            \VALUES (?,?,?,?,?,?)"
+            (srcType, s, dstType, d, toTextEnum rel, notes)
+          pure (Right ())
+        _ -> pure (Left "找不到來源或目標實體")
   where
-    resolve t u = do
-      rows <- query (storeConn st) (Query ("SELECT id FROM " <> tableOf t <> " WHERE ulid = ?")) (Only u)
+    resolve tbl u = do
+      rows <- query (storeConn st) (Query ("SELECT id FROM " <> tbl <> " WHERE ulid = ?")) (Only u)
       pure (case rows of (Only i : _) -> Just (i :: Int); _ -> Nothing)
 
-tableOf :: Text -> Text
+-- | 實體型別 → 資料表名。這個字串會拼進 SQL,而型別字串正是使用者在
+-- CLI 打的(@assetdb link --from foo:xxx@)—— 未知型別回 'Left',
+-- 由呼叫端轉成友善訊息,不是 'error' 崩潰。
+tableOf :: Text -> Either Text Text
 tableOf = \case
-  "asset" -> "assets"
-  "project" -> "projects"
-  "note" -> "notes"
-  "collection" -> "collections"
-  "pack" -> "packs"
-  other -> error ("未知的實體型別 " <> T.unpack other)
+  "asset" -> Right "assets"
+  "project" -> Right "projects"
+  "note" -> Right "notes"
+  "collection" -> Right "collections"
+  "pack" -> Right "packs"
+  other -> Left ("未知的實體型別 " <> other <> ",可用:asset、project、note、collection、pack")
 
 -- | 某個實體的所有邊,**雙向**。
 --
 -- 「改這張 tileset 會影響哪些關卡」是從目標端出發的查詢,
 -- 與「這個關卡用了哪些 tileset」一樣常見。只做單向等於做了一半。
-entityLinks :: Store -> Text -> Text -> IO [(Text, Text, Text, Text)]
-entityLinks st entType ulid = do
-  rows <-
-    query
-      (storeConn st)
-      ( Query
-          ( "SELECT 'out', l.rel, l.dst_type, l.dst_id FROM links l \
-            \JOIN " <> tableOf entType <> " e ON e.id = l.src_id \
-            \WHERE l.src_type = ? AND e.ulid = ? \
-            \UNION ALL \
-            \SELECT 'in', l.rel, l.src_type, l.src_id FROM links l \
-            \JOIN " <> tableOf entType <> " e ON e.id = l.dst_id \
-            \WHERE l.dst_type = ? AND e.ulid = ?"
-          )
-      )
-      (entType, ulid, entType, ulid) ::
-      IO [(Text, Text, Text, Int)]
-  pure [(d, r, t, T.pack (show i)) | (d, r, t, i) <- rows]
+--
+-- 回傳的對端識別是 **ULID**,不是內部整數 id —— 對外一律 ULID
+-- (ADR-0003),整數 id 不出這個模組。
+entityLinks :: Store -> Text -> Text -> IO (Either Text [(Text, Text, Text, Text)])
+entityLinks st entType ulid = case tableOf entType of
+  Left e -> pure (Left e)
+  Right tbl -> do
+    rows <-
+      query
+        conn
+        ( Query
+            ( "SELECT 'out', l.rel, l.dst_type, l.dst_id FROM links l \
+              \JOIN " <> tbl <> " e ON e.id = l.src_id \
+              \WHERE l.src_type = ? AND e.ulid = ? \
+              \UNION ALL \
+              \SELECT 'in', l.rel, l.src_type, l.src_id FROM links l \
+              \JOIN " <> tbl <> " e ON e.id = l.dst_id \
+              \WHERE l.dst_type = ? AND e.ulid = ?"
+            )
+        )
+        (entType, ulid, entType, ulid) ::
+        IO [(Text, Text, Text, Int)]
+    Right <$> forM rows toUlid
+  where
+    conn = storeConn st
+    -- 每條邊查一次對端的 ULID。一個實體的邊是個位數的量,
+    -- 不值得為它組五張表的 CASE 聯集。
+    toUlid (d, r, t, i) = do
+      u <- case tableOf t of
+        Left _ -> pure Nothing
+        Right tbl' -> do
+          rs <- query conn (Query ("SELECT ulid FROM " <> tbl' <> " WHERE id = ?")) (Only i) :: IO [Only Text]
+          pure (case rs of (Only x : _) -> Just x; _ -> Nothing)
+      -- 資料列損壞(未知型別或懸空 id)時退回原始整數,讓問題看得見。
+      pure (d, r, t, maybe (T.pack (show i)) id u)
 
 --------------------------------------------------------------------------------
 

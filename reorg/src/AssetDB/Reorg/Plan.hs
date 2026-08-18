@@ -16,15 +16,13 @@
 -- └── .assetdb\/
 -- @
 --
--- == 刪除閘門
+-- == 散檔:一律保留
 --
--- 只有**同時滿足**兩個條件的散檔會被刪除:
---
--- 1. 它有 SHA-256(掃描時讀得到內容)
--- 2. 那個 SHA-256 出現在某個保留下來的壓縮檔內
---
--- 任何不滿足的檔案一律保留,並列入報告。「檔名相同」「大小相同」
--- 「看起來像是那包裡的」都不算證據。
+-- 2026-08-09 的一次性搬遷(見 @docs\/architecture.md@ 開發階段 3)已執行
+-- 完畢,當時的路徑規則 —— 廠商前綴的刪除閘門、中文頂層資料夾對應 ——
+-- 已於 enhance-0009 退役,規則本身留在 git 歷史裡。散檔如今一律產生
+-- 'OpKeep':再跑一次 @reorganize --apply@ 只會重組素材包,
+-- 不會搬移或刪除任何散檔。
 module AssetDB.Reorg.Plan
   ( Op (..)
   , Plan (..)
@@ -32,14 +30,12 @@ module AssetDB.Reorg.Plan
   , planStats
   , buildPlan
   , targetDirFor
-  , mapTopLevel
   , slugify
   ) where
 
 import AssetDB.Reorg.Snapshot
 import Data.Char (isAscii, isDigit, isLower, toLower)
 import Data.List (sortOn)
-import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -122,36 +118,11 @@ buildPlan srcRoot dstRoot snap =
               }
           ]
 
-    -- 每個散檔要嘛能證明存在於壓縮檔內(刪),要嘛有明確的搬移目的地(搬),
-    -- 要嘛需要人工決定(留)。沒有第四種情況。
+    -- 散檔一律保留(見模組說明)。'OpMove' 與 'OpDelete' 只會出於
+    -- 素材包重組,不會出於散檔。
     looseOps = map oneLoose (snLoose snap)
 
-    oneLoose lr =
-      case (lrSha lr, mapTopLevel (lrRelPath lr)) of
-        (Nothing, _) ->
-          OpKeep (lrRelPath lr) "掃描時讀不到內容,沒有雜湊可證明"
-        (Just sha, dest)
-          | Just archive <- Map.lookup sha (snArchivedBy snap)
-          , isVendorAsset (lrRelPath lr) ->
-              OpDelete
-                { opFrom = lrRelPath lr
-                , opSha = sha
-                , opCoveredBy = archive
-                , opBytes = lrBytes lr
-                }
-          | Just d <- dest ->
-              OpMove
-                { opFrom = lrRelPath lr
-                , opTo = d
-                , opBytes = lrBytes lr
-                , opWhy = "工作室自有內容,搬移而非刪除"
-                }
-          | otherwise ->
-              OpKeep (lrRelPath lr) "不在已知的頂層對應規則內,需要人工決定"
-
-    -- 只刪除**廠商素材**的解壓副本。工作室自己的檔案即使雜湊碰巧
-    -- 出現在某個壓縮檔內,也不該被當成解壓副本刪掉。
-    isVendorAsset p = "Game Assets itchio/" `T.isPrefixOf` p
+    oneLoose lr = OpKeep (lrRelPath lr) "散檔不再有自動搬移/刪除規則,保留待人工決定"
 
     warnings =
       concat
@@ -174,22 +145,6 @@ targetDirFor pk =
   where
     vendorSlug = maybe "unknown" (nonEmpty . slugify) (prVendor pk)
     nonEmpty s = if T.null s then "unknown" else s
-
--- | 頂層資料夾的對應。回傳新結構裡的完整相對路徑。
---
--- 中文資料夾名改成 ASCII:跨平台編碼、shell 跳脫、git 路徑。
--- **檔案內容與資料庫顯示名稱仍然是中文** —— 改的只有路徑。
-mapTopLevel :: Text -> Maybe Text
-mapTopLevel p =
-  case [(from, to) | (from, to) <- rules, from `T.isPrefixOf` p] of
-    ((from, to) : _) -> Just (to <> T.drop (T.length from) p)
-    [] -> Nothing
-  where
-    rules =
-      [ ("GameProjects/", "projects/")
-      , ("Papers/", "knowledge/papers/")
-      , ("行銷/", "marketing/")
-      ]
 
 -- | 路徑安全的識別字串。非 ASCII 字元會被丟掉,所以結果可能是空的 ——
 -- 呼叫端必須處理,不能假設它有內容。

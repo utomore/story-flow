@@ -1,8 +1,11 @@
 -- | 重構規劃的測試。
 --
--- 規劃器是純函數,所以刪除閘門的每一條規則都能在這裡完整驗證,
+-- 規劃器是純函數,所以每一條規則都能在這裡完整驗證,
 -- 不必對著真實素材庫跑一次看結果 —— 那是**不可逆操作**,
 -- 「跑跑看」不是可接受的驗證方式。
+--
+-- 2026-08-09 一次性搬遷的規則(刪除閘門、頂層對應)已於 enhance-0009
+-- 退役,對應的測試一併移除;取而代之的是「散檔一律保留」的防誤觸測試。
 module AssetDB.Reorg.PlanSpec (spec) where
 
 import AssetDB.Reorg.Plan
@@ -39,41 +42,25 @@ spec = do
       targetDirFor (pack "jinmen") {prKind = "reference"}
         `shouldBe` "library/reference/jinmen"
 
-  describe "頂層資料夾對應" $ do
-    it "中文資料夾名改成 ASCII" $ do
-      mapTopLevel "行銷/2024-ebook.pdf" `shouldBe` Just "marketing/2024-ebook.pdf"
-      mapTopLevel "Papers/apecs.pdf" `shouldBe` Just "knowledge/papers/apecs.pdf"
-      mapTopLevel "GameProjects/Col/gdd.md" `shouldBe` Just "projects/Col/gdd.md"
-
-    it "不在規則內的路徑回 Nothing —— 由規劃器決定保留" $
-      mapTopLevel "SomethingElse/x.txt" `shouldBe` Nothing
-
-  describe "刪除閘門" $ do
-    -- 這是整個重構最危險的部分。三條規則,每一條都獨立測。
-
-    it "雜湊存在於壓縮檔內的廠商散檔會被刪除,且記錄證據" $ do
-      let p = buildPlan "src" "dst" (snapshotWith [loose "Game Assets itchio/a/x.png" (Just "aaa")] (Map.fromList [("aaa", "Game Assets itchio/Raw/pack.zip")]))
-      [o | o@OpDelete {} <- planOps p]
-        `shouldBe` [OpDelete "Game Assets itchio/a/x.png" "aaa" "Game Assets itchio/Raw/pack.zip" 10]
-
-    it "雜湊不在任何壓縮檔內就不刪 —— 即使路徑看起來像廠商素材" $ do
-      let p = buildPlan "src" "dst" (snapshotWith [loose "Game Assets itchio/a/x.png" (Just "zzz")] (Map.fromList [("aaa", "pack.zip")]))
+  describe "散檔" $ do
+    -- enhance-0009:一次性搬遷的規則退役後,散檔一律保留。
+    -- 這條測試是防誤觸的迴歸保證 —— 誤跑 reorganize --apply 的最壞結果
+    -- 是素材包被重組,而不是散檔被搬移或刪除。
+    it "一律 OpKeep,不產生任何搬移或刪除" $ do
+      let p =
+            buildPlan
+              "src"
+              "dst"
+              ( snapshotWith
+                  [ loose "Game Assets itchio/a/x.png" (Just "aaa") -- 舊廠商前綴,雜湊也命中壓縮檔
+                  , loose "GameProjects/Col/icon.png" (Just "aaa") -- 舊頂層對應規則的路徑
+                  , loose "unknown/y.txt" Nothing -- 沒有雜湊
+                  ]
+                  (Map.fromList [("aaa", "Game Assets itchio/Raw/pack.zip")])
+              )
       [o | o@OpDelete {} <- planOps p] `shouldBe` []
-      [opWhy o | o@OpKeep {} <- planOps p] `shouldBe` ["不在已知的頂層對應規則內,需要人工決定"]
-
-    it "沒有雜湊的檔案永遠不刪" $ do
-      -- 掃描時讀不到內容的項目。沒有證據就不動它。
-      let p = buildPlan "src" "dst" (snapshotWith [loose "Game Assets itchio/a/x.png" Nothing] (Map.fromList [("aaa", "pack.zip")]))
-      [o | o@OpDelete {} <- planOps p] `shouldBe` []
-      [opWhy o | o@OpKeep {} <- planOps p] `shouldBe` ["掃描時讀不到內容,沒有雜湊可證明"]
-
-    it "工作室自有檔案即使雜湊碰巧命中也不刪,而是搬移" $ do
-      -- 這條規則保護的是「我自己畫的圖剛好與某個素材包內容相同」
-      -- 這種罕見但災難性的情況。刪除只針對 Game Assets itchio/ 底下的解壓副本。
-      let p = buildPlan "src" "dst" (snapshotWith [loose "GameProjects/Col/icon.png" (Just "aaa")] (Map.fromList [("aaa", "pack.zip")]))
-      [o | o@OpDelete {} <- planOps p] `shouldBe` []
-      [opTo o | o@OpMove {} <- planOps p, opFrom o == "GameProjects/Col/icon.png"]
-        `shouldBe` ["projects/Col/icon.png"]
+      [o | o@OpMove {} <- planOps p] `shouldBe` []
+      length [o | o@OpKeep {} <- planOps p] `shouldBe` 3
 
   describe "素材包搬移" $ do
     it "壓縮檔保留廠商原始檔名" $ do
@@ -97,8 +84,10 @@ spec = do
 
   describe "統計" $
     it "刪除的位元組數是釋出空間" $ do
-      let snap = snapshotWith [loose "Game Assets itchio/a.png" (Just "aaa")] (Map.fromList [("aaa", "p.zip")])
-      psBytesFreed (planStats (buildPlan "src" "dst" snap)) `shouldBe` 10
+      -- 現行規劃器不再產生 OpDelete,但統計對 Plan 是通用的,
+      -- 直接以手組的 Plan 驗證。
+      let p = Plan "src" "dst" [OpDelete "a.png" "aaa" "p.zip" 10] []
+      psBytesFreed (planStats p) `shouldBe` 10
 
 --------------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@ module AssetDB.Store.MigrateSpec (spec) where
 import AssetDB.Store
 import AssetDB.Store.Schema (schemaVersion)
 import Control.Exception (try)
+import Data.Text (Text)
 import Database.SQLite.Simple
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -93,6 +94,56 @@ spec = do
     it "foreign_keys 有開" $ inMemory $ \st -> do
       r <- query_ (storeConn st) "PRAGMA foreign_keys" :: IO [Only Int]
       map fromOnly r `shouldBe` [1]
+
+  -- enhance-0004:migration 的敘述以 execute_ 執行,不吃參數,所以需要組裝
+  -- 的 migration 只能把值拼進 SQL 文字。這一組測試鎖住「拼進去的值不會壞掉
+  -- 語法」這件事 —— 它不是注入防線(值全是編譯期字面值),而是防止有人在
+  -- 定義裡打一個單引號、卻要到 migration 在使用者機器上跑起來才發現。
+  describe "lit" $ do
+    it "把值包成 SQL 字面值" $
+      lit "gui" `shouldBe` "'gui'"
+
+    it "單引號加倍" $ do
+      lit "it's" `shouldBe` "'it''s'"
+      lit "'" `shouldBe` "''''"
+
+    it "空字串是合法的字面值,不是空字串拼接" $
+      lit "" `shouldBe` "''"
+
+    it "不動中文、換行與其他字元" $
+      lit "書頁、羊皮紙\n卷軸" `shouldBe` "'書頁、羊皮紙\n卷軸'"
+
+    it "含單引號的值真的能跑完一個 migration 並原樣讀回" $ inMemory $ \st -> do
+      let quoted = "player's inventory 'slot'" :: Text
+          migs =
+            [ Migration
+                1
+                "lit round-trip"
+                [ "CREATE TABLE t (v TEXT NOT NULL)"
+                , "INSERT INTO t (v) VALUES (" <> lit quoted <> ")"
+                ]
+            ]
+      _ <- runMigrations (storeConn st) migs
+      rows <- query_ (storeConn st) "SELECT v FROM t" :: IO [Only Text]
+      map fromOnly rows `shouldBe` [quoted]
+
+    it "同一個值直接拼進 SQL 則會失敗 —— 這正是 lit 擋掉的事" $ inMemory $ \st -> do
+      let broken =
+            [ Migration
+                1
+                "raw concatenation"
+                [ "CREATE TABLE t (v TEXT NOT NULL)"
+                , "INSERT INTO t (v) VALUES ('" <> "player's inventory" <> "')"
+                ]
+            ]
+      r <- try (runMigrations (storeConn st) broken) :: IO (Either SQLError [Migration])
+      r `shouldSatisfy` isLeftE
+
+  describe "num" $ do
+    it "整數不經過字串形式" $ do
+      num 0 `shouldBe` "0"
+      num 110 `shouldBe` "110"
+      num (-5) `shouldBe` "-5"
 
 --------------------------------------------------------------------------------
 

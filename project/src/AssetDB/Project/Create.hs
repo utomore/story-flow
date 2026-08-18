@@ -3,6 +3,11 @@ module AssetDB.Project.Create
   ( CreateOptions (..)
   , CreateResult (..)
   , createProject
+
+    -- * 授權閘門
+    --
+    -- $licenseGate
+  , nonCommercialPacks
   ) where
 
 import AssetDB.Archive
@@ -180,6 +185,12 @@ selectAssets conn packs q = do
           <> textFilter
           <> " ORDER BY a.logical_name"
   query conn (Query sql) (map SQLText packs <> maybe [] (\t -> [SQLText ("%" <> t <> "%")]) q)
+
+-- $licenseGate
+--
+-- 'nonCommercialPacks' 匯出是為了讓它**被直接測到**。它是專案裡少數帶法律
+-- 後果的判斷,而從 'createProject' 走到它需要一整組真實的壓縮檔與
+-- @ArchiveTools@ —— 那樣的測試貴到不會有人寫,於是這條防線就一直沒有測試。
 
 -- | 不可商用的素材包。**NULL 也算不可用** —— 授權未查證時不該放行。
 nonCommercialPacks :: Connection -> [Text] -> IO [Text]

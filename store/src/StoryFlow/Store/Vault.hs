@@ -20,6 +20,7 @@ module StoryFlow.Store.Vault
   , registryPath
   , loadVaultRegistry
   , loadVaultRegistryFrom
+  , registerVaultIn
 
     -- * 初始化
   , initVault
@@ -209,6 +210,34 @@ loadVaultRegistryFrom fp = do
     nested tbl = case M.lookup "vaults" tbl of
       Just (TOML.Table t) -> flat t
       _ -> M.empty
+
+-- | 把一個 Vault 記進全域註冊表。__只追加一行__,不重寫整份檔案。
+--
+-- ADR-0008 要求 @vaults.toml@ 可手寫、格式簡單,所以作者的註解與排列順序不能
+-- 被工具洗掉;重寫整份檔案就會。名稱已經登記過同一個路徑時是 no-op(重複
+-- 執行 @vault init@ 不該報錯);登記到__另一個__路徑時回
+-- 'VaultConfigInvalid' ——同一個名稱指向兩個世界是誤操作的溫床,而
+-- TOML 也不接受重複的鍵。
+--
+-- 註冊表檔案位置由呼叫端給,與 'loadVaultRegistryFrom' 同一個理由:測試不能
+-- 碰使用者真正的 @~\/.config\/story-flow\/vaults.toml@。
+registerVaultIn :: FilePath -> Text -> FilePath -> IO (Either StoreError ())
+registerVaultIn regFile name root =
+  loadVaultRegistryFrom regFile >>= \case
+    Left e -> pure (Left e)
+    Right reg -> case M.lookup name reg of
+      Just old
+        | normalise old == normalise root -> pure (Right ())
+        | otherwise ->
+            pure . Left . VaultConfigInvalid regFile $
+              "名稱「"
+                <> name
+                <> "」已經指向 "
+                <> T.pack old
+                <> ";請換一個 Vault 名稱,或先手動修掉這一行"
+      Nothing -> do
+        createDirectoryIfMissing True (takeDirectory regFile)
+        appendMissingLines regFile [name <> " = " <> quote (T.pack (toSlash root))]
 
 -- 初始化 ----------------------------------------------------------------------
 

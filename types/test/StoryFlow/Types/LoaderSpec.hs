@@ -1,6 +1,7 @@
 -- | func-0002 T10(載入與錯誤彙整)與 T11(專案實檔)的對照測試。
 module StoryFlow.Types.LoaderSpec (spec) where
 
+import Control.Exception (bracket)
 import qualified Data.ByteString as BS
 import Data.Either (isRight)
 import Data.List (isInfixOf, sort)
@@ -11,6 +12,7 @@ import StoryFlow.Core.Link (LinkKind (..))
 import StoryFlow.Core.Registry
 import StoryFlow.Types.Loader
 import System.Directory (createDirectoryIfMissing)
+import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -292,6 +294,38 @@ spec = do
         $ \dir -> do
           r <- loadRegistry dir
           map fieldOf (errsOf r) `shouldBe` ["dir"]
+
+  -- func-0006 T2:執行期定位
+  describe "defaultRegistryDir" $ do
+    it "環境變數優先" $
+      withRegistryDir [("a.toml", goodToml "a-fragment" "甲")] $ \dir ->
+        withEnvVar registryEnvVar (Just dir) $
+          defaultRegistryDir `shouldReturn` Just dir
+
+    it "環境變數指向不存在的目錄時回 Nothing,不偷偷退回 data-files" $
+      withSystemTempDirectory "storyflow-noreg" $ \dir ->
+        withEnvVar registryEnvVar (Just (dir </> "不存在")) $
+          defaultRegistryDir `shouldReturn` Nothing
+
+    it "沒設環境變數時走 cabal 的 data-files,而且那裡有專案的五份宣告" $
+      withEnvVar registryEnvVar Nothing $
+        defaultRegistryDir >>= \case
+          Nothing -> expectationFailure "data-files 的 registry/ 應該找得到"
+          Just dir -> do
+            r <- loadRegistry dir
+            case r of
+              Left es -> expectationFailure ("專案實檔載入失敗:" <> show es)
+              Right reg -> length (listTypes reg) `shouldBe` 5
+
+-- | 設定(或清掉)一個環境變數跑一段,結束後還原。
+withEnvVar :: String -> Maybe String -> IO a -> IO a
+withEnvVar name mv act = bracket save restore (const act)
+  where
+    save = do
+      old <- lookupEnv name
+      maybe (unsetEnv name) (setEnv name) mv
+      pure old
+    restore = maybe (unsetEnv name) (setEnv name)
 
 fieldOf :: LoadError -> Text
 fieldOf = \case

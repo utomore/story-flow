@@ -5,7 +5,7 @@ title: story-flow
 description: 以 Entity 片段圖譜管理故事設定並偵測劇情衝突的工具
 status: active
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-18
 ---
 
 ## story-flow 系統架構
@@ -106,6 +106,9 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
   `{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`——AI Agent 只需 parse 一種形狀
 - **LLM**:`http-client` + `aeson` 直接打 OpenAI 相容端點(不引入重量級 SDK)
 - **設定**:Vault 內 `.storyflow/config.toml`,全域 `~/.config/story-flow/vaults.toml`
+  ——後者的位置可由環境變數 `STORYFLOW_VAULTS` 覆寫(與型別註冊表的 `STORYFLOW_REGISTRY`
+  對稱)。測試與多工作集切換都需要一個不動使用者真實註冊表的覆寫點;`story-flow vault init`
+  是唯一會寫入這份註冊表的操作,只追加一行,保住它「可手寫」的承諾(func-0006)
 - **測試**:`hspec`,`temporary` 建臨時 Vault 做落地層測試
 - **前端**:無(P6 才評估)
 

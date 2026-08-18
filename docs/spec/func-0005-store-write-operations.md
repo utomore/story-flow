@@ -5,7 +5,7 @@ title: store-write-operations
 description: 補齊建檔、增節、改寫、刪除與 Level 節點的落地寫入能力
 status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 depends-on: [func-0002, func-0003, func-0004]
 related-adr: [adr-0002, adr-0003, adr-0005, adr-0009, adr-0010]
 related-spec: []
@@ -637,3 +637,21 @@ removeNode :: Connection -> Vault -> Id -> Int -> DeleteMode
 12. **測試用的 `TypeRegistry` 不去讀 `types/registry/` 實檔**。那是 `storyflow-types` 的測試
     範圍(T5 已經逐欄對照過);落地層的測試若依賴實檔,別人改一份 TOML 就會讓 store 變紅。
     `StoryFlow.Store.Fixtures.testRegistry` 只需要「dir 查得到」與「dir 查不到」兩種型別。
+
+13. **後補兩個函式(func-0006 補的)**。本規格收工時,落地層還缺兩條路,兩條都是在 P2 的業務
+    層才踩到:
+
+    - `writeEntityPatch :: Connection -> Vault -> Id -> Int -> Maybe Text ->
+      (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)`
+      ——**改標題**。`writeEntityMeta` 吃的是 `MetaOverride`,而它連 `id` 與 `title` 都沒有;
+      主體那一半走 `updateFrontmatter` 就能改,節層則需要 md 新增的 `renameSection`
+      (見 func-0003 實作備註 10)。兩件事收在同一次寫入裡:分兩次寫的話,第二次失敗會留下
+      「標題改了、summary 沒改」的半套結果,而且 revision 平白跳兩號。
+      `writeEntityMeta` 現在是它帶 `Nothing` 的特例,既有呼叫端與測試不受影響。
+
+    - `registerVaultIn :: FilePath -> Text -> FilePath -> IO (Either StoreError ())`
+      ——**把 Vault 登記進全域註冊表**。`initVault` 只建骨架,而 ADR-0008 的第一段規則
+      (`--vault <名稱>` 查全域註冊表)如果沒有人負責寫 `vaults.toml`,就永遠命不中。
+      只**追加一行**、不重寫整份檔案(保住「可手寫」);同名登記到另一個路徑回
+      `VaultConfigInvalid` 而不是靜默覆蓋。註冊表位置由呼叫端給,與
+      `loadVaultRegistryFrom` / `resolveVaultWith` 同一個理由:測試不能碰使用者真正的那一份。

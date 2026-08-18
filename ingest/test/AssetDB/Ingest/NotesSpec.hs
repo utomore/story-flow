@@ -4,7 +4,12 @@ import AssetDB.Ingest.Notes
 import AssetDB.Store
 import AssetDB.Types (LinkRel (..), NoteKind (..))
 import Control.Monad (void)
+import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
+import Data.Either (isLeft)
+import Data.Map.Strict qualified as Map
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Database.SQLite.Simple
@@ -35,6 +40,30 @@ spec = do
     it "解析所有 key: value" $
       lookup "tags" (ndFront (parseFrontMatter "x.md" "---\ntitle: T\ntags: a, b\n---\nx"))
         `shouldBe` Just "a, b"
+
+    -- enhance-0005 T4:收尾的 --- 直接頂著檔案結尾,是真實會出現的
+    -- 邊界(編輯器不補結尾換行)。
+    it "對 --- 後直接 EOF 的內容正確解析" $ do
+      let doc = parseFrontMatter "x.md" "---\ntitle: T\n---"
+      ndTitle doc `shouldBe` "T"
+      ndFront doc `shouldBe` [("title", "T")]
+      ndBody doc `shouldBe` ""
+
+    it "對 --- 加換行即 EOF 的內容正確解析" $ do
+      let doc = parseFrontMatter "x.md" "---\ntitle: T\n---\n"
+      ndTitle doc `shouldBe` "T"
+      ndBody doc `shouldBe` ""
+
+  -- enhance-0005 T1:front matter 值裡的反斜線與控制字元(Windows 路徑、
+  -- tab)以前會被手刻拼接寫成不合法的 JSON。
+  describe "frontJson" $ do
+    it "對含反斜線與控制字元的值產生合法 JSON" $ do
+      let kvs = [("path", "C:\\assets\\gui"), ("note", "tab\there\nnewline")]
+      Aeson.decode (BL.fromStrict (encodeUtf8 (frontJson kvs)))
+        `shouldBe` Just (Map.fromList kvs :: Map.Map Text Text)
+
+    it "空 front matter 是空物件" $
+      frontJson [] `shouldBe` "{}"
 
   describe "importNotes" $ do
     it "匯入目錄裡的 Markdown" $ withNotes $ \(st, dir) -> do
@@ -67,24 +96,49 @@ spec = do
         query_ (storeConn st) "SELECT COUNT(*) FROM notes_cjk" :: IO [Only Int]
       map fromOnly rows `shouldBe` [2]
 
+  -- enhance-0005 T2:實體型別字串是使用者在 CLI 打的,打錯不該崩潰。
+  describe "tableOf" $ do
+    it "對未知實體型別回傳 Left 而非崩潰" $ do
+      tableOf "foo" `shouldSatisfy` isLeft
+      tableOf "" `shouldSatisfy` isLeft
+
+    it "五種已知型別對應到資料表" $ do
+      tableOf "asset" `shouldBe` Right "assets"
+      tableOf "note" `shouldBe` Right "notes"
+
   describe "links" $ do
     it "建立的邊雙向都查得到" $ withNotes $ \(st, dir) -> do
       -- 「改這張 tileset 會影響哪些關卡」是從目標端出發的查詢,
       -- 與正向一樣常見。只做單向等於做了一半。
       _ <- importNotes st NkKnowledge dir
       [(a, _, _, _), (b, _, _, _)] <- take 2 <$> listNotes st Nothing
-      linkEntities st "note" a "note" b RelDocuments (Just "測試")
-      outs <- entityLinks st "note" a
-      ins <- entityLinks st "note" b
+      linkEntities st "note" a "note" b RelDocuments (Just "測試") `shouldReturn` Right ()
+      Right outs <- entityLinks st "note" a
+      Right ins <- entityLinks st "note" b
       map (\(d, r, _, _) -> (d, r)) outs `shouldBe` [("out", "documents")]
       map (\(d, r, _, _) -> (d, r)) ins `shouldBe` [("in", "documents")]
 
     it "重複建立同一條邊是無操作" $ withNotes $ \(st, dir) -> do
       _ <- importNotes st NkKnowledge dir
       [(a, _, _, _), (b, _, _, _)] <- take 2 <$> listNotes st Nothing
-      linkEntities st "note" a "note" b RelDocuments Nothing
-      linkEntities st "note" a "note" b RelDocuments Nothing
-      length <$> entityLinks st "note" a `shouldReturn` 1
+      _ <- linkEntities st "note" a "note" b RelDocuments Nothing
+      _ <- linkEntities st "note" a "note" b RelDocuments Nothing
+      fmap length <$> entityLinks st "note" a `shouldReturn` Right 1
+
+    -- enhance-0005 T3:對外一律 ULID(ADR-0003),內部整數 id 不出模組。
+    it "entityLinks 回傳的對端識別是 ULID 而非內部整數 id" $ withNotes $ \(st, dir) -> do
+      _ <- importNotes st NkKnowledge dir
+      [(a, _, _, _), (b, _, _, _)] <- take 2 <$> listNotes st Nothing
+      _ <- linkEntities st "note" a "note" b RelDocuments Nothing
+      Right [(_, _, _, dst)] <- entityLinks st "note" a
+      dst `shouldBe` b
+      T.length dst `shouldBe` 26
+
+    it "未知實體型別回 Left 帶友善訊息" $ withNotes $ \(st, _) -> do
+      r <- linkEntities st "foo" "01X" "note" "01Y" RelDocuments Nothing
+      r `shouldSatisfy` isLeft
+      ls <- entityLinks st "foo" "01X"
+      ls `shouldSatisfy` isLeft
 
 --------------------------------------------------------------------------------
 

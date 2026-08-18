@@ -353,6 +353,9 @@ searchP =
     <*> switch (long "named" <> help "只要已指定邏輯名稱的")
     <*> switch (long "include-excluded" <> help "納入被判定為非素材的項目(宣傳圖等)")
     <*> switch (long "include-reference" <> help "納入參考資料。預設排除 —— 找 GUI 框時不該跳出廟宇照片")
+    -- 預設 20 是一個終端機畫面放得下的量。各入口的分頁預設刻意不同
+    -- (enhance-0006):server 60 / 上限 500(Server/App.hs)、web 一頁
+    -- 120(Grid.tsx 的 PAGE)、store 層函式庫預設 50(Store/Search.hs)。
     <*> option auto (long "limit" <> metavar "N" <> value 20 <> showDefault <> help "顯示筆數")
     <*> switch (long "facets" <> help "同時顯示各 facet 的計數")
 

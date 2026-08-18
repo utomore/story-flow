@@ -44,9 +44,10 @@ runLink dbPath LinkArgs {..} = do
   rel <- either die pure (parseTextEnum laRel :: Either Text LinkRel)
   withStore dbPath $ \store' -> do
     _ <- initSchema store'
-    linkEntities store' st' su dt du rel laNote
+    -- 型別與 ULID 都是使用者打的,錯了要用一句話講清楚,不是例外堆疊。
+    linkEntities store' st' su dt du rel laNote >>= either die pure
     TIO.putStrLn ("已連結 " <> laFrom <> " --" <> laRel <> "--> " <> laTo)
-    ls <- entityLinks store' st' su
+    ls <- entityLinks store' st' su >>= either die pure
     mapM_ (\(d, r, t, i) -> TIO.putStrLn ("  " <> d <> "  " <> r <> "  " <> t <> "#" <> i)) ls
 
 splitRef :: Text -> Either Text (Text, Text)

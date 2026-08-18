@@ -1,0 +1,96 @@
+cabal-version:      3.4
+name:               storyflow-server
+version:            0.1.0.0
+synopsis:           story-flow 的 servant REST 伺服器(綁 loopback)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DataKinds
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+        TypeOperators
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        StoryFlow.Server
+        StoryFlow.Server.Auth
+        StoryFlow.Server.Error
+        StoryFlow.Server.State
+    -- func-0008 驗收標準 3:handler 內沒有業務判斷,server 不 import
+    -- storyflow-store。狀態碼的分派走 service 的 errorCode 字串,不是落地層的
+    -- 建構子——storyflow-store / sqlite-simple 出現在這裡即為架構違規(T6)。
+    build-depends:
+        , aeson
+        , base             >=4.14 && <5
+        , bytestring
+        , directory
+        , http-types
+        , mtl
+        , servant
+        , servant-server
+        , storyflow-api
+        , storyflow-core
+        , storyflow-service
+        , text
+        , wai
+        , warp
+
+executable story-flow-serve
+    import:           warnings, lang
+    hs-source-dirs:   app
+    main-is:          Main.hs
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , optparse-applicative
+        , storyflow-api
+        , storyflow-server
+        , text
+
+test-suite storyflow-server-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        StoryFlow.Server.AuthSpec
+        StoryFlow.Server.CabalSpec
+        StoryFlow.Server.ConcurrencySpec
+        StoryFlow.Server.ErrorMapSpec
+        StoryFlow.Server.Fixtures
+        StoryFlow.Server.HandlerSpec
+        StoryFlow.Server.ServeOptsSpec
+    build-depends:
+        , aeson
+        , async
+        , base
+        , bytestring
+        , directory
+        , filepath
+        , hspec
+        , http-client
+        , http-types
+        , servant
+        , servant-client
+        , servant-server
+        , storyflow-api
+        , storyflow-core
+        , storyflow-server
+        , storyflow-service
+        , temporary
+        , text
+        , warp

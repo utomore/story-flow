@@ -100,7 +100,9 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 - **儲存**:Markdown 檔為真相來源 + SQLite 為可重建索引;`direct-sqlite` 開啟 `+fulltextsearch`
   以取得 FTS5 與中文搜尋所需的 trigram tokenizer(assetdb 已驗證此作法)
 - **API**:`servant` + `servant-server` + `warp`,API 型別即契約;`servant-client` 供 CLI 遠端模式;
-  `servant-openapi3` 由同一份型別推導出 OpenAPI 3 文件(`story-flow serve --openapi`)
+  `servant-openapi3` 由同一份型別推導出 OpenAPI 3 文件(`story-flow-serve --openapi`)。
+  伺服器是**獨立執行檔** `story-flow-serve` 而不是 `story-flow` 的子指令——那正是本表
+  「介面 2」那一列所要求的:`storyflow-cli` 不能被拖進 `warp`(func-0008 實作備註 1)
 - **業務層**:`mtl` 的 `ReaderT` + `ExceptT` 疊成 `ServiceM`,讓多步驟的業務組合不必手工串 `Either`
 - **CLI**:`optparse-applicative`,所有指令支援 `--json`,輸出為統一信封
   `{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`——AI Agent 只需 parse 一種形狀

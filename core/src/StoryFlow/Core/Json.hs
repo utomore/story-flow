@@ -22,6 +22,7 @@ import StoryFlow.Core.Id
 import StoryFlow.Core.Level (Level (..), Node (..), NodeKind, parseNodeKind, renderNodeKind)
 import StoryFlow.Core.Link (Link (..), LinkKind, parseLinkKind, renderLinkKind)
 import StoryFlow.Core.Meta
+import StoryFlow.Core.Registry (EntityTypeSpec (..), FieldSpec (..))
 
 -- 由 Either e a 產生解析錯誤時的統一訊息形狀
 orFail :: (Show e) => Either e a -> Parser a
@@ -163,3 +164,42 @@ instance FromJSON Node where
       <*> o .:? "order" .!= 0
       <*> o .: "kind"
       <*> o .:? "entities" .!= []
+
+-- 型別註冊表 --------------------------------------------------------------------
+
+-- | 'EntityTypeSpec' 的編碼在 P2 才需要(CLI 的 @story-flow type list --json@),
+-- 但它的家仍然是這裡:@--json@、REST 的型別清單與未來 MCP 的能力宣告用的是同一份
+-- 宣告,規則散成三份就會漂移。
+--
+-- 鍵名沿用 @types\/registry\/*.toml@ 的欄位名(@allowed_links@ \/ @owner_type@),
+-- 讓讀 JSON 的人與寫 TOML 的人看到同一組字。
+instance ToJSON FieldSpec where
+  toJSON FieldSpec {..} =
+    object ["name" .= fsName, "required" .= fsRequired, "hint" .= fsHint]
+
+instance FromJSON FieldSpec where
+  parseJSON = withObject "FieldSpec" $ \o ->
+    FieldSpec <$> o .: "name" <*> o .:? "required" .!= False <*> o .:? "hint" .!= ""
+
+instance ToJSON EntityTypeSpec where
+  toJSON EntityTypeSpec {..} =
+    object $
+      [ "key" .= etsKey
+      , "name" .= etsName
+      , "fields" .= etsFields
+      , "allowed_links" .= etsAllowedLinks
+      , "stages" .= etsStages
+      ]
+        ++ ["dir" .= v | Just v <- [etsDir]]
+        ++ ["owner_type" .= v | Just v <- [etsOwnerType]]
+
+instance FromJSON EntityTypeSpec where
+  parseJSON = withObject "EntityTypeSpec" $ \o ->
+    EntityTypeSpec
+      <$> o .: "key"
+      <*> o .:? "name" .!= ""
+      <*> o .:? "fields" .!= []
+      <*> o .:? "allowed_links" .!= []
+      <*> o .:? "stages" .!= []
+      <*> o .:? "dir"
+      <*> o .:? "owner_type"

@@ -6,16 +6,17 @@ description: 以 Entity 片段圖譜管理故事設定並偵測劇情衝突的�
 status: active
 created: 2026-08-16
 updated: 2026-08-18
+subarchs: [subarch-0001, subarch-0002, subarch-0003, subarch-0004]
 ---
 
-## story-flow 系統架構
+# story-flow 系統架構
 
 > 本專案以 `design-studio`(Python/FastAPI 的 AI 引導式設計工作坊)為範本重新構思,但**不是**
 > 它的改寫版本:資料模型從「模組 → 一份設計報告」換成「Entity 片段圖譜 + Level 場景樹」,
 > 語言從 Python 換成 Haskell,介面從網頁優先換成 API 優先。`design-studio` 保留在
 > `alchbees-dev/design-studio/` 並存不動(提示詞工房仍可使用),不做資料遷移。
 
-### 需求說明
+## 需求說明
 
 design-studio 解決了「和 LLM 一問一答沒有結構」的問題,但產出的粒度是**整份設計文件**。
 一旦世界觀累積到幾十份文件,真正的痛點浮現:
@@ -49,7 +50,7 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 
 明確**不在**本專案範圍內的:遊戲執行期的對話播放引擎、多人協作與權限、Web UI(P6 才評估)。
 
-### 架構規劃(含垂直切片說明)
+## 架構規劃(含垂直切片說明)
 
 依「純核心 → 落地 → 業務 → 介面」四層切,依賴單向向下,核心不知道介面存在:
 
@@ -93,7 +94,61 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 **垂直切片 3(新增一種衝突偵測規則)**:`storyflow-conflict` 的三層各自可獨立擴充——結構層加
 一種關聯推論、檢索層調整候選策略、判斷層換 prompt,彼此不互相牽動。
 
-### 使用的技術
+## 子系統劃分
+
+依「資料 → 業務 → 智慧」切成四個子系統。前兩個是 P1–P3 已完成的部分,後兩個是 P4–P5
+的主要工作。這一節只定**邊界與對外介面**;每個子系統內部的元件、資料流與演算法細節在
+各自的 `docs/arch/subarch-*` 文件裡。兩者描述衝突時**以本文件為準**,並回頭修正子架構。
+
+### 片段圖譜核心(`subarch-0001` · [`subarch-0001-entity-graph-core.md`](./subarch-0001-entity-graph-core.md))
+
+- **定位**:把 Markdown 檔案變成可查詢的片段圖譜,並守住「檔案才是真相來源」這條線
+- **涵蓋**:`types/registry/*.toml`、`storyflow-core`、`storyflow-types`、`storyflow-md`、
+  `storyflow-store`
+- **職責**:統一 `Meta` 與五個核心型別的純函式;宣告式型別註冊表的載入與驗證;
+  Markdown 分節格式的雙向解析與位元組級寫回;原子檔案寫入;SQLite 索引與 FTS5 trigram 檢索;
+  樂觀鎖
+- **對外介面**:`storyflow-store` 的 Vault 定位、索引查詢與寫入函式,加上 `storyflow-core`
+  的純型別。**唯一的消費者是 `storyflow-service`** ——這是刻意的,落地層的一切都在 service 後面
+- **不負責**:任何業務判斷。「這樣做對不對」的問題屬於下一層
+
+### 業務契約與介面(`subarch-0002` · [`subarch-0002-service-and-interfaces.md`](./subarch-0002-service-and-interfaces.md))
+
+- **定位**:所有業務操作的唯一定義處,以及它的三種薄包裝
+- **涵蓋**:`storyflow-service`、`storyflow-api`、`storyflow-server`、`storyflow-cli`
+- **職責**:以 `ServiceM` 定義 Vault / Entity / Link / Level / Node 的全部操作;servant API
+  型別即契約;REST 伺服器綁 loopback;`story-flow` 指令的內嵌與遠端兩種模式
+- **對外介面**:`ServiceM` 的業務函式(內嵌)、`StoryFlowAPI` 的 REST 路由與 OpenAPI 文件
+  (遠端)、`story-flow` 指令
+- **關鍵約束**:業務邏輯只有一份。CLI 與 server 都不含業務判斷,兩者的錯誤語彙由
+  `errorCode` / `renderServiceError` 強制一致(ADR-0006)
+
+### 衝突偵測(`subarch-0003` · [`subarch-0003-conflict-detection.md`](./subarch-0003-conflict-detection.md))
+
+- **定位**:回答「這段新劇情和既有設定有沒有矛盾」,並指出是哪幾個片段
+- **涵蓋**:`storyflow-conflict`
+- **職責**:三層偵測 —— 圖遍歷(順著 `contradicts` / `supersedes` 找確定性命中)、
+  FTS5 候選撈取(關鍵詞 + aliases 取 top-N,只以 `canon` 當比對基準)、LLM 逐對判斷
+- **對外介面**:`POST /conflict/check` 與對應的 CLI 子指令;回傳每筆含
+  (候選片段 id, 命中層級, 理由) 的 conflict report
+- **相依**:讀 `subarch-0001` 的圖與 FTS5、`subarch-0004` 的 LLM 端點,經 `subarch-0002`
+  的 service 對外
+- **這是真正解決痛點的那一刀**(P4)
+
+### LLM 與工作坊(`subarch-0004` · [`subarch-0004-llm-workshop-mcp.md`](./subarch-0004-llm-workshop-mcp.md))
+
+- **定位**:把「和 AI 對談」變成寫進圖譜的片段
+- **涵蓋**:`storyflow-llm`、`storyflow-workshop`、`storyflow-mcp`
+- **職責**:OpenAI 相容端點的抽象(地端 llama.cpp 與雲端共用同一介面);階段式引導對話的
+  狀態機,依型別註冊表的 `stages` 逐階段產出**多個片段 Entity**(不是一份文件);
+  MCP adapter 讓 claude code / codex 直接操作
+- **對外介面**:LLM 端點抽象(供 `subarch-0003` 的第 3 層使用)、工作坊的階段式 API、
+  MCP 的 stdio / HTTP
+- **`storyflow-mcp` 為什麼歸在這裡**:架構上它是 `subarch-0002` 的 API 的薄客戶端,
+  與 LLM 無關;歸在這一組是因為它與工作坊同屬 P5、同樣服務「外部 AI Agent 接進來」這件事。
+  真的長大到值得單獨設計時再拆出去
+
+## 使用的技術
 
 - **語言/建置**:Haskell,GHC 9.14.1 / cabal 3.16.x,多套件 `cabal.project`,**不使用 stack**
   ——與 `assetdb` 完全一致的工具鏈(見 ADR-0001)
@@ -114,7 +169,7 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 - **測試**:`hspec`,`temporary` 建臨時 Vault 做落地層測試
 - **前端**:無(P6 才評估)
 
-### 架構圖
+## 架構圖
 
 依賴方向(單向向下,核心不知道介面存在):
 
@@ -172,6 +227,18 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 `servant-server` 與 `warp`**——型別若住在 server 裡,一個預設根本不開伺服器的執行檔就得
 把整套 HTTP 伺服器拖進來。
 
+**子系統邊界對照**(圖上未畫框,以免蓋掉依賴箭頭):
+
+| 子系統 | 圖上的元件 |
+|---|---|
+| `subarch-0001` 片段圖譜核心 | `types/registry` · `storyflow-types` · `storyflow-core` · `storyflow-md` · `storyflow-store` |
+| `subarch-0002` 業務契約與介面 | `storyflow-service` · `storyflow-api` · `storyflow-server` · `storyflow-cli` |
+| `subarch-0003` 衝突偵測 | `storyflow-conflict` |
+| `subarch-0004` LLM 與工作坊 | `storyflow-llm` · `storyflow-workshop` · `storyflow-mcp` |
+
+依賴方向與子系統編號一致:編號小的不知道編號大的存在。唯一的例外是 `subarch-0003`
+的第 3 層要用 `subarch-0004` 的 LLM 端點抽象 —— 那是一個介面相依,不是層級倒轉。
+
 資料流 A(AI Agent 討論新劇情,含衝突偵測):
 
 ```text
@@ -204,9 +271,9 @@ rm .storyflow/index.db
   → 結果與刪除前等價
 ```
 
-### 資料結構的框架格式
+## 資料結構的框架格式
 
-#### 目錄結構
+### 目錄結構
 
 ```text
 alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
@@ -243,7 +310,7 @@ alchbees-dev/story-flow/            ← 程式碼,獨立 git repo
 Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git 同一個心智模型);找不到時
 或明確指定 `--vault <名稱>` 時,查全域註冊表。這也讓跨 Vault 引用與遠端指定共用同一套解析。
 
-#### 統一 Meta(Entity / Level / Node 共用同一組欄位)
+### 統一 Meta(Entity / Level / Node 共用同一組欄位)
 
 所有實體共用同一份 `Meta`,只有少數欄位是各自專屬的。統一的用意是抽象與管理成本只付一次:
 索引表、API 序列化、CLI 輸出、衝突偵測全部對同一組欄位工作。
@@ -272,7 +339,7 @@ Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git �
   `kind`(`scene` / `cast` / `camera` / `interaction` / `dialogue` / `branch`)、
   `entities`([Text],關聯到的 Entity,允許多個但建議一個)
 
-#### 核心關聯詞彙(`LinkKind`)
+### 核心關聯詞彙(`LinkKind`)
 
 引擎認得下列關聯並據以推論;其餘可用自訂字串(如「師承於」「宿敵」),引擎當純標註儲存、
 可查詢、但**不驅動邏輯**。
@@ -288,7 +355,7 @@ Vault 定位規則:從目前工作目錄**向上搜尋** `.storyflow/`(與 git �
 | `references` | A 提到 B | 弱關聯,擴充檢索範圍 |
 | `convergesTo` | Node A 合流到 Node B | Level 樹的分支合流標註(見下) |
 
-#### Markdown 分節格式(檔案為真相來源)
+### Markdown 分節格式(檔案為真相來源)
 
 一個主題一份 `.md`,檔內以分節切出片段。檔案層 frontmatter 描述主體,節層以標題屬性帶 id、
 緊接一個 ` ```meta ` 區塊帶該片段的 Meta。節層未寫的欄位**繼承檔案層**(`vault`/`type`/
@@ -374,7 +441,7 @@ Either MdError Document`),寫在 frontmatter 裡的 YAML 註解會被抹掉。�
 而不是每欄 `Maybe` 的 `MetaOverride`:frontmatter 一定有 `id` 與 `title`,而改標題正是檔案層
 主體最常見的修改(func-0005)。
 
-#### Level 場景樹
+### Level 場景樹
 
 Level 是**嚴格樹**:每個 Node 單一父節點、不成環,可無限展開。分支合流不改變樹結構,而是以
 `convergesTo` 關聯標註——結構的邊界因此永遠清楚,遍歷與渲染不需處理多路徑與防環。
@@ -458,7 +525,7 @@ summary: 自窗外緩推至講台,焦段 35mm
 限制:Markdown 只有六級標題,根用 `##` 時最深五層。真的不夠時把子樹拆成另一個 Level
 以關聯串接(見 ADR-0009 的影響)。
 
-#### SQLite 索引結構(可重建,不是真相來源)
+### SQLite 索引結構(可重建,不是真相來源)
 
 ```text
 meta_info(key PK, value)                                -- schema_version、vault_root、vault_name
@@ -496,7 +563,7 @@ Node 任一種,靠 `src` 反查要三個子查詢。`meta_info` 記著 Vault 根
 `body` 進 FTS 但**不進 `entities` 表**——正文只有檔案有,索引只需要能搜到它。
 schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建。
 
-### 使用到的套件
+## 使用到的套件
 
 | 套件 | 用途 |
 |---|---|
@@ -518,7 +585,7 @@ YAML **只用於解析方向**;寫回時的 `meta` 區塊序列化自己寫(固�
 
 前端無相依(P6 才評估)。
 
-### 開發階段
+## 開發階段
 
 | 階段 | 內容 | 完成標準 |
 |---|---|---|

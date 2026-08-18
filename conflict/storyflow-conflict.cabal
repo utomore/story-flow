@@ -1,0 +1,60 @@
+cabal-version:      3.4
+name:               storyflow-conflict
+version:            0.1.0.0
+synopsis:           story-flow 衝突偵測的共用資料語彙(型別與編碼,不含偵測邏輯)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        StoryFlow.Conflict.Json
+        StoryFlow.Conflict.Types
+    -- ADR-0007 說三層「各自可獨立演進」,而那句話成立的前提是三層對同一組型別
+    -- 工作。這個套件就是那組型別,因此它只能站在 core 上:service / store / llm
+    -- 出現在這裡,型別就會被綁到某一層的實作進度上(func-0009 T1)。
+    build-depends:
+        , aeson
+        , base            >=4.14 && <5
+        , containers
+        , storyflow-core
+        , text
+
+test-suite storyflow-conflict-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        StoryFlow.Conflict.CabalSpec
+        StoryFlow.Conflict.EvidenceSpec
+        StoryFlow.Conflict.Fixtures
+        StoryFlow.Conflict.JsonSpec
+        StoryFlow.Conflict.OptsSpec
+        StoryFlow.Conflict.ReportSpec
+        StoryFlow.Conflict.SortSpec
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , directory
+        , hspec
+        , storyflow-conflict
+        , storyflow-core
+        , text
+        , time

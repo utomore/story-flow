@@ -11,6 +11,7 @@ import AssetDB.Store
 import AssetDB.Store.Index (reindexFts)
 import AssetDB.Store.Search
 import Control.Monad (void)
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Database.SQLite.Simple
 import Test.Hspec
@@ -31,6 +32,18 @@ spec = around withSeeded $ do
       void (upsertSuggestions conn Nothing [zhTag "藥水"])
       rows <- listSuggestions conn emptyFilter
       length rows `shouldBe` 1
+
+    it "對已存在 pending 記錄的建議回傳實際寫入數而非輸入數" $ \st -> do
+      -- enhance-0001 T1:使用者拿這個數字判斷要不要重跑,它必須誠實。
+      let conn = storeConn st
+      n0 <- upsertSuggestions conn Nothing [zhTag "藥水", zhTag "圖示"]
+      n0 `shouldBe` 2
+      rows <- listSuggestions conn emptyFilter
+      let decided = [ssId s | s <- rows, ssValue s == "藥水"]
+      void (decideSuggestions conn decided "rejected" "test")
+      -- 藥水已被人工決定,WHERE 會擋下;圖示更新 + 血瓶新增 = 2。
+      n1 <- upsertSuggestions conn Nothing [zhTag "藥水", zhTag "圖示", zhTag "血瓶"]
+      n1 `shouldBe` 2
 
     it "不會把已決定的建議洗回 pending" $ \st -> do
       -- 人的判斷不該被下一次批次覆蓋掉。
@@ -89,6 +102,27 @@ spec = around withSeeded $ do
       arCategories r `shouldBe` 2
       n <- countRows conn "asset_categories"
       n `shouldBe` 2
+
+    it "同一目標的多筆建議只解析一次,結果與逐筆解析一致" $ \st -> do
+      -- enhance-0001 T2:同一叢集 8 筆建議掃 8 次整包,是
+      -- O(建議數 × 包大小) 的寫法。快取後每個目標只解析一次,
+      -- 而套用不動 assets,結果必須與逐筆解析完全相同。
+      let conn = storeConn st
+      confirmAll
+        conn
+        [ tagSuggestion "cluster" "p|shape" "style" "en" "pixel-art" Nothing
+        , tagSuggestion "cluster" "p|shape" "style" "en" "retro" Nothing
+        ]
+      calls <- newIORef (0 :: Int)
+      r <-
+        applySuggestions
+          conn
+          defaultApplyOptions
+            { aoDryRun = False
+            , aoResolveCluster = \_ -> modifyIORef' calls (+ 1) >> pure [1]
+            }
+      arTags r `shouldBe` 2
+      readIORef calls `shouldReturn` 1
 
     it "叢集目標需要呼叫端注入解析器" $ \st -> do
       let conn = storeConn st

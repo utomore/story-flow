@@ -29,6 +29,7 @@ module AssetDB.AI.Suggest
   , applySuggestions
   ) where
 
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (UTCTime, getCurrentTime)
@@ -121,13 +122,16 @@ isoText = T.pack . iso8601Show
 --
 -- 已經被人決定過的列(confirmed / rejected / applied)不會被覆蓋回
 -- pending:那會把人的判斷洗掉。
+--
+-- 回傳的是**實際寫入的筆數**(新增或更新),不是輸入清單的長度 ——
+-- 被上面那條 WHERE 擋下的列不算。呼叫端把這個數字報給使用者,
+-- 使用者拿它判斷要不要重跑,所以它必須誠實。
 upsertSuggestions :: Connection -> Maybe Int -> [Suggestion] -> IO Int
 upsertSuggestions conn runId sgs = do
   ts <- nowText
-  withTransaction conn $ mapM_ (one ts) sgs
-  pure (length sgs)
+  withTransaction conn (sum <$> mapM (one ts) sgs)
   where
-    one ts Suggestion {..} =
+    one ts Suggestion {..} = do
       execute
         conn
         "INSERT INTO ai_suggestions \
@@ -150,6 +154,7 @@ upsertSuggestions conn runId sgs = do
         , sgRationale
         , ts
         )
+      changes conn
 
 -- | 這個目標已經有建議了嗎。叢集層的續跑靠它 —— 叢集是即時算出來的,
 -- 沒有可以標記狀態的資料列。
@@ -263,11 +268,20 @@ applySuggestions conn ApplyOptions {..} = do
       \ORDER BY field, target_key" ::
       IO [StoredSuggestion]
   ts <- nowText
-  foldMloop ts rows (ApplyReport 0 0 0 0)
+  foldMloop ts rows Map.empty (ApplyReport 0 0 0 0)
   where
-    foldMloop _ [] acc = pure acc
-    foldMloop ts (s : rest) acc = do
-      ids <- resolveTargets conn aoResolveCluster (ssTargetType s) (ssTargetKey s)
+    foldMloop _ [] _ acc = pure acc
+    foldMloop ts (s : rest) cache acc = do
+      -- 同一個目標常帶著好幾筆建議(一個叢集標 8 個標籤很常見),而套用
+      -- 只寫 tags / asset_tags / asset_categories,不動 assets —— 解析結果
+      -- 在單次套用內不會變。快取讓每個目標只解析一次,不再是
+      -- O(建議數 × 目標大小) 的重複掃描。
+      let key = (ssTargetType s, ssTargetKey s)
+      (ids, cache') <- case Map.lookup key cache of
+        Just hit -> pure (hit, cache)
+        Nothing -> do
+          resolved <- resolveTargets conn aoResolveCluster (ssTargetType s) (ssTargetKey s)
+          pure (resolved, Map.insert key resolved cache)
       acc' <-
         if null ids
           then pure acc {arUnresolved = arUnresolved acc + 1}
@@ -279,7 +293,7 @@ applySuggestions conn ApplyOptions {..} = do
                 , arCategories = arCategories acc + (if ssField s == "category" then n else 0)
                 , arAssetsTouched = arAssetsTouched acc + n
                 }
-      foldMloop ts rest acc'
+      foldMloop ts rest cache' acc'
 
     applyOne ts s ids
       | aoDryRun = pure (length ids)

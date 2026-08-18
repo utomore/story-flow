@@ -183,10 +183,14 @@ spec = do
   -- enhance-0013 T2。夾制是**伺服器端**的防線:limit 是使用者可控的查詢字串,
   -- 一個 limit=1000000 會讓伺服器把整個素材庫序列化成 JSON 送出去。
   --
-  -- 這裡的 60 / 500 兩個數字目前寫死在 App.hs 的 mkQuery 裡,而同一組概念
-  -- 在專案中另有三處各自為政(見 enhance-0006)。這些測試鎖住的是 server
-  -- 這一份的行為,收斂常數時應該原樣通過。
+  -- 60 / 500 已收斂為 App.hs 的具名常數(enhance-0006 T1)。下面的斷言
+  -- 仍用字面值:鎖的是**對外行為**,常數改值時測試必須跟著紅,
+  -- 而不是斷言跟著常數一起漂走。
   describe "GET /api/search 的分頁夾制" $ do
+    it "具名常數與對外行為的字面值一致(enhance-0006 T1)" $ do
+      defaultSearchLimit `shouldBe` 60
+      maxSearchLimit `shouldBe` 500
+
     it "未指定 limit 時採預設值 60" $
       withApiApp 501 $ \app _ -> do
         (_, _, body) <- runGetFull app ["api", "search"] []

@@ -65,7 +65,11 @@ emptyQuery =
     , sqNamedOnly = False
     , sqIncludeExcluded = False
     , sqIncludeReference = False
-    , sqLimit = 50
+    , -- 函式庫層的保守預設;實際入口都會覆寫,而且各入口刻意不同
+      -- (enhance-0006):server 預設 60 / 上限 500(Server/App.hs 的
+      -- defaultSearchLimit / maxSearchLimit)、web 一頁 120(Grid.tsx 的
+      -- PAGE)、CLI 預設 20(Cli/Options.hs)。
+      sqLimit = 50
     , sqOffset = 0
     }
 

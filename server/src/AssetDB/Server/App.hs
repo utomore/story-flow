@@ -5,6 +5,8 @@ module AssetDB.Server.App
   , application
   , serverSettings
   , defaultHost
+  , defaultSearchLimit
+  , maxSearchLimit
   , isLoopbackHost
   , resolveServerDb
   , dbMissingMessage
@@ -64,6 +66,22 @@ defaultHost = "127.0.0.1"
 -- | 這個位址是否只有本機連得到。決定啟動時要不要印警告。
 isLoopbackHost :: String -> Bool
 isLoopbackHost h = h `elem` ["127.0.0.1", "::1", "localhost"]
+
+-- | @\/api\/search@ 未帶 limit 時的預設筆數。
+--
+-- 各入口的分頁預設刻意不同,不是漏改(enhance-0006):web 前端一頁抓
+-- 120 筆(Grid.tsx 的 @PAGE@,它總是明帶 limit,用不到這個預設)、CLI
+-- 預設 20(一個終端機畫面;Cli\/Options.hs)、store 層函式庫預設 50
+-- (Store\/Search.hs 的 'AssetDB.Store.Search.emptyQuery')。60 取「不帶
+-- 參數打 API 時一眼看得完、又夠填滿一個瀏覽器畫面」的量。
+defaultSearchLimit :: Int
+defaultSearchLimit = 60
+
+-- | limit 的伺服器端上限。limit 是使用者可控的查詢字串,沒有上限的話
+-- 一個 @limit=1000000@ 會讓伺服器把整個素材庫序列化成 JSON 送出去。
+-- 500 約是前端四頁的量,正常操作到不了。
+maxSearchLimit :: Int
+maxSearchLimit = 500
 
 -- | Warp 設定。抽成獨立函式是為了讓「預設綁在哪」可被測試 ——
 -- 'runServer' 之後會阻塞在 Warp 上,測不動。
@@ -149,7 +167,7 @@ handlers cfg st =
         , sqNamedOnly = named
         , sqIncludeReference = ref
         , sqIncludeExcluded = excluded
-        , sqLimit = maybe 60 (min 500) lim
+        , sqLimit = maybe defaultSearchLimit (min maxSearchLimit) lim
         , sqOffset = maybe 0 (max 0) off
         }
 

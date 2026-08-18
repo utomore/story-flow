@@ -13,6 +13,7 @@ module StoryFlow.Store.Write
 
     -- * Meta
   , writeEntityMeta
+  , writeEntityPatch
 
     -- * 正文
   , writeEntityBody
@@ -58,7 +59,28 @@ writeEntityMeta
   -> Int
   -> (MetaOverride -> MetaOverride)
   -> IO (Either StoreError WriteResult)
-writeEntityMeta conn v i expected f = editEntityMeta conn v i expected (Right . f)
+writeEntityMeta conn v i expected f = editEntityMeta conn v i expected Nothing (Right . f)
+
+-- | 改 Meta,並可__在同一次寫入裡__換掉標題。
+--
+-- 標題與其他欄位分兩次寫的話,第二次失敗就會留下「標題改了、summary 沒改」
+-- 的半套結果,而且 revision 會平白跳兩號。所以是一個函式吃兩件事,不是兩個
+-- 函式各寫一次。
+--
+-- 標題的落點兩層不同:檔案層主體在 frontmatter 的 @title@,片段在標題行本身
+-- (走 'StoryFlow.Md.Render.renameSection')。'MetaOverride' 兩者都表達不了,
+-- 因此標題是獨立的 @Maybe Text@ 參數而不是覆寫裡的一欄。
+writeEntityPatch
+  :: Connection
+  -> Vault
+  -> Id
+  -> Int
+  -> Maybe Text
+  -- ^ 新標題;@Nothing@ = 不動標題
+  -> (MetaOverride -> MetaOverride)
+  -> IO (Either StoreError WriteResult)
+writeEntityPatch conn v i expected mTitle f =
+  editEntityMeta conn v i expected mTitle (Right . f)
 
 -- | 換掉正文:片段換該節的 @secBodyRaw@,主體換 frontmatter 之後的 preamble。
 --
@@ -88,7 +110,7 @@ writeEntityBody conn v i expected body =
 addEntityLink
   :: Connection -> Vault -> Id -> Int -> Link -> IO (Either StoreError WriteResult)
 addEntityLink conn v i expected l =
-  editEntityMeta conn v i expected $ \ov ->
+  editEntityMeta conn v i expected Nothing $ \ov ->
     Right ov {moLinks = Just (fromMaybe [] (moLinks ov) ++ [l])}
 
 -- | 以 @(LinkKind, Ref)@ 配對刪除;同一對出現多次時全部刪掉。
@@ -101,7 +123,7 @@ addEntityLink conn v i expected l =
 removeEntityLink
   :: Connection -> Vault -> Id -> Int -> LinkKind -> Ref -> IO (Either StoreError WriteResult)
 removeEntityLink conn v i expected k target =
-  editEntityMeta conn v i expected $ \ov ->
+  editEntityMeta conn v i expected Nothing $ \ov ->
     let current = fromMaybe [] (moLinks ov)
         kept = [x | x <- current, not (hit x)]
         hit x = linkKind x == k && linkTarget x == target
@@ -120,19 +142,25 @@ editEntityMeta
   -> Vault
   -> Id
   -> Int
+  -> Maybe Text
   -> (MetaOverride -> Either StoreError MetaOverride)
   -> IO (Either StoreError WriteResult)
-editEntityMeta conn v i expected f =
+editEntityMeta conn v i expected mTitle f =
   editEntity conn v i expected $ \today anchor rel doc m -> case anchor of
-    -- 節層:只有這一節的 meta 區塊被重新序列化,其餘逐字不動
+    -- 節層:只有這一節的 meta 區塊(必要時再加標題行)被重新序列化,其餘逐字不動
     Just _ -> do
       cur <- orMd rel (overrideAt i doc)
       ov <- f cur
-      orMd rel (updateSection i (const (bumpOverride expected today ov)) doc)
+      doc' <- orMd rel (updateSection i (const (bumpOverride expected today ov)) doc)
+      case mTitle of
+        Nothing -> Right doc'
+        Just t -> orMd rel (renameSection i t doc')
     -- 檔案層主體:frontmatter 整段重新序列化
     Nothing -> do
       ov <- f (overrideOf m)
-      orMd rel (updateFrontmatter (bumpRevision today . applyOverride ov) doc)
+      orMd rel (updateFrontmatter (retitle . bumpRevision today . applyOverride ov) doc)
+  where
+    retitle = maybe id (\t x -> x {metaTitle = t}) mTitle
 
 -- | 讀 → 樂觀鎖 → 純函式編輯 → 寫檔 → 索引。
 --

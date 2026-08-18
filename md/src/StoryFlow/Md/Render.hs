@@ -19,6 +19,7 @@ module StoryFlow.Md.Render
   , mkSection
   , replaceSectionBody
   , replacePreamble
+  , renameSection
   , overrideAt
 
     -- * 檔案層 frontmatter
@@ -159,6 +160,31 @@ replaceSectionBody i body doc@Document {..}
       | T.null t = t
       | T.null (lineTerm t) = t <> renderLineEnding docEnding
       | otherwise = t
+
+-- | 只換某一節的標題文字:層級、@{#id}@ 與該行原本的行尾__原樣保留__。
+--
+-- 片段的標題不在 @```meta@ 區塊裡,而是標題行本身,所以
+-- 'StoryFlow.Md.Inherit.MetaOverride' 表達不了它——檔案層主體改標題走
+-- 'updateFrontmatter',節層改標題只能走這裡(func-0006 補)。
+--
+-- 只重寫標題那一行,'secMetaRaw' 與 'secBodyRaw' 一個位元組都不動。
+renameSection :: Id -> Text -> Document -> Either MdError Document
+renameSection i title doc@Document {..} = case sectionById i doc of
+  Nothing -> Left (MdError docPath 1 (UnknownSectionId i))
+  Just s ->
+    let s' =
+          s
+            { secTitle = title
+            , secHeadingRaw =
+                T.replicate (secLevel s) "#"
+                  <> " "
+                  <> title
+                  <> " {#"
+                  <> renderId i
+                  <> "}"
+                  <> lineTerm (secHeadingRaw s)
+            }
+     in Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
 
 -- | 只換 frontmatter 與第一個節之間的正文(檔案層主體的 @body@)。
 --

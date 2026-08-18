@@ -3,9 +3,9 @@ id: func-0006
 type: spec
 title: service-contract
 description: 以 ServiceM 定義 Vault、Entity、Link、Level、Node 的唯一業務契約
-status: open
+status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 depends-on: [func-0002, func-0003, func-0004, func-0005]
 related-adr: [adr-0002, adr-0003, adr-0005, adr-0006, adr-0008]
 related-spec: []
@@ -437,23 +437,23 @@ emptyPatch :: EntityPatch
 
 ### TodoList
 
-- [ ] T1: 建立 `service/storyflow-service.cabal` 與 `cabal.project` 的 `service/` 項目、`-Wall` 設定、hspec 測試骨架;`build-depends` 明確**不含** servant / optparse / warp  `dep: -`
-- [ ] T2: `storyflow-types`:`data-files: registry/*.toml` 與 `defaultRegistryDir`,支援 `STORYFLOW_REGISTRY` 覆寫  `dep: -`
-- [ ] T3: `StoryFlow.Service.Error`:`ServiceError`、`renderServiceError`(`StoreFailed` 委派給 `renderStoreError`)與 `errorCode`(三種介面共用的穩定機器碼)  `dep: T1`
-- [ ] T4: `StoryFlow.Service.Monad`:`Env` / `ServiceM` / `runService` / `liftStore`  `dep: T3`
-- [ ] T5: `openEnv` / `closeEnv` / `withEnv`:Vault 定位、開索引、載入註冊表,三種失敗各自對應到明確的 `ServiceError`  `dep: T2, T4`
-- [ ] T6: `StoryFlow.Service.Types`:全部 View 與請求型別  `dep: T4`
-- [ ] T7: `StoryFlow.Service.Json`:上述型別的 aeson 實例  `dep: T6`
-- [ ] T8: 驗證輔助函式:`checkEntity` 的警告依種類分流,`MissingRequiredField` → `ValidationFailed`,其餘進 `evWarnings`  `dep: T6`
-- [ ] T9: Vault 操作:`createVault` / `listVaults` / `vaultInfo` / `reindex` / `refreshIndex`  `dep: T5`
-- [ ] T10: 型別操作:`listEntityTypes`  `dep: T5`
-- [ ] T11: Entity 讀取:`getEntity` / `listEntities` / `searchEntity`,組出 `EntityView` 與 `SearchHit`  `dep: T6, T5`
-- [ ] T12: Entity 寫入:`createEntity` / `addFragment`,寫檔前跑 T8 的驗證  `dep: T8, T11`
-- [ ] T13: Entity 修改與刪除:`updateEntity` / `setEntityBody` / `deleteEntity`,`EntityPatch` → `MetaOverride`  `dep: T12`
-- [ ] T14: Link:`addLink` / `removeLink` / `linksOf`,含目標存在性檢查與 `CrossVaultUnsupported`  `dep: T13`
-- [ ] T15: Level 與 Node:`createLevel` / `getLevel` / `listLevels` / `deleteLevel` / `addNode` / `removeNode`,`getLevel` 以 `buildTree` 組樹  `dep: T13`
-- [ ] T16: `StoryFlow.Service` 門面 re-export  `dep: T14, T15`
-- [ ] T17: 端到端業務測試:臨時 Vault 從零建出琳達與教室,全程只呼叫 `ServiceM` 函式  `dep: T16`
+- [x] T1: 建立 `service/storyflow-service.cabal` 與 `cabal.project` 的 `service/` 項目、`-Wall` 設定、hspec 測試骨架;`build-depends` 明確**不含** servant / optparse / warp  `dep: -`
+- [x] T2: `storyflow-types`:`data-files: registry/*.toml` 與 `defaultRegistryDir`,支援 `STORYFLOW_REGISTRY` 覆寫  `dep: -`
+- [x] T3: `StoryFlow.Service.Error`:`ServiceError`、`renderServiceError`(`StoreFailed` 委派給 `renderStoreError`)與 `errorCode`(三種介面共用的穩定機器碼)  `dep: T1`
+- [x] T4: `StoryFlow.Service.Monad`:`Env` / `ServiceM` / `runService` / `liftStore`  `dep: T3`
+- [x] T5: `openEnv` / `closeEnv` / `withEnv`:Vault 定位、開索引、載入註冊表,三種失敗各自對應到明確的 `ServiceError`  `dep: T2, T4`
+- [x] T6: `StoryFlow.Service.Types`:全部 View 與請求型別  `dep: T4`
+- [x] T7: `StoryFlow.Service.Json`:上述型別的 aeson 實例  `dep: T6`
+- [x] T8: 驗證輔助函式:`checkEntity` 的警告依種類分流,`MissingRequiredField` → `ValidationFailed`,其餘進 `evWarnings`  `dep: T6`
+- [x] T9: Vault 操作:`createVault` / `listVaults` / `vaultInfo` / `reindex` / `refreshIndex`  `dep: T5`
+- [x] T10: 型別操作:`listEntityTypes`  `dep: T5`
+- [x] T11: Entity 讀取:`getEntity` / `listEntities` / `searchEntity`,組出 `EntityView` 與 `SearchHit`  `dep: T6, T5`
+- [x] T12: Entity 寫入:`createEntity` / `addFragment`,寫檔前跑 T8 的驗證  `dep: T8, T11`
+- [x] T13: Entity 修改與刪除:`updateEntity` / `setEntityBody` / `deleteEntity`,`EntityPatch` → `MetaOverride`  `dep: T12`
+- [x] T14: Link:`addLink` / `removeLink` / `linksOf`,含目標存在性檢查與 `CrossVaultUnsupported`  `dep: T13`
+- [x] T15: Level 與 Node:`createLevel` / `getLevel` / `listLevels` / `deleteLevel` / `addNode` / `removeNode`,`getLevel` 以 `buildTree` 組樹  `dep: T13`
+- [x] T16: `StoryFlow.Service` 門面 re-export  `dep: T14, T15`
+- [x] T17: 端到端業務測試:臨時 Vault 從零建出琳達與教室,全程只呼叫 `ServiceM` 函式  `dep: T16`
 
 ### 1-to-1 測試對照表
 
@@ -479,4 +479,74 @@ emptyPatch :: EntityPatch
 
 ### 實作備註
 
-(撰寫時留空)
+寫這份規格時 func-0005 還沒開工,介面表裡來源 spec 為 func-0005 的每一列都是依約定填的。
+實作時逐個對照原始碼,以下是與規格不同的地方,一律**以程式碼為準**。
+
+1. **`addFragment` / `addNode` 回 `CreateResult` 而不是 `WriteResult`**(func-0005 實作時就
+   改了):新片段 / 新 Node 的 id 是呼叫端唯一拿不到其他來源的資訊。service 因此用 `crId`
+   重讀出剛建好的那一個來組 View,不必猜「最後一節就是剛剛那個」。
+   `WriteResult` 也不住在 `StoryFlow.Store.Write` 而是 `StoryFlow.Store.Edit`
+   (由 `Write` re-export,所以 `import StoryFlow.Store` 仍然拿得到)。
+   `DeleteResult` 的欄位是 `drRemovedIds` 而不是 `drRemoved`。
+
+2. **`epTitle` 在落地層原本沒有路可走**,補了兩個函式(已回寫 func-0003 / func-0005):
+   - `md`:`renameSection :: Id -> Text -> Document -> Either MdError Document`,只重寫標題
+     那一行,層級、`{#id}` 與行尾原樣保留
+   - `store`:`writeEntityPatch`,把「改 meta」與「換標題」收在**同一次寫入**裡。分兩次寫
+     的話,第二次失敗會留下半套結果,而且 revision 平白跳兩號
+
+   `MetaOverride` 連 `id` 與 `title` 都沒有(`applyOverride` 明說「原樣保留」),而
+   architecture.md 選 `updateFrontmatter :: (Meta -> Meta) -> ...` 的理由正是「改標題是檔案層
+   主體最常見的修改」——落地層少的就是這最後一段接線。
+
+3. **`ValidationFailed` 的酬載改成 `Maybe Id`**。規格寫「先用佔位的 `PEnt` 零值」,但那個
+   佔位 id 會被印進錯誤訊息裡,讀的人會以為真的有一個 `ent-00000000`。`Nothing` 直接 render
+   成「新建的實體」。佔位 id 仍然存在(`placeholderId`),只是不進錯誤訊息——`Meta` 需要一個
+   `Id` 欄位才組得出來給 `checkEntity` 看。
+
+4. **`DeleteReport` 的欄位改名為 `delPath` / `delRemoved` / `delBrokenLinks`**:store 的
+   `DeleteResult` 用的是 `drPath` 前綴,兩個型別在 `StoryFlow.Service` 同時在作用域裡,
+   同名欄位會直接撞在一起。
+
+5. **`VaultView.vvEntityCount` 是 `Maybe Int`**。`listVaults` 不會為了數幾筆就把每個 Vault 的
+   索引都打開(那會觸發全 Vault 的過時掃描),那條路徑給不出數字;給 `0` 是說謊。
+
+6. **`createVault` 會把 Vault 登記進全域註冊表**,並因此在 `store` 補了
+   `registerVaultIn :: FilePath -> Text -> FilePath -> IO (Either StoreError ())`
+   (只**追加一行**,不重寫整份檔案,保住 ADR-0008 要的「可手寫」)。原本沒有任何人負責寫
+   `vaults.toml`,ADR-0008 的第一段規則(`--vault <名稱>` 查全域註冊表)就永遠命不中。
+   同名登記到另一個路徑回 `VaultConfigInvalid` 而不是靜默覆蓋。
+
+7. **新增環境變數 `STORYFLOW_VAULTS`**(service 這一層,`vaultsFile`),覆寫全域註冊表位置。
+   直接理由是測試不能污染使用者真正的 `~/.config/story-flow/vaults.toml`;順帶讓同一台機器
+   切換工作集成為可能。定位路徑因此走 `resolveVaultWith`(store 早就備好的可測版本)。
+
+8. **`addNode` / `removeNode` 多一個 Level id 參數**
+   (`addNode :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView`,依序是 Level、父 Node、
+   Level 主體的 revision)。索引沒有「由 Node 反查 Level」的查詢,而回傳的 `LevelView` 需要
+   Level 的 id。呼叫端本來就拿得到——`expected` 就是那份 Level 的 revision。
+
+9. **`addFragment` 沒有 `expected` 參數**(照規格的操作清單),revision 由 service 自己讀。
+   加片段不覆蓋任何既有內容,而並發保護仍在:store 會重讀檔案比對,第二個併發請求拿到的是
+   `StaleRevision` 而不是靜默覆蓋。
+
+10. **關聯目標的存在性檢查涵蓋 Entity / Level / Node 三種**。規格寫的是
+    `lookupEntity` / `lookupLevel`,但 `convergesTo` 指向的是 **Node**,只查那兩張表會把合法
+    的合流標註判成懸空。實作走 `lookupEntity` + `locateNode`(後者同時涵蓋 levels 與 nodes)。
+
+11. **`RegistryUnavailable` 的訊息沒有用 `registryPath`**:介面表把它列為訊息來源,但
+    `registryPath` 是**全域 Vault 註冊表**(`vaults.toml`)的位置,與型別註冊表無關。訊息改為
+    說出 `STORYFLOW_REGISTRY` 的現值(或未設定)與 `data-files` 這條退路。
+    `defaultRegistryDir` 採「新增的介面」那一版簽名 `IO (Maybe FilePath)`。
+
+12. **附加了四個存取器**:`evId` / `evRevision` / `lvId` / `lvRevision`。介面層每一次修改都是
+    先讀再寫(樂觀鎖沒有逃生口),而「從 View 挖出 id 與 revision」若要呼叫端自己往下鑽三層,
+    CLI、server、MCP 就會各鑽一次。
+
+13. **已知限制,留給 func-0007**:`IndexReport.irIssues` 是已 render 的 `[Text]`,錯誤與品質
+    警告混在同一個清單裡(片段沒寫正文、Node 沒寫 summary 都會進來)。CLI 若要用「索引有錯」
+    決定 exit code,需要一個能區分兩者的形狀——store 的 `issueHasError` 已經有,只是沒帶進
+    `IndexReport`。
+
+測試結果:`cabal build all` 無警告;`cabal test all` 五個測試套件全綠
+(core 166 / md 189 / types 29 / store 162 / service 83,共 629 examples,0 failures)。

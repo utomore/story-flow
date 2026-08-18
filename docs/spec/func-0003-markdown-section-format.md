@@ -5,15 +5,15 @@ title: markdown-section-format
 description: Markdown 分節格式與核心型別的雙向解析與寫回
 status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 depends-on: [func-0002]
 related-adr: [adr-0002, adr-0003, adr-0004]
 related-spec: [func-0001, func-0002, func-0004]
 ---
 
-# P1 Markdown 分節格式解析 功能規格
+## P1 Markdown 分節格式解析 功能規格
 
-## 功能概述
+### 功能概述
 
 `storyflow-md` 負責 Markdown 檔與核心型別之間的雙向轉換,純函式、吃 `Text` 吐型別。
 Markdown 檔是唯一的真相來源(ADR-0002),所以這個套件的正確性直接等於資料的安全性:
@@ -45,7 +45,7 @@ Markdown 檔是唯一的真相來源(ADR-0002),所以這個套件的正確性直
 - 修改單一節的 `summary` 後寫回,`git diff` 只顯示該節 `meta` 區塊的那一行
 - 所有解析錯誤都帶檔名與行號
 
-## 相依性
+### 相依性
 
 `depends-on: [func-0002]` —— 需要 core 的全部型別(`Meta` / `Entity` / `Level` / `Node` /
 `Link` / `Id`)與其 aeson 實例。
@@ -63,11 +63,11 @@ Markdown 檔是唯一的真相來源(ADR-0002),所以這個套件的正確性直
 `updateSection`、`renderDocument`、`data MdError`、`data MetaOverride`。這些簽名在下方
 「新增的介面」已經定死,func-0004 先寫呼叫端再等本規格補上實作是可行的做法。
 
-## 實作方式
+### 實作方式
 
-### 模組劃分
+#### 模組劃分
 
-```
+```text
 storyflow-md
 ├── StoryFlow.Md.Document   -- Document / Section 資料型別(帶原始片段與行號)
 ├── StoryFlow.Md.Lexer      -- 逐行切塊:frontmatter / 標題 / meta 區塊 / 正文
@@ -78,7 +78,7 @@ storyflow-md
 └── StoryFlow.Md.Error      -- MdError 與訊息渲染
 ```
 
-### 兩階段解析
+#### 兩階段解析
 
 解析刻意分成兩階段,而不是一步到位。第一階段(`Lexer` → `Document`)是**無損的結構切分**,
 它只認得「哪幾行是 frontmatter、哪一行是節標題、哪一段是 `meta` 區塊」,並把每一塊的
@@ -118,7 +118,7 @@ data Section = Section
 逐字寫回時混合行尾也不會被正規化。`docEnding` 只在**新產生**的行(重新序列化的 meta 區塊)
 上使用。
 
-### Entity 檔的解析
+#### Entity 檔的解析
 
 檔案層 frontmatter 描述主體 Entity,`docPreamble` 是它的 `body`;每個節是一個片段 Entity。
 
@@ -151,7 +151,7 @@ data MetaOverride = MetaOverride
   }
 ```
 
-### 節層繼承規則(`StoryFlow.Md.Inherit`)
+#### 節層繼承規則(`StoryFlow.Md.Inherit`)
 
 architecture.md 只寫了「節層未寫的欄位繼承檔案層(`vault`/`type`/`timeline`/`status` 等)」。
 「等」需要被定義清楚,否則兩個實作者會做出兩種行為:
@@ -177,7 +177,7 @@ inheritMeta :: Meta -> Id -> Text -> MetaOverride -> (Meta, [MdWarning])
 但工具要講出來。警告與錯誤分離的原則貫穿本套件——**任何無法還原資料的情況是錯誤,
 任何品質問題是警告**。
 
-### Level 檔的解析:標題階層即樹
+#### Level 檔的解析:標題階層即樹
 
 檔案層 frontmatter 的 `type: level` 是判別依據——`type` 為 `level` 時走 Level 解析,
 否則走 Entity 解析。`level` 因此是保留型別鍵,不可用於 `types/registry/`(由 func-0002 的
@@ -196,7 +196,7 @@ status: canon
 source: human
 revision: 1
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 ---
 
 場景整體的說明寫在這裡(對應 Level 的 body,不進 Node)。
@@ -278,7 +278,7 @@ parseLevelFile :: Document -> Either [MdError] LevelFile
 `lvlRoot` 的處理:frontmatter 若寫了 `root`,與實際第一個節的 id 不符時回 `RootMismatch`;
 未寫則以第一個節的 id 填入。作者不必手寫。
 
-### 寫回(`StoryFlow.Md.Render`)
+#### 寫回(`StoryFlow.Md.Render`)
 
 ```haskell
 -- | 逐字重組。未經修改的 Document 保證 renderDocument (parseDocument p t) == t
@@ -310,7 +310,7 @@ removeSection :: Id -> Document -> Either MdError Document
 **`HsYAML` + `HsYAML-aeson`**——純 Haskell 無 C 相依,把 YAML 轉成 aeson `Value` 後套用
 func-0002 在 `StoryFlow.Core.Json` 定義的 `FromJSON` 實例,編碼規則因此全系統只有一份。
 
-### 錯誤處理
+#### 錯誤處理
 
 ```haskell
 data MdError = MdError
@@ -348,7 +348,7 @@ data MdWarning
 `renderMdError :: MdError -> Text` 輸出 `檔案:行號: 訊息` 格式,與編譯器/linter 的慣例一致,
 編輯器可直接跳轉。
 
-## 使用到的既有串接介面
+### 使用到的既有串接介面
 
 func-0002 的核心型別與函式:
 
@@ -374,7 +374,7 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 | `Data.Aeson.fromJSON :: FromJSON a => Value -> Result a` | `aeson` | `Value` → 核心型別 |
 | `Data.Text` (`splitOn`, `stripPrefix`, `breakOn`, `lines`) | `text` | 逐行切塊 |
 
-## 新增的介面
+### 新增的介面
 
 | 模組 | 介面 |
 |---|---|
@@ -389,7 +389,7 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 「標題階層即樹、文件順序即 `order`、`kind` 寫在 `meta` 區塊、`entities` 由
 `involves`/`references` 關聯推導」。
 
-## TodoList
+### TodoList
 
 - [x] T1: `StoryFlow.Md.Document` —— `Document` / `Section` / `LineEnding` 型別與 `sectionById`
 - [x] T2: `StoryFlow.Md.Lexer` —— 逐行切塊:frontmatter 界線、節標題行、` ```meta ` 區塊、正文,全部保留原始切片與行號
@@ -402,7 +402,7 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 - [x] T9: `updateSection` / `insertSection` / `removeSection` 與 `renderMetaBlock` 的固定欄位順序序列化
 - [x] T10: `StoryFlow.Md.Error` —— 錯誤與警告型別、`檔案:行號: 訊息` 渲染、多錯誤一次回報的收集機制
 
-## 1-to-1 測試對照表
+### 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
@@ -417,7 +417,7 @@ func-0001 的建置骨架:`storyflow-md` 套件與其 test-suite、UTF-8 測試�
 | T9 | `StoryFlow.Md.EditSpec` | `updateSection` 改 `ent-7f3b` 的 `summary` 後,寫回結果與原檔逐行比對**只有該節 meta 區塊的 summary 那一行不同**;`renderMetaBlock` 的欄位順序固定且 `Nothing` 欄位不輸出;同一份資料連續序列化兩次結果相同;`insertSection` 插入後可再被 `parseDocument` 解析;`removeSection` 移除節連同其 meta 與正文;操作不存在的 id 回 `Left` |
 | T10 | `StoryFlow.Md.ErrorSpec` | `renderMdError` 輸出 `characters/琳達.md:12: ...` 格式;一份含三個獨立節錯誤的檔案**一次回報三筆**且行號各自正確;frontmatter 層級錯誤中止解析且只回一筆(不產生次生錯誤);`CustomLinkKind` 警告帶 `suggestCoreKind` 的建議 |
 
-## 實作備註
+### 實作備註
 
 實作於 2026-08-16 完成,`cabal build all` / `cabal test all` 綠燈(md 160 examples、
 core 157、types 21、store 4,`scripts/check.ps1` exit 0)。模組劃分、兩階段解析、
@@ -473,6 +473,15 @@ core 157、types 21、store 4,`scripts/check.ps1` exit 0)。模組劃分、兩�
 9. **`EmptyBody` 警告只對 Entity 片段發**。Level 的 Node 承載的是結構與演出,
    正文本來就常常是空的,對每個 Node 發一次警告只會讓真正的警告被淹沒。
    `MissingSummary` 與 `CustomLinkKind` 則 Entity / Node 一視同仁。
+
+10. **後補 `renameSection`(func-0006 補的)**。
+    `renameSection :: Id -> Text -> Document -> Either MdError Document`,只重寫標題那一行,
+    層級、`{#id}` 與該行原本的行尾原樣保留,`secMetaRaw` 與 `secBodyRaw` 一個位元組都不動。
+
+    本規格的編輯函式覆蓋了 meta 區塊、正文、preamble 與 frontmatter,唯獨**節的標題文字**沒有
+    出口:片段的標題不在 `meta` 區塊裡,而是標題行本身,`MetaOverride` 表達不了它
+    (`applyOverride` 明說 `id` 與 `title` 原樣保留)。檔案層主體改標題走 `updateFrontmatter`
+    沒問題,節層就沒有路——service 的 `EntityPatch.epTitle` 因此在 func-0006 才踩到。
 
 **回寫 architecture.md**:Level 檔的格式契約在 bcd20cc 已經寫進 architecture.md
 的「Level 場景樹」節,本次只補上實作備註 2 與 6 兩條格式規則(`timeline` 的字串

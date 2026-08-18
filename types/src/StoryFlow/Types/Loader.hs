@@ -7,7 +7,12 @@
 -- 所有錯誤訊息一律帶檔名。ADR-0005 明說型別宣告寫錯只能在載入時檢查並報錯,
 -- 而沒有檔名的錯誤訊息在 5 個以上型別檔時等於沒有。
 module StoryFlow.Types.Loader
-  ( loadRegistry
+  ( -- * 執行期定位
+    defaultRegistryDir
+  , registryEnvVar
+
+    -- * 載入
+  , loadRegistry
   , loadRegistryFrom
   , LoadError (..)
   , renderLoadError
@@ -30,8 +35,42 @@ import StoryFlow.Core.Registry
   , validateRegistry
   )
 import System.Directory (doesDirectoryExist, listDirectory)
+import System.Environment (lookupEnv)
 import System.FilePath (takeExtension, (</>))
 import qualified TOML
+
+import Paths_storyflow_types (getDataDir)
+
+-- 執行期定位 -----------------------------------------------------------------
+
+-- | 覆寫註冊表位置的環境變數名。
+--
+-- 常數放在這裡而不是各呼叫端各寫一份字串:錯字不會被編譯器擋下來,而
+-- 「設了環境變數卻沒生效」是最難查的那種設定問題。
+registryEnvVar :: String
+registryEnvVar = "STORYFLOW_REGISTRY"
+
+-- | 型別註冊表在執行期的目錄。
+--
+-- @cabal install@ 之後的執行檔沒有原始碼樹的相對路徑,因此正式的來源是 cabal
+-- 的 @data-files@(見 @storyflow-types.cabal@);'registryEnvVar' 有值時優先
+-- ——開發時指向工作目錄的 @types\/registry\/@,作者要自訂型別時也不必重編譯。
+--
+-- __找到的目錄必須真的存在__,否則回 'Nothing':回一個不存在的路徑只會讓
+-- 錯誤延後到 'loadRegistry' 才爆,而且訊息會變成「目錄不存在」而不是
+-- 「你的環境變數指錯地方」。環境變數指向不存在的目錄時__不退回 @data-files@__
+-- ——那會讓一個打錯的環境變數靜默地載入另一份註冊表。
+defaultRegistryDir :: IO (Maybe FilePath)
+defaultRegistryDir =
+  lookupEnv registryEnvVar >>= \case
+    Just p | not (null p) -> existing p
+    _ -> do
+      base <- try getDataDir :: IO (Either IOException FilePath)
+      either (const (pure Nothing)) (existing . (</> "registry")) base
+  where
+    existing p = do
+      ok <- doesDirectoryExist p
+      pure (if ok then Just p else Nothing)
 
 data LoadError
   = -- | 檔名 + 解析器訊息

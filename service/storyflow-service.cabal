@@ -1,0 +1,84 @@
+cabal-version:      3.4
+name:               storyflow-service
+version:            0.1.0.0
+synopsis:           story-flow 的業務契約層(所有業務操作的唯一定義處)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        StoryFlow.Service
+        StoryFlow.Service.Error
+        StoryFlow.Service.Json
+        StoryFlow.Service.Monad
+        StoryFlow.Service.Types
+    -- ADR-0006:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
+    -- servant / warp / optparse-applicative 出現在這裡即為架構違規(func-0006 T1)。
+    build-depends:
+        , aeson
+        , base            >=4.14 && <5
+        , containers
+        , mtl
+        , sqlite-simple
+        , storyflow-core
+        , storyflow-md
+        , storyflow-store
+        , storyflow-types
+        , text
+        , time
+
+test-suite storyflow-service-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        StoryFlow.Service.CabalSpec
+        StoryFlow.Service.EndToEndSpec
+        StoryFlow.Service.EntityReadSpec
+        StoryFlow.Service.EntityWriteSpec
+        StoryFlow.Service.EnvSpec
+        StoryFlow.Service.ErrorSpec
+        StoryFlow.Service.FacadeSpec
+        StoryFlow.Service.Fixtures
+        StoryFlow.Service.JsonSpec
+        StoryFlow.Service.LevelSpec
+        StoryFlow.Service.LinkSpec
+        StoryFlow.Service.MonadSpec
+        StoryFlow.Service.TypeListSpec
+        StoryFlow.Service.TypesSpec
+        StoryFlow.Service.ValidateSpec
+        StoryFlow.Service.VaultSpec
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , mtl
+        , storyflow-core
+        , storyflow-md
+        , storyflow-service
+        , storyflow-store
+        , storyflow-types
+        , temporary
+        , text
+        , time

@@ -3,7 +3,7 @@ id: func-0009
 type: spec
 title: conflict-types
 description: 衝突報告的型別、命中層級證據與序列化,不含任何偵測邏輯
-status: open
+status: done
 created: 2026-08-18
 updated: 2026-08-18
 depends-on: [func-0002]
@@ -249,12 +249,12 @@ instance ToJSON ConflictReport ; instance FromJSON ConflictReport
 
 ## TodoList
 
-- [ ] T1: 建立 `conflict/storyflow-conflict.cabal` 與 `cabal.project` 項目;`build-depends` 只有 `base` / `text` / `containers` / `aeson` / `storyflow-core`  `dep: -`
-- [ ] T2: `StoryFlow.Conflict.Types`:`Draft` 與 `ConflictOpts`,含 `defaultConflictOpts`  `dep: T1`
-- [ ] T3: `StoryFlow.Conflict.Types`:`GraphEvidence` 與 `HitLayer`,形狀對齊 `Core.Graph` 的 `contradictionPairs` / `supersededSet`  `dep: T2, func-0002`
-- [ ] T4: `StoryFlow.Conflict.Types`:`ConflictHit` / `ContextHit` / `ConflictReport` 與 `emptyReport`  `dep: T3`
-- [ ] T5: `layerTag` 與 `sortHits`(層級序 Graph → Retrieval → Judge,同層分數遞減)  `dep: T4`
-- [ ] T6: `StoryFlow.Conflict.Json`:全部 `ToJSON` / `FromJSON`,`HitLayer` 以 `layer` 標籤編碼  `dep: T5`
+- [x] T1: 建立 `conflict/storyflow-conflict.cabal` 與 `cabal.project` 項目;`build-depends` 只有 `base` / `text` / `containers` / `aeson` / `storyflow-core`  `dep: -`
+- [x] T2: `StoryFlow.Conflict.Types`:`Draft` 與 `ConflictOpts`,含 `defaultConflictOpts`  `dep: T1`
+- [x] T3: `StoryFlow.Conflict.Types`:`GraphEvidence` 與 `HitLayer`,形狀對齊 `Core.Graph` 的 `contradictionPairs` / `supersededSet`  `dep: T2, func-0002`
+- [x] T4: `StoryFlow.Conflict.Types`:`ConflictHit` / `ContextHit` / `ConflictReport` 與 `emptyReport`  `dep: T3`
+- [x] T5: `layerTag` 與 `sortHits`(層級序 Graph → Retrieval → Judge,同層分數遞減)  `dep: T4`
+- [x] T6: `StoryFlow.Conflict.Json`:全部 `ToJSON` / `FromJSON`,`HitLayer` 以 `layer` 標籤編碼  `dep: T5`
 
 ## 1-to-1 測試對照表
 
@@ -269,4 +269,75 @@ instance ToJSON ConflictReport ; instance FromJSON ConflictReport
 
 ## 實作備註
 
-(撰寫時留空)
+實作完全照文檔進行,沒有偏離規格方案。以下是規格沒寫死、實作時補上的決定,以及一處
+需要開發者知道的取捨。
+
+### 1. 落地位置
+
+```text
+conflict/
+├── storyflow-conflict.cabal
+├── src/StoryFlow/Conflict/Types.hs
+├── src/StoryFlow/Conflict/Json.hs
+└── test/
+    ├── Spec.hs
+    └── StoryFlow/Conflict/{Cabal,Opts,Evidence,Report,Sort,Json}Spec.hs + Fixtures.hs
+```
+
+`cabal.project` 兩處同步:`packages:` 加 `conflict/`(排在 `service/` 之後、`cli/` 之前,
+與四層順序一致),以及一組 `package storyflow-conflict` 的 `ghc-options`(與其他八個套件同一組
+警告旗標)。
+
+### 2. library 的 build-depends 與 test-suite 的不同
+
+驗收標準 4 管的是 **library**:它的 `build-depends` 就是規格指定的
+`base` / `text` / `containers` / `aeson` / `storyflow-core`,沒有第六個。
+
+test-suite 另外需要 `bytestring` / `directory`(`CabalSpec` 要以 UTF-8 讀 `.cabal` 檔)與
+`time`(fixture 的 `Meta` 需要 `Day`)。這些是測試相依,不影響「型別層不綁實作進度」那個性質
+——`CabalSpec` 本身只掃以逗號開頭的相依行,library 與 test-suite 的都掃,禁用清單
+(`storyflow-service` / `storyflow-store` / `storyflow-md` / `storyflow-llm` / `sqlite-simple`)
+兩邊都不得出現。
+
+**待開發者裁示**:`containers` 是規格指定的,但這兩個模組目前沒有 import 它(`Set` / `Map`
+要到第 1 層 `Conflict.Graph` 才會用上)。維持宣告以符合規格;若偏好零未用相依,下一份 spec
+動工時再加回即可。
+
+### 3. FromJSON 的缺欄位行為(規格未指定,實作補上)
+
+規格只要求 round-trip 不失真,沒說解碼端遇到缺欄位該怎麼辦。實作一律採「有預設就退回預設」:
+
+- `ConflictOpts` 的四個欄位各自退回 `defaultConflictOpts` 的那一欄 —— 客戶端只想調 `top_n`
+  時不該被迫把四欄寫齊,而這正是 `defaultConflictOpts` 存在的理由
+- `Draft` 的 `refs` 缺省為 `[]`(空清單本來就是合法輸入)、`ConflictHit` 的 `reason` 缺省為
+  `""`、`ConflictReport` 的三欄退回 `emptyReport` 的值
+
+必填的只有真正無從預設的欄位:`Draft.text`、`GraphEvidence` 三欄、`HitLayer` 的 `layer` 標籤
+與其對應的值、`ConflictHit.target`、`ContextHit.meta` / `via`。
+
+`layer` 標籤認不得時**解析失敗**而不是退回某一層 —— 未知層級靜默變成 `retrieval` 會讓
+「第 1 層是事實、第 3 層是判斷」這個區分在解碼端失守。已由測試釘住。
+
+### 4. `ByGraph` 的證據攤平在同一層
+
+`{"layer":"graph","from":…,"kind":…,"to":…}`,而不是巢狀的
+`{"layer":"graph","evidence":{…}}`。依規格「六、JSON 編碼」的範例逐字實作。
+
+### 5. `sortHits` 對第 1 層的處理
+
+`ByGraph` 沒有分數(它是事實,不是程度),排序鍵給 0;`sortOn` 是穩定排序,因此同為第 1 層的
+多筆命中維持傳入的相對順序,而不是靠一個假分數決定誰先誰後。已由測試釘住。
+
+### 6. 測試 fixture 不共用 core 的
+
+`core` 的 `StoryFlow.Core.Fixtures` 是它自己 test-suite 的模組,不對外 expose。抄三個小函式
+(`idOf` / `refOf` / `metaOf`)比為此拆一個共用測試套件划算。
+
+### 7. 驗證結果
+
+```text
+cabal build all                             通過,storyflow-conflict 零警告
+cabal test all --test-show-details=direct   9 個 test suite 全數 PASS
+  storyflow-conflict-test  26 examples, 0 failures   ← 本 spec 新增
+  其餘八個                  912 examples, 0 failures  ← 無回歸
+```

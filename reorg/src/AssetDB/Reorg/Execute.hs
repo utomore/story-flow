@@ -33,7 +33,7 @@ import AssetDB.Reorg.Plan
 import AssetDB.Reorg.Snapshot
 import AssetDB.Store
 import Control.Exception (SomeException, try)
-import Control.Monad (filterM, foldM, forM, forM_, unless, when)
+import Control.Monad (foldM, forM, forM_, unless, when)
 import Data.Map.Strict qualified as Map
 import Data.ByteString qualified as BS
 import Data.Text (Text)
@@ -293,15 +293,14 @@ packMoves plan =
 --------------------------------------------------------------------------------
 -- 階段 B
 
+-- 2026-08-09 一次性搬遷的空目錄清理(pruneEmptyDirs 掃 "Game Assets itchio/")
+-- 已隨該次搬遷的路徑規則一併退役(enhance-0009),實作見 git 歷史。
+-- 這個執行器保留:它對 Plan 是通用的,雖然現行規劃器已不會產生 OpDelete。
 runDeletes :: Store -> ApplyOptions -> FilePath -> Plan -> ApplyReport -> IO ApplyReport
 runDeletes st ApplyOptions {..} src plan acc = do
   let dels = [(f, b) | OpDelete f _ _ b <- planOps plan]
       total = length dels
-  r <- foldM (step total) acc (zip [1 ..] dels)
-  aoOnEvent (EvNote "刪除完成。空目錄清理:")
-  pruned <- pruneEmptyDirs (src </> "Game Assets itchio")
-  aoOnEvent (EvNote ("  移除 " <> tshow pruned <> " 個空目錄"))
-  pure r
+  foldM (step total) acc (zip [1 ..] dels)
   where
     step total a (i, (rel, bytes)) = do
       when (i `mod` 500 == 0 || i == total) (aoOnEvent (EvProgress i total rel))
@@ -311,25 +310,6 @@ runDeletes st ApplyOptions {..} src plan acc = do
         Right () -> do
           recordMove st aoBatchId "delete" (Just rel) Nothing bytes
           pure a {arDeleted = arDeleted a + 1}
-
--- | 刪光檔案之後留下的空目錄樹。由底往上刪,只刪真的空的。
-pruneEmptyDirs :: FilePath -> IO Int
-pruneEmptyDirs root = do
-  ok <- doesDirectoryExist root
-  if not ok then pure 0 else go root
-  where
-    go dir = do
-      names <- listDirectory dir
-      subs <- filterM (doesDirectoryExist . (dir </>)) names
-      inner <- sum <$> mapM (go . (dir </>)) subs
-      rest <- listDirectory dir
-      if null rest
-        then do
-          r <- try (removeDirectory dir)
-          pure $ case r of
-            Right () -> inner + 1
-            Left (_ :: SomeException) -> inner
-        else pure inner
 
 --------------------------------------------------------------------------------
 -- 稽核與回退

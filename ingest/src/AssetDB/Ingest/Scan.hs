@@ -326,10 +326,21 @@ scanLoose st rootId absRoot paths acc = do
       let relPath = T.pack (makeRelativeTo absRoot p)
           leaf = T.pack (takeFileName p)
           kind = kindForPath relPath
-      content <- BS.readFile p
-      let sha = sha256Bytes content
-          meta = probeContent relPath content
-      upsertBlob conn sha (BS.length content) kind meta now
+      -- 記憶體策略分兩路(enhance-0010):圖片與音效的探測本來就需要
+      -- 整份內容(PNG 解碼數色、WAV 走 chunk),既然要讀,雜湊就用同
+      -- 一份位元組,不讀第二次。其餘 kind 的 hProbe 都是 const Nothing,
+      -- 雜湊改走與 'sha256File' 相同的串流路徑 —— reference/ 底下的
+      -- 大型相片或原始檔不再整檔進記憶體。
+      (sha, size, meta) <- case handlerFor (extensionOf relPath) of
+        Just h
+          | hKind h `elem` [KImage, KAudio] -> do
+              content <- BS.readFile p
+              pure (sha256Bytes content, fromIntegral (BS.length content), hProbe h content)
+        _ -> do
+          sha <- sha256File p
+          size <- getFileSize p
+          pure (sha, size, Nothing)
+      upsertBlob conn sha (fromIntegral size) kind meta now
       execute conn "DELETE FROM assets WHERE root_id = ? AND rel_path = ?" (rootId, relPath)
       u <- unULID <$> newULID
       execute
@@ -348,7 +359,7 @@ scanLoose st rootId absRoot paths acc = do
         , SQLText now
         , SQLText now
         ]
-      pure (bytes + fromIntegral (BS.length content))
+      pure (bytes + size)
 
 --------------------------------------------------------------------------------
 -- 資料庫小工具

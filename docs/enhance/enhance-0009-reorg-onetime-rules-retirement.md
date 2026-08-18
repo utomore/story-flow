@@ -3,16 +3,16 @@ id: enhance-0009
 type: enhance
 title: reorg-onetime-rules-retirement
 description: 退役已完成搬遷的一次性路徑規則
-status: open
+status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-18
 related-adr: [adr-0002]
 related-spec: []
 ---
 
-# 一次性重構規則活在函式庫層,重構已完成、規則已成死碼加誤觸風險
+## 一次性重構規則活在函式庫層,重構已完成、規則已成死碼加誤觸風險
 
-## 現況說明
+### 現況說明
 
 以下規則是針對 2026-08-09 那一次舊資料夾結構搬遷(見 `docs/architecture.md` 開發階段 3)
 寫死的路徑判斷,重構已執行完畢:
@@ -26,7 +26,7 @@ related-spec: []
 程式會去找已經不存在的舊路徑(`Game Assets itchio/`),行為結果未定義(可能是安全的
 no-op,也可能因為假設不成立而出錯 —— 未見對應的防禦性測試)。
 
-## 修正方案
+### 修正方案
 
 二選一,由開發者決定:
 
@@ -38,14 +38,14 @@ no-op,也可能因為假設不成立而出錯 —— 未見對應的防禦性測
   在 git 歷史中保留記錄即可,`docs/architecture.md` 開發階段 3 的描述已足夠說明
   這次遷移做了什麼。
 
-## TodoList
+### TodoList
 
-- [ ] T1: 與開發者確認方案 A 或方案 B
-- [ ] T2: 依決定的方案實作
-- [ ] T3: 若選方案 A,補上一條測試確認「不傳入遷移設定時,`reorg` 不會意外套用任何
-      特定遷移規則」
+- [x] T1: 與開發者確認方案 A 或方案 B —— **決定:方案 B**(2026-08-18)
+- [x] T2: 依決定的方案實作
+- [x] T3: 方案 A 專用項目不適用;等效的防誤觸測試已補(散檔一律 OpKeep、
+      `--delete-covered` 也不刪,見實作備註)
 
-## 1-to-1 測試對照表
+### 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
@@ -53,6 +53,21 @@ no-op,也可能因為假設不成立而出錯 —— 未見對應的防禦性測
 | T2(方案 B) | `PlanSpec` 移除對應的舊測試案例後其餘測試仍通過 | 確認刪除未影響其他邏輯 |
 | T3 | `PlanSpec.reorganize 未傳入遷移設定時不套用任何特定路徑規則` | 防止誤觸 |
 
-## 實作備註
+### 實作備註
 
-(開發過程中與規格的偏差記錄於此,撰寫時留空)
+- **開發者決策:方案 B(直接刪除),2026-08-18。** 規則本身保留在 git 歷史;
+  遷移做了什麼由 `docs/architecture.md` 開發階段 3 記載。
+- 刪除的內容:`Plan.hs` 的 `isVendorAsset` 前綴判斷與散檔 `OpDelete`/`OpMove`
+  產生邏輯、`mapTopLevel` 三條頂層對應(整個函式移除並自匯出清單拿掉)、
+  `Execute.hs` 的 `pruneEmptyDirs`(含 `runDeletes` 裡指向 `Game Assets itchio/`
+  的呼叫)。
+- 保留的內容:`Op` 型別的 `OpDelete` 建構子、`runDeletes` 執行器、`undoBatch`
+  對刪除的拒絕 —— 它們對 `Plan` 是通用機制,測試改以手組 Plan 驗證。
+- 行為變化:`buildPlan` 對散檔**一律**產生 `OpKeep`;`reorganize --apply`
+  (含 `--delete-covered`)只會重組素材包,不會搬移或刪除任何散檔,
+  誤觸風險歸零。
+- 測試連動:`PlanSpec` 移除「頂層資料夾對應」與「刪除閘門」兩組舊規則測試,
+  新增「散檔一律 OpKeep,不產生任何搬移或刪除」;`ExecuteSpec` 期望值同步
+  (arMoved 2→1、階段 B 改為驗證**不刪**、回退測試以手組含 OpDelete 的 Plan
+  驗證拒絕訊息)。`cabal test all` 全綠(assetdb-reorg-test 32 examples,
+  0 failures)。

@@ -17,6 +17,9 @@ import System.FilePath (takeDirectory, (</>))
 import Text.Read (readMaybe)
 
 -- | 伺服器預設監聽埠。
+--
+-- @web\/vite.config.ts@ 的 dev proxy 指向同一個埠號,而 Vite 設定檔與
+-- Haskell 沒有共用的設定來源 —— 改這裡記得同步改那裡(enhance-0007)。
 defaultPort :: Int
 defaultPort = 8787
 

@@ -109,6 +109,12 @@ spec = do
         other -> expectationFailure ("預期 RunServer,收到 " <> show other)
 
   describe "usageText" $ do
+    -- enhance-0007:usage 的預設 port 必須引用 defaultPort 常數,
+    -- 兩者再次漂移時這條會紅。
+    it "包含的預設 port 與 defaultPort 常數一致" $ do
+      defaultPort `shouldBe` 8787
+      usageText `shouldSatisfy` (show defaultPort `isInfixOf`)
+
     it "說明 --init 的用途" $
       usageText `shouldSatisfy` ("--init" `isInfixOf`)
 

@@ -136,6 +136,10 @@ registerProject st name path picks = do
   now <- T.pack . iso8601Show <$> getCurrentTime
   u <- unULID <$> newULID
   withTransaction conn $ do
+    -- 目前是單模板系統:鷹架產生(templateFiles / cabalFile)與這裡的
+    -- template 值都是同一套 haskell-raylib-2d。projects.template 欄位是
+    -- 為未來多模板預留的 —— 在第二套鷹架存在之前刻意不開 CLI 參數,
+    -- 免得出現「可以指定但沒有效果」的假選項(enhance-0008)。
     execute
       conn
       "INSERT INTO projects (ulid,name,path,template,created_at,updated_at) VALUES (?,?,?,?,?,?) \

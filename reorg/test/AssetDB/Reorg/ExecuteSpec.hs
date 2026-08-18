@@ -20,7 +20,6 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.ByteString qualified as BS
 import Data.Text.Encoding (decodeUtf8)
-import Data.Text.IO qualified as TIO
 import Database.SQLite.Simple (close)
 import System.Directory
 import System.FilePath ((</>))
@@ -33,7 +32,7 @@ spec = do
     it "壓縮檔搬到 library/packs/<vendor>/<slug>/" $ withLib $ \env -> do
       r <- runApply env False
       arErrors r `shouldBe` []
-      arMoved r `shouldBe` 2 -- 壓縮檔 + 工作室文件
+      arMoved r `shouldBe` 1 -- 只剩壓縮檔;散檔規則已退役(enhance-0009)
       doesFileExist (dst env </> "library/packs/unknown/demo/demo.zip") `shouldReturn` True
 
     it "寫出 pack.toml" $ withLib $ \env -> do
@@ -46,11 +45,13 @@ spec = do
       c `shouldSatisfy` T.isInfixOf "slug = \"demo\""
       c `shouldSatisfy` T.isInfixOf "[archive]"
 
-    it "工作室自有檔案搬移而非刪除" $ withLib $ \env -> do
+    it "散檔(含工作室自有檔案)原地保留,不搬移" $ withLib $ \env -> do
+      -- enhance-0009:一次性搬遷的頂層對應規則已退役。
       _ <- runApply env False
-      doesFileExist (dst env </> "projects/Col/notes.md") `shouldReturn` True
+      doesFileExist (src env </> "GameProjects/Col/notes.md") `shouldReturn` True
+      doesFileExist (dst env </> "projects/Col/notes.md") `shouldReturn` False
 
-    it "**不加旗標時散檔原封不動**" $ withLib $ \env -> do
+    it "**散檔原封不動**" $ withLib $ \env -> do
       r <- runApply env False
       arDeleted r `shouldBe` 0
       doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` True
@@ -60,14 +61,13 @@ spec = do
       arReconciled r `shouldBe` 1
 
   describe "階段 B(刪除,不可回退)" $ do
-    it "加了 --delete-covered 才刪" $ withLib $ \env -> do
+    it "即使加了 --delete-covered 也不再刪散檔 —— 刪除規則已退役" $ withLib $ \env -> do
+      -- enhance-0009 防誤觸:誤跑 reorganize --apply --delete-covered 的
+      -- 最壞結果是素材包被重組,散檔一根汗毛都不會少。
       r <- runApply env True
-      arDeleted r `shouldBe` 2
-      doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` False
-
-    it "刪除後清掉空目錄" $ withLib $ \env -> do
-      _ <- runApply env True
-      doesDirectoryExist (src env </> "Game Assets itchio/extracted") `shouldReturn` False
+      arErrors r `shouldBe` []
+      arDeleted r `shouldBe` 0
+      doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` True
 
   describe "冪等性" $ do
     -- 兩階段設計要求這件事:階段 A 跑完、使用者確認結果無誤之後,
@@ -75,19 +75,12 @@ spec = do
     -- 第二次跑的時候目標目錄當然非空 —— 那是第一次的成果,不是障礙。
     it "階段 A 跑過之後,再跑一次會跳過已完成的搬移" $ withLib $ \env -> do
       r1 <- runApply env False
-      arMoved r1 `shouldBe` 2
+      arMoved r1 `shouldBe` 1
       r2 <- runApply env False
       arMoved r2 `shouldBe` 0
       arErrors r2 `shouldBe` []
       -- 對帳仍然執行,所以「已完成」不等於「不再驗證」
       arReconciled r2 `shouldBe` 1
-
-    it "階段 B 可以在階段 A 之後單獨執行" $ withLib $ \env -> do
-      _ <- runApply env False
-      r <- runApply env True
-      arErrors r `shouldBe` []
-      arDeleted r `shouldBe` 2
-      doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` False
 
   describe "前置檢查" $ do
     it "來源與目標都找不到時拒絕動作(計畫過期)" $ withLib $ \env -> do
@@ -112,13 +105,21 @@ spec = do
       _ <- applyPlan (store env) snap (defaultApplyOptions "b1") plan
       (ok, errs) <- undoBatch (store env) (src env) (dst env) "b1" (const (pure ()))
       errs `shouldBe` []
-      ok `shouldSatisfy` (>= 2)
+      ok `shouldSatisfy` (>= 1)
       doesFileExist (src env </> "Game Assets itchio/Raw/demo.zip") `shouldReturn` True
       doesFileExist (dst env </> "library/packs/unknown/demo/demo.zip") `shouldReturn` False
 
     it "刪除無法回退,而且會明講" $ withLib $ \env -> do
+      -- 現行規劃器已不會產生 OpDelete(enhance-0009),但執行器與回退
+      -- 機制對 Plan 是通用的 —— 手組一個帶刪除的計畫,驗證回退對刪除
+      -- 的拒絕仍然有效。
       snap <- loadSnapshot (store env)
-      let plan = buildPlan (T.pack (src env)) (T.pack (dst env)) snap
+      let plan =
+            Plan
+              (T.pack (src env))
+              (T.pack (dst env))
+              [OpDelete "Game Assets itchio/extracted/a.png" "aaa" "Raw/demo.zip" 10]
+              []
       _ <-
         applyPlan (store env) snap (defaultApplyOptions "b2") {aoDeleteCovered = True} plan
       (_, errs) <- undoBatch (store env) (src env) (dst env) "b2" (const (pure ()))
@@ -142,8 +143,11 @@ runApply env del = do
 -- | 縮小版的素材庫,結構與真實情況同形:
 --
 -- * 一個壓縮檔,內含兩個檔案
--- * 那兩個檔案的解壓副本散在 @Game Assets itchio\/@ 底下(會被刪)
--- * 一個工作室自有檔案(會被搬移,絕不刪除)
+-- * 那兩個檔案的解壓副本散在 @Game Assets itchio\/@ 底下
+-- * 一個工作室自有檔案
+--
+-- 散檔如今一律保留(enhance-0009)—— 沿用舊搬遷時期的目錄名,
+-- 正是為了驗證那些路徑不再觸發任何搬移或刪除。
 withLib :: (Env -> IO ()) -> IO ()
 withLib f =
   withSystemTempDirectory "assetdb-reorg" $ \root -> do

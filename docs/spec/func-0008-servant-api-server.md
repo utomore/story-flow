@@ -3,9 +3,9 @@ id: func-0008
 type: spec
 title: servant-api-server
 description: servant REST API、OpenAPI 文件與 CLI 的遠端模式
-status: open
+status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-18
 depends-on: [func-0002, func-0004, func-0005, func-0006, func-0007]
 related-adr: [adr-0002, adr-0003, adr-0006, adr-0008]
 related-spec: []
@@ -91,7 +91,7 @@ GET    /entities/:id                                          → EntityView
 PATCH  /entities/:id    ?revision  EntityPatch                → EntityView
 PUT    /entities/:id/body  ?revision  {body}                  → EntityView
 DELETE /entities/:id    ?revision&force                       → DeleteReport
-POST   /entities/:id/fragments  ?revision  NewFragmentReq     → EntityView
+POST   /entities/:id/fragments  NewFragmentReq                → EntityView   (無 revision,見實作備註 4)
 GET    /entities/:id/links                                    → LinkReport
 POST   /entities/:id/links      ?revision  Link               → EntityView
 DELETE /entities/:id/links      ?revision&kind&target         → EntityView
@@ -102,9 +102,12 @@ GET    /levels          ?status&limit                         → [Meta]
 POST   /levels          NewLevelReq                           → LevelView
 GET    /levels/:id                                            → LevelView
 DELETE /levels/:id      ?revision&force                       → DeleteReport
-POST   /nodes/:parentId ?revision  NewNodeReq                 → LevelView
-DELETE /nodes/:id       ?revision&force                       → LevelView
+POST   /nodes/:id       ?levelId&revision  NewNodeReq         → LevelView   (:id 是父節點)
+DELETE /nodes/:id       ?levelId&revision&force               → LevelView
 ```
+
+> 兩條 node 路由的 capture 同名(實作備註 5),並多一個必填的 `levelId` ——service 的
+> `addNode` / `removeNode` 都要 Level 的 id,而 REST 路徑上只有節點。
 
 `revision` 是 **query parameter 而且必填**(servant 的 `QueryParam' '[Required]`),不是
 選配。理由與 func-0006 相同:ADR-0006 明列樂觀鎖在兩種模式下都要生效,而遠端模式恰恰是
@@ -169,8 +172,10 @@ warp 是多執行緒的。三種可能的解法裡:每請求開一條連線(每�
 #### 三、繫結與認證
 
 ```text
-story-flow serve [--port <n>] [--bind <位址>] [--openapi]
+story-flow-serve [--port <n>] [--bind <位址>] [--vault <名稱>] [--openapi]
 ```
+
+> 指令名從 `story-flow serve` 改成獨立執行檔 `story-flow-serve`,理由見實作備註 1。
 
 - 預設 `--bind 127.0.0.1`、`--port 8787`
 - `--openapi`:不啟動伺服器,把 OpenAPI 3 文件印到 stdout 後結束。這讓
@@ -214,8 +219,10 @@ CLI 的錯誤輸出,`code` 用 `remote_unavailable` / `remote_bad_response`。
 
 ### 使用到的既有串接介面
 
-> 來源 spec 為 func-0006 / func-0007 的各列,是依那兩份 spec 的「新增的介面」約定填寫的
-> ——兩個套件都尚未實作,無法從原始碼讀出簽名。
+> 來源 spec 為 func-0006 / func-0007 的各列,原先是依那兩份 spec 的「新增的介面」約定填寫的。
+> 實作時兩個套件都已經存在,逐條對照過原始碼——有出入的記在「實作備註」,
+> 其中最重要的是 `parseId` 回 `(IdPrefix, Id)`、`addNode` / `removeNode` 多一個 Level 參數、
+> 以及 `GlobalOpts` / `CliError` / `resolveEntity` 的實際形狀(func-0007 已經與規格不同)。
 
 | 介面(含完整簽名) | 來源檔案 | 來源 spec | 用途 |
 |---|---|---|---|
@@ -325,33 +332,59 @@ data GlobalOpts = GlobalOpts
   , goRemote :: Maybe Text      -- 新增:base url
   }
 
--- | 兩條執行路徑;每個 Command 各有一個實作,但共用 Render 的渲染器。
-data Backend = Embedded Env | Remote ClientEnv (Maybe Text)
+-- | 兩條執行路徑。分派落在「操作」層而不是「指令」層(實作備註 6),
+--   token 掛在 ClientEnv 的 Manager 上而不是這裡(實作備註 3)。
+data Backend = Embedded Env | Remote ClientEnv
 
-withBackend :: GlobalOpts -> (Backend -> IO a) -> IO (Either CliError a)
+-- | 開後端 → 用 → 關。內嵌模式順便帶出 openEnv 的索引警告。
+withBackend :: GlobalOpts -> (Either CliError (Backend, [Text]) -> IO a) -> IO a
 
--- | servant-client 的傳輸層錯誤不是 ServiceError,另外分類。
-data CliError = CliService ServiceError | CliRemote RemoteError | CliUsage Text
+-- | 指令的執行環境;兩條路徑的失敗最後併進同一個 CliError。
+type M = ExceptT CliError IO
+runM :: M a -> IO (Either CliError a)
+
+-- | 23 個操作各一個三行的分派函式,指令層因此看不見 Backend 的建構子。
+getEntityB :: Backend -> Id -> M EntityView        -- 其餘 22 個同形狀
+```
+
+#### `storyflow-cli`(`StoryFlow.Cli.Error`,新模組)
+
+```haskell
+-- | 全部錯誤型別集中一處:ResolveError 在 Resolve、CliError 在 Render 的舊配置
+--   在加入 RemoteError 之後會形成循環 import。
+data CliError
+  = CliService ServiceError | CliRemote RemoteError | CliResolve ResolveError
+  | CliInput Text | CliUsage Text
+
+-- | RemoteStatus 帶著伺服器自己回的 code 與 message,cliErrorCode 原樣用它們
+--   ——這是驗收標準 4 在錯誤路徑上的實作(實作備註 7)。
 data RemoteError = RemoteUnavailable Text | RemoteBadResponse Text | RemoteStatus Int Text Text
+
+data Subject = SubEntity | SubLevel | SubNode
+data ResolveError = NotFound Subject Text | Ambiguous Subject Text [Meta]
+
+cliErrorCode    :: CliError -> Text
+cliErrorMessage :: CliError -> Text
+isUsageError    :: CliError -> Bool   -- 用法錯誤 exit 2,其餘 exit 1
 ```
 
 ### TodoList
 
-- [ ] T1: 建立 `api/storyflow-api.cabal` 與 `cabal.project` 項目;`build-depends` 明確不含 `servant-server` / `servant-client` / `warp`  `dep: -`
-- [ ] T2: `StoryFlow.Api.Instances`:`FromHttpApiData` / `ToHttpApiData` 四組  `dep: T1`
-- [ ] T3: `StoryFlow.Api.Instances`:全部 `ToSchema` 實例,`NodeTree` 的遞迴 schema 顯式命名  `dep: T2`
-- [ ] T4: `StoryFlow.Api`:`StoryFlowAPI` 型別與五個子 API,`revision` 為必填 query parameter  `dep: T2`
-- [ ] T5: `storyFlowOpenApi`:由 `storyFlowAPI` 推導,補上標題、版本與每條路由的說明  `dep: T3, T4`
-- [ ] T6: 建立 `server/storyflow-server.cabal` 與 `cabal.project` 項目;`build-depends` 明確不含 `storyflow-store`  `dep: T4`
-- [ ] T7: `toServerError`:`ServiceError` → 狀態碼與錯誤 body,`code` 取自 `errorCode`  `dep: T6`
-- [ ] T8: `run1` 與 `MVar Env`;`openEnv` 延遲取得,讓 `/vaults` 在沒有目前 Vault 時仍可用  `dep: T7`
-- [ ] T9: 全部 handler(每條路由一個,三行結構)  `dep: T8`
-- [ ] T10: 認證:`AuthProtect` 與 `constantTimeEq`,未啟用時裝永遠放行的檢查器  `dep: T9`
-- [ ] T11: `runServer` 與 `story-flow serve` 子指令:`--port` / `--bind` / `--openapi`,綁非 loopback 且無 token 時拒絕啟動  `dep: T10, T5`
-- [ ] T12: CLI:`goRemote` 選項、`Backend` / `CliError` / `RemoteError`、`withBackend`  `dep: T4`
-- [ ] T13: CLI:`resolveEntity` / `resolveLevel` / `resolveNode` / `currentRevision` 改成對 `Backend` 分派  `dep: T12`
-- [ ] T14: CLI:每個 `Command` 的遠端執行路徑,共用既有渲染器;`--remote` 與 `--vault` 併用時的用法錯誤  `dep: T13`
-- [ ] T15: 端到端:同一組指令分別以內嵌與遠端跑一遍,輸出逐字元比對  `dep: T11, T14`
+- [x] T1: 建立 `api/storyflow-api.cabal` 與 `cabal.project` 項目;`build-depends` 明確不含 `servant-server` / `servant-client` / `warp`  `dep: -`
+- [x] T2: `StoryFlow.Api.Instances`:`FromHttpApiData` / `ToHttpApiData` 四組  `dep: T1`
+- [x] T3: `StoryFlow.Api.Instances`:全部 `ToSchema` 實例,`NodeTree` 的遞迴 schema 顯式命名  `dep: T2`
+- [x] T4: `StoryFlow.Api`:`StoryFlowAPI` 型別與五個子 API,`revision` 為必填 query parameter  `dep: T2`
+- [x] T5: `storyFlowOpenApi`:由 `storyFlowAPI` 推導,補上標題、版本與每條路由的說明  `dep: T3, T4`
+- [x] T6: 建立 `server/storyflow-server.cabal` 與 `cabal.project` 項目;`build-depends` 明確不含 `storyflow-store`  `dep: T4`
+- [x] T7: `toServerError`:`ServiceError` → 狀態碼與錯誤 body,`code` 取自 `errorCode`  `dep: T6`
+- [x] T8: `run1` 與 `MVar Env`;`openEnv` 延遲取得,讓 `/vaults` 在沒有目前 Vault 時仍可用  `dep: T7`
+- [x] T9: 全部 handler(每條路由一個,三行結構)  `dep: T8`
+- [x] T10: 認證:`AuthProtect` 與 `constantTimeEq`,未啟用時裝永遠放行的檢查器  `dep: T9`
+- [x] T11: `runServer` 與 `story-flow serve` 子指令:`--port` / `--bind` / `--openapi`,綁非 loopback 且無 token 時拒絕啟動  `dep: T10, T5`
+- [x] T12: CLI:`goRemote` 選項、`Backend` / `CliError` / `RemoteError`、`withBackend`  `dep: T4`
+- [x] T13: CLI:`resolveEntity` / `resolveLevel` / `resolveNode` / `currentRevision` 改成對 `Backend` 分派  `dep: T12`
+- [x] T14: CLI:每個 `Command` 的遠端執行路徑,共用既有渲染器;`--remote` 與 `--vault` 併用時的用法錯誤  `dep: T13`
+- [x] T15: 端到端:同一組指令分別以內嵌與遠端跑一遍,輸出逐字元比對  `dep: T11, T14`
 
 ### 1-to-1 測試對照表
 
@@ -375,4 +408,121 @@ data RemoteError = RemoteUnavailable Text | RemoteBadResponse Text | RemoteStatu
 
 ### 實作備註
 
-(撰寫時留空)
+#### 1. `story-flow serve` 改成獨立執行檔 `story-flow-serve`(已與開發者確認)
+
+規格 T11 把 `serve` 寫成 CLI 的子指令,但那與 architecture.md 直接衝突:讓 `storyflow-api`
+獨立成套件的**唯一理由**就是「CLI 的遠端模式需要 API 型別、但不需要 `servant-server` 與 `warp`
+——一個預設根本不開伺服器的執行檔不該把整套 HTTP 伺服器拖進來」。CLI 要有 `serve`,就必須
+依賴 `storyflow-server`,warp 隨即進來,那條理由當場失效。
+
+依慣例「文檔衝突時以主架構為準」,並與開發者確認後,改為 `storyflow-server` 自己出一個
+執行檔:
+
+| 規格寫的 | 實際的 |
+|---|---|
+| `story-flow serve --openapi > openapi.json` | `story-flow-serve --openapi > openapi.json` |
+| `story-flow serve --port 8787 --bind <位址>` | `story-flow-serve --port 8787 --bind <位址>` |
+
+依賴關係因此與 architecture.md 的架構圖逐條相符:`storyflow-cli` → `api` + `service`(無
+warp);`storyflow-server` → `api` + `service` + warp。CLI 的 `CabalSpec` 同時加強成
+**只掃 `library` 與 `executable` 兩個 stanza**,並把 `storyflow-server` / `warp` /
+`servant-server` 列進 forbidden ——測試套件為了跑對照而依賴 server 是合理的,但那條相依
+不該把 library 的保護稀釋掉。
+
+#### 2. 狀態碼分派走 `errorCode` 字串,不是 `StoreError` 的建構子
+
+規格的對照表逐個列舉 `StoreError` 的建構子,但要對 `StoreFailed (StaleRevision …)` 做
+pattern match,就得把那些建構子拉進作用域 —— 而 `StoryFlow.Service` 沒有重新匯出它們,
+所以只能 `build-depends` 加 `storyflow-store`。那正是驗收標準 3 要擋的事。
+
+改以 `errorCode` 的字串當分派鍵(`statusForCode :: Text -> ServerError`)。`errorCode` 本來
+就是「穩定的機器可讀識別碼」,而且對 `StoreError` 的二十個建構子各給一個相異字串,拿到的
+是同一份資訊、少一層相依,而且 CLI `--json` 的 `code` 與 HTTP 狀態碼從此由同一個函式決定。
+
+代價是新增 `StoreError` 建構子時這裡不會編譯失敗,會靜靜落到預設的 500。`knownCodes` 與
+T7 的最後一條測試補上那個保障。
+
+#### 3. 認證改用 WAI middleware,不是 `AuthProtect`
+
+規格寫「以 `AuthProtect` 搭配 `Context`,未啟用時裝永遠放行的檢查器——路由型別因此在兩種
+模式下相同」。目標是對的,但 `AuthProtect` 達不到:它會出現在 `StoryFlowAPI` 的型別裡,
+於是 `servant-client` 要多一個 `AuthClientData` 實例與 `AuthenticatedRequest` 包裝,OpenAPI
+也會多一個安全定義。
+
+middleware 把同一件事做得更徹底:**路由型別裡根本沒有認證**。server 端是一層
+`bearerAuth :: Maybe Text -> Middleware`,client 端是 `managerModifyRequest` 加一個
+`Authorization` header。認證是傳輸層的關切,本來就不屬於業務契約。`constantTimeEq` 照做。
+
+#### 4. `POST /entities/:id/fragments` 沒有 `revision`
+
+規格的路由表給了它 `?revision`,但 service 的 `addFragment` 在操作清單裡就沒有 `expected`
+參數——加一個片段不覆蓋任何既有內容,所以它自己讀主體的 revision 再往下傳(並發保護仍然在,
+store 會重讀檔案比對)。
+
+收一個必填、卻不參與任何判斷的 `revision`,會讓客戶端以為自己拿到了樂觀鎖的保護,而它其實
+什麼也沒做。**那比沒有更糟**,所以這條路由不收它。T4 的測試分成兩條:其餘八個寫入端點
+`revision` 必填,這一條斷言它**沒有**。
+
+#### 5. `POST /nodes/:parentId` 改名為 `POST /nodes/:id`
+
+兩條 node 路由若一條 capture 叫 `parentId`、另一條叫 `id`,OpenAPI 會產出兩個 URL 模板相同、
+只有參數名不同的 path item ——不少 codegen 工具會直接拒絕那個形狀。改成同名之後兩者合併成
+一個 path item 的 `post` 與 `delete`,語意差異寫在各自的 `Summary` 裡。
+
+另外 node 的兩條路由都多一個必填的 `levelId` query parameter:service 的 `addNode` /
+`removeNode` 都要 Level 的 id(func-0007 實作備註 1 記錄過同一件事),而 REST 路徑上只有節點。
+
+#### 6. `--remote` 的分派落在「操作」層,不是「指令」層
+
+規格寫「每個 `Command` 各自有內嵌怎麼跑與遠端怎麼跑兩個實作」——那會有 21 組平行的程式碼
+要對齊,而驗收標準 4 正是要它們不能有差。
+
+實作改成每個 **service 操作**一個三行的分派函式(`StoryFlow.Cli.Backend` 的 `getEntityB`
+等 23 個),指令層完全看不見 `Backend` 的兩個建構子:它只呼叫那些函式,拿到同一批 View 型別,
+交給同一個渲染器。驗收標準 4 因此是**結構上成立**的,不是靠對照測試碰運氣(對照測試仍然有,
+就是 T15)。
+
+連帶的重構:`StoryFlow.Cli.Resolve` 從吃 `ServiceM` 改成吃 `Backend`,錯誤型別集中到新的
+`StoryFlow.Cli.Error`(原本 `ResolveError` 在 Resolve、`CliError` 在 Render,加上
+`RemoteError` 之後會形成循環 import)。func-0007 的 131 條測試在重構後全數通過,是這次改動
+的回歸保護。
+
+`Backend` 的 `Remote` 建構子只帶 `ClientEnv`,不帶 token(規格寫 `Remote ClientEnv (Maybe Text)`)
+——token 掛在 `ClientEnv` 的 `Manager` 上,那是第 3 點的直接結果。
+
+#### 7. 遠端模式的業務錯誤原樣沿用伺服器的 `code` 與 `message`
+
+`RemoteError` 的 `RemoteStatus Int Text Text` 帶著伺服器回的 code 與 message,而
+`cliErrorCode` / `cliErrorMessage` **原樣用它們、不重新分類**。伺服器那邊的錯誤 body 也是
+`errorCode` / `renderServiceError` 產生的,所以
+`story-flow --remote … entity show ent-00000000` 與不帶 `--remote` 的同一個指令,連錯誤訊息
+都逐字元相同。這是驗收標準 4 在錯誤路徑上的實作。
+
+只有真正的傳輸層失敗才有 CLI 自己的代碼:`remote_unavailable`(連不上)與
+`remote_bad_response`(回的東西不是這個 API 的形狀)。
+
+#### 8. 實作期間發現並修掉的一個缺陷
+
+401 的 body 原本寫成 `ByteString` 字面值。`OverloadedStrings` 給 `ByteString` 的實例是
+**逐字元截成 8 bit**,body 裡的繁中因此被切成不合法的 UTF-8、JSON 解不開,客戶端於是把
+「token 錯了」誤報成「`--remote` 指到的不是 story-flow 的伺服器」——一個會把人帶去查錯方向的
+訊息。改成走 aeson 的 `encode`,並在 server 的 `AuthSpec` 與 CLI 的 `RemoteOptSpec` 各加一條
+測試釘住。
+
+這個缺陷是拿真的執行檔跑端到端才發現的:單元測試裡 server 與 client 在同一個行程,
+`codeOf` 讀得到的路徑與 CLI 的 `classify` 走的是不同的解碼點。
+
+#### 9. 驗收結果
+
+| 驗收標準 | 結果 |
+|---|---|
+| 1. API 覆蓋 `ServiceM` 的每一個操作 | ✅ 23 個 operation 對 23 個業務函式,`ApiSpec` 以一張獨立手寫的對照表比對路徑與方法 |
+| 2. OpenAPI 文件足以讓沒讀過原始碼的人完成建立/查詢/掛關聯 | ✅ 14 條路徑、23 個 operation、31 個具名 schema,每個 operation 都有非空 `summary`;`story-flow-serve --openapi` 產出的檔案以 `JSON.parse` 驗過 |
+| 3. handler 無業務判斷,server 不 import `storyflow-store` | ✅ 每個 handler 一行;`CabalSpec` 讀 .cabal 斷言不含落地層 |
+| 4. `--remote` 與內嵌輸出完全相同 | ✅ `ParitySpec`:七條讀取指令的 stdout 與 `--json` 信封**逐字元相等**,五個錯誤案例的 code / message / exit code 也相等 |
+| 5. 預設綁 loopback;綁非 loopback 必須設 token 且印警告 | ✅ 收得比 ADR-0006 更緊——沒 token 直接**拒絕啟動**;`ServeOptsSpec` 驗 `0.0.0.0` / 區網位址 / 空字串 token,並確認 warp 萬用字元不算 loopback |
+
+測試:`cabal test all` 全綠。本 spec 新增 `storyflow-api-test` 51 條、`storyflow-server-test`
+60 條,並把 `storyflow-cli-test` 從 131 條擴到 172 條;八個套件合計 912 examples / 0 failures。
+全部 library 與 executable 在 `-Wall -Wcompat -Wincomplete-record-updates
+-Wincomplete-uni-patterns` 下零警告。

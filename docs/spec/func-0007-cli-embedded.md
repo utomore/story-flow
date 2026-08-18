@@ -3,9 +3,9 @@ id: func-0007
 type: spec
 title: cli-embedded
 description: story-flow 指令的內嵌模式,全指令支援統一信封的 --json
-status: open
+status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-18
 depends-on: [func-0002, func-0004, func-0006]
 related-adr: [adr-0005, adr-0006, adr-0008, adr-0009]
 related-spec: []
@@ -43,7 +43,7 @@ func-0008 才定義。硬要在本 spec 先做,就得先發明一份 API 型別�
 `depends-on: [func-0002, func-0004, func-0006]`。
 
 - **func-0006**(`storyflow-service`):唯一的業務入口。本 spec 的每個子指令都是對某個
-  `ServiceM` 函式的包裝。func-0006 **尚未開工**,是本 spec 的阻塞來源
+  `ServiceM` 函式的包裝。(實作時 func-0006 已 `done`,阻塞解除)
 - **func-0004**:`EntityFilter` 的四個欄位直接對應到 `--type` / `--status` / `--tag` /
   `--limit` 四個選項,CLI 自己組出它
 - **func-0002**:`parseId` / `parseStatus` / `parseLinkKind` / `parseNodeKind` / `parseRef`
@@ -67,8 +67,10 @@ library 匯出 `runCli :: [String] -> IO ExitCode`,executable 就是
 `readProcess`。
 
 `build-depends`:`base` / `text` / `optparse-applicative` / `aeson` / `bytestring` /
-`containers` / `directory` / `storyflow-core` / `storyflow-service`。**沒有** `storyflow-store`、
-`storyflow-md`、`sqlite-simple`——驗收標準 3 就是靠這一行證明的。
+`containers` / `directory` / `mtl` / `transformers` / `storyflow-core` / `storyflow-service`。
+**沒有** `storyflow-store`、`storyflow-md`、`sqlite-simple`——驗收標準 3 就是靠這一行證明的。
+(`mtl` 是為了 `catchError`,`transformers` 是為了 `ExceptT CliError ServiceM` ——定址與
+輸入失敗由這一層帶,業務失敗由 `runService` 的 `Either` 帶,兩者在 `emit` 之前併成 `CliError`。)
 
 #### 二、指令樹
 
@@ -205,7 +207,9 @@ lvl-3a01 教室
 - 沒有 `--verbose` / `--quiet`:目前沒有需要分級的輸出;真需要時再加
 
 `vault init` 與 `vault list` 在 `Env` 存在之前就要能跑,所以它們走 func-0006 的
-`createVault` / `listVaults`(非 `ServiceM`);其餘全部包在 `withEnv` 裡。
+`createVault` / `listVaults`(非 `ServiceM`);其餘全部包在同一個外框裡。外框用的是
+`openEnv` + `finally closeEnv` 而不是 `withEnv` ——後者把 `[IndexIssue]` 丟掉了,
+而下一段那條「每個指令開頭都印索引警告」的規則正需要它。
 
 `openEnv` 回的 `[IndexIssue]`(外部改動偵測到的解析錯誤)在**每個指令**開頭印到 stderr,
 不管是哪個子指令——作者用編輯器把某個檔案改壞了,應該在下一次用 CLI 時就知道,而不是等到
@@ -213,8 +217,9 @@ lvl-3a01 教室
 
 ### 使用到的既有串接介面
 
-> 來源 spec 為 func-0006 的各列,是依該 spec 的「新增的介面」約定填寫的——`storyflow-service`
-> 尚未實作,無法從原始碼讀出簽名。
+> 來源 spec 為 func-0006 的各列,原先是依該 spec 的「新增的介面」約定填寫的。實作時
+> `storyflow-service` 已經存在,逐條對照過原始碼——有出入的四條記在「實作備註」1,
+> 本表其餘各列與 `service/src/` 相符。
 
 | 介面(含完整簽名) | 來源檔案 | 來源 spec | 用途 |
 |---|---|---|---|
@@ -222,7 +227,8 @@ lvl-3a01 教室
 | `data Entity = Entity { entMeta :: Meta, entBody :: Text }` | `core/src/StoryFlow/Core/Entity.hs` | func-0002 | `entity show` 的渲染對象 |
 | `data NodeTree = NodeTree { ntNode :: Node, ntChildren :: [NodeTree] }` | `core/src/StoryFlow/Core/Tree.hs` | func-0002 | `level show` 的樹狀輸出,直接遞迴它 |
 | `data Node = Node { nodMeta :: Meta, nodLevel :: Id, nodParent :: Maybe Id, nodOrder :: Int, nodKind :: NodeKind, nodEntities :: [Ref] }` | `core/src/StoryFlow/Core/Level.hs` | func-0002 | 樹的每一行要印 id / kind / summary |
-| `parseId :: Text -> Either IdError Id` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | 定址第一步:引數是不是 id 格式 |
+| `parseId :: Text -> Either IdError (IdPrefix, Id)` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | 定址第一步:引數是不是 id 格式 |
+| `idPrefix :: Id -> IdPrefix` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | `currentRevision` 決定去問 `getEntity` 還是 `getLevel` |
 | `renderId :: Id -> Text` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | 所有輸出裡的 id |
 | `parseRef :: Text -> Either IdError Ref` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | `--target` 支援 `<vault>:<id>` 寫法 |
 | `renderRef :: Ref -> Text` | `core/src/StoryFlow/Core/Id.hs` | func-0002 | `link list` 的輸出 |
@@ -268,8 +274,10 @@ lvl-3a01 教室
 | `getLevel :: Id -> ServiceM LevelView` | `service/src/StoryFlow/Service.hs` | func-0006 | `level show`;node 操作的「先讀」 |
 | `listLevels :: EntityFilter -> ServiceM [Meta]` | `service/src/StoryFlow/Service.hs` | func-0006 | `level list`;Level 的標題定址 |
 | `deleteLevel :: Id -> Int -> Bool -> ServiceM DeleteReport` | `service/src/StoryFlow/Service.hs` | func-0006 | `level rm` |
-| `addNode :: Id -> Int -> NewNodeReq -> ServiceM LevelView` | `service/src/StoryFlow/Service.hs` | func-0006 | `node add` |
-| `removeNode :: Id -> Int -> Bool -> ServiceM LevelView` | `service/src/StoryFlow/Service.hs` | func-0006 | `node rm` |
+| `addNode :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView`(Level、父 Node、expected) | `service/src/StoryFlow/Service.hs` | func-0006 | `node add`。多出來的 Level 參數見實作備註 1 |
+| `removeNode :: Id -> Id -> Int -> Bool -> ServiceM LevelView` | `service/src/StoryFlow/Service.hs` | func-0006 | `node rm` |
+| `evId` / `evRevision` / `lvId` / `lvRevision` | `service/src/StoryFlow/Service/Types.hs` | func-0006 | 先讀再寫時從 View 取 id 與 revision,不自己往下鑽三層 |
+| `renderIndexIssue :: IndexIssue -> Text` | `store/src/StoryFlow/Store/Index.hs`(由 service 重新匯出) | func-0004 | 每個指令開頭印到 stderr 的索引警告 |
 | `data EntityView` / `LevelView` / `VaultView` / `SearchHit` / `LinkReport` / `IndexReport` / `DeleteReport` | `service/src/StoryFlow/Service/Types.hs` | func-0006 | 兩種輸出模式的渲染對象 |
 | `data NewEntityReq` / `NewFragmentReq` / `NewLevelReq` / `NewNodeReq` / `EntityPatch`(`emptyPatch`) | `service/src/StoryFlow/Service/Types.hs` | func-0006 | 選項解析後組出來的請求 |
 | `ToJSON` 實例(上述 View 與請求型別) | `service/src/StoryFlow/Service/Json.hs` | func-0006 | `--json` 的 `data`,CLI 不重新編碼 |
@@ -282,6 +290,11 @@ lvl-3a01 教室
 -- | 進入點。executable 只是 main = getArgs >>= runCli >>= exitWith。
 --   回 ExitCode 而不是自己 exitWith,測試才能在同一個行程裡跑完整個指令。
 runCli :: [String] -> IO ExitCode
+
+-- | 三個 handle 可注入的版本。runCli = runCliWith defaultCliIO。
+--   測試把它們換成暫存檔就拿得到 stdout / stderr,不必動全域的標準輸出。
+data CliIO = CliIO { cliOut :: Handle, cliErr :: Handle, cliIn :: Handle }
+runCliWith :: CliIO -> [String] -> IO ExitCode
 ```
 
 #### `StoryFlow.Cli.Options`
@@ -293,7 +306,7 @@ data Command
   = VaultInit FilePath Text | VaultList | VaultInfo
   | IndexRebuild | IndexRefresh
   | TypeList
-  | EntityNew NewEntityReq | EntityAdd Selector NewFragmentReq
+  | EntityNew NewEntityReq BodySource | EntityAdd Selector NewFragmentReq BodySource
   | EntityShow Selector | EntityList EntityFilter
   | EntitySearch Text EntityFilter
   | EntitySet Selector (Maybe Int) EntityPatch
@@ -317,14 +330,18 @@ parseCli :: [String] -> ParserResult (GlobalOpts, Command)
 #### `StoryFlow.Cli.Resolve`
 
 ```haskell
+-- | 定址的對象種類。錯誤訊息要說出下一步該打哪一條指令,而那三條各不相同。
+data Subject = SubEntity | SubLevel | SubNode
+
 -- | Selector → Id。標題多筆命中時 Left 帶候選清單。
-data ResolveError = NotFound Text | Ambiguous Text [Meta]
+data ResolveError = NotFound Subject Text | Ambiguous Subject Text [Meta]
 
 resolveEntity :: Selector -> ServiceM (Either ResolveError Id)
 resolveLevel  :: Selector -> ServiceM (Either ResolveError Id)
-resolveNode   :: Selector -> Id -> ServiceM (Either ResolveError Id)  -- 需要 Level 上下文
+-- 回 (Level id, Node id):service 的 addNode / removeNode 兩者都要,而指令列上只有節點
+resolveNode   :: Selector -> ServiceM (Either ResolveError (Id, Id))
 
--- | 沒給 --revision 時先讀一次拿當前值。
+-- | 沒給 --revision 時先讀一次拿當前值。前綴決定去問 getEntity 還是 getLevel。
 currentRevision :: Id -> ServiceM Int
 ```
 
@@ -337,6 +354,13 @@ data Envelope a = Ok a | Err Text Text     -- code, message
 
 instance (ToJSON a) => ToJSON (Envelope a)
 
+-- | CLI 會回報的三種失敗。業務失敗原樣委派給 service 的 errorCode /
+--   renderServiceError;另外兩種是 CLI 自己的(service 沒有「用標題找實體」這回事,
+--   也不知道 --body-file 讀不讀得到)。
+data CliError = CliService ServiceError | CliResolve ResolveError | CliInput Text
+cliErrorCode    :: CliError -> Text
+cliErrorMessage :: CliError -> Text
+
 renderEntity   :: EntityView -> Text
 renderMetaTable:: [Meta] -> Text
 renderSearch   :: [SearchHit] -> Text
@@ -346,21 +370,21 @@ renderLinks    :: LinkReport -> Text
 
 ### TodoList
 
-- [ ] T1: 建立 `cli/storyflow-cli.cabal`(library + executable `story-flow`)與 `cabal.project` 項目;`build-depends` 明確不含 `storyflow-store` / `storyflow-md` / `sqlite-simple`  `dep: -`
-- [ ] T2: `StoryFlow.Cli.Options`:`GlobalOpts` / `Command` / `Selector` / `BodySource` 與完整的 optparse 剖析器,含 `--help` 文案  `dep: T1`
-- [ ] T3: `StoryFlow.Cli.Render`:`Envelope` 與其 `ToJSON`,`code` / `message` 取自 service 的 `errorCode` / `renderServiceError`  `dep: T1`
-- [ ] T4: `StoryFlow.Cli.Render`:人類可讀渲染器(`renderEntity` / `renderMetaTable` / `renderSearch` / `renderLinks`)  `dep: T3`
-- [ ] T5: `renderLevelTree`:ASCII 樹,遞迴 `NodeTree`,分支字元與 architecture.md 的圖一致  `dep: T4`
-- [ ] T6: `StoryFlow.Cli.Resolve`:`Selector` → `Id`,多筆命中列候選;`currentRevision`  `dep: T2`
-- [ ] T7: `runCli` 骨架:全域選項、`withEnv` 外框、`[IndexIssue]` 警告輸出、exit code 對照  `dep: T3, T6`
-- [ ] T8: `vault` / `index` / `type` 三組子指令  `dep: T7`
-- [ ] T9: `entity new` / `entity add`,含 `--link <kind>:<target>[:<note>]` 的解析  `dep: T8`
-- [ ] T10: `entity show` / `entity list` / `search`  `dep: T4, T8`
-- [ ] T11: `entity set` / `entity set-body` / `entity rm`,含先讀再寫與 `--revision` 覆寫  `dep: T6, T9`
-- [ ] T12: `link` 三個子指令,含非核心 `--kind` 的 `suggestCoreKind` 提示(提示不阻擋)  `dep: T11`
-- [ ] T13: `level` 四個子指令  `dep: T5, T11`
-- [ ] T14: `node` 兩個子指令  `dep: T13`
-- [ ] T15: 端到端:純 CLI 從 `vault init` 建出琳達與教室  `dep: T12, T14`
+- [x] T1: 建立 `cli/storyflow-cli.cabal`(library + executable `story-flow`)與 `cabal.project` 項目;`build-depends` 明確不含 `storyflow-store` / `storyflow-md` / `sqlite-simple`  `dep: -`
+- [x] T2: `StoryFlow.Cli.Options`:`GlobalOpts` / `Command` / `Selector` / `BodySource` 與完整的 optparse 剖析器,含 `--help` 文案  `dep: T1`
+- [x] T3: `StoryFlow.Cli.Render`:`Envelope` 與其 `ToJSON`,`code` / `message` 取自 service 的 `errorCode` / `renderServiceError`  `dep: T1`
+- [x] T4: `StoryFlow.Cli.Render`:人類可讀渲染器(`renderEntity` / `renderMetaTable` / `renderSearch` / `renderLinks`)  `dep: T3`
+- [x] T5: `renderLevelTree`:ASCII 樹,遞迴 `NodeTree`,分支字元與 architecture.md 的圖一致  `dep: T4`
+- [x] T6: `StoryFlow.Cli.Resolve`:`Selector` → `Id`,多筆命中列候選;`currentRevision`  `dep: T2`
+- [x] T7: `runCli` 骨架:全域選項、`withEnv` 外框、`[IndexIssue]` 警告輸出、exit code 對照  `dep: T3, T6`
+- [x] T8: `vault` / `index` / `type` 三組子指令  `dep: T7`
+- [x] T9: `entity new` / `entity add`,含 `--link <kind>:<target>[:<note>]` 的解析  `dep: T8`
+- [x] T10: `entity show` / `entity list` / `search`  `dep: T4, T8`
+- [x] T11: `entity set` / `entity set-body` / `entity rm`,含先讀再寫與 `--revision` 覆寫  `dep: T6, T9`
+- [x] T12: `link` 三個子指令,含非核心 `--kind` 的 `suggestCoreKind` 提示(提示不阻擋)  `dep: T11`
+- [x] T13: `level` 四個子指令  `dep: T5, T11`
+- [x] T14: `node` 兩個子指令  `dep: T13`
+- [x] T15: 端到端:純 CLI 從 `vault init` 建出琳達與教室  `dep: T12, T14`
 
 ### 1-to-1 測試對照表
 
@@ -384,4 +408,101 @@ renderLinks    :: LinkReport -> Text
 
 ### 實作備註
 
-(撰寫時留空)
+#### 1. 規格寫在 `service` 實作之前,四條簽名對不上
+
+本 spec 的「使用到的既有串接介面」是照 func-0006 的約定填的,實作時逐條對照原始碼,
+四條與實際不同,一律**以原始碼為準**:
+
+| 規格寫的 | 實際的 | 影響 |
+|---|---|---|
+| `addNode :: Id -> Int -> NewNodeReq -> ServiceM LevelView` | `addNode :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView`(Level id、父 Node、expected) | CLI 必須自己知道節點屬於哪個 Level |
+| `removeNode :: Id -> Int -> Bool -> ServiceM LevelView` | `removeNode :: Id -> Id -> Int -> Bool -> ServiceM LevelView` | 同上 |
+| `addFragment :: Id -> NewFragmentReq -> ServiceM EntityView`(規格未提 revision) | 相同——service 自己讀主體的 revision | `entity add` 沒有 `--revision`,與其他寫入指令不對稱,但那是 service 的決定 |
+| `parseId :: Text -> Either IdError Id` | `parseId :: Text -> Either IdError (IdPrefix, Id)` | `mkSelector` 取 `snd` |
+
+`addNode` / `removeNode` 多出來的 Level 參數改變了 `resolveNode` 的形狀:
+
+```haskell
+-- 規格:resolveNode :: Selector -> Id -> ServiceM (Either ResolveError Id)
+resolveNode :: Selector -> ServiceM (Either ResolveError (Id, Id))   -- (Level id, Node id)
+```
+
+規格的版本要呼叫端先提供 Level 上下文,但**指令樹裡沒有那個引數**(`node add <父節點>`、
+`node rm <節點>` 都只有節點)。實作改成走過每一棵 Level 樹反查,順手把它所屬的 Level 帶回來
+——反正為了找節點本來就要走過去,而 expected revision 要的正是那個 Level 的 revision。
+代價是 Level 數量多時 `node` 指令要讀全部的 Level;P2 的規模下不構成問題,真的變慢時該補的是
+索引的「由 Node 反查 Level」查詢,不是在 CLI 這一層想辦法。
+
+走訪時某一份 Level 的標題階層被作者改壞(`LevelTreeInvalid`)就跳過它,不讓整個定址失敗
+——一份壞掉的 Level 不該讓另一份 Level 上的節點也碰不到。
+
+#### 2. `ResolveError` 多了 `Subject`
+
+規格是 `NotFound Text | Ambiguous Text [Meta]`,但規格自己的第三節要求「Node 定址在多筆命中時
+額外提示可以用 `story-flow level show <Level>`」——那句提示表達不了。實作加了一個
+`data Subject = SubEntity | SubLevel | SubNode`,兩個建構子各多帶它一個:
+
+```haskell
+data ResolveError = NotFound Subject Text | Ambiguous Subject Text [Meta]
+```
+
+不折進訊息字串(那樣訊息就無法被測試比對),也不拆成三個平行的錯誤型別(呼叫端會各寫一次
+`case`)。
+
+#### 3. 三個規格沒有、但必要的介面
+
+- **`BodySource` 進了 `Command`**:`EntityNew NewEntityReq BodySource` /
+  `EntityAdd Selector NewFragmentReq BodySource`。`--body-file` 與 `-` 都要 IO,而 `parseCli`
+  是純的,正文因此不可能在解析階段就變成 `Text`。`level new` / `node add` 只有字面 `--body`,
+  維持規格的形狀不變
+- **`CliError` 的第三個建構子 `CliInput Text`**(code `input_unreadable`):`--body-file` 讀不到
+  或 stdin 掛掉是 CLI 自己的失敗,`ServiceError` 裡沒有對應的建構子,而讓它變成未捕捉的例外
+  會繞過整個信封
+- **`runCliWith :: CliIO -> [String] -> IO ExitCode`**:`runCli = runCliWith defaultCliIO`。
+  三個 handle 可注入,測試就不必去動全域的 stdout/stderr(規格的 `runCli` 原樣保留,
+  executable 用的是它)
+
+#### 4. `ToJSON EntityTypeSpec` 補在 `core`,不在 CLI
+
+驗收標準 2 要求**每一個**子指令支援 `--json`,而 `type list` 的資料本體是 `[EntityTypeSpec]`
+——`StoryFlow.Core.Json` 當時沒有它的實例。實例補在 `core/src/StoryFlow/Core/Json.hs`
+(連同 `FieldSpec`),不是在 CLI 就地編一份:那個模組的存在理由就是「編碼規則全系統一份」,
+P3 的 REST 型別清單與 P5 的 MCP 能力宣告要用的是同一份。鍵名沿用 `types/registry/*.toml`
+的欄位名(`allowed_links` / `owner_type`),讓讀 JSON 的人與寫 TOML 的人看到同一組字。
+
+這是對已 `done` 的 func-0002 做的追加,純新增、不改既有行為。
+
+#### 5. `--json` 的那一行寫成 UTF-8 位元組,繞過 handle 的 codec
+
+Windows 上 GHC 的 handle 在輸出被導進管線或檔案時用系統的 ANSI code page(開發機是 cp950),
+於是 `story-flow --json entity show 琳達 | jq` 拿到的不是合法的 UTF-8 JSON。信封是給機器讀的,
+編碼不能跟著主控台的設定跑,所以 `jsonLine` 直接 `BS.hPut` 寫 UTF-8。
+
+**人類可讀模式維持走 handle 的 codec**:cp950 主控台要靠它才顯示得出繁中。兩種模式的輸出
+對象不同,編碼策略也就不同。
+
+#### 6. 幾個規格沒講、實作時定下來的邊界
+
+- **引數錯誤不走信封**:`--json` 這個旗標本身可能就是打錯的那一個,這時候假裝解析成功地印一個
+  JSON 出來只會更難查。exit 2 + 純文字到 stderr
+- **`--link` 的緊湊格式表達不了跨 Vault 目標**:`partOf:shared:ent-7f3a` 會把 `shared` 讀成
+  目標、`ent-7f3a` 讀成說明。跨 Vault 的讀寫本來就還沒支援(service 的
+  `CrossVaultUnsupported`),要用時走 `link add --target` 的分離形式
+- **`entity new --link` 不驗目標存在**:service 的 `requireTargetExists` 只掛在 `addLink`,
+  `createEntity` 那條路沒有。CLI **不補**這個檢查——那是業務判斷,補在這裡就會與 P3 的 REST
+  行為不一致。現況以測試釘住(`EntityNewSpec`),要改的話該改 func-0006
+- **`link add` 一個自訂關聯會同時得到兩則訊息**:CLI 的「你是不是要打 `contradicts`?」與
+  service 的 `LinkNotAllowed`。兩者講的是不同的事(拼字 vs 型別宣告),都留著
+
+#### 7. 驗收結果
+
+| 驗收標準 | 結果 |
+|---|---|
+| 1. 純 CLI 建出琳達與教室,樹形狀與 architecture.md 一致 | ✅ `EndToEndSpec`:`vault init` → `entity new` → `entity add` ×2 → `link add` → `level new` → `node add` ×5 → `level show` 七行,分支字元逐項相符 |
+| 2. 每個子指令都支援 `--json`,通過同一個信封 schema | ✅ 21 個子指令全部走同一個 `emit`;`EnvelopeSpec` 釘住信封形狀 |
+| 3. `build-depends` 不含落地層 | ✅ `CabalSpec` 讀 .cabal 斷言不含 `storyflow-store` / `storyflow-md` / `sqlite-simple` / `direct-sqlite` |
+| 4. 業務錯誤非零 exit code,`--json` 下錯誤也是合法 JSON | ✅ `RunCliSpec`:成功 0、業務錯誤 1、用法錯誤 2;錯誤信封解得出 `error.code` |
+
+測試:`cabal test all` 全綠——`storyflow-cli-test` 131 examples / 0 failures,
+六個套件合計 760 examples / 0 failures。library 與 executable 在 `-Wall -Wcompat
+-Wincomplete-record-updates -Wincomplete-uni-patterns` 下零警告。

@@ -1,0 +1,96 @@
+-- | T14:每個子指令的遠端路徑都可用。
+--
+-- 逐一在遠端模式跑過每個子指令,斷言 exit code 是 0 且 @--json@ 的 @data@ 解得開。
+-- 這是「沒有只有內嵌模式做得到的事」的可測形式。
+module StoryFlow.Cli.RemoteCmdSpec (spec) where
+
+import Data.Aeson (Value (Bool, Object), decodeStrict)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import StoryFlow.Cli.Fixtures
+import System.Exit (ExitCode (..))
+import Test.Hspec
+
+spec :: Spec
+spec = describe "遠端模式的每個子指令" $ do
+  it "vault list / info" $ withCliServer $ \_ url -> do
+    okJson url ["vault", "list"]
+    okJson url ["vault", "info"]
+
+  it "index rebuild / refresh" $ withCliServer $ \_ url -> do
+    okJson url ["index", "rebuild"]
+    okJson url ["index", "refresh"]
+
+  it "type list" $ withCliServer $ \_ url -> okJson url ["type", "list"]
+
+  it "entity new / show / list / add" $ withCliServer $ \_ url -> do
+    okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "第七織手"]
+    okJson url ["entity", "show", "琳達"]
+    okJson url ["entity", "list"]
+    okJson url ["entity", "add", "琳達", "--title", "外貌", "--summary", "銀灰短髮", "--type", "character-fragment"]
+
+  it "entity set / set-body / rm" $ withCliServer $ \_ url -> do
+    okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "s"]
+    okJson url ["entity", "set", "琳達", "--summary", "改過的"]
+    okJson url ["entity", "set-body", "琳達", "--body", "遠端寫的正文"]
+    okJson url ["entity", "rm", "琳達", "--force"]
+
+  it "entity set-body 從 stdin 讀" $ withCliServer $ \_ url -> do
+    okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "s"]
+    r <- captureIn "從 stdin 來的" ["--remote", url, "entity", "set-body", "琳達", "-"]
+    crExit r `shouldBe` ExitSuccess
+    out <- sfOk ["entity", "show", "琳達"]
+    out `shouldContainT` "從 stdin 來的"
+
+  it "search" $ withCliServer $ \_ url -> do
+    okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "埃提亞的第七織手"]
+    okJson url ["search", "第七織手"]
+
+  it "link add / list / rm" $ withCliServer $ \_ url -> do
+    a <- idFromJson <$> sfRemoteJson url ["entity", "new", "--type", "character-fragment", "--title", "琳達", "--summary", "s"]
+    _ <- sfRemoteJson url ["entity", "new", "--type", "character-fragment", "--title", "外貌", "--summary", "s"]
+    okJson url ["link", "add", "外貌", "--kind", "partOf", "--target", a]
+    okJson url ["link", "list", "外貌"]
+    okJson url ["link", "rm", "外貌", "--kind", "partOf", "--target", a]
+
+  it "非核心 kind 的提示在遠端模式也出現" $ withCliServer $ \_ url -> do
+    a <- idFromJson <$> sfRemoteJson url ["entity", "new", "--type", "character-fragment", "--title", "琳達", "--summary", "s"]
+    _ <- sfRemoteJson url ["entity", "new", "--type", "character-fragment", "--title", "外貌", "--summary", "s"]
+    r <- sfRemote url ["link", "add", "外貌", "--kind", "contradict", "--target", a]
+    crExit r `shouldBe` ExitSuccess
+    crErr r `shouldContainT` "contradicts"
+
+  it "level new / show / list / rm" $ withCliServer $ \_ url -> do
+    okJson url ["level", "new", "--title", "教室", "--root-title", "午後的教室", "--root-kind", "scene"]
+    okJson url ["level", "show", "教室"]
+    okJson url ["level", "list"]
+    okJson url ["level", "rm", "教室"]
+
+  it "node add / rm" $ withCliServer $ \_ url -> do
+    okJson url ["level", "new", "--title", "教室", "--root-title", "午後的教室", "--root-kind", "scene"]
+    okJson url ["node", "add", "午後的教室", "--title", "出場人物", "--kind", "cast"]
+    okJson url ["node", "rm", "出場人物"]
+
+  it "vault init 在遠端模式打到伺服器,不是在本機建" $ withCliServer $ \dir url -> do
+    r <- sfRemote url ["vault", "init", dir <> "/second", "--name", "second"]
+    -- 不論成功與否,它都不該是「解析不出指令」或崩潰
+    crExit r `shouldNotBe` ExitFailure 2
+
+-- | 跑__一次__遠端指令,從那一次的結果同時斷言 exit code 與信封。
+--
+-- 刻意只跑一次:這些指令多半有副作用,跑兩次的話第二次會撞上「同名的東西已經
+-- 有了」,而後面以標題定址的步驟就會變成 @title_ambiguous@ ——那是測試自己製造的
+-- 失敗,不是被測程式的問題。
+okJson :: String -> [String] -> Expectation
+okJson url args = do
+  r <- sfRemote url ("--json" : args)
+  case decodeStrict (TE.encodeUtf8 (crOut r)) of
+    Nothing ->
+      expectationFailure $
+        unwords args <> " 的 stdout 不是合法 JSON:" <> T.unpack (crOut r) <> T.unpack (crErr r)
+    Just env -> do
+      (unwords args, crExit r) `shouldBe` (unwords args, ExitSuccess)
+      (unwords args, jsonPath ["ok"] env) `shouldBe` (unwords args, Just (Bool True))
+      case (jsonPath ["data"] env, env) of
+        (Just _, Object _) -> pure ()
+        _ -> expectationFailure (unwords args <> " 的信封形狀不對:" <> show env)

@@ -5,6 +5,10 @@ import type { SearchItem } from "../api/types";
 import { Lightbox } from "./Lightbox";
 
 const CELL = 132;
+// 一頁 120 筆,約數多(cols 常見 4-8 都整除),一次涵蓋數個可視畫面。
+// 各入口的分頁預設刻意不同,不是漏改(enhance-0006):server 預設 60 /
+// 上限 500(Server/App.hs)、CLI 預設 20(Cli/Options.hs)、store 層
+// 函式庫預設 50(Store/Search.hs)。
 const PAGE = 120;
 
 interface Props {
@@ -74,12 +78,18 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
     overscan: 4,
   });
 
+  // 可視列區間。effect 依賴的是這兩個穩定的衍生值,而不是
+  // getVirtualItems() 的回傳值 —— 那每次呼叫都是新的陣列參照,
+  // 放進依賴陣列會讓 effect 每次渲染都重跑。
+  const vis = virt.getVirtualItems();
+  const firstRow = vis.length > 0 ? vis[0].index : -1;
+  const lastRow = vis.length > 0 ? vis[vis.length - 1].index : -1;
+
   // 補抓可視範圍內還沒載入的分頁。
   useEffect(() => {
-    const vis = virt.getVirtualItems();
-    if (vis.length === 0) return;
-    const first = vis[0].index * cols;
-    const last = (vis[vis.length - 1].index + 1) * cols;
+    if (firstRow < 0) return;
+    const first = firstRow * cols;
+    const last = (lastRow + 1) * cols;
     for (let off = Math.floor(first / PAGE) * PAGE; off < last; off += PAGE) {
       if (items[off] !== undefined || pending.current.has(off)) continue;
       pending.current.add(off);
@@ -94,7 +104,7 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
         .catch(console.error)
         .finally(() => pending.current.delete(off));
     }
-  }, [virt.getVirtualItems(), cols, items, query]);
+  }, [firstRow, lastRow, cols, items, query]);
 
   // 放大檢視用 ←/→ 可以走到可視範圍之外,而上面那個 effect 只補「看得到」的分頁。
   // 沒有這段的話,連按方向鍵就會停在一個永遠是「載入中…」的空格上。
@@ -125,7 +135,7 @@ export function Grid({ query, onSelect, selected, onTotal }: Props) {
   return (
     <div ref={scrollRef} className="grid-scroll">
       <div style={{ height: virt.getTotalSize(), position: "relative" }}>
-        {virt.getVirtualItems().map((row) => (
+        {vis.map((row) => (
           <div key={row.key}>
             {Array.from({ length: cols }, (_, c) => {
               const i = row.index * cols + c;

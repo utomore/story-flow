@@ -5,7 +5,7 @@
 -- 出現在這裡,就代表它應該在 @service@。
 --
 -- __內嵌與遠端在這個模組裡看不出差別__:'handle' 只認得 'Backend' 這個抽象與
--- "StoryFlow.Cli.Backend" 的那組操作,而渲染器只有一份。func-0008 驗收標準 4
+-- "StoryFlow.Cli.Backend" 的那組操作,而渲染器只有一份。service-and-interfaces/F003 驗收標準 4
 -- (兩種模式輸出完全相同)因此是結構上成立的,不是靠對照測試碰運氣——不過還是有
 -- 一條對照測試守著(T15)。
 --
@@ -190,7 +190,7 @@ entityTarget b sel mrev = do
 -- | 非核心關聯的提示。
 --
 -- __提示不是阻擋__:'StoryFlow.Core.Link.parseLinkKind' 是全函式,自訂關聯一律
--- 合法(ADR-0005),而打錯字與刻意自訂在字串層面無法區分——擋下來會擋到合法用法。
+-- 合法(ADR-005),而打錯字與刻意自訂在字串層面無法區分——擋下來會擋到合法用法。
 kindHint :: LinkKind -> [Text]
 kindHint k
   | isCoreKind k = []

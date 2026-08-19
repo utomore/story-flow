@@ -1,6 +1,6 @@
 -- | CLI 測試的共用底稿。
 --
--- func-0007 的「library 讓測試不必跑子行程」在這裡兌現:每一條測試都是一次
+-- service-and-interfaces/F002 的「library 讓測試不必跑子行程」在這裡兌現:每一條測試都是一次
 -- 'runCliWith' 呼叫,三個 handle 換成暫存檔就拿得到 stdout \/ stderr \/ exit code。
 -- 沒有 @readProcess@,失敗時堆疊追蹤是完整的。
 --

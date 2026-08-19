@@ -37,7 +37,7 @@ spec = do
       moSummary decoded `shouldBe` Just "十四歲時因塔主徵召失去雙親,自此對議會抱持敵意"
       moTags decoded `shouldBe` Just ["動機", "仇恨"]
 
-    it "timeline 的純字串簡寫解成 label(func-0003 實作備註 1)" $
+    it "timeline 的純字串簡寫解成 label(entity-graph-core/F003 實作備註 1)" $
       moTimeline decoded `shouldBe` Just (Timeline (Just "埃提亞崩塌前") Nothing)
 
     it "timeline 的物件形式一樣收" $

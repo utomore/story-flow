@@ -1,4 +1,4 @@
--- | func-0002 T2 的對照測試:統一 Meta 與其列舉。
+-- | entity-graph-core/F002 T2 的對照測試:統一 Meta 與其列舉。
 module StoryFlow.Core.MetaSpec (spec) where
 
 import Data.Time (fromGregorian)
@@ -14,7 +14,7 @@ spec = do
         (\s -> parseStatus (renderStatus s) `shouldBe` Right s)
         [minBound .. maxBound :: Status]
 
-    it "渲染成 architecture.md 用的小寫字串" $
+    it "渲染成 system.md 用的小寫字串" $
       map renderStatus [Draft, Canon, Deprecated]
         `shouldBe` ["draft", "canon", "deprecated"]
 
@@ -27,7 +27,7 @@ spec = do
         (\s -> parseSource (renderSource s) `shouldBe` Right s)
         [Human, Agent "claude-code", Agent "codex", Workshop "character"]
 
-    it "渲染成 architecture.md 的字串形式" $ do
+    it "渲染成 system.md 的字串形式" $ do
       renderSource Human `shouldBe` "human"
       renderSource (Agent "claude-code") `shouldBe` "agent:claude-code"
       renderSource (Workshop "character") `shouldBe` "workshop:character"
@@ -76,7 +76,7 @@ spec = do
       isCanon m {metaStatus = Deprecated} `shouldBe` False
 
   describe "metaFieldNames" $ do
-    it "涵蓋 architecture.md 欄位表的十四個欄位" $
+    it "涵蓋 system.md 欄位表的十四個欄位" $
       metaFieldNames
         `shouldBe` [ "id"
                    , "vault"

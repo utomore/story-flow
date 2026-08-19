@@ -1,7 +1,7 @@
 -- | T16:門面。
 --
 -- __本檔只 import 'StoryFlow.Service' 一個模組__(測試底稿除外),並跑完一輪
--- 增查改刪。ADR-0006 說 CLI 與 server 是薄包裝,那它們就不該需要知道
+-- 增查改刪。ADR-006 說 CLI 與 server 是薄包裝,那它們就不該需要知道
 -- @service@ 內部分了幾個模組;這一條測試就是那句話的證明。
 module StoryFlow.Service.FacadeSpec (spec) where
 

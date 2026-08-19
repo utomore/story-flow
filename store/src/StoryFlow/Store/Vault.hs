@@ -1,10 +1,10 @@
--- | Vault 的定位、設定檔與初始化(ADR-0008)。
+-- | Vault 的定位、設定檔與初始化(ADR-008)。
 --
 -- 定位是三段規則:@--vault \<名稱\>@ 查全域註冊表 → 否則從工作目錄向上搜尋
 -- @.storyflow\/@ → 都沒有就報錯並提示下一步。與 git 同一個心智模型。
 --
 -- 向上搜尋__找到 @.storyflow\/@ 但設定檔壞掉時不繼續往上找__:繼續找會默默寫進
--- 上一層的另一個 Vault,正是 ADR-0008 列出的誤操作風險。
+-- 上一層的另一個 Vault,正是 ADR-008 列出的誤操作風險。
 module StoryFlow.Store.Vault
   ( -- * 型別
     Vault (..)
@@ -65,7 +65,7 @@ data Vault = Vault
 data VaultConfig = VaultConfig
   { cfgName :: Text
   , cfgReferences :: [Text]
-  -- ^ 引用的其他 Vault 名稱。對本 Vault 而言唯讀(ADR-0008)
+  -- ^ 引用的其他 Vault 名稱。對本 Vault 而言唯讀(ADR-008)
   , cfgLlm :: Maybe LlmConfig
   }
   deriving stock (Show, Eq)
@@ -88,7 +88,7 @@ indexDbPath v = storyflowDir (vaultRoot v) </> "index.db"
 
 -- | 絕對路徑 → 索引中儲存的相對路徑。
 --
--- __一律以 @\/@ 分隔__:索引可能被跨平台重建(ADR-0002 保證刪掉重建等價),
+-- __一律以 @\/@ 分隔__:索引可能被跨平台重建(ADR-002 保證刪掉重建等價),
 -- 而 @characters\\琳達.md@ 與 @characters\/琳達.md@ 是兩個不同的字串主鍵。
 -- 傳入已經是相對路徑的值時原樣正規化後回傳。
 vaultRelPath :: Vault -> FilePath -> FilePath
@@ -103,7 +103,7 @@ toSlash = map (\c -> if c == '\\' then '/' else c)
 
 -- 定位 ------------------------------------------------------------------------
 
--- | ADR-0008 的三段規則。@Just name@ 查全域註冊表,@Nothing@ 從 @cwd@ 向上搜尋。
+-- | ADR-008 的三段規則。@Just name@ 查全域註冊表,@Nothing@ 從 @cwd@ 向上搜尋。
 resolveVault :: Maybe Text -> FilePath -> IO (Either StoreError Vault)
 resolveVault mName cwd = do
   reg <- registryPath
@@ -191,7 +191,7 @@ loadVaultRegistry = registryPath >>= loadVaultRegistryFrom
 -- | 檔案不存在時回傳__空註冊表__而不是錯誤:還沒註冊過任何 Vault 是正常狀態,
 -- 「查不到這個名稱」的錯誤由呼叫端以 'VaultNotFound' 表達,訊息才講得清楚。
 --
--- 格式兩種都收(ADR-0008 要求可手寫):最上層的 @名稱 = \"路徑\"@,
+-- 格式兩種都收(ADR-008 要求可手寫):最上層的 @名稱 = \"路徑\"@,
 -- 以及 @[vaults]@ 表底下的同樣寫法。
 loadVaultRegistryFrom :: FilePath -> IO (Either StoreError (Map Text FilePath))
 loadVaultRegistryFrom fp = do
@@ -213,7 +213,7 @@ loadVaultRegistryFrom fp = do
 
 -- | 把一個 Vault 記進全域註冊表。__只追加一行__,不重寫整份檔案。
 --
--- ADR-0008 要求 @vaults.toml@ 可手寫、格式簡單,所以作者的註解與排列順序不能
+-- ADR-008 要求 @vaults.toml@ 可手寫、格式簡單,所以作者的註解與排列順序不能
 -- 被工具洗掉;重寫整份檔案就會。名稱已經登記過同一個路徑時是 no-op(重複
 -- 執行 @vault init@ 不該報錯);登記到__另一個__路徑時回
 -- 'VaultConfigInvalid' ——同一個名稱指向兩個世界是誤操作的溫床,而
@@ -241,7 +241,7 @@ registerVaultIn regFile name root =
 
 -- 初始化 ----------------------------------------------------------------------
 
--- | Entity 檔依型別分目錄,Level 檔集中在 @levels\/@(architecture.md 的目錄結構)。
+-- | Entity 檔依型別分目錄,Level 檔集中在 @levels\/@(system.md 的目錄結構)。
 vaultSubdirs :: [FilePath]
 vaultSubdirs = ["characters", "lore", "items", "dialogues", "levels"]
 

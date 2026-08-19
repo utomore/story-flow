@@ -1,4 +1,4 @@
--- | func-0002 T1 的對照測試:ID 生成、解析、渲染與跨 Vault 定址。
+-- | entity-graph-core/F002 T1 的對照測試:ID 生成、解析、渲染與跨 Vault 定址。
 module StoryFlow.Core.IdSpec (spec) where
 
 import Data.Char (isDigit)
@@ -65,7 +65,7 @@ spec = do
       let i = mkId PLvl "教室" time0 0
        in fmap snd (parseId (renderId i)) `shouldBe` Right i
 
-    it "接受 architecture.md 範例的短寫 id" $
+    it "接受 system.md 範例的短寫 id" $
       fmap fst (parseId "nod-0001") `shouldBe` Right PNod
 
     it "不認得的前綴回 UnknownIdPrefix" $
@@ -83,7 +83,7 @@ spec = do
     it "空的十六進位部分回 BadIdFormat" $
       parseId "ent-" `shouldBe` Left (BadIdFormat "ent-")
 
-  describe "Ref —— 跨 Vault 定址(ADR-0008)" $ do
+  describe "Ref —— 跨 Vault 定址(ADR-008)" $ do
     it "\"shared-lore:ent-7f3a\" 解析為指定 Vault 的參照" $
       fmap refVault (parseRef "shared-lore:ent-7f3a")
         `shouldBe` Right (Just "shared-lore")

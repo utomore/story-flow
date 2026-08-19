@@ -10,7 +10,7 @@
 -- * 'FromHttpApiData' \/ 'ToHttpApiData' __直接委派給 core 的 @parse@ \/ @render@__。
 --   URL 裡的 @ent-7f3a@ 與 JSON 裡的 @"ent-7f3a"@ 若能長得不一樣,Agent 就得學兩套寫法
 -- * 'ToSchema' 必須與 'Data.Aeson.ToJSON' __逐欄對齊__。兩者分開手寫是 OpenAPI 文件
---   說謊最常見的來源,所以有一條測試(func-0008 T3)拿樣本值的 JSON 鍵集合去比對
+--   說謊最常見的來源,所以有一條測試(service-and-interfaces/F003 T3)拿樣本值的 JSON 鍵集合去比對
 --   schema 的 @properties@ 鍵集合
 --
 -- 扁平化的三種實體('Entity' \/ 'Level' \/ 'Node')__重用 'Meta' 的 schema__ 再補上
@@ -105,7 +105,7 @@ instance FromHttpApiData Source where
 instance ToHttpApiData Source where
   toUrlPiece = renderSource
 
--- | 'parseLinkKind' 是__全函式__:任何字串都是合法的關聯(ADR-0005),
+-- | 'parseLinkKind' 是__全函式__:任何字串都是合法的關聯(ADR-005),
 -- 所以這個實例永遠回 'Right'。這不是疏漏,是規格。
 instance FromHttpApiData LinkKind where
   parseUrlPiece = Right . parseLinkKind
@@ -157,7 +157,7 @@ instance ToParamSchema LinkKind where
   toParamSchema _ =
     mempty
       & type_ ?~ OpenApiString
-      & description ?~ "核心關聯之一,或任何自訂字串(ADR-0005:自訂關聯合法)"
+      & description ?~ "核心關聯之一,或任何自訂字串(ADR-005:自訂關聯合法)"
       & example ?~ String "partOf"
 
 instance ToParamSchema NodeKind where

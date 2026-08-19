@@ -72,7 +72,7 @@ byTitle s list (SelByTitle t) = do
 -- 人用起來是「改一欄就改一欄」,不必先查數字;腳本與 AI Agent 要真樂觀鎖時帶
 -- @--revision@ ——它們手上本來就有上一次讀到的值。
 --
--- __遠端模式一樣走這條__,只是那個「先讀」變成一次 HTTP GET(func-0008 第四節)。
+-- __遠端模式一樣走這條__,只是那個「先讀」變成一次 HTTP GET(service-and-interfaces/F003 第四節)。
 -- 兩次呼叫之間的窗口在遠端模式確實比內嵌模式大,而那正是 @--revision@ 存在的
 -- 理由:真的在乎並發的呼叫端自己帶。
 currentRevision :: Backend -> Id -> M Int
@@ -80,7 +80,7 @@ currentRevision b i = case idPrefix i of
   PLvl -> lvRevision <$> getLevelB b i
   _ -> evRevision <$> getEntityB b i
 
--- | Node 的操作鎖的是 __Level 主體__的 revision(func-0005 的 @addNode@ \/
+-- | Node 的操作鎖的是 __Level 主體__的 revision(entity-graph-core/F005 的 @addNode@ \/
 -- @removeNode@ 就是這麼定的),不是節點自己的。
 levelRevision :: Backend -> Id -> Maybe Int -> M Int
 levelRevision b lvl = maybe (lvRevision <$> getLevelB b lvl) pure

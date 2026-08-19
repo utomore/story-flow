@@ -54,7 +54,7 @@ import StoryFlow.Service
 -- | 名詞之前就要給的選項。
 data GlobalOpts = GlobalOpts
   { goVault :: Maybe Text
-  -- ^ 原樣傳給 'StoryFlow.Service.Monad.openEnv';ADR-0008 的解析規則不在 CLI 重寫
+  -- ^ 原樣傳給 'StoryFlow.Service.Monad.openEnv';ADR-008 的解析規則不在 CLI 重寫
   , goJson :: Bool
   , goRemote :: Maybe Text
   -- ^ 遠端伺服器的 base url。給了就改走 HTTP,__與 'goVault' 不能併用__
@@ -399,7 +399,7 @@ sourceOpt :: Parser Source
 sourceOpt = sourceOptRaw <|> pure Human
 
 -- | @--kind@ __沒有驗證步驟__:'parseLinkKind' 是全函式,任何字串都是合法的關聯
--- (ADR-0005)。CLI 能做的只有事後提示,那在 'StoryFlow.Cli' 裡。
+-- (ADR-005)。CLI 能做的只有事後提示,那在 'StoryFlow.Cli' 裡。
 kindOpt :: Parser LinkKind
 kindOpt =
   parseLinkKind

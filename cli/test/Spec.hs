@@ -27,7 +27,7 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    -- 依 func-0007 的 TodoList 順序:純函式在前,開 Vault 的在後
+    -- 依 service-and-interfaces/F002 的 TodoList 順序:純函式在前,開 Vault 的在後
     StoryFlow.Cli.CabalSpec.spec
     StoryFlow.Cli.OptionsSpec.spec
     StoryFlow.Cli.EnvelopeSpec.spec
@@ -43,7 +43,7 @@ main = do
     StoryFlow.Cli.LevelCmdSpec.spec
     StoryFlow.Cli.NodeCmdSpec.spec
     StoryFlow.Cli.EndToEndSpec.spec
-    -- func-0008:遠端模式
+    -- service-and-interfaces/F003:遠端模式
     StoryFlow.Cli.RemoteOptSpec.spec
     StoryFlow.Cli.RemoteResolveSpec.spec
     StoryFlow.Cli.RemoteCmdSpec.spec

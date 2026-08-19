@@ -50,7 +50,7 @@ spec = describe "HttpApiData" $ do
       either (`shouldContainT` "scene") (const (expectationFailure "預期 Left")) r
 
   describe "LinkKind 沒有非法輸入" $
-    -- parseLinkKind 是全函式:自訂關聯一律合法(ADR-0005)。
+    -- parseLinkKind 是全函式:自訂關聯一律合法(ADR-005)。
     -- 這不是漏測,是規格——擋下來會擋到「師承於」這種合法用法。
     it "任何字串都解得出來,而且解成 Custom" $ do
       (parseUrlPiece "隨便打的字" :: Either Text LinkKind) `shouldBe` Right (Custom "隨便打的字")

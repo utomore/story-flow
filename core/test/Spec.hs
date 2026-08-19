@@ -25,4 +25,4 @@ main = do
     describe "T7 StoryFlow.Core.Graph" StoryFlow.Core.GraphSpec.spec
     describe "T8 StoryFlow.Core.Registry" StoryFlow.Core.RegistrySpec.spec
     describe "T9 StoryFlow.Core.Json" StoryFlow.Core.JsonSpec.spec
-    describe "func-0001 T6 輸出編碼" StoryFlow.CoreSpec.spec
+    describe "entity-graph-core/F001 T6 輸出編碼" StoryFlow.CoreSpec.spec

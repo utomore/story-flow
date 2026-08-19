@@ -1,7 +1,7 @@
--- | __唯一的 API 契約__。server(func-0008)、@cli --remote@ 與 OpenAPI 文件
+-- | __唯一的 API 契約__。server(service-and-interfaces/F003)、@cli --remote@ 與 OpenAPI 文件
 -- 三者都由這一份型別產生。
 --
--- 這正是 ADR-0006 選 servant 的理由:同一個型別同時產生 server、client 與文件,
+-- 這正是 ADR-006 選 servant 的理由:同一個型別同時產生 server、client 與文件,
 -- __三邊無法悄悄長歪__。加一條路由要改的是這個檔案,而 server 少實作一個 handler
 -- 或 client 少一個呼叫函式都是編譯錯誤,不是執行期才發現的落差。
 --
@@ -12,7 +12,7 @@
 -- 兩個約定貫穿整份 API:
 --
 -- * __@revision@ 是必填的 query parameter__('QueryParam'' ''[Required]'),
---   不是選配。ADR-0006 明列樂觀鎖在兩種模式下都要生效,而遠端模式恰恰是多客戶端
+--   不是選配。ADR-006 明列樂觀鎖在兩種模式下都要生效,而遠端模式恰恰是多客戶端
 --   並發真的會發生的那一種。「先讀再寫」由客戶端自己補,server 不提供逃生口
 -- * __@DELETE \/entities\/:id\/links@ 以 query parameter 帶 @kind@ 與 @target@__,
 --   不是 request body:DELETE 帶 body 在中介軟體與 client 函式庫之間的支援度不一致,
@@ -157,7 +157,7 @@ type Force = QueryParam "force" Bool
 -- 子 API -----------------------------------------------------------------------
 
 -- | @GET \/vaults@ 與 @POST \/vaults@ __在沒有目前 Vault 的情況下也要能跑__
--- ——它們對應 func-0006 不需要 @Env@ 的那兩個函式。server 的 @Env@ 因此是延遲
+-- ——它們對應 service-and-interfaces/F001 不需要 @Env@ 的那兩個函式。server 的 @Env@ 因此是延遲
 -- 取得的,不是啟動時就必須成功。
 type VaultAPI =
   "vaults" :> Summary "列出全域註冊表裡的全部 Vault" :> Get '[JSON] [VaultView]
@@ -304,7 +304,7 @@ storyFlowOpenApi =
   tagged (toOpenApi storyFlowAPI)
     & info . title .~ "story-flow API"
     & info . version .~ "0.1.0"
-    & info . description ?~ "故事設定的片段圖譜與場景樹。所有業務操作的唯一契約(ADR-0006)。"
+    & info . description ?~ "故事設定的片段圖譜與場景樹。所有業務操作的唯一契約(ADR-006)。"
     & info . license ?~ "BSD-3-Clause"
   where
     tagged =

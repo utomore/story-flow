@@ -1,6 +1,6 @@
 -- | 解析錯誤與品質警告。
 --
--- 原則(func-0003):__任何無法還原資料的情況是錯誤,任何品質問題是警告__。
+-- 原則(entity-graph-core/F003):__任何無法還原資料的情況是錯誤,任何品質問題是警告__。
 -- 作者手寫時漏一句 @summary@ 不該讓整個檔案讀不出來,但工具要講出來。
 --
 -- 所有錯誤都帶檔名與行號,'renderMdError' 輸出 @檔案:行號: 訊息@ ——
@@ -57,7 +57,7 @@ data MdErrorKind
     RootMismatch Id Id
   | -- | 檔案層缺必填欄位
     RequiredFieldMissing Text
-  | -- | 編輯操作指定了不存在的節(func-0003 實作備註 5)
+  | -- | 編輯操作指定了不存在的節(entity-graph-core/F003 實作備註 5)
     UnknownSectionId Id
   deriving stock (Show, Eq)
 

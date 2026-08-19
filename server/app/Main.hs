@@ -1,7 +1,7 @@
 -- | @story-flow-serve@ ——REST 伺服器的執行檔。
 --
--- __為什麼不是 @story-flow serve@__:func-0008 原本把它寫成 CLI 的子指令,但
--- architecture.md 讓 @storyflow-api@ 獨立成套件的理由正是「CLI 的遠端模式需要
+-- __為什麼不是 @story-flow serve@__:service-and-interfaces/F003 原本把它寫成 CLI 的子指令,但
+-- system.md 讓 @storyflow-api@ 獨立成套件的理由正是「CLI 的遠端模式需要
 -- API 型別、但__不需要 servant-server 與 warp__ ——一個預設根本不開伺服器的執行檔
 -- 不該把整套 HTTP 伺服器拖進來」。CLI 要有 @serve@,就一定得依賴
 -- @storyflow-server@,warp 就進來了。獨立成第二個執行檔,架構圖裡 server 與 cli

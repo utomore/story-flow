@@ -1,4 +1,4 @@
--- | func-0002 T8 的對照測試:型別註冊表的純驗證與 Entity 檢查。
+-- | entity-graph-core/F002 T8 的對照測試:型別註冊表的純驗證與 Entity 檢查。
 module StoryFlow.Core.RegistrySpec (spec) where
 
 import Data.Either (isRight)
@@ -114,7 +114,7 @@ spec = do
       map etsKey (listTypes goodRegistry)
         `shouldBe` ["character-fragment", "lore-fragment"]
 
-  -- func-0005 T4:lookupDir 以 key 或 owner_type 命中,衝突宣告被擋下
+  -- entity-graph-core/F005 T4:lookupDir 以 key 或 owner_type 命中,衝突宣告被擋下
   describe "lookupDir" $ do
     it "以 key 精確命中" $
       lookupDir "character-fragment" goodRegistry `shouldBe` Just "characters"
@@ -167,7 +167,7 @@ spec = do
         )
         `shouldBe` True
 
-  describe "checkEntity —— 警告而非錯誤(ADR-0005 引導而非阻擋)" $ do
+  describe "checkEntity —— 警告而非錯誤(ADR-005 引導而非阻擋)" $ do
     it "合規的 Entity 回空清單" $
       checkEntity goodRegistry goodEntity `shouldBe` []
 

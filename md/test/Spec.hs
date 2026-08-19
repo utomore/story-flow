@@ -29,4 +29,4 @@ main = do
     describe "T8 renderDocument" StoryFlow.Md.RenderSpec.spec
     describe "T9 updateSection / insertSection / removeSection" StoryFlow.Md.EditSpec.spec
     describe "T10 StoryFlow.Md.Error" StoryFlow.Md.ErrorSpec.spec
-    describe "func-0001 T6 輸出編碼" StoryFlow.MdSpec.spec
+    describe "entity-graph-core/F001 T6 輸出編碼" StoryFlow.MdSpec.spec

@@ -2,8 +2,8 @@
 
 -- | 業務型別的 aeson 編解碼,__集中在這一個模組__。
 --
--- 與 "StoryFlow.Core.Json" 同一個理由的孤兒實例:CLI 的 @--json@(func-0007)、
--- REST API 與 OpenAPI(func-0008)、未來的 MCP 用的是同一套編碼規則,規則只該有
+-- 與 "StoryFlow.Core.Json" 同一個理由的孤兒實例:CLI 的 @--json@(service-and-interfaces/F002)、
+-- REST API 與 OpenAPI(service-and-interfaces/F003)、未來的 MCP 用的是同一套編碼規則,規則只該有
 -- 一份。把實例散在各型別模組會讓「規則有一份」變成靠自律維持。
 --
 -- 編碼約定(延續 core):

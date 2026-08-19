@@ -1,7 +1,7 @@
 -- | T11:FTS5 trigram 中文檢索。
 --
 -- 「以『織紋』命中『織紋刀』」是驗收標準裡明寫的一條,而 trigram 以三字元為
--- 索引單位,二字詞 MATCH 一定不命中(func-0001 已驗證)。這一節因此同時是
+-- 索引單位,二字詞 MATCH 一定不命中(entity-graph-core/F001 已驗證)。這一節因此同時是
 -- 「二字詞走 LIKE 掃描」這個補救措施的驗收。
 module StoryFlow.Store.SearchSpec (spec) where
 

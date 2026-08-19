@@ -1,4 +1,4 @@
--- | func-0002 T9 的對照測試:全部核心型別的 aeson 編解碼。
+-- | entity-graph-core/F002 T9 的對照測試:全部核心型別的 aeson 編解碼。
 module StoryFlow.Core.JsonSpec (spec) where
 
 import Data.Aeson

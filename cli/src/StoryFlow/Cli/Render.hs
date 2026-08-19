@@ -165,7 +165,7 @@ renderLinks (LinkReport out inc) =
 
 -- 人類可讀:Level 樹 -------------------------------------------------------------
 
--- | ASCII 樹,形狀與 architecture.md 的場景樹圖一致。
+-- | ASCII 樹,形狀與 system.md 的場景樹圖一致。
 --
 -- 吃的是 'lvTree'(已經是 'NodeTree'),__不自己從扁平清單重建__ ——
 -- 'StoryFlow.Core.Tree.buildTree' 已經驗證過合法性,再重建一次就是第二份樹邏輯。
@@ -189,7 +189,7 @@ renderLevelTree v =
       let head' = indent <> (if isLast then "└─ " else "├─ ")
           label = head' <> renderId (metaId (nodMeta n)) <> " " <> renderNodeKind (nodKind n)
        in padTo summaryColumn label <> nodeText n
-    -- 摘要一律從第 25 欄開始;標籤已經超過就退讓成兩個空格(architecture.md 的
+    -- 摘要一律從第 25 欄開始;標籤已經超過就退讓成兩個空格(system.md 的
     -- 圖裡 interaction 那一行就是這種情形)
     summaryColumn = 25
     nodeText n =

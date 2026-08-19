@@ -2,7 +2,7 @@
 --
 -- ID 的格式是 @\<prefix\>-\<8 位小寫十六進位\>@,由 FNV-1a 64-bit 對
 -- 「內容 + 時間 + salt」雜湊後取低 32 位產生。本模組零 IO:時間由呼叫端提供,
--- 唯一性由持有索引的那一層(func-0004 的 store)以 salt 遞增重試保證。
+-- 唯一性由持有索引的那一層(entity-graph-core/F004 的 store)以 salt 遞增重試保證。
 module StoryFlow.Core.Id
   ( -- * 前綴
     IdPrefix (..)
@@ -65,7 +65,7 @@ parseIdPrefix t = case t of
 -- | 全域唯一識別碼。建構子不外露——只能透過 'mkId' 或 'parseId' 取得。
 --
 -- 不變量:@\<prefix\>-\<1 至 8 位小寫十六進位\>@。'mkId' __一律__產生 8 位;
--- 'parseId' 放寬到 1–8 位,因為 architecture.md 全篇的範例(@ent-7f3a@、
+-- 'parseId' 放寬到 1–8 位,因為 system.md 全篇的範例(@ent-7f3a@、
 -- @nod-0001@)與作者手寫的 @{#ent-7f3b}@ 錨點都是短寫,解析端拒收它們會讓
 -- 文件自己的範例檔變成非法輸入。
 newtype Id = Id Text
@@ -130,7 +130,7 @@ isHexLower c = isDigit c || (c >= 'a' && c <= 'f')
 
 -- | 對某個實體的參照。@refVault = Nothing@ 表示本 Vault。
 --
--- 所有關聯的 target 都是 'Ref' 而非 'Id'——跨 Vault 引用(ADR-0008)從型別上
+-- 所有關聯的 target 都是 'Ref' 而非 'Id'——跨 Vault 引用(ADR-008)從型別上
 -- 就是一等公民,不是後補的字串慣例。
 data Ref = Ref
   { refVault :: Maybe Text

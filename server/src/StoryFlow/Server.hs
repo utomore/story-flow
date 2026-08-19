@@ -2,7 +2,7 @@
 --
 -- __每個 handler 都是一行結構__:把 query parameter 與 body 組成 service 的請求
 -- 型別,交給 'run1',狀態碼由 'toServerError' 決定。這一層不含任何業務判斷
--- (func-0008 驗收標準 3);handler 若比一行長,多出來的部分十之八九屬於 @service@。
+-- (service-and-interfaces/F003 驗收標準 3);handler 若比一行長,多出來的部分十之八九屬於 @service@。
 --
 -- 並發、'Env' 的延遲取得與那個互斥鎖的取捨都在 "StoryFlow.Server.State";
 -- 狀態碼對照表在 "StoryFlow.Server.Error";認證在 "StoryFlow.Server.Auth"。
@@ -64,7 +64,7 @@ defaultServeOpts = ServeOpts 8787 "127.0.0.1" Nothing Nothing
 
 -- | 綁非 loopback 位址時__強制要求 token__。
 --
--- ADR-0006 只要求「明確加旗標並顯示警告」,這裡收得更緊:警告會被忽略,而
+-- ADR-006 只要求「明確加旗標並顯示警告」,這裡收得更緊:警告會被忽略,而
 -- 「整個 Vault 暴露在區域網路上」不是可以靠使用者留意來緩解的事。沒設 token 就
 -- 拒絕啟動,並說明要怎麼設。
 validateServeOpts :: ServeOpts -> Either Text ()

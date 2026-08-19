@@ -1,7 +1,7 @@
 -- | T3:原子寫入。
 --
 -- 「覆蓋既有檔案成功」是本檔最重要的一條:Windows 的 rename 在目標已存在時
--- 不見得會覆寫,func-0004 明確要求驗證這個行為而不是相信它。
+-- 不見得會覆寫,entity-graph-core/F004 明確要求驗證這個行為而不是相信它。
 module StoryFlow.Store.AtomicSpec (spec) where
 
 import Control.Monad (forM_)

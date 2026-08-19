@@ -1,4 +1,4 @@
--- | 測試共用的資料。以 architecture.md 的「教室」場景為準,
+-- | 測試共用的資料。以 system.md 的「教室」場景為準,
 -- 讓樹與走訪的測試對照的是文件裡真的畫出來的那棵樹。
 module StoryFlow.Core.Fixtures
   ( -- * 建構輔助
@@ -85,7 +85,7 @@ classroomLevel =
     , lvlRoot = idOf "nod-0001"
     }
 
--- | architecture.md 的教室場景樹:
+-- | system.md 的教室場景樹:
 --
 -- @
 -- nod-0001 scene
@@ -117,7 +117,7 @@ classroomNodes =
       }
   ]
 
--- | 分支末端,以 @convergesTo@ 標註合流(ADR-0004:標註不是結構)。
+-- | 分支末端,以 @convergesTo@ 標註合流(ADR-004:標註不是結構)。
 convergingNode :: Node
 convergingNode =
   let n = nodeOf "nod-0009" "動手之後" (Just "nod-0007") 1 KInteraction

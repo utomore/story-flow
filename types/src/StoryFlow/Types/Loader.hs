@@ -4,7 +4,7 @@
 -- 驗證函式。單檔解析失敗__不中斷__,繼續讀其餘檔案,最後一次回報全部問題——
 -- 作者一次改好幾份型別宣告時,修一個跑一次太慢。
 --
--- 所有錯誤訊息一律帶檔名。ADR-0005 明說型別宣告寫錯只能在載入時檢查並報錯,
+-- 所有錯誤訊息一律帶檔名。ADR-005 明說型別宣告寫錯只能在載入時檢查並報錯,
 -- 而沒有檔名的錯誤訊息在 5 個以上型別檔時等於沒有。
 module StoryFlow.Types.Loader
   ( -- * 執行期定位
@@ -81,7 +81,7 @@ data LoadError
     BadFieldType FilePath Text Text
   | -- | 檔名 + 認不得的鍵。__不容忍未知鍵__:TOML 的表頭語意讓
     -- @allowed_links@ 寫在 @[[fields]]@ 之後就會靜默變成 field 的子鍵,
-    -- 而 ADR-0005 的立場是宣告寫錯要當場報錯,不是默默少一半設定
+    -- 而 ADR-005 的立場是宣告寫錯要當場報錯,不是默默少一半設定
     UnknownKey FilePath Text
   | -- | 註冊表目錄不存在(空目錄是合法的,不存在不是)
     RegistryDirMissing FilePath
@@ -183,7 +183,7 @@ parseSpec fp tbl =
 
 -- | 型別宣告的最上層允許的鍵。
 --
--- @dir@ 與 @owner_type@ 是 func-0005 補的,__兩個都是選配__:既有的宣告在
+-- @dir@ 與 @owner_type@ 是 entity-graph-core/F005 補的,__兩個都是選配__:既有的宣告在
 -- 補上它們之前必須仍能載入。
 topLevelKeys :: [Text]
 topLevelKeys = ["key", "name", "fields", "allowed_links", "stages", "dir", "owner_type"]

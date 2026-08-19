@@ -2,7 +2,7 @@
 --
 -- 檔案層 frontmatter 的 @type: level@ 是判別依據('documentKind'):@level@ 走
 -- Level 解析,否則走 Entity 解析。@level@ 因此是保留型別鍵,不可用於
--- @types\/registry\/@(由 func-0002 的 @validateRegistry@ 把關)。
+-- @types\/registry\/@(由 entity-graph-core/F002 的 @validateRegistry@ 把關)。
 --
 -- 錯誤__盡量往下走完再一次回報全部__——作者手改一份檔案常一次壞好幾節,
 -- 一次列完比修一個跑一次快得多。只有 frontmatter 層級的錯誤會中止解析,
@@ -151,7 +151,7 @@ parseEntityFile doc@Document {..} = do
               body = T.strip secBodyRaw
            in Right (Entity meta body, ws ++ [EmptyBody secId | T.null body])
 
--- | 標題階層即樹(ADR-0009):層級決定 @parent@,文件順序決定 @order@。
+-- | 標題階層即樹(ADR-009):層級決定 @parent@,文件順序決定 @order@。
 --
 -- 本函式__不呼叫__ @buildTree@——結構合法性是 core 的職責,這裡只負責把文字
 -- 變成 Node 清單。

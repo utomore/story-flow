@@ -1,4 +1,4 @@
--- | func-0004 T9 + func-0005 T8 \/ T9 \/ T10:樂觀鎖寫入、主體 frontmatter、
+-- | entity-graph-core/F004 T9 + entity-graph-core/F005 T8 \/ T9 \/ T10:樂觀鎖寫入、主體 frontmatter、
 -- 正文與關聯。
 --
 -- 「以過期 revision 寫入時檔案位元組完全未變」是本檔最重要的一條:樂觀鎖只要
@@ -77,7 +77,7 @@ spec = do
         textsOf conn "SELECT summary FROM entities WHERE id = 'ent-7f3b'" ()
           `shouldReturn` ["銀灰短髮,左眼下方有織紋刺青"]
 
-  -- func-0005 T8:writeEntityMeta 能改主體的 frontmatter
+  -- entity-graph-core/F005 T8:writeEntityMeta 能改主體的 frontmatter
   describe "T8 writeEntityMeta(檔案層主體)" $ do
     it "改主體的 summary:frontmatter 更新、revision 加一、索引跟著更新" $
       withSampleIndex $ \v conn -> do
@@ -116,7 +116,7 @@ spec = do
         r `shouldBe` Left (StaleRevision main_ 1 3)
         readVaultFile v linda `shouldReturn` original
 
-  -- func-0005 T9:writeEntityBody 對節與主體各自改到正確的正文
+  -- entity-graph-core/F005 T9:writeEntityBody 對節與主體各自改到正確的正文
   describe "T9 writeEntityBody" $ do
     it "改片段的正文:片段的 entBody 是新值,主體的 entBody 不變" $
       withSampleIndex $ \v conn -> do
@@ -152,7 +152,7 @@ spec = do
         r `shouldBe` Left (StaleRevision frag 99 1)
         readVaultFile v linda `shouldReturn` original
 
-  -- func-0005 T10:addEntityLink 與 removeEntityLink 只動來源端
+  -- entity-graph-core/F005 T10:addEntityLink 與 removeEntityLink 只動來源端
   describe "T10 addEntityLink / removeEntityLink" $ do
     it "加一筆 contradicts:linksFrom 多一筆,目標端的檔案位元組不變" $
       withSampleIndex $ \v conn -> do
@@ -197,7 +197,7 @@ spec = do
         r `shouldBe` Left (StaleRevision frag 99 1)
         readVaultFile v linda `shouldReturn` original
 
-  -- func-0005 驗收標準 3
+  -- entity-graph-core/F005 驗收標準 3
   describe "驗收標準 3:未被修改的區塊逐字不變" $ do
     it "含 YAML 註解、混合行尾、非標準縮排的檔案,只有目標節的 meta 區塊改變" $
       withVaultIndex $ \v conn -> do

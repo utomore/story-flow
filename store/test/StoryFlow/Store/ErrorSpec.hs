@@ -1,4 +1,4 @@
--- | func-0005 T15:九個新建構子都有非空的繁中訊息,而且說得出下一步。
+-- | entity-graph-core/F005 T15:九個新建構子都有非空的繁中訊息,而且說得出下一步。
 --
 -- 「不含原始 @show@ 痕跡」是本檔真正在守的那條:錯誤訊息會直接被 CLI 與 API
 -- 印給作者與 AI Agent 看,漏出一個 @Left@ 或建構子名稱就等於把內部型別當成
@@ -17,7 +17,7 @@ i1, i2 :: Id
 i1 = idOf "ent-7f3a"
 i2 = idOf "ent-7f3b"
 
--- | func-0005 新增的九個建構子。
+-- | entity-graph-core/F005 新增的九個建構子。
 newErrors :: [(String, StoreError)]
 newErrors =
   [ ("ReferencedBy", ReferencedBy i1 [(i2, Link PartOf (localRef i1) Nothing)])

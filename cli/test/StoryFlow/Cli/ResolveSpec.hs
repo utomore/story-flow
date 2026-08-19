@@ -1,9 +1,9 @@
--- | T6(func-0007):id 直接用,標題精確比對,多筆命中列候選。
+-- | T6(service-and-interfaces/F002):id 直接用,標題精確比對,多筆命中列候選。
 --
 -- 標題比對__不做模糊比對__。猜錯然後改到別的片段,比找不到糟得多——後者使用者
 -- 立刻知道,前者要等到下次讀那個片段才發現,而那時候已經沒有原本的內容了。
 --
--- func-0008 之後這一組跑在 'Backend' 上。這裡用的是 @Embedded@;同一批斷言在
+-- service-and-interfaces/F003 之後這一組跑在 'Backend' 上。這裡用的是 @Embedded@;同一批斷言在
 -- 遠端後端上的版本在 "StoryFlow.Cli.RemoteResolveSpec"。
 module StoryFlow.Cli.ResolveSpec (spec) where
 

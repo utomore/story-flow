@@ -1,6 +1,6 @@
 -- | T1:套件邊界。
 --
--- ADR-0006 說「@service@ 不涉及 HTTP 與終端輸出」,而那句話唯一守得住的形式是
+-- ADR-006 說「@service@ 不涉及 HTTP 與終端輸出」,而那句話唯一守得住的形式是
 -- @build-depends@ 裡沒有那些套件。用測試釘住它,不是靠 code review 記得。
 module StoryFlow.Service.CabalSpec (spec) where
 

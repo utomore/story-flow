@@ -1,11 +1,11 @@
 -- | SQLite 索引的 schema 與連線開啟。
 --
--- ADR-0002:索引是__衍生物__,任何時候可以刪掉重建。這件事在本模組換來一個
+-- ADR-002:索引是__衍生物__,任何時候可以刪掉重建。這件事在本模組換來一個
 -- 具體的好處——__schema 變更不寫遷移程式__。'schemaVersion' 與 @meta_info@ 裡
 -- 記的值不符時,'openIndex' 直接把所有表砍掉重建(對照 design-studio 的
 -- bug-0003「session schema 從未遷移」)。
 --
--- 三處與 architecture.md 原本的索引結構不同,都是實作時碰到硬限制後回寫的:
+-- 三處與 system.md 原本的索引結構不同,都是實作時碰到硬限制後回寫的:
 --
 -- * @entities_fts@ __不是 contentless__。contentless 的 FTS5 表既不支援
 --   @snippet()@(檢索要回傳命中片段),也不支援刪除單列(單檔重新索引要能

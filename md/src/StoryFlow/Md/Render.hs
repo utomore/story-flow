@@ -1,4 +1,4 @@
--- | 寫回與單節編輯(ADR-0010)。
+-- | 寫回與單節編輯(ADR-010)。
 --
 -- 'renderDocument' 只是把每一段原始切片依序接起來,因此__位元組相等是結構上
 -- 保證的__,不是靠測試碰運氣。編輯函式集中在本模組一處,是為了讓「只重寫被修改
@@ -120,11 +120,11 @@ insertSection mAfter new doc@Document {..} = case mAfter of
 -- | 插入點之前那一段的結尾:__補到剛好隔一個空行__。
 --
 -- 兩個坑合在這一個函式裡:原檔尾沒有換行時新節的標題會黏在最後一行後面
--- (func-0003 就已經在防的那個);有換行但沒有空行時檔案雖然解析得回來,
+-- (entity-graph-core/F003 就已經在防的那個);有換行但沒有空行時檔案雖然解析得回來,
 -- 卻長得不像人寫的——而 Vault 是給人看的 git repo,工具產生的段落要與作者
 -- 手寫的分不出來。
 --
--- 這一個行尾是插入__必然__帶來的改動,不違反 ADR-0010:被動到的是插入點,
+-- 這一個行尾是插入__必然__帶來的改動,不違反 ADR-010:被動到的是插入點,
 -- 不是「未經修改的區塊」。
 blankTail :: LineEnding -> Text -> Text
 blankTail le t
@@ -165,7 +165,7 @@ replaceSectionBody i body doc@Document {..}
 --
 -- 片段的標題不在 @```meta@ 區塊裡,而是標題行本身,所以
 -- 'StoryFlow.Md.Inherit.MetaOverride' 表達不了它——檔案層主體改標題走
--- 'updateFrontmatter',節層改標題只能走這裡(func-0006 補)。
+-- 'updateFrontmatter',節層改標題只能走這裡(service-and-interfaces/F001 補)。
 --
 -- 只重寫標題那一行,'secMetaRaw' 與 'secBodyRaw' 一個位元組都不動。
 renameSection :: Id -> Text -> Document -> Either MdError Document
@@ -229,7 +229,7 @@ mkSection le level i title mOv body =
 -- 與節層不同,這是__整段重新序列化__而不是逐欄改寫:frontmatter 是一整塊
 -- YAML,沒有像節那樣「只有 meta 區塊要換」的細界線可切。代價是作者寫在
 -- frontmatter 裡的 YAML 註解會被抹掉;節層的位元組保留不受影響,而那才是
--- ADR-0010 真正在保護的東西——片段是被工具高頻改寫的那一種。
+-- ADR-010 真正在保護的東西——片段是被工具高頻改寫的那一種。
 --
 -- 吃 @'Meta' -> 'Meta'@ 而不是 @'MetaOverride' -> 'MetaOverride'@:frontmatter
 -- 一定是__完整的__ 'Meta',而 'MetaOverride' 連 @id@ 與 @title@ 都沒有——改標題
@@ -252,7 +252,7 @@ updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
 -- 因此 'docFrontRaw' 以行尾開頭、'docPreamble' 以「界線的行尾 + 一行空白」開頭。
 --
 -- Entity 檔與 Level 檔共用同一個函式:Level 的 @root@ 由標題階層推導
--- (ADR-0009)不寫進 frontmatter,兩者的差別只在 'metaType' 是不是 @level@。
+-- (ADR-009)不寫進 frontmatter,兩者的差別只在 'metaType' 是不是 @level@。
 --
 -- @docPath@ 留空——新文件還不屬於任何檔案,要用於錯誤訊息時由呼叫端填。
 mkDocument :: LineEnding -> Meta -> Text -> Document
@@ -322,7 +322,7 @@ renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFie
         ls -> "links:" : map linkLine ls
       _ -> []
 
--- | 固定的欄位順序。func-0003 給的九個欄位順序原樣保留為子序列,
+-- | 固定的欄位順序。entity-graph-core/F003 給的九個欄位順序原樣保留為子序列,
 -- @kind@ / @vault@ / @created@ / @updated@ 是實作補上的(實作備註 1)。
 --
 -- 固定順序讓同一份資料每次寫出都一樣,@git diff@ 才乾淨。

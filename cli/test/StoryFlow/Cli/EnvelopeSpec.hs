@@ -2,7 +2,7 @@
 --
 -- 重點不只是「編得出 JSON」,而是 @code@ __確實來自 service__。CLI 自己編一套
 -- 錯誤碼的話,同一個失敗在 CLI 與 REST 會回不同的字串,而 AI Agent 就得為每個
--- 介面各學一次——那正是 ADR-0006 把錯誤定義在 service 的理由。
+-- 介面各學一次——那正是 ADR-006 把錯誤定義在 service 的理由。
 --
 -- @StoreFailed@ 往內取建構子名(@stale_revision@)那條走真實路徑驗,在
 -- "StoryFlow.Cli.EntityWriteSpec" ——'StoryFlow.Store.StoreError' 的建構子沒有被

@@ -25,9 +25,9 @@ library
     exposed-modules:
         StoryFlow.Conflict.Json
         StoryFlow.Conflict.Types
-    -- ADR-0007 說三層「各自可獨立演進」,而那句話成立的前提是三層對同一組型別
+    -- ADR-007 說三層「各自可獨立演進」,而那句話成立的前提是三層對同一組型別
     -- 工作。這個套件就是那組型別,因此它只能站在 core 上:service / store / llm
-    -- 出現在這裡,型別就會被綁到某一層的實作進度上(func-0009 T1)。
+    -- 出現在這裡,型別就會被綁到某一層的實作進度上(conflict-detection/F001 T1)。
     build-depends:
         , aeson
         , base            >=4.14 && <5

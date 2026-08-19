@@ -1,6 +1,6 @@
 -- | 有方向性的關聯,一律存在來源端。
 --
--- ADR-0005:引擎認得八個核心關聯並據以推論,其餘一律是 'Custom'——引擎當純標註
+-- ADR-005:引擎認得八個核心關聯並據以推論,其餘一律是 'Custom'——引擎當純標註
 -- 儲存,可查詢、可顯示、可被 AI 讀到,但不驅動任何邏輯。
 module StoryFlow.Core.Link
   ( LinkKind (..)
@@ -34,7 +34,7 @@ data LinkKind
     OccursIn
   | -- | A 提到 B。弱關聯,擴充檢索範圍
     References
-  | -- | Node A 合流到 Node B。標註而非結構(ADR-0004)
+  | -- | Node A 合流到 Node B。標註而非結構(ADR-004)
     ConvergesTo
   | -- | 自訂關聯。可儲存、可查詢,但不驅動邏輯
     Custom Text
@@ -47,7 +47,7 @@ data Link = Link
   }
   deriving stock (Show, Eq, Ord)
 
--- | 八個核心關聯,依 architecture.md 的詞彙表順序。
+-- | 八個核心關聯,依 system.md 的詞彙表順序。
 coreLinkKinds :: [LinkKind]
 coreLinkKinds =
   [ Contradicts
@@ -73,7 +73,7 @@ renderLinkKind = \case
   Custom t -> t
 
 -- | 不回傳 'Either':任何字串都是合法關聯,認不得就是 'Custom'。
--- 這正是 ADR-0005 的決策——引擎不阻止作者表達,只是不對自訂關聯做推論。
+-- 這正是 ADR-005 的決策——引擎不阻止作者表達,只是不對自訂關聯做推論。
 parseLinkKind :: Text -> LinkKind
 parseLinkKind t =
   case lookup t [(renderLinkKind k, k) | k <- coreLinkKinds] of
@@ -87,7 +87,7 @@ isCoreKind = \case
 
 -- | 自訂關聯的名稱與某個核心關聯高度相似時,回傳建議。
 --
--- ADR-0005 的負面影響那條指出「使用者可能誤以為寫了『矛盾於』引擎就會偵測」;
+-- ADR-005 的負面影響那條指出「使用者可能誤以為寫了『矛盾於』引擎就會偵測」;
 -- 這個函式是該問題的緩解措施,供 CLI 與 API 在收到自訂關聯時提示用。
 -- 已經是核心關聯的字串回傳 'Nothing'——沒有什麼好建議的。
 suggestCoreKind :: Text -> Maybe LinkKind

@@ -1,7 +1,7 @@
 -- | 所有寫入路徑共用的那一條紀律。內部模組,不對外承諾介面。
 --
--- func-0004 只有一個寫入函式,那條紀律寫在 'StoryFlow.Store.Write' 裡就夠了;
--- func-0005 之後有十個,__再抄九遍就等於保證分裂__。順序不能調換:
+-- entity-graph-core/F004 只有一個寫入函式,那條紀律寫在 'StoryFlow.Store.Write' 裡就夠了;
+-- entity-graph-core/F005 之後有十個,__再抄九遍就等於保證分裂__。順序不能調換:
 --
 -- @
 -- 讀檔 → 解析 → 樂觀鎖比對 → 純函式編輯 → atomicWriteText → indexFile
@@ -13,7 +13,7 @@
 -- refresh。拿過時的 revision 去比對,樂觀鎖就形同虛設。
 --
 -- 殘留競態見 "StoryFlow.Store.Atomic":重讀與 rename 之間的毫秒級窗口是
--- func-0004 明確接受的風險,func-0005 沿用同一個結論。
+-- entity-graph-core/F004 明確接受的風險,entity-graph-core/F005 沿用同一個結論。
 module StoryFlow.Store.Edit
   ( -- * 結果
     WriteResult (..)

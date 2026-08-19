@@ -1,4 +1,4 @@
--- | T8:逐字寫回。位元組相等是結構上的保證(ADR-0010),
+-- | T8:逐字寫回。位元組相等是結構上的保證(ADR-010),
 -- 這裡拿風格各異的十份檔案把它釘死。
 module StoryFlow.Md.RenderSpec (spec) where
 
@@ -11,7 +11,7 @@ import StoryFlow.Md
 import StoryFlow.Md.Fixtures
 import Test.Hspec
 
--- | func-0005 T1 的樣本:每一欄都有值的完整 'Meta'。
+-- | entity-graph-core/F005 T1 的樣本:每一欄都有值的完整 'Meta'。
 fullMeta :: Meta
 fullMeta =
   Meta
@@ -176,7 +176,7 @@ spec = do
       renderDocument d `shouldSatisfy` T.isInfixOf "updated: 2026-08-16\n---\n"
       renderDocument d `shouldSatisfy` T.isInfixOf "這一段是 CRLF\r\n"
 
-  -- func-0005 T1:renderFrontmatter 依固定順序輸出且 mkDocument 可被 parseDocument 讀回
+  -- entity-graph-core/F005 T1:renderFrontmatter 依固定順序輸出且 mkDocument 可被 parseDocument 讀回
   describe "renderFrontmatter" $ do
     it "欄位順序等於 frontmatterFieldOrder" $
       map (T.takeWhile (/= ':')) (T.lines (renderFrontmatter emptyishMeta LF))

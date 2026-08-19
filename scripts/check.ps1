@@ -1,4 +1,4 @@
-# story-flow 一鍵建置與測試。CI 的替代品(見 docs/spec/func-0001-project-skeleton.md)。
+# story-flow 一鍵建置與測試。CI 的替代品(見 .design/subsystems/entity-graph-core/features/F001-project-skeleton.md)。
 $ErrorActionPreference = 'Stop'
 chcp 65001 > $null
 [Console]::OutputEncoding = [Text.Encoding]::UTF8

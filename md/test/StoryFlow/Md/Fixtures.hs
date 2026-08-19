@@ -1,7 +1,7 @@
 -- | 測試共用的範例檔。
 --
--- 'lindaMd' 逐字取自 architecture.md 的「Markdown 分節格式」節,
--- 'classroomMd' 逐字取自 func-0003 的「Level 檔的解析:標題階層即樹」節。
+-- 'lindaMd' 逐字取自 system.md 的「Markdown 分節格式」節,
+-- 'classroomMd' 逐字取自 entity-graph-core/F003 的「Level 檔的解析:標題階層即樹」節。
 -- 測試對照的因此是文件裡真的寫出來的那兩份檔案,不是另外編的樣本。
 module StoryFlow.Md.Fixtures
   ( -- * 範例檔
@@ -26,7 +26,7 @@ import Data.Time (Day, fromGregorian)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Md
 
--- | architecture.md 的琳達範例檔(LF、檔尾有換行)。
+-- | system.md 的琳達範例檔(LF、檔尾有換行)。
 lindaMd :: Text
 lindaMd =
   T.unlines
@@ -76,7 +76,7 @@ lindaMd =
     , "那年她十四歲……"
     ]
 
--- | func-0003 的教室 Level 範例檔。
+-- | entity-graph-core/F003 的教室 Level 範例檔。
 classroomMd :: Text
 classroomMd =
   T.unlines

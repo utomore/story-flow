@@ -1,6 +1,6 @@
 -- | T15:純 CLI 從零建出琳達與教室。
 --
--- 這是 func-0007 的驗收標準 1,也是 architecture.md 裡 P2 的完成標準:
+-- 這是 service-and-interfaces/F002 的驗收標準 1,也是 system.md 裡 P2 的完成標準:
 -- __能純用 CLI 把「教室」場景與琳達的片段從零建起來__。整條路只用 'runCli',
 -- 沒有任何一步繞到 service 或 store 去補。
 module StoryFlow.Cli.EndToEndSpec (spec) where
@@ -102,7 +102,7 @@ spec = describe "端到端" $
       sfOk
         ["node", "add", "午後的教室", "--title", "鏡頭", "--kind", "camera", "--summary", "自窗外緩推至講台,焦段 35mm"]
 
-    -- 驗收 1:場景樹的形狀與 architecture.md 的圖一致
+    -- 驗收 1:場景樹的形狀與 system.md 的圖一致
     out <- sfOk ["level", "show", "教室"]
     let ls = T.lines (T.strip out)
     length ls `shouldBe` 7

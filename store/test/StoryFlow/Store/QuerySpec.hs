@@ -110,8 +110,8 @@ spec = describe "T10 查詢" $ do
     withSampleIndex $ \_ conn ->
       lookupLevel conn (idOf "lvl-0000") `shouldReturn` Nothing
 
-  -- func-0005 T16:listLevels 依 status 過濾並回傳全部 Level
-  describe "func-0005 T16 listLevels" $ do
+  -- entity-graph-core/F005 T16:listLevels 依 status 過濾並回傳全部 Level
+  describe "entity-graph-core/F005 T16 listLevels" $ do
     it "不帶過濾時三份 Level 都在,依 id 排序" $
       withThreeLevels $ \_ conn -> do
         metas <- listLevels conn emptyFilter

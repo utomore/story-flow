@@ -1,4 +1,4 @@
--- | func-0002 T10(載入與錯誤彙整)與 T11(專案實檔)的對照測試。
+-- | entity-graph-core/F002 T10(載入與錯誤彙整)與 T11(專案實檔)的對照測試。
 module StoryFlow.Types.LoaderSpec (spec) where
 
 import Control.Exception (bracket)
@@ -247,9 +247,9 @@ spec = do
       r <- loadRegistry projectRegistryDir
       fmap (filter (== "level") . map etsKey . listTypes) r `shouldBe` Right []
 
-  -- func-0005 T5:載入真實 registry 後五個型別都有 dir
+  -- entity-graph-core/F005 T5:載入真實 registry 後五個型別都有 dir
   describe "T5 —— dir / owner_type" $ do
-    it "五個型別的 dir 與 owner_type 與 func-0005 的規格表相符" $ do
+    it "五個型別的 dir 與 owner_type 與 entity-graph-core/F005 的規格表相符" $ do
       r <- loadRegistry projectRegistryDir
       case fmap listTypes r of
         Right ts ->
@@ -295,7 +295,7 @@ spec = do
           r <- loadRegistry dir
           map fieldOf (errsOf r) `shouldBe` ["dir"]
 
-  -- func-0006 T2:執行期定位
+  -- service-and-interfaces/F001 T2:執行期定位
   describe "defaultRegistryDir" $ do
     it "環境變數優先" $
       withRegistryDir [("a.toml", goodToml "a-fragment" "甲")] $ \dir ->

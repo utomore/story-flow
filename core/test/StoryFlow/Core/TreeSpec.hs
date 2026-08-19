@@ -1,4 +1,4 @@
--- | func-0002 T5(建構與五條不變量)與 T6(走訪)的對照測試。
+-- | entity-graph-core/F002 T5(建構與五條不變量)與 T6(走訪)的對照測試。
 module StoryFlow.Core.TreeSpec (spec) where
 
 import Data.Either (isRight)
@@ -181,7 +181,7 @@ spec = do
       fmap entitiesIn (subtreeAt (idOf "nod-0003") classroomTree)
         `shouldBe` Just []
 
-  describe "走訪 —— convergenceReport(ADR-0004:合流是標註不是結構)" $ do
+  describe "走訪 —— convergenceReport(ADR-004:合流是標註不是結構)" $ do
     it "找出 nod-0009 → nod-0010 且標記為存在" $
       convergenceReport classroomTree
         `shouldBe` [(idOf "nod-0009", refOf "nod-0010", True)]

@@ -27,9 +27,9 @@ library
     exposed-modules:
         StoryFlow.Api
         StoryFlow.Api.Instances
-    -- func-0008 驗收:這個套件是 server 與 cli --remote 共用的契約,
+    -- service-and-interfaces/F003 驗收:這個套件是 server 與 cli --remote 共用的契約,
     -- 因此它不能認得任何一個實作端。servant-server / servant-client / warp /
-    -- storyflow-store 出現在這裡即為架構違規(func-0008 T1 的測試會擋下來)。
+    -- storyflow-store 出現在這裡即為架構違規(service-and-interfaces/F003 T1 的測試會擋下來)。
     build-depends:
         , aeson
         , base              >=4.14 && <5

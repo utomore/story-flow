@@ -5,7 +5,7 @@ title: conflict-types
 description: 衝突報告的型別、命中層級證據與序列化,不含任何偵測邏輯
 status: done
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 depends-on: [func-0002]
 related-adr: [adr-0003, adr-0005, adr-0007]
 related-spec: []
@@ -86,7 +86,7 @@ conflict/
 | `coTopN` | 20 | 「top-N 的 N 要可調,且預設保守」 |
 | `coExpandBody` | `False` | 「優先送 summary 而非全文,必要時才展開 body」 |
 | `coTimelineWindow` | `Nothing` | 「用 timeline 過濾時序上不可能相關的片段」 |
-| `coGraphDepth` | 2 | 「用關聯圖擴充一跳範圍」——留成可調,預設 2 是「起點 + 一跳」 |
+| `coGraphDepth` | 2 | 「用關聯圖擴充一跳範圍」——留成可調;預設 2 = 最多兩跳,語意與 `Core.Graph` 的 `follow` 一致(depth 即展開輪數) |
 
 `coTimelineWindow :: Maybe Int` 比對的是 `Timeline` 的 `tlOrder`;`Nothing` = 不做時序過濾。
 只有 `tlOrder` 有值的片段才受它影響,因為 `tlLabel` 是模糊字串(「崩塌前後」),無從算距離。

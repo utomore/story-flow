@@ -204,7 +204,7 @@ docHandler =
 --
 -- 這裡曾各寫一份並多列了 @.tar@/@.gz@ —— 但 @detectFormat@ 不認得它們,
 -- 掃描時被當散檔雜湊,造成「標為 KArchive 卻走散檔路徑」的不一致
--- (enhance-0012)。引用同一個來源之後,tar/gz 歸為 'KSource'
+-- (G-E002)。引用同一個來源之後,tar/gz 歸為 'KSource'
 --(不認得的副檔名),與 archive 套件的認知一致。
 archiveExtensions :: [Text]
 archiveExtensions =

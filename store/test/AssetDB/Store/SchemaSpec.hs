@@ -27,7 +27,7 @@ spec = around withMigrated $ do
       -- FTS5 會另外產生一堆 *_data / *_idx 影子表,只檢查我們自己宣告的
       filter (`elem` expected) ts `shouldBe` sort expected
 
-    -- bug-0006:這張表從來沒有被任何程式碼查詢過,命名詞彙的唯一真相是
+    -- catalog/B001:這張表從來沒有被任何程式碼查詢過,命名詞彙的唯一真相是
     -- core/Naming.hs 的 defaultVocab。migration 004 把它連同播種一起送走。
     it "migration 004 之後不再有 naming_vocab 表" $ \st ->
       tableNames st >>= \ts -> ts `shouldNotContain` ["naming_vocab"]

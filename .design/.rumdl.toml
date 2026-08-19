@@ -1,0 +1,15 @@
+# rumdl 設定,只作用於 .design/ 底下的設計文檔。
+#
+# 預設情況下 MD025 會把 frontmatter 的 `title:` 當成文件的 H1,於是內文的 `#`
+# 變成第二個 H1,rumdl fmt 就把所有標題整體降一級(`##` 變 `###`)。
+#
+# dev-flow 的 /arch-audit status 腳本要求 design.md 的「功能規劃」與
+# 「Feature 契約卡」必須是 `##`(level 2)、階段與契約卡標題是 `###`(level 3),
+# 標題被降級會讓它讀不到章節、進度一律顯示未知。因此在這裡關掉這個行為。
+[MD025]
+front_matter_title = ""
+
+# 中文散文與 Haskell 型別簽名在 80 字上限下無法閱讀,專案既有文件也不遵守
+# (README 與 docs/_archive 同樣如此)。行長交給作者判斷,不由 linter 管。
+[MD013]
+enabled = false

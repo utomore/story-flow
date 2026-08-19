@@ -1,4 +1,4 @@
--- | 前端型別檔的漂移檢查(enhance-0014)。
+-- | 前端型別檔的漂移檢查(delivery/E005)。
 --
 -- 'AssetDB.Server.TsTypesSpec' 保證產生器與 @Api.hs@ 的 ToJSON 一致,
 -- 但那管不到磁碟上 @web\/src\/api\/types.ts@ —— 前端實際編譯用的那份 ——

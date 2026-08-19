@@ -37,3 +37,6 @@ desktop.ini
 # 前端
 web/node_modules/
 web/dist/
+
+# rumdl(markdown formatter)的快取目錄
+.rumdl_cache/

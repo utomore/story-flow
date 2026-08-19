@@ -22,7 +22,7 @@ module AssetDB.Ingest.Thumb
   ) where
 
 -- ThumbSize 與 thumbPath 的唯一實作在 core 的 AssetDB.PathText
--- (enhance-0012):產生端(這裡)與讀取端(ai、server)必須是同一套
+-- (G-E002):產生端(這裡)與讀取端(ai、server)必須是同一套
 -- 定址規則,否則縮圖找不到卻不報錯。此處 re-export 維持既有 API。
 import AssetDB.PathText (ThumbSize (..), thumbPath, thumbSizePx, thumbSizes)
 import Codec.Picture qualified as P

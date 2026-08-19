@@ -32,7 +32,7 @@ spec = do
     it "壓縮檔搬到 library/packs/<vendor>/<slug>/" $ withLib $ \env -> do
       r <- runApply env False
       arErrors r `shouldBe` []
-      arMoved r `shouldBe` 1 -- 只剩壓縮檔;散檔規則已退役(enhance-0009)
+      arMoved r `shouldBe` 1 -- 只剩壓縮檔;散檔規則已退役(ingest/E003)
       doesFileExist (dst env </> "library/packs/unknown/demo/demo.zip") `shouldReturn` True
 
     it "寫出 pack.toml" $ withLib $ \env -> do
@@ -46,7 +46,7 @@ spec = do
       c `shouldSatisfy` T.isInfixOf "[archive]"
 
     it "散檔(含工作室自有檔案)原地保留,不搬移" $ withLib $ \env -> do
-      -- enhance-0009:一次性搬遷的頂層對應規則已退役。
+      -- ingest/E003:一次性搬遷的頂層對應規則已退役。
       _ <- runApply env False
       doesFileExist (src env </> "GameProjects/Col/notes.md") `shouldReturn` True
       doesFileExist (dst env </> "projects/Col/notes.md") `shouldReturn` False
@@ -62,7 +62,7 @@ spec = do
 
   describe "階段 B(刪除,不可回退)" $ do
     it "即使加了 --delete-covered 也不再刪散檔 —— 刪除規則已退役" $ withLib $ \env -> do
-      -- enhance-0009 防誤觸:誤跑 reorganize --apply --delete-covered 的
+      -- ingest/E003 防誤觸:誤跑 reorganize --apply --delete-covered 的
       -- 最壞結果是素材包被重組,散檔一根汗毛都不會少。
       r <- runApply env True
       arErrors r `shouldBe` []
@@ -110,7 +110,7 @@ spec = do
       doesFileExist (dst env </> "library/packs/unknown/demo/demo.zip") `shouldReturn` False
 
     it "刪除無法回退,而且會明講" $ withLib $ \env -> do
-      -- 現行規劃器已不會產生 OpDelete(enhance-0009),但執行器與回退
+      -- 現行規劃器已不會產生 OpDelete(ingest/E003),但執行器與回退
       -- 機制對 Plan 是通用的 —— 手組一個帶刪除的計畫,驗證回退對刪除
       -- 的拒絕仍然有效。
       snap <- loadSnapshot (store env)
@@ -146,7 +146,7 @@ runApply env del = do
 -- * 那兩個檔案的解壓副本散在 @Game Assets itchio\/@ 底下
 -- * 一個工作室自有檔案
 --
--- 散檔如今一律保留(enhance-0009)—— 沿用舊搬遷時期的目錄名,
+-- 散檔如今一律保留(ingest/E003)—— 沿用舊搬遷時期的目錄名,
 -- 正是為了驗證那些路徑不再觸發任何搬移或刪除。
 withLib :: (Env -> IO ()) -> IO ()
 withLib f =

@@ -354,7 +354,7 @@ searchP =
     <*> switch (long "include-excluded" <> help "納入被判定為非素材的項目(宣傳圖等)")
     <*> switch (long "include-reference" <> help "納入參考資料。預設排除 —— 找 GUI 框時不該跳出廟宇照片")
     -- 預設 20 是一個終端機畫面放得下的量。各入口的分頁預設刻意不同
-    -- (enhance-0006):server 60 / 上限 500(Server/App.hs)、web 一頁
+    -- (G-E001):server 60 / 上限 500(Server/App.hs)、web 一頁
     -- 120(Grid.tsx 的 PAGE)、store 層函式庫預設 50(Store/Search.hs)。
     <*> option auto (long "limit" <> metavar "N" <> value 20 <> showDefault <> help "顯示筆數")
     <*> switch (long "facets" <> help "同時顯示各 facet 的計數")
@@ -501,7 +501,7 @@ scanP =
 -- 「找到既有資料庫」與「決定新資料庫要建在哪」是兩件不同的事,這裡刻意用兩個
 -- 函式表示。合成一個、而且預設行為是後者的話,在錯誤的工作目錄下執行任何查詢
 -- 都會靜默建出一個空庫:查詢誠實回報 0 筆,使用者看到的卻是「查無結果」而不是
--- 「你的資料庫路徑錯了」(bug-0001)。
+-- 「你的資料庫路徑錯了」(delivery/B001)。
 
 -- | 資料庫目錄名稱。刻意**不**放進素材庫根目錄:資料庫是衍生物,而素材庫是
 -- 備份目標 —— 混在一起會讓每次掃描都弄髒備份。

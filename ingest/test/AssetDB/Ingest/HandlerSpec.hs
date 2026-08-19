@@ -27,7 +27,7 @@ spec = do
       -- 素材庫裡真的有 Complete_UI_Book_Styles_Pack_Full_v1.0/ 這種目錄
       extensionOf "Pack_v1.0/Sprites/frame" `shouldBe` ""
 
-  -- enhance-0012:壓縮格式副檔名的權威來源是 archive 套件的 formatExtensions。
+  -- G-E002:壓縮格式副檔名的權威來源是 archive 套件的 formatExtensions。
   describe "archiveExtensions" $ do
     it "與 archive 套件的 formatExtensions 一致" $
       archiveExtensions

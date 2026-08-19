@@ -1,7 +1,7 @@
 -- | 伺服器執行檔的命令列參數解析。
 --
 -- 刻意放在 library 而不是 @app\/Main.hs@:參數解析是最容易讓使用者踩到的
--- 一段程式,而放在執行檔裡的東西測不到(bug-0003)。
+-- 一段程式,而放在執行檔裡的東西測不到(delivery/B003)。
 module AssetDB.Server.Cli
   ( CliCommand (..)
   , parseArgs
@@ -19,7 +19,7 @@ import Text.Read (readMaybe)
 -- | 伺服器預設監聽埠。
 --
 -- @web\/vite.config.ts@ 的 dev proxy 指向同一個埠號,而 Vite 設定檔與
--- Haskell 沒有共用的設定來源 —— 改這裡記得同步改那裡(enhance-0007)。
+-- Haskell 沒有共用的設定來源 —— 改這裡記得同步改那裡(delivery/E002)。
 defaultPort :: Int
 defaultPort = 8787
 
@@ -52,7 +52,7 @@ parseArgs args
 --
 -- 值長得像旗標時**拒絕**而不是照收:@--host --init@ 若照收,會安靜地把伺服器
 -- 綁到一個叫 @--init@ 的介面上(Warp 會當成主機名),而使用者以為自己開了
--- @--init@。這與 bug-0003 的 partial read 是同一類錯誤 —— 參數被吃掉而沒人抗議。
+-- @--init@。這與 delivery/B003 的 partial read 是同一類錯誤 —— 參數被吃掉而沒人抗議。
 extractHost :: [String] -> Either String (Maybe String, [String])
 extractHost = go Nothing []
   where

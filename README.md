@@ -18,7 +18,9 @@
 | 已指定邏輯名稱 | 1,653 |
 | 去重後總量 | 3.2 GiB |
 
-設計理由與完整決策紀錄在 [`docs/DESIGN.md`](docs/DESIGN.md)。素材包清單在 [`docs/PACKS.md`](docs/PACKS.md)。
+系統主架構在 [`.design/system.md`](.design/system.md),各子系統設計在
+[`.design/subsystems/`](.design/subsystems/),架構決策紀錄在 [`.design/adr/`](.design/adr/)。
+素材包清單在 [`docs/_archive/PACKS.md`](docs/_archive/PACKS.md)。
 
 ---
 
@@ -99,7 +101,7 @@ assetdb new-project --name Circle --path projects/Circle --pack complete-ui-book
 
 原檔名不要改 —— 它是與廠商下載頁對照的依據,`packs.toml` 也以基本檔名比對。
 
-```
+```text
 library/packs/crusenho/complete-ui-book-styles/
   └── [GUI] Complete_UI_Book_Styles_Pack_Full.7z
 ```
@@ -169,7 +171,7 @@ assetdb index
 
 每個廠商的命名風格都不一樣,而且互不相容:
 
-```
+```text
 UI_TravelBook_Frame01a.png      Blue Potion 2.png      idle_down.png
 potion10.png                    00.png                 #1 - Transparent Icons.png
 ```
@@ -183,7 +185,7 @@ potion10.png                    00.png                 #1 - Transparent Icons.pn
 assetdb cluster list --pack complete-ui-book-styles
 ```
 
-```
+```text
 ✓ 1024   sprites|U_W_WNa|.png
           …/01_TravelBook/Sprites/UI_TravelBook_Alert01a.png
           …/04_TabletBook/Sprites/UI_TabletBook_Banner02b.png
@@ -200,7 +202,7 @@ assetdb cluster list --pack complete-ui-book-styles
 assetdb cluster rule --pack complete-ui-book-styles --shape "sprites|U_W_WNa|.png" --kind ui --domain gui
 ```
 
-```
+```text
 sprites|U_W_WNa|.png  1024 筆
   …/01_TravelBook/Sprites/UI_TravelBook_Alert01a.png
     → ui_gui_ui-travel-book-alert_01a          ← 多了一截 ui-
@@ -212,7 +214,7 @@ sprites|U_W_WNa|.png  1024 筆
 assetdb cluster rule … --kind ui --domain gui --drop 0
 ```
 
-```
+```text
     → ui_gui_travel-book-alert_01a             ← 對了
 ```
 
@@ -280,7 +282,7 @@ assetdb new-project \
 
 產生的結構:
 
-```
+```text
 projects/Circle/
 ├── SKILL.md                  給 AI agent / 新成員:怎麼跑、素材在哪、命名規則、加素材流程
 ├── README.md
@@ -387,7 +389,7 @@ assetdb-server --emit-types web/src/api/types.ts
 
 ## 素材庫長什麼樣
 
-```
+```text
 C:\Users\User\Documents\alchbees-assets\
 ├── library/
 │   ├── packs/<廠商>/<包 slug>/       ← 一包 = 一目錄 = 一個備份與溯源單位
@@ -419,7 +421,7 @@ C:\Users\User\Documents\alchbees-assets\
 自製素材維持散檔 + git,因為它們會被頻繁編輯,壓縮檔會變成阻力。
 現在裡面有四個 `.wav`(合成正弦波),是階段 11 的驗證樣本,也留作未來加音效時的參考:
 
-```
+```text
 shared/audio/ui_click.wav          44100 Hz / 2ch / 16-bit / 250 ms
 shared/audio/ui_page_turn.wav      44100 Hz / 1ch / 16-bit / 600 ms
 shared/audio/bgm_village_loop.wav  22050 Hz / 2ch / 16-bit / 2000 ms
@@ -432,7 +434,7 @@ shared/audio/sfx_rune_charge.wav    8000 Hz / 1ch /  8-bit / 1500 ms
 
 ## 命名規範
 
-```
+```text
 <kind>_<domain>_<subject>[_<variant>][_<state>][_<NNN>]
 ```
 
@@ -541,7 +543,7 @@ kind 專屬的中繼資料一律以 JSON 存進 `meta_json`。
 
 **3. `.7z` 與 `.zip` 的 `7z -slt` 輸出對目錄的表示方式不同。**
 
-```
+```text
 .zip 的目錄   Folder = +         Attributes = D drwxrwxrwx
 .7z  的目錄   (沒有 Folder 欄位)  Attributes = RD
 ```

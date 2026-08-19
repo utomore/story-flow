@@ -284,7 +284,7 @@ runAiApply dbPath AiApplyArgs {..} = withStore dbPath $ \st -> do
 -- 分群與反查必須是**同一段程式碼**('clusterKeyOf'),否則規則會套到
 -- 錯的檔案上 —— 這是 @AssetDB.Ingest.Cluster@ 已經寫在註解裡的教訓。
 -- 形狀比對因此留在 Haskell,不下放 SQL;重複掃描的問題由
--- 'applySuggestions' 的目標快取解決(enhance-0001)。
+-- 'applySuggestions' 的目標快取解決(ai-tagging/E001)。
 --
 -- 只看 @entry_path@:分群本身('packClusters')就只吃 entry_path,
 -- 散檔在同一包裡也不會是任何叢集的成員。

@@ -88,7 +88,7 @@ spec = around withScanned $ do
       -- 重算之後筆數仍然一樣 —— 舊項目被刪掉重建,沒有殘留
       count st "assets" `shouldReturn` 5
 
-  -- enhance-0010:散檔雜湊分兩路 —— 圖片/音效整檔讀(探測本來就需要
+  -- ingest/E004:散檔雜湊分兩路 —— 圖片/音效整檔讀(探測本來就需要
   -- 全部位元組),其餘 kind 走 sha256File 的串流路徑。兩路對同一份
   -- 內容的結果都必須與串流雜湊一致,大小也必須正確。
   describe "散檔雜湊策略" $ do
@@ -113,7 +113,7 @@ spec = around withScanned $ do
           IO [Only Text]
       map fromOnly rows `shouldBe` [expected]
 
-  -- enhance-0011:junction / 符號連結指回祖先時,不防的話是無窮遞迴。
+  -- ingest/E005:junction / 符號連結指回祖先時,不防的話是無窮遞迴。
   describe "符號連結迴圈防護" $
     it "對含自我指涉連結的目錄樹不無窮遞迴,且記錄警告" $ \(_, _) ->
       withSystemTempDirectory "assetdb-symlink-loop" $ \dir -> do

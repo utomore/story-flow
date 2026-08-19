@@ -1,6 +1,6 @@
 -- | 端對端:直接跑 @assetdb@ 執行檔。
 --
--- bug-0001 的病灶只在「組合根把哪個 resolve 接到哪個指令」這一層顯現,
+-- delivery/B001 的病灶只在「組合根把哪個 resolve 接到哪個指令」這一層顯現,
 -- 單測 'AssetDB.Cli.Options' 看不到接錯線,所以這裡真的把程式跑起來。
 module AssetDB.Cli.EndToEndSpec (spec) where
 

@@ -95,7 +95,7 @@ spec = do
       r <- query_ (storeConn st) "PRAGMA foreign_keys" :: IO [Only Int]
       map fromOnly r `shouldBe` [1]
 
-  -- enhance-0004:migration 的敘述以 execute_ 執行,不吃參數,所以需要組裝
+  -- catalog/E001:migration 的敘述以 execute_ 執行,不吃參數,所以需要組裝
   -- 的 migration 只能把值拼進 SQL 文字。這一組測試鎖住「拼進去的值不會壞掉
   -- 語法」這件事 —— 它不是注入防線(值全是編譯期字面值),而是防止有人在
   -- 定義裡打一個單引號、卻要到 migration 在使用者機器上跑起來才發現。

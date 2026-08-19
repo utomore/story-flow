@@ -21,6 +21,7 @@ import AssetDB.Archive
 import AssetDB.Id (newULID, unULID)
 import AssetDB.Ingest.Handler
 import AssetDB.Ingest.Hash
+import AssetDB.PathText (leafOf, slugify)
 import AssetDB.Store
 import AssetDB.Types
 import Control.Exception (SomeException, try)
@@ -30,6 +31,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Int (Int64)
 import Data.List (isPrefixOf, sort)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8Lenient)
@@ -95,13 +97,14 @@ scanRoot st tools opts@ScanOptions {..} = do
   absRoot <- makeAbsolute soRootPath
   rootId <- ensureRoot st absRoot soRootLabel soRootKind
 
-  (archivePaths, loosePaths) <- discover absRoot
+  (archivePaths, loosePaths, loopWarnings) <- discover absRoot
   soOnEvent (EvDiscovered (length archivePaths) (length loosePaths))
+  mapM_ (soOnEvent . EvProblem) loopWarnings
 
   r1 <-
     foldM
       (\acc (i, p) -> scanArchive st tools opts rootId absRoot (i, length archivePaths) p acc)
-      emptyReport
+      emptyReport {srProblems = loopWarnings}
       (zip [1 ..] archivePaths)
 
   soOnEvent (EvLooseStart (length loosePaths))
@@ -109,28 +112,46 @@ scanRoot st tools opts@ScanOptions {..} = do
   soOnEvent (EvLooseDone (length loosePaths))
   pure r2
 
--- | 把根目錄底下的檔案分成壓縮檔與散檔。
+-- | 把根目錄底下的檔案分成壓縮檔與散檔,並回報偵測到的目錄迴圈。
 --
 -- 開頭是點號的目錄一律跳過:@.assetdb@ 是我們自己的資料庫與快取,
 -- @.git@ 之類的東西索引進去只會製造噪音。
-discover :: FilePath -> IO ([FilePath], [FilePath])
-discover root = go root ([], [])
+--
+-- 走訪時以 canonical path 記錄看過的目錄(enhance-0011):符號連結或
+-- Windows junction 指回祖先時會形成迴圈,不防的話是無窮遞迴。重複出現
+-- 的目錄跳過並記進第三個回傳值 —— 那同時涵蓋「兩條連結指向同一目錄」
+-- 的重複索引。
+discover :: FilePath -> IO ([FilePath], [FilePath], [Text])
+discover root = do
+  rootKey <- canonicalizePath root
+  ((as, ls, ws), _) <- go (Set.singleton rootKey) root ([], [], [])
+  pure (as, ls, reverse ws)
   where
-    go dir acc = do
+    go visited dir acc = do
       names <- sort <$> listDirectory dir
-      foldM step acc [dir </> n | n <- names, not ("." `isPrefixOf` n)]
+      foldM step (acc, visited) [dir </> n | n <- names, not ("." `isPrefixOf` n)]
 
-    step acc@(as, ls) p = do
+    step (acc@(as, ls, ws), visited) p = do
       isDir <- doesDirectoryExist p
       if isDir
-        then go p acc
+        then do
+          key <- canonicalizePath p
+          if key `Set.member` visited
+            then
+              pure
+                ( (as, ls, ("偵測到目錄迴圈(符號連結/junction),跳過:" <> T.pack p) : ws)
+                , visited
+                )
+            else go (Set.insert key visited) p acc
         else
-          pure $
-            if isMetadata p
-              then acc
-              else case detectFormat p of
-                Just _ -> (p : as, ls)
-                Nothing -> (as, p : ls)
+          pure
+            ( if isMetadata p
+                then acc
+                else case detectFormat p of
+                  Just _ -> (p : as, ls, ws)
+                  Nothing -> (as, p : ls, ws)
+            , visited
+            )
 
 -- | 系統自己產生的中繼資料檔案不是素材。
 --
@@ -425,19 +446,6 @@ ensurePack st rootId relPath path now = do
 orElse :: Text -> Text -> Text
 orElse a b = if T.null a then b else a
 
--- | 素材包名稱含空格、方括號、@&@、撇號。slug 只留下路徑安全的字元。
-slugify :: Text -> Text
-slugify =
-  T.intercalate "-"
-    . filter (not . T.null)
-    . T.splitOn "-"
-    . T.map safeChar
-    . T.toLower
-  where
-    safeChar c
-      | c `elem` ("abcdefghijklmnopqrstuvwxyz0123456789" :: String) = c
-      | otherwise = '-'
-
 archiveKnown :: Store -> Sha256 -> IO Bool
 archiveKnown st sha = do
   rows <-
@@ -450,9 +458,6 @@ encodeMeta = fmap (decodeUtf8Lenient . BL.toStrict . encode)
 
 nowText :: IO Text
 nowText = T.pack . iso8601Show <$> getCurrentTime
-
-leafOf :: Text -> Text
-leafOf p = last ("" : T.splitOn "/" p)
 
 makeRelativeTo :: FilePath -> FilePath -> FilePath
 makeRelativeTo root p = map toSlash (makeRelative root p)

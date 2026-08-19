@@ -27,7 +27,9 @@ module AssetDB.Reorg.Execute
   , listBatches
   ) where
 
+import AssetDB.Ingest.Handler (archiveExtensions)
 import AssetDB.Ingest.Hash (sha256File, unSha256)
+import AssetDB.PathText (leafOf)
 import AssetDB.Reorg.PackToml (renderPackToml)
 import AssetDB.Reorg.Plan
 import AssetDB.Reorg.Snapshot
@@ -288,7 +290,9 @@ packMoves :: Plan -> [Text]
 packMoves plan =
   [t | OpMove _ t _ _ <- planOps plan, isArchiveLike t]
   where
-    isArchiveLike t = any (`T.isSuffixOf` T.toLower t) [".zip", ".rar", ".7z"]
+    -- 副檔名清單的權威來源是 archive 套件的 formatExtensions,
+    -- 經 ingest 的 archiveExtensions 取得(enhance-0012),不再各寫一份。
+    isArchiveLike t = any (`T.isSuffixOf` T.toLower t) archiveExtensions
 
 --------------------------------------------------------------------------------
 -- 階段 B
@@ -382,8 +386,6 @@ markUndone st rid = execute (storeConn st) "UPDATE moves SET undone = 1 WHERE id
 writeUtf8 :: FilePath -> Text -> IO ()
 writeUtf8 p = BS.writeFile p . encodeUtf8
 
-leafOf :: Text -> Text
-leafOf p = last ("" : T.splitOn "/" p)
 
 compact :: SomeException -> Text
 compact = T.unwords . T.words . T.pack . show

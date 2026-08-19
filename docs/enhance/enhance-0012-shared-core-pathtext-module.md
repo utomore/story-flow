@@ -3,16 +3,16 @@ id: enhance-0012
 type: enhance
 title: shared-core-pathtext-module
 description: 在 core 收斂五處重複的小工具函式
-status: open
+status: done
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-19
 related-adr: [adr-0002, adr-0005]
 related-spec: []
 ---
 
-# 在 `core` 新增共用純函數模組,收斂五處重複的小工具函式
+## 在 `core` 新增共用純函數模組,收斂五處重複的小工具函式
 
-## 現況說明
+### 現況說明
 
 跨套件重複的小型純函數,全部適合收進 `core`(`core` 已是所有套件的共同依賴,不會引入
 新的耦合):
@@ -30,7 +30,7 @@ related-spec: []
 (例如保留數字開頭的處理方式),pack 目錄名與掃描 slug 會分家;縮圖路徑規則變動
 (例如改兩層分桶)需要同時記得三處,遺漏任何一處會造成縮圖找不到卻不報錯的靜默失敗。
 
-## 修正方案
+### 修正方案
 
 1. 在 `core` 新增模組(建議命名 `AssetDB.PathText`),收容 `leafOf`、`extensionOf`、
    `slugify`、`thumbPath`、`ThumbSize`。
@@ -40,22 +40,42 @@ related-spec: []
    (`archiveHandler` 目前會把 tar.gz 標為 `KArchive`,但 `detectFormat` 不認得,
    掃描時被當散檔雜湊 —— 行為不一致但目前無害,一併收斂)。
 
-## TodoList
+### TodoList
 
-- [ ] T1: 新增 `AssetDB.PathText` 模組,實作 `leafOf`/`extensionOf`/`slugify`
-- [ ] T2: 將 `thumbPath`/`ThumbSize` 移入 `core`,`ingest/Thumb.hs`、`ai/Image.hs`、
+- [x] T1: 新增 `AssetDB.PathText` 模組,實作 `leafOf`/`extensionOf`/`slugify`
+- [x] T2: 將 `thumbPath`/`ThumbSize` 移入 `core`,`ingest/Thumb.hs`、`ai/Image.hs`、
       `server/App.hs` 改為引用
-- [ ] T3: `ingest/Handler.hs`、`reorg/Execute.hs` 的壓縮格式副檔名清單改為引用
-      `archive/Types.hs` 的 `formatExtensions`
+- [x] T3: `ingest/Handler.hs`、`reorg/Execute.hs` 的壓縮格式副檔名清單改為引用
+      `archive/Types.hs` 的 `formatExtensions`(reorg 經 ingest 取得,見實作備註)
 
-## 1-to-1 測試對照表
+### 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | `PathTextSpec.leafOf/extensionOf/slugify 各自的既有測試案例全數通過` | 把五處原本各自的測試案例合併驗證,確保行為不變 |
-| T2 | `ThumbSpec` 與 `ImageSpec` 對 `thumbPath` 的既有測試案例通過(改為呼叫 core 版本) | 迴歸測試 |
-| T3 | `HandlerSpec.archiveHandler 使用 formatExtensions 判定,tar.gz 行為與 archive 套件一致` | 驗證不一致已消除 |
+| T1 | `PathTextSpec` 的 `leafOf`/`extensionOf`/`slugify` 各組案例 | 合併各套件原本的測試案例與實際使用情境,確保行為不變 |
+| T2 | `PathTextSpec` 的 `thumbPath`/`ThumbSize` 案例 + `ThumbSpec` 既有 `thumbPath` 測試(經 re-export 呼叫 core 版本)通過 | 迴歸測試;ai 套件並無 `ImageSpec`(文檔筆誤),由前兩者覆蓋 |
+| T3 | `HandlerSpec.archiveExtensions 與 archive 套件的 formatExtensions 一致`、`HandlerSpec.detectFormat 不認得的 tar/gz 不再被標為 KArchive` | 驗證不一致已消除 |
 
-## 實作備註
+### 實作備註
 
-(開發過程中與規格的偏差記錄於此,撰寫時留空)
+- **T1/T2**:`core` 新增 `AssetDB.PathText`(`leafOf`、`extensionOf`、`slugify`、
+  `ThumbSize`、`thumbSizes`、`thumbSizePx`、`thumbSizeTag`、`thumbPath`),core 因此
+  新增輕量 `filepath` 相依。替換的呼叫端:`ingest/Scan.hs`(leafOf、slugify)、
+  `ingest/Cluster.hs`(leafOf、extOf→extensionOf)、`ingest/Handler.hs`(extensionOf)、
+  `ingest/Thumb.hs` 與 `ai/Image.hs`(ThumbSize/thumbPath 改 re-export,既有 API 不變)、
+  `server/App.hs`(thumbH 改用 thumbPath)、`reorg/Plan.hs`(slugify re-export、leafOf)、
+  `reorg/Execute.hs`、`reorg/PackToml.hs`(leafOf)、`project/Create.hs`(extOf 委派
+  extensionOf)。
+- **T3 的路徑偏離**:`reorg` 原本不相依 `archive`,直接引用會新增依賴邊並動到
+  architecture.md 的依賴圖;改由 `ingest/Handler.hs` 匯出自 `formatExtensions` 導出的
+  `archiveExtensions`,`reorg`(已相依 ingest)由此取得 —— 權威來源仍是 archive,
+  依賴圖不變。
+- **行為變更(文檔明定的收斂)**:`.tar`/`.gz` 不再被 `archiveHandler` 標為
+  `KArchive`(`detectFormat` 本來就不認得),改歸 `KSource`,與 archive 套件一致。
+- **統一 `extensionOf` 的邊角差異**:採最嚴格語意(點號後無內容視為無副檔名)。
+  舊 `Cluster.extOf`/`Create.extOf` 對 `name.` 這種尾點檔名會回 `"."`,新版回 `""`
+  —— Windows 建不出這種檔名,實務無影響;叢集 shape key 對正常檔名逐字不變。
+- 量化:`leafOf` 5 份→1、`extensionOf` 3 份→1、`slugify` 2 份→1、`thumbPath` 3 份→1、
+  `ThumbSize` 2 份→1、壓縮副檔名清單 3 份→1(權威在 archive)。
+  `cabal test all` 全綠(core 101、ingest 116、server 58,合計 558 examples,
+  0 failures)。

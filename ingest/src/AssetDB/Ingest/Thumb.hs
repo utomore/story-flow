@@ -21,29 +21,15 @@ module AssetDB.Ingest.Thumb
   , makeThumb
   ) where
 
+-- ThumbSize 與 thumbPath 的唯一實作在 core 的 AssetDB.PathText
+-- (enhance-0012):產生端(這裡)與讀取端(ai、server)必須是同一套
+-- 定址規則,否則縮圖找不到卻不報錯。此處 re-export 維持既有 API。
+import AssetDB.PathText (ThumbSize (..), thumbPath, thumbSizePx, thumbSizes)
 import Codec.Picture qualified as P
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
 import Data.Text qualified as T
-import System.FilePath ((</>))
-
-data ThumbSize = Thumb128 | Thumb512
-  deriving stock (Eq, Ord, Enum, Bounded, Show)
-
-thumbSizes :: [ThumbSize]
-thumbSizes = [minBound .. maxBound]
-
-sizePx :: ThumbSize -> Int
-sizePx = \case Thumb128 -> 128; Thumb512 -> 512
-
-sizeTag :: ThumbSize -> Text
-sizeTag = \case Thumb128 -> "128"; Thumb512 -> "512"
-
--- | 快取路徑。前兩碼分層,避免單一目錄塞進六千個檔案。
-thumbPath :: FilePath -> Text -> ThumbSize -> FilePath
-thumbPath cacheRoot sha size =
-  cacheRoot </> T.unpack (T.take 2 sha) </> T.unpack (sha <> "_" <> sizeTag size <> ".png")
 
 --------------------------------------------------------------------------------
 
@@ -55,7 +41,7 @@ makeThumb :: ThumbSize -> ByteString -> Either Text ByteString
 makeThumb size bs = do
   img <- either (Left . T.pack) Right (P.decodeImage bs)
   let rgba = P.convertRGBA8 img
-  pure (BL.toStrict (P.encodePng (renderThumb (sizePx size) rgba)))
+  pure (BL.toStrict (P.encodePng (renderThumb (thumbSizePx size) rgba)))
 
 -- | 把圖片放進 n×n 的正方形畫布,維持長寬比並置中。
 --

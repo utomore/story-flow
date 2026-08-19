@@ -80,6 +80,7 @@ test-suite assetdb-ingest-test
         , filepath
         , hspec          >=2.10
         , JuicyPixels
+        , process        >=1.6
         , sqlite-simple
         , temporary
         , text

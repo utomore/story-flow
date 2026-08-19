@@ -11,30 +11,16 @@ module AssetDB.AI.Image
   , loadThumbDataUrl
   ) where
 
+-- ThumbSize 與 thumbPath 的唯一實作在 core 的 AssetDB.PathText
+-- (enhance-0012)—— 與 ingest(產生端)、server(讀取端)共用同一套
+-- 定址規則,不再各寫一份。core 本來就是 ai 的相依,不會把 JuicyPixels
+-- 或 zip 拖進來。此處 re-export 維持既有 API。
+import AssetDB.PathText (ThumbSize (..), thumbPath)
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64 qualified as B64
 import Data.Text (Text)
-import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import System.Directory (doesFileExist)
-import System.FilePath ((</>))
-
-data ThumbSize = Thumb128 | Thumb512
-  deriving stock (Eq, Show)
-
-sizeText :: ThumbSize -> String
-sizeText = \case
-  Thumb128 -> "128"
-  Thumb512 -> "512"
-
--- | 縮圖快取路徑。內容定址,前兩碼分桶。
---
--- 注意:這與 @server\/src\/AssetDB\/Server\/App.hs@ 的 thumbH 是同一套規則,
--- 目前各寫一份。刻意不為此讓 assetdb-ai 相依 assetdb-ingest —— 那會把
--- JuicyPixels 與 zip 拖進伺服器,代價遠大於這幾行重複。
-thumbPath :: FilePath -> Text -> ThumbSize -> FilePath
-thumbPath cacheRoot sha size =
-  cacheRoot </> T.unpack (T.take 2 sha) </> T.unpack sha <> "_" <> sizeText size <> ".png"
 
 -- | 組成 @data:image\/png;base64,…@。全程 strict,不經過 'String'。
 dataUrl :: BS.ByteString -> Text

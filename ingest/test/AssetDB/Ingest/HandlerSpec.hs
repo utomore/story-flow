@@ -1,7 +1,9 @@
 module AssetDB.Ingest.HandlerSpec (spec) where
 
+import AssetDB.Archive.Types (ArchiveFormat, detectFormat, formatExtensions)
 import AssetDB.Ingest.Handler
 import AssetDB.Types
+import Data.Text qualified as T
 import Codec.Picture qualified as P
 import Data.Aeson (Value (..), object, (.=))
 import Data.Aeson.KeyMap qualified as KM
@@ -24,6 +26,19 @@ spec = do
     it "目錄名裡的點號不算" $
       -- 素材庫裡真的有 Complete_UI_Book_Styles_Pack_Full_v1.0/ 這種目錄
       extensionOf "Pack_v1.0/Sprites/frame" `shouldBe` ""
+
+  -- enhance-0012:壓縮格式副檔名的權威來源是 archive 套件的 formatExtensions。
+  describe "archiveExtensions" $ do
+    it "與 archive 套件的 formatExtensions 一致" $
+      archiveExtensions
+        `shouldMatchList` [T.pack e | f <- [minBound .. maxBound :: ArchiveFormat], e <- formatExtensions f]
+
+    it "detectFormat 不認得的 tar/gz 不再被標為 KArchive" $ do
+      -- 舊清單多列了 .tar/.gz,但 detectFormat 不認得 —— 掃描時被當散檔
+      -- 雜湊,「標為 KArchive 卻走散檔路徑」的不一致已收斂。
+      detectFormat "backup.tar" `shouldBe` Nothing
+      kindForPath "backup.tar" `shouldBe` KSource
+      kindForPath "backup.gz" `shouldBe` KSource
 
   describe "kindForPath" $ do
     it "依副檔名分類" $ do

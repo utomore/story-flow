@@ -47,6 +47,7 @@ module AssetDB.Ingest.Cluster
   ) where
 
 import AssetDB.Naming
+import AssetDB.PathText (extensionOf, leafOf)
 import AssetDB.Types (KindPrefix)
 import Data.Aeson
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
@@ -210,7 +211,7 @@ clusterKeyOf p =
   ClusterKey
     { ckRole = dirRole p
     , ckShape = fileShape (stemOf p)
-    , ckExt = extOf p
+    , ckExt = extensionOf p
     }
 
 -- | 把一包的項目路徑分群。
@@ -234,17 +235,10 @@ clusterBy paths =
 
 stemOf :: Text -> Text
 stemOf p =
-  let leaf = last ("" : T.splitOn "/" p)
+  let leaf = leafOf p
    in case T.breakOnEnd "." leaf of
         (pre, _) | not (T.null pre) -> T.dropEnd 1 pre
         _ -> leaf
-
-extOf :: Text -> Text
-extOf p =
-  let leaf = last ("" : T.splitOn "/" p)
-   in case T.breakOnEnd "." leaf of
-        (pre, suf) | not (T.null pre) -> T.toLower ("." <> suf)
-        _ -> ""
 
 --------------------------------------------------------------------------------
 -- 命名規則

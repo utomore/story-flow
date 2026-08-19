@@ -16,6 +16,7 @@ module AssetDB.Server.App
   , thumbCacheControl
   ) where
 
+import AssetDB.PathText (ThumbSize (..), thumbPath)
 import AssetDB.Server.Api
 import AssetDB.Store
 import AssetDB.Store.Index (ftsStale)
@@ -36,7 +37,6 @@ import Network.Wai.Handler.Warp qualified as Warp
 import Servant
 import System.Directory (doesFileExist, makeAbsolute)
 import System.Exit (exitFailure)
-import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
 import WaiAppStatic.Types (unsafeToPiece)
 
@@ -220,8 +220,9 @@ handlers cfg st =
       -- 外部輸入在用之前自己驗一次。
       | not (isThumbSha sha) = throwError (utf8Err err400 "sha 必須是 64 位十六進位字串")
       | otherwise = do
-          let s = if size >= 512 then "512" else "128"
-              p = scCacheRoot cfg </> T.unpack (T.take 2 sha) </> T.unpack (sha <> "_" <> s <> ".png")
+          -- 路徑規則與產生端(ingest)共用 core 的 thumbPath(enhance-0012),
+          -- 規則分家的症狀是縮圖找不到卻不報錯。
+          let p = thumbPath (scCacheRoot cfg) sha (if size >= 512 then Thumb512 else Thumb128)
           ok <- liftIO (doesFileExist p)
           if ok
             then addHeader thumbCacheControl <$> liftIO (BS.readFile p)

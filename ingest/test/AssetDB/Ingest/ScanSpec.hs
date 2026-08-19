@@ -10,6 +10,7 @@ import AssetDB.Ingest
 import AssetDB.Store
 import Codec.Archive.Zip qualified as Z
 import Codec.Picture qualified as P
+import Control.Exception (SomeException, try)
 import Control.Monad (forM_, void)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BC
@@ -17,9 +18,10 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
 import Data.Text qualified as T
 import Database.SQLite.Simple
-import System.Directory (createDirectoryIfMissing, getFileSize)
+import System.Directory (createDirectoryIfMissing, createDirectoryLink, getFileSize)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
+import System.Process (callCommand)
 import Test.Hspec
 
 spec :: Spec
@@ -111,6 +113,28 @@ spec = around withScanned $ do
           IO [Only Text]
       map fromOnly rows `shouldBe` [expected]
 
+  -- enhance-0011:junction / 符號連結指回祖先時,不防的話是無窮遞迴。
+  describe "符號連結迴圈防護" $
+    it "對含自我指涉連結的目錄樹不無窮遞迴,且記錄警告" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-symlink-loop" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True (root </> "sub")
+        BC.writeFile (root </> "sub" </> "a.txt") "loop fixture"
+        made <- makeDirLoop root (root </> "sub" </> "loop")
+        if not made
+          then
+            -- 建不出迴圈就測不到迴圈 —— 標為 pending 而不是假裝通過。
+            pendingWith "此環境無法建立目錄連結(符號連結與 junction 都失敗),跳過"
+          else do
+            st <- openStore (dir </> "db.sqlite")
+            void (initSchema st)
+            tools <- discoverTools
+            rep <- scanRoot st tools (defaultScanOptions root)
+            srProblems rep `shouldSatisfy` any (T.isInfixOf "迴圈")
+            -- 迴圈內的檔案只被索引一次,不會經由連結重複入庫
+            count st "assets WHERE rel_path LIKE '%a.txt'" `shouldReturn` 1
+            close (storeConn st)
+
 --------------------------------------------------------------------------------
 
 sharedPng :: ByteString
@@ -161,6 +185,20 @@ withScanned f =
   where
     takeDir = reverse . drop 1 . dropWhile (`notElem` ("/\\" :: String)) . reverse
     writeBS p c = BC.writeFile p c
+
+-- | 建一個指回祖先的目錄迴圈。POSIX 上符號連結一定建得起來;Windows 上
+-- 符號連結需要開發者模式或管理員權限,但 junction(@mklink /J@)不用 ——
+-- 兩種都試,任一成功即可。
+makeDirLoop :: FilePath -> FilePath -> IO Bool
+makeDirLoop target link = do
+  r <- try (createDirectoryLink target link) :: IO (Either SomeException ())
+  case r of
+    Right () -> pure True
+    Left _ -> do
+      r2 <-
+        try (callCommand ("cmd /c mklink /J \"" <> link <> "\" \"" <> target <> "\" >NUL")) ::
+          IO (Either SomeException ())
+      pure (either (const False) (const True) r2)
 
 count :: Store -> Text -> IO Int
 count st what = do

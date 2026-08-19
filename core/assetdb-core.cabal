@@ -23,6 +23,7 @@ library
         AssetDB.Id
         AssetDB.Naming
         AssetDB.Manifest
+        AssetDB.PathText
         AssetDB.Console
     hs-source-dirs:   src
     build-depends:
@@ -30,6 +31,7 @@ library
         , aeson         >=2.1  && <2.3
         , bytestring    >=0.11
         , containers    >=0.6
+        , filepath      >=1.4
         , random        >=1.2.1
         , text          >=2.0
         , time          >=1.12
@@ -54,12 +56,14 @@ test-suite assetdb-core-test
         AssetDB.NamingSpec
         AssetDB.IdSpec
         AssetDB.ManifestSpec
+        AssetDB.PathTextSpec
     hs-source-dirs:   test
     build-depends:
         , assetdb-core
         , base
         , aeson
         , containers
+        , filepath
         , hspec         >=2.10
         , QuickCheck    >=2.14
         , text

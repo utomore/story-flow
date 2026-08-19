@@ -5,7 +5,7 @@ title: conflict-detection
 description: 三層衝突偵測:圖遍歷、FTS5 候選撈取與 LLM 判斷
 status: active
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 parent-arch: architecture
 related-adr: [adr-0002, adr-0003, adr-0005, adr-0007]
 ---
@@ -87,8 +87,11 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 
 沿用主架構,無新的重量級相依。三個子系統特有的決定:
 
-- **第 1 層直接用 `storyflow-core` 的 `StoryFlow.Core.Graph`**:關聯遍歷是純函式,已經在
-  `subarch-0001` 實作過,不重寫
+- **第 1 層沿用 core 的 `LinkGraph`,但反向遍歷寫在本子系統**:圖結構不另造,直接吃
+  `StoryFlow.Core.Graph` 的 `LinkGraph`。走訪則自己來——core 的 `follow` /
+  `supersededSet` / `contradictionPairs` 回的是正規化過的集合,說不出「誰取代的」、
+  「幾跳」、「哪一條關聯」,而那三樣正是命中要交出去的證據。`supersededSet` 保留為
+  測試 oracle(func-0010)
 - **第 2 層直接用 `service` 的 `searchEntity`**:FTS5 的 trigram 與兩字詞改走 `LIKE` 的處理
   都在 `subarch-0001`,本子系統不重複那個判斷
 - **第 3 層優先送 `summary` 而非全文**,必要時才展開 `body` —— 這是控制 token 成本的主要手段
@@ -200,7 +203,7 @@ data ConflictReport = ConflictReport
 | # | feature | 一句話說明 | 依賴 | spec |
 |---|---------|-----------|------|------|
 | 1 | conflict-types | 衝突報告的型別、命中層級證據與序列化 | func-0002 | func-0009 |
-| 2 | conflict-graph | 第 1 層:順 `contradicts` / `supersedes` 遍歷找確定性命中 | #1 | - |
+| 2 | conflict-graph | 第 1 層:順 `contradicts` / `supersedes` 遍歷找確定性命中 | #1 | func-0010 |
 | 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | - |
 | 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | - |
 

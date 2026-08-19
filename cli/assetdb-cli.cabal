@@ -15,7 +15,7 @@ common warnings
     ghc-options: -Wall -Wcompat
 
 -- 指令實作放在 library、只有 main 留在 executable。放在 executable 裡的
--- 模組測不到,而路徑解析(bug-0001)與參數解析正是最需要測試的部分。
+-- 模組測不到,而路徑解析(delivery/B001)與參數解析正是最需要測試的部分。
 library
     import:           warnings
     exposed-modules:

@@ -117,7 +117,7 @@ scanRoot st tools opts@ScanOptions {..} = do
 -- 開頭是點號的目錄一律跳過:@.assetdb@ 是我們自己的資料庫與快取,
 -- @.git@ 之類的東西索引進去只會製造噪音。
 --
--- 走訪時以 canonical path 記錄看過的目錄(enhance-0011):符號連結或
+-- 走訪時以 canonical path 記錄看過的目錄(ingest/E005):符號連結或
 -- Windows junction 指回祖先時會形成迴圈,不防的話是無窮遞迴。重複出現
 -- 的目錄跳過並記進第三個回傳值 —— 那同時涵蓋「兩條連結指向同一目錄」
 -- 的重複索引。
@@ -347,7 +347,7 @@ scanLoose st rootId absRoot paths acc = do
       let relPath = T.pack (makeRelativeTo absRoot p)
           leaf = T.pack (takeFileName p)
           kind = kindForPath relPath
-      -- 記憶體策略分兩路(enhance-0010):圖片與音效的探測本來就需要
+      -- 記憶體策略分兩路(ingest/E004):圖片與音效的探測本來就需要
       -- 整份內容(PNG 解碼數色、WAV 走 chunk),既然要讀,雜湊就用同
       -- 一份位元組,不讀第二次。其餘 kind 的 hProbe 都是 const Nothing,
       -- 雜湊改走與 'sha256File' 相同的串流路徑 —— reference/ 底下的

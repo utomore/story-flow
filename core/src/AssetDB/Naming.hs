@@ -134,7 +134,7 @@ data NameParts = NameParts
   --
   -- 刻意**不是**封閉列舉:每加一種素材領域就要改一次程式碼,會違反
   -- 「加音效不需重構」的設計目標。這裡不比對任何詞彙表 —— 只要是合法
-  -- 'Segment' 就收,加一種領域因此連資料都不必動(bug-0006)。
+  -- 'Segment' 就收,加一種領域因此連資料都不必動(catalog/B001)。
   , npSubject :: Segment
   -- ^ 主體,單一分段(內部可用 @-@ 連接多字,如 @travel-book-frame@)。
   , npVariant :: Maybe Segment
@@ -196,7 +196,7 @@ renderNameError = \case
 -- 做成參數而非寫死,是為了讓測試能餵自己的詞彙表(見 @NamingSpec@ 的
 -- QuickCheck 產生器),不是為了讓它從資料庫載入。
 --
--- == 為什麼這份詞彙表**不**做成可用資料擴充(bug-0006)
+-- == 為什麼這份詞彙表**不**做成可用資料擴充(catalog/B001)
 --
 -- 曾經有一張 @naming_vocab@ 表打算扮演這個角色,但它從未被任何程式碼查詢,
 -- 已於 store migration 004 移除。這不只是「沒做完」——把它做完是錯的:
@@ -204,7 +204,7 @@ renderNameError = \case
 -- @parse ∘ render == id@ 的結果。事後 INSERT 一個新 state,會改變**已經寫進**
 -- @assets.logical_name@ 的舊名字的解析語意。這是文法,該跟著程式碼版本走。
 --
--- 開放性的訴求(ADR-0004:「加一種素材領域不用改程式碼」)由 'npDomain'
+-- 開放性的訴求(ADR-004:「加一種素材領域不用改程式碼」)由 'npDomain'
 -- 承擔 —— 它根本不比對詞彙表,連這裡都不必動。
 data NamingVocab = NamingVocab
   { nvStates :: Set Text

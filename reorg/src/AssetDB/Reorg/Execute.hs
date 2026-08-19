@@ -291,14 +291,14 @@ packMoves plan =
   [t | OpMove _ t _ _ <- planOps plan, isArchiveLike t]
   where
     -- 副檔名清單的權威來源是 archive 套件的 formatExtensions,
-    -- 經 ingest 的 archiveExtensions 取得(enhance-0012),不再各寫一份。
+    -- 經 ingest 的 archiveExtensions 取得(G-E002),不再各寫一份。
     isArchiveLike t = any (`T.isSuffixOf` T.toLower t) archiveExtensions
 
 --------------------------------------------------------------------------------
 -- 階段 B
 
 -- 2026-08-09 一次性搬遷的空目錄清理(pruneEmptyDirs 掃 "Game Assets itchio/")
--- 已隨該次搬遷的路徑規則一併退役(enhance-0009),實作見 git 歷史。
+-- 已隨該次搬遷的路徑規則一併退役(ingest/E003),實作見 git 歷史。
 -- 這個執行器保留:它對 Plan 是通用的,雖然現行規劃器已不會產生 OpDelete。
 runDeletes :: Store -> ApplyOptions -> FilePath -> Plan -> ApplyReport -> IO ApplyReport
 runDeletes st ApplyOptions {..} src plan acc = do

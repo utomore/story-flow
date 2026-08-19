@@ -118,7 +118,7 @@ importNotes st kind dir = do
 -- | front matter → 存進 @notes.front_matter_json@ 的 JSON 文字。
 --
 -- 交給 aeson,不手刻拼接:值裡的反斜線與控制字元都要合法轉義,
--- 手刻版本只處理了雙引號,寫出來的是不合法的 JSON(enhance-0005)。
+-- 手刻版本只處理了雙引號,寫出來的是不合法的 JSON(ingest/E002)。
 -- 重複的 key 後者為準 —— 與 JSON 物件的語意一致。
 frontJson :: [(Text, Text)] -> Text
 frontJson = decodeUtf8Lenient . BL.toStrict . Aeson.encode . Map.fromList
@@ -177,7 +177,7 @@ tableOf = \case
 -- 與「這個關卡用了哪些 tileset」一樣常見。只做單向等於做了一半。
 --
 -- 回傳的對端識別是 **ULID**,不是內部整數 id —— 對外一律 ULID
--- (ADR-0003),整數 id 不出這個模組。
+-- (ADR-003),整數 id 不出這個模組。
 entityLinks :: Store -> Text -> Text -> IO (Either Text [(Text, Text, Text, Text)])
 entityLinks st entType ulid = case tableOf entType of
   Left e -> pure (Left e)

@@ -33,7 +33,7 @@ main = do
 
   Invocation global cmd <- parseInvocation
   -- 只有 scan 是「初始化」語意,允許在找不到資料庫時開一個新的。其餘指令
-  -- 都在讀既有索引,找不到資料庫就該報錯 —— 見 bug-0001。
+  -- 都在讀既有索引,找不到資料庫就該報錯 —— 見 delivery/B001。
   let forQuery = resolveDbPathForQuery global
       forInit = resolveDbPathForInit global
   case cmd of

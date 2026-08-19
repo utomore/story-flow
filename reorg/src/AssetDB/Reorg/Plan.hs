@@ -20,7 +20,7 @@
 --
 -- 2026-08-09 的一次性搬遷(見 @docs\/architecture.md@ 開發階段 3)已執行
 -- 完畢,當時的路徑規則 —— 廠商前綴的刪除閘門、中文頂層資料夾對應 ——
--- 已於 enhance-0009 退役,規則本身留在 git 歷史裡。散檔如今一律產生
+-- 已於 ingest/E003 退役,規則本身留在 git 歷史裡。散檔如今一律產生
 -- 'OpKeep':再跑一次 @reorganize --apply@ 只會重組素材包,
 -- 不會搬移或刪除任何散檔。
 module AssetDB.Reorg.Plan
@@ -146,7 +146,7 @@ targetDirFor pk =
     vendorSlug = maybe "unknown" (nonEmpty . slugify) (prVendor pk)
     nonEmpty s = if T.null s then "unknown" else s
 
--- slugify 與 leafOf 的唯一實作在 core 的 AssetDB.PathText(enhance-0012):
+-- slugify 與 leafOf 的唯一實作在 core 的 AssetDB.PathText(G-E002):
 -- slugify 同時決定掃描端的 pack slug 與這裡的目錄名,兩份實作會分家。
 -- slugify 仍自本模組 re-export,呼叫端不變。
 

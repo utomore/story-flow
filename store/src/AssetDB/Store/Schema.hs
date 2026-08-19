@@ -281,7 +281,7 @@ classification =
     --
     -- 原註解宣稱「AssetDB.Naming 的 NamingVocab 從這裡讀」—— 那從未成立,
     -- 實際生效的一直是 core/Naming.hs 的 defaultVocab。理由與取捨見
-    -- migration004 的說明與 docs/bugfix/bug-0006。
+    -- migration004 的說明與 catalog/B001。
     "CREATE TABLE naming_vocab ( \
     \  id    INTEGER PRIMARY KEY, \
     \  facet TEXT NOT NULL CHECK (facet IN ('domain','state','variant')), \
@@ -831,7 +831,7 @@ aiBatchStatus =
 
 --------------------------------------------------------------------------------
 
--- | @naming_vocab@ 退場(bug-0006)。
+-- | @naming_vocab@ 退場(catalog/B001)。
 --
 -- 這張表從 migration 001 起就建了、也播了種,但**全庫沒有任何程式碼查詢它**;
 -- 實際生效的一直是 @core\/Naming.hs@ 的硬編碼 @defaultVocab@。兩份定義並存
@@ -840,7 +840,7 @@ aiBatchStatus =
 -- 選擇刪表而不是「接上載入」,理由是這張表想解決的問題其實不存在,而它
 -- 帶來的問題是真的:
 --
--- 1. @domain@ 的開放性(ADR-0004 的原始訴求)**已經達成** —— 'parseLogicalName'
+-- 1. @domain@ 的開放性(ADR-004 的原始訴求)**已經達成** —— 'parseLogicalName'
 --    根本不驗證 domain,任何合法分段都收。這張表的 @facet='domain'@ 那批
 --    從來就不是把關者,只是一份沒人讀的清單。
 -- 2. @state@ \/ @variant@ 不是設定,是**文法**。它們決定 @spr_item_potion_blue@

@@ -41,7 +41,7 @@ spec = do
       lookup "tags" (ndFront (parseFrontMatter "x.md" "---\ntitle: T\ntags: a, b\n---\nx"))
         `shouldBe` Just "a, b"
 
-    -- enhance-0005 T4:收尾的 --- 直接頂著檔案結尾,是真實會出現的
+    -- ingest/E002 T4:收尾的 --- 直接頂著檔案結尾,是真實會出現的
     -- 邊界(編輯器不補結尾換行)。
     it "對 --- 後直接 EOF 的內容正確解析" $ do
       let doc = parseFrontMatter "x.md" "---\ntitle: T\n---"
@@ -54,7 +54,7 @@ spec = do
       ndTitle doc `shouldBe` "T"
       ndBody doc `shouldBe` ""
 
-  -- enhance-0005 T1:front matter 值裡的反斜線與控制字元(Windows 路徑、
+  -- ingest/E002 T1:front matter 值裡的反斜線與控制字元(Windows 路徑、
   -- tab)以前會被手刻拼接寫成不合法的 JSON。
   describe "frontJson" $ do
     it "對含反斜線與控制字元的值產生合法 JSON" $ do
@@ -96,7 +96,7 @@ spec = do
         query_ (storeConn st) "SELECT COUNT(*) FROM notes_cjk" :: IO [Only Int]
       map fromOnly rows `shouldBe` [2]
 
-  -- enhance-0005 T2:實體型別字串是使用者在 CLI 打的,打錯不該崩潰。
+  -- ingest/E002 T2:實體型別字串是使用者在 CLI 打的,打錯不該崩潰。
   describe "tableOf" $ do
     it "對未知實體型別回傳 Left 而非崩潰" $ do
       tableOf "foo" `shouldSatisfy` isLeft
@@ -125,7 +125,7 @@ spec = do
       _ <- linkEntities st "note" a "note" b RelDocuments Nothing
       fmap length <$> entityLinks st "note" a `shouldReturn` Right 1
 
-    -- enhance-0005 T3:對外一律 ULID(ADR-0003),內部整數 id 不出模組。
+    -- ingest/E002 T3:對外一律 ULID(ADR-003),內部整數 id 不出模組。
     it "entityLinks 回傳的對端識別是 ULID 而非內部整數 id" $ withNotes $ \(st, dir) -> do
       _ <- importNotes st NkKnowledge dir
       [(a, _, _, _), (b, _, _, _)] <- take 2 <$> listNotes st Nothing

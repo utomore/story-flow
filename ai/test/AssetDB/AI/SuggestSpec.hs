@@ -34,7 +34,7 @@ spec = around withSeeded $ do
       length rows `shouldBe` 1
 
     it "對已存在 pending 記錄的建議回傳實際寫入數而非輸入數" $ \st -> do
-      -- enhance-0001 T1:使用者拿這個數字判斷要不要重跑,它必須誠實。
+      -- ai-tagging/E001 T1:使用者拿這個數字判斷要不要重跑,它必須誠實。
       let conn = storeConn st
       n0 <- upsertSuggestions conn Nothing [zhTag "藥水", zhTag "圖示"]
       n0 `shouldBe` 2
@@ -104,7 +104,7 @@ spec = around withSeeded $ do
       n `shouldBe` 2
 
     it "同一目標的多筆建議只解析一次,結果與逐筆解析一致" $ \st -> do
-      -- enhance-0001 T2:同一叢集 8 筆建議掃 8 次整包,是
+      -- ai-tagging/E001 T2:同一叢集 8 筆建議掃 8 次整包,是
       -- O(建議數 × 包大小) 的寫法。快取後每個目標只解析一次,
       -- 而套用不動 assets,結果必須與逐筆解析完全相同。
       let conn = storeConn st

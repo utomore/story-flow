@@ -60,7 +60,7 @@ spec = do
     it "無法辨識的旗標是錯誤,不會被當成 db 路徑" $
       parseArgs ["--wat"] `shouldSatisfy` isLeft
 
-    -- bug-0004:預設不對區網開放,要開放得使用者明講。
+    -- delivery/B004:預設不對區網開放,要開放得使用者明講。
     it "--host 可以覆寫預設綁定介面,且不影響 db 路徑與 port" $
       case parseArgs ["db.sqlite", "9000", "--host", "0.0.0.0"] of
         Right (RunServer cfg) -> do
@@ -109,7 +109,7 @@ spec = do
         other -> expectationFailure ("預期 RunServer,收到 " <> show other)
 
   describe "usageText" $ do
-    -- enhance-0007:usage 的預設 port 必須引用 defaultPort 常數,
+    -- delivery/E002:usage 的預設 port 必須引用 defaultPort 常數,
     -- 兩者再次漂移時這條會紅。
     it "包含的預設 port 與 defaultPort 常數一致" $ do
       defaultPort `shouldBe` 8787

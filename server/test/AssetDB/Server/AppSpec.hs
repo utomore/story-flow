@@ -42,7 +42,7 @@ spec = do
           Left err -> do
             err `shouldSatisfy` ("找不到資料庫" `isInfixOf`)
             err `shouldSatisfy` ("--init" `isInfixOf`)
-        -- 靜默建檔正是 bug-0002 的病灶,檢查是否真的沒動到磁碟
+        -- 靜默建檔正是 delivery/B002 的病灶,檢查是否真的沒動到磁碟
         doesFileExist path `shouldReturn` False
 
     it "帶 --init 時接受不存在的路徑,交由 withStore 建立新庫" $
@@ -75,7 +75,7 @@ spec = do
           insertAssets st 3
           countAssets st `shouldReturn` 3
 
-  -- bug-0004:Warp 的預設 host 是 *(所有介面),而本服務沒有任何身分驗證。
+  -- delivery/B004:Warp 的預設 host 是 *(所有介面),而本服務沒有任何身分驗證。
   describe "serverSettings" $ do
     it "預設只綁定 127.0.0.1" $ do
       defaultHost `shouldBe` "127.0.0.1"
@@ -102,7 +102,7 @@ spec = do
       startupBanner "0.0.0.0" 8787 "db" 0 `shouldSatisfy` ("⚠" `isInfixOf`)
       startupBanner "127.0.0.1" 8787 "db" 0 `shouldNotSatisfy` ("⚠" `isInfixOf`)
 
-  -- bug-0005
+  -- delivery/B005
   describe "isThumbSha" $ do
     it "接受 64 位十六進位字串" $
       isThumbSha (T.replicate 64 "a") `shouldBe` True
@@ -142,7 +142,7 @@ spec = do
         thumbCacheControl `shouldBe` "public, max-age=31536000, immutable"
         lookup hCacheControl hdrs `shouldBe` Just (encodeUtf8 thumbCacheControl)
 
-  -- enhance-0013 T1。health 是最基本的存活檢查,而且它的欄位名是前端的合約
+  -- delivery/E004 T1。health 是最基本的存活檢查,而且它的欄位名是前端的合約
   -- (見 TsTypes.hs)—— 改掉任何一個欄位名,前端的健康列就變成空白。
   describe "GET /api/health" $ do
     it "回 200" $
@@ -180,14 +180,14 @@ spec = do
         (_, _, body) <- runGetFull app ["api", "health"] []
         field body "indexStale" `shouldBe` Just (Bool False)
 
-  -- enhance-0013 T2。夾制是**伺服器端**的防線:limit 是使用者可控的查詢字串,
+  -- delivery/E004 T2。夾制是**伺服器端**的防線:limit 是使用者可控的查詢字串,
   -- 一個 limit=1000000 會讓伺服器把整個素材庫序列化成 JSON 送出去。
   --
-  -- 60 / 500 已收斂為 App.hs 的具名常數(enhance-0006 T1)。下面的斷言
+  -- 60 / 500 已收斂為 App.hs 的具名常數(G-E001 T1)。下面的斷言
   -- 仍用字面值:鎖的是**對外行為**,常數改值時測試必須跟著紅,
   -- 而不是斷言跟著常數一起漂走。
   describe "GET /api/search 的分頁夾制" $ do
-    it "具名常數與對外行為的字面值一致(enhance-0006 T1)" $ do
+    it "具名常數與對外行為的字面值一致(G-E001 T1)" $ do
       defaultSearchLimit `shouldBe` 60
       maxSearchLimit `shouldBe` 500
 

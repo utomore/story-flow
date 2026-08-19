@@ -6,7 +6,7 @@ import { Lightbox } from "./Lightbox";
 
 const CELL = 132;
 // 一頁 120 筆,約數多(cols 常見 4-8 都整除),一次涵蓋數個可視畫面。
-// 各入口的分頁預設刻意不同,不是漏改(enhance-0006):server 預設 60 /
+// 各入口的分頁預設刻意不同,不是漏改(G-E001):server 預設 60 /
 // 上限 500(Server/App.hs)、CLI 預設 20(Cli/Options.hs)、store 層
 // 函式庫預設 50(Store/Search.hs)。
 const PAGE = 120;

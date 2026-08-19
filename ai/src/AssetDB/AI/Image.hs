@@ -12,7 +12,7 @@ module AssetDB.AI.Image
   ) where
 
 -- ThumbSize 與 thumbPath 的唯一實作在 core 的 AssetDB.PathText
--- (enhance-0012)—— 與 ingest(產生端)、server(讀取端)共用同一套
+-- (G-E002)—— 與 ingest(產生端)、server(讀取端)共用同一套
 -- 定址規則,不再各寫一份。core 本來就是 ai 的相依,不會把 JuicyPixels
 -- 或 zip 拖進來。此處 re-export 維持既有 API。
 import AssetDB.PathText (ThumbSize (..), thumbPath)

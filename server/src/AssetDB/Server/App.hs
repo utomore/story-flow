@@ -69,7 +69,7 @@ isLoopbackHost h = h `elem` ["127.0.0.1", "::1", "localhost"]
 
 -- | @\/api\/search@ 未帶 limit 時的預設筆數。
 --
--- 各入口的分頁預設刻意不同,不是漏改(enhance-0006):web 前端一頁抓
+-- 各入口的分頁預設刻意不同,不是漏改(G-E001):web 前端一頁抓
 -- 120 筆(Grid.tsx 的 @PAGE@,它總是明帶 limit,用不到這個預設)、CLI
 -- 預設 20(一個終端機畫面;Cli\/Options.hs)、store 層函式庫預設 50
 -- (Store\/Search.hs 的 'AssetDB.Store.Search.emptyQuery')。60 取「不帶
@@ -220,7 +220,7 @@ handlers cfg st =
       -- 外部輸入在用之前自己驗一次。
       | not (isThumbSha sha) = throwError (utf8Err err400 "sha 必須是 64 位十六進位字串")
       | otherwise = do
-          -- 路徑規則與產生端(ingest)共用 core 的 thumbPath(enhance-0012),
+          -- 路徑規則與產生端(ingest)共用 core 的 thumbPath(G-E002),
           -- 規則分家的症狀是縮圖找不到卻不報錯。
           let p = thumbPath (scCacheRoot cfg) sha (if size >= 512 then Thumb512 else Thumb128)
           ok <- liftIO (doesFileExist p)

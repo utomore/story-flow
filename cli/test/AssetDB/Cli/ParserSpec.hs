@@ -1,4 +1,4 @@
--- | 參數解析(enhance-0013 T4)。
+-- | 參數解析(delivery/E004 T4)。
 --
 -- 這裡測的是**規格本身**:哪些旗標存在、預設值是什麼、哪些組合必須被拒絕。
 -- 'AssetDB.Cli.OptionsSpec' 測的是資料庫路徑解析,'AssetDB.Cli.EndToEndSpec'
@@ -39,7 +39,7 @@ spec = do
         other -> unexpected other
 
     it "沒給 --db 時是 Nothing,不是某個預設路徑字串" $
-      -- 預設路徑的決定屬於 resolveDbPathFor*,不屬於解析層(bug-0001)。
+      -- 預設路徑的決定屬於 resolveDbPathFor*,不屬於解析層(delivery/B001)。
       case parse ["doctor"] of
         Just (Invocation g CmdDoctor) -> gaDbPath g `shouldBe` Nothing
         other -> unexpected other

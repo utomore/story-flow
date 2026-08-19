@@ -8,7 +8,7 @@ maintainer:         lhm.stu@gmail.com
 build-type:         Simple
 
 -- 註冊表隨程式碼版控,但 cabal install 之後的執行檔沒有原始碼樹的相對路徑。
--- 帶著它們走,執行期由 defaultRegistryDir 以 getDataDir 定位(func-0006 T2)。
+-- 帶著它們走,執行期由 defaultRegistryDir 以 getDataDir 定位(service-and-interfaces/F001 T2)。
 data-files:         registry/*.toml
 
 common warnings

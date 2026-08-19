@@ -1,10 +1,10 @@
 -- | 'Document' / 'Section' —— 原檔的忠實表示。
 --
--- ADR-0010 要求「未經修改的區塊逐字保留原始位元組」,因此本模組的型別只存
+-- ADR-010 要求「未經修改的區塊逐字保留原始位元組」,因此本模組的型別只存
 -- __原始文字切片__,不存解讀後的 'StoryFlow.Core.Meta.Meta'。解讀是
 -- "StoryFlow.Md.Parse" 的事,可重複呼叫;'Document' 因此永遠等於原檔。
 --
--- == 切片的界線(func-0003 實作備註 4)
+-- == 切片的界線(entity-graph-core/F003 實作備註 4)
 --
 -- 每一段切片都__含自己結尾的行尾字元__,而且 frontmatter 的兩條 @---@ 界線
 -- __只有 @---@ 這三個字元本身__由 'StoryFlow.Md.Render.renderDocument' 重生:
@@ -76,7 +76,7 @@ data Section = Section
   , secId :: Id
   , secMetaRaw :: Maybe Text
   -- ^ 標題行之後到 @```meta@ 區塊結尾 fence 行(含)的原始切片。
-  -- 前導空行也在裡面,重新序列化時原樣保留(func-0003 實作備註 3)
+  -- 前導空行也在裡面,重新序列化時原樣保留(entity-graph-core/F003 實作備註 3)
   , secBodyRaw :: Text
   -- ^ meta 區塊之後到下一個節標題之前的原始文字
   , secLine :: Int

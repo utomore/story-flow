@@ -1,10 +1,10 @@
--- | func-0005 T17:從空 Vault 建出 architecture.md 的兩份範例檔。
+-- | entity-graph-core/F005 T17:從空 Vault 建出 system.md 的兩份範例檔。
 --
 -- 這是本 spec 的驗收標準 1 與 2 合在一起的那一條:__只用本 spec 新增的函式__
--- (加上 func-0004 的 'openVaultIndex' \/ 'rebuildIndex')把琳達與教室從零建
+-- (加上 entity-graph-core/F004 的 'openVaultIndex' \/ 'rebuildIndex')把琳達與教室從零建
 -- 起來,再刪掉 @index.db@ 重建,證明「檔案才是真相來源」在寫入路徑上也成立。
 --
--- 對照的不是位元組:id 是雜湊產生的,不可能與 architecture.md 的
+-- 對照的不是位元組:id 是雜湊產生的,不可能與 system.md 的
 -- @ent-7f3a@ 相同。對照的是__解析回來的結構__——標題、總結、關聯、標籤、
 -- 樹的形狀。
 module StoryFlow.Store.EndToEndSpec (spec) where
@@ -44,7 +44,7 @@ data Snapshot = Snapshot
 
 spec :: Spec
 spec = describe "T17 從空 Vault 建出琳達與教室" $ do
-  it "只用本 spec 的函式就建得出兩份範例檔,且解析回來與 architecture.md 等價" $
+  it "只用本 spec 的函式就建得出兩份範例檔,且解析回來與 system.md 等價" $
     withBuiltVault $ \v conn ids -> do
       -- 琳達:主體 + 兩個片段
       readVaultFile v "characters/琳達.md" >>= \txt -> do
@@ -76,7 +76,7 @@ spec = describe "T17 從空 Vault 建出琳達與教室" $ do
       map linkTarget (metaLinks (entMeta feud))
         `shouldBe` map localRef [bMain ids, bLore ids, bTower ids]
 
-  it "教室 Level 的六個 Node 組成 architecture.md 畫的那棵樹" $
+  it "教室 Level 的六個 Node 組成 system.md 畫的那棵樹" $
     withBuiltVault $ \_ conn ids -> do
       Just (lvl, nodes) <- lookupLevel conn (bLevel ids)
       metaTitle (lvlMeta lvl) `shouldBe` "教室"
@@ -142,7 +142,7 @@ withBuiltVault act = withBuilt $ \v ids -> withIndex v $ \conn -> act v conn ids
 withIndex :: Vault -> (Connection -> IO a) -> IO a
 withIndex v act = bracket (orDie =<< openIndex v) closeIndex act
 
--- | 從空 Vault 出發,只用 func-0005 的寫入函式建出兩份範例檔。
+-- | 從空 Vault 出發,只用 entity-graph-core/F005 的寫入函式建出兩份範例檔。
 --
 -- 建完就把連線關掉:「rm index.db 再重建」那一條要在連線關閉之後才刪得動
 -- 檔案(Windows 不讓你刪還開著的檔)。

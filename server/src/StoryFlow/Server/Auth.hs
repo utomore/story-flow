@@ -2,7 +2,7 @@
 --
 -- __作法是 WAI middleware,不是 servant 的 @AuthProtect@__。
 --
--- func-0008 原本寫的是「以 'AuthProtect' 搭配一個 @Context@,未啟用時裝一個永遠
+-- service-and-interfaces/F003 原本寫的是「以 'AuthProtect' 搭配一個 @Context@,未啟用時裝一個永遠
 -- 放行的檢查器——路由型別因此在兩種模式下相同」。目標(路由型別只有一份)是對的,
 -- 但 @AuthProtect@ 達不到:它會出現在 @StoryFlowAPI@ 的型別裡,於是
 -- @servant-client@ 那邊要多一個 @AuthClientData@ 實例與 @AuthenticatedRequest@ 包裝,

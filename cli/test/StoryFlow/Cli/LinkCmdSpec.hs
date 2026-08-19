@@ -1,6 +1,6 @@
 -- | T12:@link add@ \/ @rm@ \/ @list@ 與非核心 kind 的提示。
 --
--- 最後兩條是 ADR-0005 的直接後果:自訂關聯合法,所以 @--kind contradict@(缺 s)
+-- 最後兩條是 ADR-005 的直接後果:自訂關聯合法,所以 @--kind contradict@(缺 s)
 -- __必須寫得進去__。CLI 能做的只有提示,不能阻擋——打錯字與刻意自訂在字串層面
 -- 無法區分,擋下來會擋到「師承於」這種合法用法。
 module StoryFlow.Cli.LinkCmdSpec (spec) where

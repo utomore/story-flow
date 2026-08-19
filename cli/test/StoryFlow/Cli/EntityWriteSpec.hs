@@ -1,6 +1,6 @@
 -- | T11:先讀再寫與 @--revision@ 覆寫。
 --
--- service 的每個修改操作都要 expected revision(func-0006 刻意設成必填,不留
+-- service 的每個修改操作都要 expected revision(service-and-interfaces/F001 刻意設成必填,不留
 -- 逃生口)。CLI 的填法是兩條路:不帶 @--revision@ 就先讀一次拿當前值,人用起來
 -- 是「改一欄就改一欄」;帶了就照用,腳本與 AI Agent 要真樂觀鎖時走那條。
 --

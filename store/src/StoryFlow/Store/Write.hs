@@ -1,4 +1,4 @@
--- | 改既有實體:meta、正文、關聯(ADR-0003 的樂觀鎖)。
+-- | 改既有實體:meta、正文、關聯(ADR-003 的樂觀鎖)。
 --
 -- 「建檔 / 增節 / 刪除」在 "StoryFlow.Store.Create",「Level 樹編輯」在
 -- "StoryFlow.Store.Node";三者共用的那條紀律(讀 → 鎖 → 純函式編輯 → 寫檔 →
@@ -105,7 +105,7 @@ writeEntityBody conn v i expected body =
 
 -- | 加一筆關聯。
 --
--- 關聯__只存在來源端__(ADR-0002),所以這是單邊、單檔操作:目標端的檔案
+-- 關聯__只存在來源端__(ADR-002),所以這是單邊、單檔操作:目標端的檔案
 -- 一個位元組都不會被碰到。反向查詢由索引負責。
 addEntityLink
   :: Connection -> Vault -> Id -> Int -> Link -> IO (Either StoreError WriteResult)

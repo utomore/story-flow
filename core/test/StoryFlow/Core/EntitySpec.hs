@@ -1,4 +1,4 @@
--- | func-0002 T4 的對照測試:Entity / Level / Node 與 NodeKind。
+-- | entity-graph-core/F002 T4 的對照測試:Entity / Level / Node 與 NodeKind。
 module StoryFlow.Core.EntitySpec (spec) where
 
 import Data.Text (Text)
@@ -37,7 +37,7 @@ spec = do
       metaTitle (entMeta linda) `shouldBe` "琳達"
       entBody linda `shouldBe` "銀灰短髮剪到耳際……"
 
-    it "Meta 的十四個欄位對照 architecture.md 欄位表逐項存在" $ do
+    it "Meta 的十四個欄位對照 system.md 欄位表逐項存在" $ do
       let m = entMeta linda
       metaId m `shouldBe` idOf "ent-7f3a"
       metaVault m `shouldBe` "liftgame"
@@ -78,7 +78,7 @@ spec = do
     it "六個建構子的 render 與 parse 互為反函式" $
       mapM_ (\k -> parseNodeKind (renderNodeKind k) `shouldBe` Right k) allNodeKinds
 
-    it "渲染成 architecture.md 的字串" $
+    it "渲染成 system.md 的字串" $
       map renderNodeKind allNodeKinds
         `shouldBe` ["scene", "cast", "camera", "interaction", "dialogue", "branch"]
 

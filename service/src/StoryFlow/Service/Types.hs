@@ -6,7 +6,7 @@
 -- (路徑、錨點、警告)。
 --
 -- 請求型別則與 @store@ 的 @NewEntity@ 等分開:那些帶 @nePath@ 之類的落地細節,
--- 這裡的是業務語彙,而且要能從 JSON 解出來(func-0008 的 API 契約直接吃它們)。
+-- 這裡的是業務語彙,而且要能從 JSON 解出來(service-and-interfaces/F003 的 API 契約直接吃它們)。
 module StoryFlow.Service.Types
   ( -- * View
     EntityView (..)
@@ -211,7 +211,7 @@ emptyPatch =
 --
 -- @patch 有值就蓋過去,沒值就保留原樣__包括原本的 @Nothing@__ ——節層的
 -- @Nothing@ 代表「繼承檔案層」,把它填成具體值等於偷偷把繼承來的欄位釘死在
--- 節上(func-0003 的繼承規則就白寫了)。
+-- 節上(entity-graph-core/F003 的繼承規則就白寫了)。
 patchOverride :: EntityPatch -> MetaOverride -> MetaOverride
 patchOverride EntityPatch {..} ov =
   ov

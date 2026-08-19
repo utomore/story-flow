@@ -1,6 +1,6 @@
 -- | T8:型別警告依種類分流。
 --
--- 這是 func-0006 唯一一處「引擎替作者擋下東西」的地方,所以界線要很清楚:
+-- 這是 service-and-interfaces/F001 唯一一處「引擎替作者擋下東西」的地方,所以界線要很清楚:
 -- 擋下來的只有作者自己在 TOML 裡宣告成 @required@ 的欄位;其餘一律照寫並附上
 -- 警告,讓人與 Agent 自己決定。
 module StoryFlow.Service.ValidateSpec (spec) where

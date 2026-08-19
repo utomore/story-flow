@@ -6,7 +6,7 @@ import StoryFlow.Conflict.Types
 import Test.Hspec
 
 spec :: Spec
-spec = describe "預設值對應 ADR-0007 的約束" $ do
+spec = describe "預設值對應 ADR-007 的約束" $ do
   it "defaultConflictOpts 的四個欄位是 20 / False / Nothing / 2" $ do
     coTopN defaultConflictOpts `shouldBe` 20
     coExpandBody defaultConflictOpts `shouldBe` False

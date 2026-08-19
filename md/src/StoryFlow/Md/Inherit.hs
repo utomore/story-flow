@@ -1,7 +1,7 @@
 -- | 節層繼承檔案層的合併規則。
 --
--- architecture.md 只寫了「節層未寫的欄位繼承檔案層(@vault@/@type@/@timeline@/
--- @status@ 等)」;「等」的精確定義在這裡,逐欄的理由見 func-0003 的表格。
+-- system.md 只寫了「節層未寫的欄位繼承檔案層(@vault@/@type@/@timeline@/
+-- @status@ 等)」;「等」的精確定義在這裡,逐欄的理由見 entity-graph-core/F003 的表格。
 --
 -- 重點的三條:
 --
@@ -10,7 +10,7 @@
 -- * @summary@ __不繼承__,缺漏產生 'MissingSummary' 警告——片段的一句話總結是
 --   衝突偵測撈 context 的主要輸入,繼承主體的總結等於製造假資訊
 -- * @revision@ __不繼承__,未寫時為 @1@——繼承會讓多個片段共用同一個 revision,
---   樂觀鎖(func-0004)就失去意義
+--   樂觀鎖(entity-graph-core/F004)就失去意義
 module StoryFlow.Md.Inherit
   ( MetaOverride (..)
   , emptyOverride
@@ -32,7 +32,7 @@ import StoryFlow.Md.Error
 
 -- | @```meta@ 區塊的內容:每個欄位都是 'Maybe',未寫的交給繼承規則填補。
 --
--- @moKind@ 不在 func-0003 原本的欄位表裡,是實作時補的(實作備註 1):
+-- @moKind@ 不在 entity-graph-core/F003 原本的欄位表裡,是實作時補的(實作備註 1):
 -- Level 檔的節一定有 @kind@,少了這一欄 'StoryFlow.Md.Render.updateSection'
 -- 重新序列化時會把它整行刪掉。
 data MetaOverride = MetaOverride

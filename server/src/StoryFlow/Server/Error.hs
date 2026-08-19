@@ -2,7 +2,7 @@
 --
 -- __分派走 'errorCode' 的字串,不是 @StoreError@ 的建構子__。
 --
--- 這是 func-0008 驗收標準 3(「@storyflow-server@ 不 import @storyflow-store@」)
+-- 這是 service-and-interfaces/F003 驗收標準 3(「@storyflow-server@ 不 import @storyflow-store@」)
 -- 唯一走得通的作法:要對 @StoreFailed (StaleRevision …)@ 做 pattern match,就得把
 -- @StoreError@ 的建構子拉進作用域,而那需要 @build-depends@ 加上 @storyflow-store@
 -- ——落地層就這樣爬進了介面層。
@@ -80,7 +80,7 @@ statusForCode = \case
   "file_write_failed" -> err500
   "id_collision" -> err500
   "vault_config_invalid" -> err500
-  -- 檔案已經寫成功了,只有索引沒跟上(ADR-0002:索引是衍生物)。
+  -- 檔案已經寫成功了,只有索引沒跟上(ADR-002:索引是衍生物)。
   -- 回 2xx 會讓客戶端以為一切正常、繼續用過時的索引查詢;回 500 至少會讓它停下來。
   -- 「白寫了」與「寫了但索引壞了」的區分靠 code,不靠狀態碼。
   "index_update_failed" -> err500

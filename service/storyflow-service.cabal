@@ -28,8 +28,8 @@ library
         StoryFlow.Service.Json
         StoryFlow.Service.Monad
         StoryFlow.Service.Types
-    -- ADR-0006:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
-    -- servant / warp / optparse-applicative 出現在這裡即為架構違規(func-0006 T1)。
+    -- ADR-006:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
+    -- servant / warp / optparse-applicative 出現在這裡即為架構違規(service-and-interfaces/F001 T1)。
     build-depends:
         , aeson
         , base            >=4.14 && <5

@@ -1,7 +1,7 @@
 -- | T4:路由涵蓋 service 的全部操作,而且 @revision@ 必填。
 --
 -- 驗收標準 1 是「沒有只有 CLI 做得到的事」。它的可測形式是:API 的 operation 數
--- 等於 func-0006 的業務操作數,而且每一個操作都找得到對應的路由。
+-- 等於 service-and-interfaces/F001 的業務操作數,而且每一個操作都找得到對應的路由。
 --
 -- @revision@ 必填在型別層就成立了(@QueryParam' '[Required]@ ——省略它的
 -- @servant-client@ 呼叫根本編譯不過),所以這裡驗的是__同一件事的文件面__:
@@ -35,10 +35,10 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "API 契約" $ do
-  it "operation 數等於 func-0006 的業務操作數(23)" $
+  it "operation 數等於 service-and-interfaces/F001 的業務操作數(23)" $
     length allOperations `shouldBe` 23
 
-  it "func-0006 的每個操作都有對應的路由" $
+  it "service-and-interfaces/F001 的每個操作都有對應的路由" $
     sort (map fst expectedRoutes) `shouldBe` sort (map fst actualRoutes)
 
   it "路徑與方法逐條相符" $
@@ -53,9 +53,9 @@ spec = describe "API 契約" $ do
   it "加片段沒有 revision(service 自己讀,收一個不用的參數是說謊)" $
     revisionParamOf ("/entities/{id}/fragments", "post") `shouldBe` Nothing
 
--- | func-0006 的 23 個業務操作各對應一條路由。
+-- | service-and-interfaces/F001 的 23 個業務操作各對應一條路由。
 --
--- 手寫這張表而不是從型別推導,是刻意的:它是 func-0006 那份清單的__獨立副本__,
+-- 手寫這張表而不是從型別推導,是刻意的:它是 service-and-interfaces/F001 那份清單的__獨立副本__,
 -- 兩邊對不上時才有東西可以比。從型別推導出來的清單只會永遠等於它自己。
 expectedRoutes :: [(Text, Text)]
 expectedRoutes =

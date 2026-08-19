@@ -1,10 +1,10 @@
 -- | 測試共用的臨時 Vault 與範例檔。
 --
 -- 落地層的測試一律在 'System.IO.Temp.withSystemTempDirectory' 建立的臨時 Vault
--- 裡跑(architecture.md 指定的作法),測完即刪,不碰使用者真正的 Vault 與
+-- 裡跑(system.md 指定的作法),測完即刪,不碰使用者真正的 Vault 與
 -- @~\/.config\/story-flow\/@。
 --
--- 'lindaMd' 與 'classroomMd' 逐字取自 architecture.md;其餘幾份是為了湊出
+-- 'lindaMd' 與 'classroomMd' 逐字取自 system.md;其餘幾份是為了湊出
 -- 「3 Entity 檔 + 2 Level 檔」的重建情境與中文檢索情境而寫的。
 module StoryFlow.Store.Fixtures
   ( -- * 臨時 Vault
@@ -118,7 +118,7 @@ refOf t = case parseRef t of
 -- | 測試用的型別註冊表。
 --
 -- 刻意__不去讀 @types\/registry\/@ 的實檔__:那是 @storyflow-types@ 的測試
--- 範圍(func-0005 T5),落地層的測試不該因為別人改了一份 TOML 而變紅。
+-- 範圍(entity-graph-core/F005 T5),落地層的測試不該因為別人改了一份 TOML 而變紅。
 -- 這裡只需要「dir 查得到」與「dir 查不到」兩種型別。
 testRegistry :: TypeRegistry
 testRegistry = case validateRegistry specs of
@@ -171,7 +171,7 @@ sampleFiles =
   , ("levels/走廊.md", corridorMd)
   ]
 
--- | architecture.md 的琳達範例檔:主體 + 2 個片段。
+-- | system.md 的琳達範例檔:主體 + 2 個片段。
 lindaMd :: Text
 lindaMd =
   T.unlines
@@ -346,7 +346,7 @@ loreMd =
     , "有人說埃提亞的第七織手還活著。"
     ]
 
--- | architecture.md 的教室 Level 範例檔。
+-- | system.md 的教室 Level 範例檔。
 classroomMd :: Text
 classroomMd =
   T.unlines

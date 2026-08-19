@@ -66,7 +66,7 @@ spec = describe "entity new / add" $ do
       Just (Array ls) -> jsonPath ["note"] (firstOf ls) `shouldBe` Nothing
       other -> expectationFailure ("links 取不到:" <> show other)
 
-  -- service 的懸空目標檢查在 addLink,不在 createEntity(func-0006 的
+  -- service 的懸空目標檢查在 addLink,不在 createEntity(service-and-interfaces/F001 的
   -- requireTargetExists 只掛在前者)。CLI 不自己補一份——那是業務判斷,補在這裡
   -- 就會與 REST 的行為不一致。這一條把現況釘住,而不是假裝它不存在。
   it "entity new 的 --link 不驗目標存在(驗的是 link add)" $ withCliVault $ \_ -> do

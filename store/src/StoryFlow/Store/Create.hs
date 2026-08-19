@@ -91,7 +91,7 @@ data NewEntity = NewEntity
 
 -- | 往既有檔案加一個片段。
 --
--- 只填__與檔案層不同__的欄位,其餘留 @Nothing@ 讓繼承生效(func-0003 的繼承
+-- 只填__與檔案層不同__的欄位,其餘留 @Nothing@ 讓繼承生效(entity-graph-core/F003 的繼承
 -- 規則)。但 @summary@ 不繼承,所以 'nfSummary' 一定要給值——缺了會產生
 -- 'MissingSummary' 警告,一併帶在 'crWarnings' 裡回來。
 data NewFragment = NewFragment
@@ -120,7 +120,7 @@ data NewLevel = NewLevel
   }
   deriving stock (Show, Eq)
 
--- | 一個新的 Node。層級與插入位置由父節點決定,不由呼叫端指定(ADR-0009)。
+-- | 一個新的 Node。層級與插入位置由父節點決定,不由呼叫端指定(ADR-009)。
 data NewNode = NewNode
   { nnTitle :: Text
   , nnKind :: NodeKind
@@ -134,7 +134,7 @@ data NewNode = NewNode
 
 -- | 新產生的實體。
 --
--- 與 func-0005 規格書的差異:'addFragment' 與
+-- 與 entity-graph-core/F005 規格書的差異:'addFragment' 與
 -- 'StoryFlow.Store.Node.addNode' 原本回 @WriteResult@,改成回本型別
 -- (見實作備註)——新片段 \/ 新 Node 的 id 是呼叫端唯一拿不到其他來源的資訊,
 -- 少了它 service 與 CLI 只能重讀檔案猜「最後一節就是剛剛那個」。
@@ -198,7 +198,7 @@ createEntityFile conn v reg NewEntity {..} = do
 -- | 建一份新的 Level 檔,連同它的根 Node。
 --
 -- 目錄固定 @levels\/@:@level@ 是保留型別鍵,不可能在註冊表裡宣告 @dir@。
--- 根 Node 用 @##@(二級標題),與 architecture.md 的範例一致——留一級給
+-- 根 Node 用 @##@(二級標題),與 system.md 的範例一致——留一級給
 -- @#@ 當作者想寫的檔案大標。
 createLevelFile :: Connection -> Vault -> NewLevel -> IO (Either StoreError CreateResult)
 createLevelFile conn v NewLevel {..} = do
@@ -268,7 +268,7 @@ selfCheck rel doc = do
 -- 主體的 revision 走完會 +1:這是樂觀鎖的另一半,不遞增的話兩個並發的
 -- 'addFragment' 拿同一個 revision 都會通過。
 --
--- 片段一律是二級標題:architecture.md 的規則是「第一個帶 @{#id}@ 的標題才
+-- 片段一律是二級標題:system.md 的規則是「第一個帶 @{#id}@ 的標題才
 -- 開始分節」,Entity 檔的節之間沒有階層。
 addFragment
   :: Connection -> Vault -> Id -> Int -> NewFragment -> IO (Either StoreError CreateResult)
@@ -449,7 +449,7 @@ sanitizeFileName title fallback
 
 -- | 還沒有人用的路徑。撞名就 @-2@ \/ @-3@ 遞增。
 --
--- 檢查與寫入之間仍有毫秒級窗口,與 func-0004 已接受的競態同一種,不另外加鎖。
+-- 檢查與寫入之間仍有毫秒級窗口,與 entity-graph-core/F004 已接受的競態同一種,不另外加鎖。
 freshPath :: Vault -> FilePath -> IO FilePath
 freshPath v rel = do
   taken <- doesFileExist (vaultAbsPath v rel)

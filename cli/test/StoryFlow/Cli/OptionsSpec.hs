@@ -119,7 +119,7 @@ spec = describe "引數解析" $ do
       parseLinkSpec "partOf:ent-7f3a:前:後"
         `shouldBe` Right (Link PartOf (refOf "ent-7f3a") (Just "前:後"))
 
-    it "非核心關聯照收(ADR-0005:自訂關聯合法)" $
+    it "非核心關聯照收(ADR-005:自訂關聯合法)" $
       parseLinkSpec "師承於:ent-7f3a"
         `shouldBe` Right (Link (Custom "師承於") (refOf "ent-7f3a") Nothing)
 

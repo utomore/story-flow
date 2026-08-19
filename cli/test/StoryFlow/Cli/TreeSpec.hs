@@ -1,7 +1,7 @@
 -- | T5:@level show@ 的樹形狀與架構文件一致。
 --
 -- 這一條是逐行比對而不是「含有某些字」:樹的價值全在分支字元的位置,
--- @└─@ 與 @│@ 錯一格,作者就看不出哪個節點掛在誰底下。用 architecture.md
+-- @└─@ 與 @│@ 錯一格,作者就看不出哪個節點掛在誰底下。用 system.md
 -- 的教室場景當底稿——那張圖是規格的一部分,不是舉例。
 module StoryFlow.Cli.TreeSpec (spec) where
 
@@ -18,7 +18,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "level show 的樹" $ do
-  it "六個 Node 的教室場景逐行等於 architecture.md 的圖" $
+  it "六個 Node 的教室場景逐行等於 system.md 的圖" $
     T.lines (renderLevelTree classroom) `shouldBe` expected
 
   it "只有根節點時是兩行" $ do
@@ -51,7 +51,7 @@ classroom =
     , lvPath = "levels/教室.md"
     }
 
--- | 沒有 summary 的節點印標題:architecture.md 的圖裡「出場人物」與
+-- | 沒有 summary 的節點印標題:system.md 的圖裡「出場人物」與
 -- 「琳達走向講台」就是這種——Level 檔的 meta 區塊只有 @kind@。
 node :: Text -> Text -> NodeKind -> Text -> Node
 node i title k summary =

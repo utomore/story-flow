@@ -1,6 +1,6 @@
 -- | 條件查詢、關聯查詢、FTS5 檢索。
 --
--- 'linksTo' 是索引存在的主要理由之一:關聯只存在來源端(ADR-0002),檔案裡
+-- 'linksTo' 是索引存在的主要理由之一:關聯只存在來源端(ADR-002),檔案裡
 -- 查不到「誰指向我」,只有索引做得到反向查詢。
 --
 -- 'lookupEntity' 的 @body@ __回讀檔案__而不從索引拿:正文可能很長,不該在
@@ -162,7 +162,7 @@ lookupLevel conn i = do
 
 -- | 列出 Level 的 'Meta'(不含 Node)。
 --
--- 'lookupLevel' 只能依 id 單查,「這個 Vault 有哪些場景」在 func-0004 之後
+-- 'lookupLevel' 只能依 id 單查,「這個 Vault 有哪些場景」在 entity-graph-core/F004 之後
 -- 沒有任何函式回答得了——P2 的 @story-flow level list@ 就卡在這裡。
 --
 -- 沿用 'EntityFilter' 的 'efStatus' 與 'efLimit';'efType' 與 'efTag' 對 Level
@@ -270,7 +270,7 @@ loadLinkGraph conn = do
 -- * 三個字元以上走 trigram MATCH。使用者輸入被包成 phrase query 並跳脫內部的
 --   雙引號,@OR@ \/ @NEAR@ \/ @*@ 因此是字面而不是語法
 -- * __兩個字元以下走 LIKE 掃描__。trigram 以三字元為索引單位,「織紋」這種
---   二字詞 MATCH 一定不命中(func-0001 已驗證這個限制),而角色名與道具名
+--   二字詞 MATCH 一定不命中(entity-graph-core/F001 已驗證這個限制),而角色名與道具名
 --   常常就是兩個字——這是本層必須自己補的那一段
 searchEntities :: Connection -> Text -> EntityFilter -> IO [(Meta, Text)]
 searchEntities conn raw filt

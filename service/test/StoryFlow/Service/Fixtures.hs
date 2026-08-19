@@ -1,13 +1,13 @@
 -- | 業務層測試的共用底稿。
 --
--- ADR-0006 的正面影響之一是「@service@ 可以直接用 hspec 做完整的業務測試」,
+-- ADR-006 的正面影響之一是「@service@ 可以直接用 hspec 做完整的業務測試」,
 -- 前提是測試__不能碰使用者真實的環境__。兩個環境變數因此在每次建臨時 Vault 時
 -- 一起設好:
 --
 -- * @STORYFLOW_VAULTS@ 指向臨時目錄裡的 @vaults.toml@,不動
 --   @~\/.config\/story-flow\/@
 -- * @STORYFLOW_REGISTRY@ 指向原始碼樹的 @types\/registry\/@ ——測的是真正的
---   五份型別宣告,因為「註冊表在執行期找得到」正是 func-0006 的驗收標準之一
+--   五份型別宣告,因為「註冊表在執行期找得到」正是 service-and-interfaces/F001 的驗收標準之一
 module StoryFlow.Service.Fixtures
   ( -- * 環境
     withServiceEnv

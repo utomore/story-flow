@@ -1,6 +1,6 @@
--- | func-0005 T12 \/ T13 \/ T14:Level 檔與樹的編輯。
+-- | entity-graph-core/F005 T12 \/ T13 \/ T14:Level 檔與樹的編輯。
 --
--- ADR-0009「標題階層即樹」在這裡是可驗證的:測試斷言的是__標題層級__與
+-- ADR-009「標題階層即樹」在這裡是可驗證的:測試斷言的是__標題層級__與
 -- 索引裡推導出來的 @parent@ \/ @order@ 一致,而不是某個欄位被寫對了。
 module StoryFlow.Store.NodeSpec (spec) where
 
@@ -60,13 +60,13 @@ spec = do
         map nodParent nodes `shouldBe` [Nothing]
         map (metaId . nodMeta) nodes `shouldBe` [lvlRoot lvl]
 
-    it "根 Node 用 ## 二級標題,與 architecture.md 的範例一致" $
+    it "根 Node 用 ## 二級標題,與 system.md 的範例一致" $
       withVaultIndex $ \v conn -> do
         r <- orDie =<< createLevelFile conn v (newLevel "教室")
         txt <- readVaultFile v (crPath r)
         txt `shouldSatisfy` T.isInfixOf "\n## 午後的教室 {#"
         txt `shouldSatisfy` T.isInfixOf "kind: scene"
-        -- root 不寫進 frontmatter:它由標題階層推導(ADR-0009)
+        -- root 不寫進 frontmatter:它由標題階層推導(ADR-009)
         txt `shouldSatisfy` (not . T.isInfixOf "root:")
 
     it "Level 與根 Node 的 id 前綴各自正確" $

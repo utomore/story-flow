@@ -3,7 +3,7 @@
 -- 本模組__不含任何偵測邏輯__。沒有圖遍歷、沒有 FTS5、沒有 LLM;它只回答
 -- 「三層各自算完之後,要用什麼形狀把結果交出來」。
 --
--- 先有型別才有三層,是 ADR-0007 那句「三層各自可獨立演進」的前提:三層只有
+-- 先有型別才有三層,是 ADR-007 那句「三層各自可獨立演進」的前提:三層只有
 -- 對同一組型別工作時才互不牽動。型別若跟著第一層一起長出來,第二、三層就會
 -- 各自扭一份自己的形狀,合流那一步(@Conflict.Pipeline@)得負責把三種形狀併起來。
 module StoryFlow.Conflict.Types
@@ -44,7 +44,7 @@ data Draft = Draft
   }
   deriving stock (Show, Eq)
 
--- | 三層共用的選項。每一欄都對應 ADR-0007 的一條約束。
+-- | 三層共用的選項。每一欄都對應 ADR-007 的一條約束。
 data ConflictOpts = ConflictOpts
   { coTopN :: Int
   -- ^ 第 2 層的候選上限。「top-N 的 N 要可調,且預設保守」
@@ -62,7 +62,7 @@ data ConflictOpts = ConflictOpts
 
 -- | 保守的預設值:topN=20 / expandBody=False / window=Nothing / depth=2。
 --
--- @depth = 2@ 是「起點 + 一跳」,與 ADR-0007「用關聯圖擴充一跳範圍」一致。
+-- @depth = 2@ 是「起點 + 一跳」,與 ADR-007「用關聯圖擴充一跳範圍」一致。
 defaultConflictOpts :: ConflictOpts
 defaultConflictOpts =
   ConflictOpts
@@ -75,7 +75,7 @@ defaultConflictOpts =
 -- | 第 1 層的證據:__哪一條關聯__造成這次命中。
 --
 -- 帶的是關聯而不只是層級,因為 @conflict check@ 在確認衝突後要能反問
--- 「要不要建立這條 @contradicts@ 關聯」(ADR-0007 的中立影響那一條),
+-- 「要不要建立這條 @contradicts@ 關聯」(ADR-007 的中立影響那一條),
 -- 手上必須已經有 (from, kind, to) 三元組,否則得回頭再查一次圖。
 --
 -- 形狀刻意對齊 "StoryFlow.Core.Graph" 既有的輸出:
@@ -94,7 +94,7 @@ data GraphEvidence = GraphEvidence
   deriving stock (Show, Eq)
 
 -- | 命中層級。第 1 層是__事實__,第 3 層是__判斷__——這個區分必須出現在輸出裡
--- (ADR-0007:「使用者需要知道差別」)。
+-- (ADR-007:「使用者需要知道差別」)。
 data HitLayer
   = -- | 圖遍歷,附上造成命中的那條關聯
     ByGraph GraphEvidence

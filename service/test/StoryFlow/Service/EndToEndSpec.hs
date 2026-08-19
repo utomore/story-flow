@@ -1,10 +1,10 @@
 -- | T17:純 service 從零建出琳達與教室。
 --
--- 這是 func-0006 的驗收面:__全程只呼叫 'ServiceM' 的函式__,不經過 CLI 也不
--- 經過 HTTP。跑得完就代表 P2 的業務能力齊了,func-0007 的 CLI 只剩「把引數轉
+-- 這是 service-and-interfaces/F001 的驗收面:__全程只呼叫 'ServiceM' 的函式__,不經過 CLI 也不
+-- 經過 HTTP。跑得完就代表 P2 的業務能力齊了,service-and-interfaces/F002 的 CLI 只剩「把引數轉
 -- 成請求」這一件事。
 --
--- 建出來的形狀對照 architecture.md 的教室範例:一個 scene 根、底下 cast 與
+-- 建出來的形狀對照 system.md 的教室範例:一個 scene 根、底下 cast 與
 -- camera,cast 底下再一層 interaction。
 module StoryFlow.Service.EndToEndSpec (spec) where
 

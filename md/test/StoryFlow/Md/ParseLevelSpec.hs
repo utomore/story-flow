@@ -1,4 +1,4 @@
--- | T7:Level 檔的解析,標題階層即樹(ADR-0009)。
+-- | T7:Level 檔的解析,標題階層即樹(ADR-009)。
 module StoryFlow.Md.ParseLevelSpec (spec) where
 
 import Data.Text (Text)

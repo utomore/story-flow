@@ -1,6 +1,6 @@
--- | @storyflow-service@ 的門面:__所有業務操作的唯一定義處__(ADR-0006)。
+-- | @storyflow-service@ 的門面:__所有業務操作的唯一定義處__(ADR-006)。
 --
--- CLI(func-0007)、servant server(func-0008)、未來的 MCP adapter 全部是這一層
+-- CLI(service-and-interfaces/F002)、servant server(service-and-interfaces/F003)、未來的 MCP adapter 全部是這一層
 -- 的薄包裝。這一層存在的價值不是「多一層」,而是__讓三種介面的行為由型別強制
 -- 一致__——邏輯只有一份,不可能悄悄長歪。
 --
@@ -112,7 +112,7 @@ import StoryFlow.Store.Edit (Located (..), locate, locateNode)
 
 -- | 建立 Vault 骨架,並登記進全域註冊表。
 --
--- __登記是這裡做而不是 @store@ 的 'initVault' 做__:ADR-0008 的
+-- __登記是這裡做而不是 @store@ 的 'initVault' 做__:ADR-008 的
 -- 「@--vault \<名稱\>@ 查全域註冊表」如果沒有人負責寫進那份註冊表,規則就永遠
 -- 命不中。而登記涉及「哪一份註冊表」這個由環境決定的問題,那是業務層的事。
 createVault :: FilePath -> Text -> IO (Either ServiceError VaultView)
@@ -142,7 +142,7 @@ vaultInfo = do
   metas <- liftIO (S.listEntities conn emptyFilter)
   pure (VaultView (vaultName v) (vaultRoot v) (Just (length metas)))
 
--- | 全量重建索引。ADR-0002 的「刪掉 index.db 也回得來」就是這一條。
+-- | 全量重建索引。ADR-002 的「刪掉 index.db 也回得來」就是這一條。
 reindex :: ServiceM IndexReport
 reindex = do
   Env v conn _ <- ask
@@ -247,7 +247,7 @@ addFragment i req = do
 
 -- | 修改 Meta(必要時連標題一起)。
 --
--- @expected@ 是必填而不是 @Maybe Int@:ADR-0006 明列「樂觀鎖在兩種模式下都
+-- @expected@ 是必填而不是 @Maybe Int@:ADR-006 明列「樂觀鎖在兩種模式下都
 -- 必須生效」,給一個「不帶就跳過檢查」的逃生口,CLI 一定會用它,然後遠端模式
 -- 的並發保護就只剩一半。呼叫端的作法是__先讀再寫__,不是繞過。
 updateEntity :: Id -> Int -> EntityPatch -> ServiceM EntityView
@@ -288,11 +288,11 @@ createdEntity (CreateResult i _ ws) = do
 
 -- 驗證 -------------------------------------------------------------------------
 
--- | 型別警告__依種類分流__(func-0006 的驗證策略表):
+-- | 型別警告__依種類分流__(service-and-interfaces/F001 的驗證策略表):
 --
 -- * @MissingRequiredField@ → 拒絕寫入。@required = true@ 是作者自己在 TOML 裡
 --   設的,擋下來是執行作者的意思,不是工具越權
--- * @LinkNotAllowed@ → 警告照寫。ADR-0005 明說自訂關聯合法
+-- * @LinkNotAllowed@ → 警告照寫。ADR-005 明說自訂關聯合法
 -- * @UnknownEntityType@ → 警告照寫。擋下來等於逼作者先寫 TOML 才能記一句設定
 validateForWrite :: Maybe Id -> Entity -> ServiceM ()
 validateForWrite mi e = do
@@ -337,7 +337,7 @@ removeLink i expected k target = do
   _ <- liftStore (removeEntityLink conn v i expected k target)
   getEntity i
 
--- | 正向 + 反向一次給。反向查詢只有索引做得到:關聯只存在來源端(ADR-0002)。
+-- | 正向 + 反向一次給。反向查詢只有索引做得到:關聯只存在來源端(ADR-002)。
 linksOf :: Id -> ServiceM LinkReport
 linksOf i = do
   conn <- asks envConn
@@ -345,7 +345,7 @@ linksOf i = do
   inc <- liftIO (linksTo conn (localRef i))
   pure (LinkReport out inc)
 
--- | 跨 Vault 的定址只存不解析(func-0006 第四節)。
+-- | 跨 Vault 的定址只存不解析(service-and-interfaces/F001 第四節)。
 --
 -- 關聯寫得進檔案、也查得出來(@links@ 表有 @dst_vault@ 欄位),但這一層的讀寫
 -- 一律只碰本 Vault:跨 Vault 讀取要開第二個索引連線,連帶帶出連線快取、

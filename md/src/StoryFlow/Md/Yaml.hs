@@ -4,7 +4,7 @@
 -- aeson 'Value' 之後__一律__套用 "StoryFlow.Core.Json" 的實例——編碼規則因此
 -- 全系統只有一份。序列化方向不用 YAML 編碼器,見 "StoryFlow.Md.Render"。
 --
--- 唯一的表層語法糖是 @timeline@(func-0003 實作備註 1):architecture.md 的範例
+-- 唯一的表層語法糖是 @timeline@(entity-graph-core/F003 實作備註 1):system.md 的範例
 -- 寫 @timeline: 埃提亞崩塌前@,而 core 的 @FromJSON Timeline@ 吃的是
 -- @{label, order}@ 物件。這裡在 'Value' 層把字串補成 @{label: ...}@ 再交給 core,
 -- 規則仍然只有一份,只是接受一種簡寫。
@@ -80,7 +80,7 @@ decodeFrontmatterAt t = decodeValue t >>= first (1,) . fromValue
 decodeMetaAt :: Text -> Either (Int, Text) MetaOverride
 decodeMetaAt t = decodeValue t >>= first (1,) . fromValue
 
--- | func-0003 「新增的介面」表列的簽名;丟掉行號的版本。
+-- | entity-graph-core/F003 「新增的介面」表列的簽名;丟掉行號的版本。
 decodeFrontmatter :: Text -> Either Text Meta
 decodeFrontmatter = first snd . decodeFrontmatterAt
 

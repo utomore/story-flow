@@ -1,8 +1,8 @@
--- | T1(func-0007):套件邊界。
+-- | T1(service-and-interfaces/F002):套件邊界。
 --
--- func-0007 驗收標準 3 是「@storyflow-cli.cabal@ 的 @build-depends@ 不含
--- @sqlite-simple@ \/ @direct-sqlite@ \/ @storyflow-store@」。func-0008 又加了一條
--- 架構上的要求:__CLI 不能依賴 @storyflow-server@ 與 @warp@__ ——architecture.md
+-- service-and-interfaces/F002 驗收標準 3 是「@storyflow-cli.cabal@ 的 @build-depends@ 不含
+-- @sqlite-simple@ \/ @direct-sqlite@ \/ @storyflow-store@」。service-and-interfaces/F003 又加了一條
+-- 架構上的要求:__CLI 不能依賴 @storyflow-server@ 與 @warp@__ ——system.md
 -- 讓 @storyflow-api@ 獨立成套件的理由正是「一個預設根本不開伺服器的執行檔不該
 -- 把整套 HTTP 伺服器拖進來」。
 --

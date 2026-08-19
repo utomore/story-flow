@@ -2,7 +2,7 @@
 
 -- | 全部核心型別的 aeson 編解碼,__集中在這一個模組__。
 --
--- 這是刻意的孤兒實例:@meta@ 區塊(func-0003)、SQLite 序列化(func-0004)、
+-- 這是刻意的孤兒實例:@meta@ 區塊(entity-graph-core/F003)、SQLite 序列化(entity-graph-core/F004)、
 -- REST API(P3)、CLI @--json@(P2)用的是同一套編碼規則,規則只該有一份。
 -- 把實例散在各型別模組會讓「規則有一份」變成靠自律維持。
 --

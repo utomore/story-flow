@@ -1,6 +1,6 @@
 -- | T9:Vault 的建立、列出、資訊與索引維護。
 --
--- 'createVault' 除了建骨架還要__登記進全域註冊表__ ——ADR-0008 的
+-- 'createVault' 除了建骨架還要__登記進全域註冊表__ ——ADR-008 的
 -- 「@--vault \<名稱\>@ 查全域註冊表」如果沒有人寫進那份註冊表,規則永遠命不中。
 module StoryFlow.Service.VaultSpec (spec) where
 
@@ -70,7 +70,7 @@ spec = describe "Vault" $ do
       r <- runS env refreshIndex
       irIssues r `shouldBe` []
 
-  it "createVault 建出 architecture.md 說的子目錄" $
+  it "createVault 建出 system.md 說的子目錄" $
     withVaultDir $ \dir -> do
       _ <- orDieS =<< createVault dir "liftgame"
       entries <- listDirectory dir

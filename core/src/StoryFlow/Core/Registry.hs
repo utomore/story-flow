@@ -1,4 +1,4 @@
--- | 型別註冊表的純模型與純驗證(ADR-0005)。
+-- | 型別註冊表的純模型與純驗證(ADR-005)。
 --
 -- 讀 @types/registry/*.toml@ 是 IO,不在這裡——本模組只認識「已經解析成資料的
 -- 型別宣告」,因此註冊表的所有規則都能在零 IO 的情況下被單元測試。
@@ -41,7 +41,7 @@ data FieldSpec = FieldSpec
   { -- | 對應 'Meta' 的欄位名,必須出現在 'metaFieldNames' 內
     fsName :: Text
   , fsRequired :: Bool
-  , -- | 給作者與 AI Agent 的提示(ADR-0005)
+  , -- | 給作者與 AI Agent 的提示(ADR-005)
     fsHint :: Text
   }
   deriving stock (Show, Eq)
@@ -56,7 +56,7 @@ data EntityTypeSpec = EntityTypeSpec
   , -- | 該型別的檔案放哪個子目錄,如 @characters@。
     --
     -- 'Maybe' 而不是 'Text':既有的宣告在補上這一欄之前必須仍能載入,
-    -- 'validateRegistry' 不因缺欄位報錯(ADR-0005 的立場是引導而非阻擋)
+    -- 'validateRegistry' 不因缺欄位報錯(ADR-005 的立場是引導而非阻擋)
     etsDir :: Maybe Text
   , -- | 這個片段型別所屬的主體型別鍵,如 @character@。
     --
@@ -76,7 +76,7 @@ emptyRegistry = TypeRegistry M.empty
 
 -- | 保留的型別鍵,不可出現在 @types/registry/@。
 --
--- architecture.md:檔案層 frontmatter 的 @type: level@ 是 Entity 檔與 Level 檔的
+-- system.md:檔案層 frontmatter 的 @type: level@ 是 Entity 檔與 Level 檔的
 -- 判別依據,因此 @level@ 被引擎佔用。
 reservedTypeKeys :: [Text]
 reservedTypeKeys = ["level"]
@@ -89,7 +89,7 @@ data RegistryError
   | -- | 型別 key,佔用了引擎保留的鍵
     ReservedTypeKey Text
   | -- | 型別 key, 關聯名。__保留但不由 'validateRegistry' 產生__:
-    -- @allowed_links@ 裡出現自訂關聯是合法的(ADR-0005),
+    -- @allowed_links@ 裡出現自訂關聯是合法的(ADR-005),
     -- 這個建構子留給未來需要「警告等級」輸出的呼叫端使用
     UnknownLinkInAllowed Text Text
   | -- | @owner_type@。同一個主體型別被兩份宣告以__不同的 @dir@__ 認領,
@@ -99,7 +99,7 @@ data RegistryError
 
 -- | 一個 Entity 不符合其型別宣告時的警告。
 --
--- 是警告而不是錯誤——ADR-0005 的立場是引導而非阻擋,實際是否拒絕由
+-- 是警告而不是錯誤——ADR-005 的立場是引導而非阻擋,實際是否拒絕由
 -- service(P2)決定。
 data EntityWarning
   = -- | 型別 key, 缺少的必填欄位名

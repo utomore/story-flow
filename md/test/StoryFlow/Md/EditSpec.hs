@@ -1,6 +1,6 @@
 -- | T9:單節編輯與 meta 區塊序列化。
 --
--- 這一組測試守住 ADR-0010 的第二條保證:__改一個欄位,git diff 只顯示那一行__。
+-- 這一組測試守住 ADR-010 的第二條保證:__改一個欄位,git diff 只顯示那一行__。
 module StoryFlow.Md.EditSpec (spec) where
 
 import Data.Text (Text)
@@ -96,7 +96,7 @@ spec = do
           fmap (length . docSections) (parseDocument "x.md" out) `shouldBe` Right 1
 
   describe "renderMetaBlock" $ do
-    it "欄位順序固定,且與 architecture.md 的範例一致" $
+    it "欄位順序固定,且與 system.md 的範例一致" $
       T.lines (renderMetaBlock fullOverride LF)
         `shouldBe` [ "```meta"
                    , "kind: camera"
@@ -205,7 +205,7 @@ spec = do
         Left (MdError _ _ k) -> k `shouldBe` UnknownSectionId (idOf "ent-9999")
         Right _ -> expectationFailure "應該回 Left"
 
-  -- func-0005 T2:updateFrontmatter 改標題後節層位元組不變
+  -- entity-graph-core/F005 T2:updateFrontmatter 改標題後節層位元組不變
   describe "updateFrontmatter" $ do
     it "改 metaTitle 後,每一節的三段切片逐字不變" $
       case updateFrontmatter (\m -> m {metaTitle = "琳達(改名)"}) doc of
@@ -254,7 +254,7 @@ spec = do
           out `shouldSatisfy` T.isInfixOf "---\r\nid: ent-7f3a\r\n"
           out `shouldSatisfy` T.isInfixOf "title: 小琳\r\n"
 
-  -- func-0005 T3:replaceSectionBody 只動目標節的正文
+  -- entity-graph-core/F005 T3:replaceSectionBody 只動目標節的正文
   describe "replaceSectionBody" $ do
     it "目標節的 secBodyRaw 換掉,secHeadingRaw 與 secMetaRaw 逐字不變" $
       case replaceSectionBody (idOf "ent-7f3b") "\n改過的正文。\n" doc of

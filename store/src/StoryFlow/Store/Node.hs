@@ -1,6 +1,6 @@
 -- | Level 樹的編輯:加一個 Node、刪一棵子樹。
 --
--- ADR-0009「標題階層即樹」在這裡__反過來用__:作者不寫 @parent@ 與 @order@,
+-- ADR-009「標題階層即樹」在這裡__反過來用__:作者不寫 @parent@ 與 @order@,
 -- 所以工具也不寫——新節的標題層級 = 父節點層級 + 1,插入位置 = 父節點子樹的
 -- 最後一節之後,兩者都由標題推導。
 --
@@ -10,7 +10,7 @@
 -- 處境。
 --
 -- 明確__不做__ 'moveNode' \/ 'reorderNode':標題階層即樹,作者直接改檔案的
--- 標題層級就是移動,工具層先不介入(func-0005)。
+-- 標題層級就是移動,工具層先不介入(entity-graph-core/F005)。
 module StoryFlow.Store.Node
   ( addNode
   , removeNode
@@ -134,7 +134,7 @@ subtreeEnd doc s = case subtreeAfter doc s of
   [] -> secId s
   xs -> secId (last xs)
 
--- | Markdown 只有六級標題(architecture.md 已載明此限制與繞道方式)。
+-- | Markdown 只有六級標題(system.md 已載明此限制與繞道方式)。
 depthOf :: Id -> Int -> Either StoreError Int
 depthOf parent lvl
   | lvl > 6 = Left (NodeDepthExceeded parent lvl)

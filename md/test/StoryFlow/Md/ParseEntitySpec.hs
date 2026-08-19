@@ -1,4 +1,4 @@
--- | T6:Entity 檔的解析,對照 architecture.md 的琳達範例。
+-- | T6:Entity 檔的解析,對照 system.md 的琳達範例。
 module StoryFlow.Md.ParseEntitySpec (spec) where
 
 import qualified Data.Text as T

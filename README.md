@@ -71,14 +71,14 @@ FTS5 trigram tokenizer;`storyflow-store` 的測試會直接驗證這個 flag 有
 
 下一步是 **P4 衝突偵測**。
 
-- [`docs/arch/architecture.md`](./docs/arch/architecture.md) —— 專案燈塔:需求、架構、資料結構、開發階段
-- [`docs/arch/`](./docs/arch) —— 四份子系統架構:
-  [片段圖譜核心](./docs/arch/subarch-0001-entity-graph-core.md)(100%)、
-  [業務契約與介面](./docs/arch/subarch-0002-service-and-interfaces.md)(100%)、
-  [衝突偵測](./docs/arch/subarch-0003-conflict-detection.md)(0/6)、
-  [LLM 與工作坊](./docs/arch/subarch-0004-llm-workshop-mcp.md)(0/5)
-- [`docs/adr/`](./docs/adr) —— 10 份架構決策紀錄
-- [`docs/spec/`](./docs/spec) —— 功能規格書,含 TodoList 與 1-to-1 測試對照表
+- [`.design/system.md`](./.design/system.md) —— 專案燈塔:需求、對外介面、子系統劃分、通訊拓撲、資料結構、開發階段
+- [`.design/subsystems/`](./.design/subsystems) —— 四份子系統架構(各含功能規劃與 Feature 契約卡):
+  [片段圖譜核心](./.design/subsystems/entity-graph-core/design.md)(5/5)、
+  [業務契約與介面](./.design/subsystems/service-and-interfaces/design.md)(3/3)、
+  [衝突偵測](./.design/subsystems/conflict-detection/design.md)(1/6)、
+  [LLM 與工作坊](./.design/subsystems/llm-workshop-mcp/design.md)(0/5)
+- [`.design/adr/`](./.design/adr) —— 10 份架構決策紀錄
+- [`.design/subsystems/<slug>/features/`](./.design/subsystems) —— 功能設計文檔,含 TodoList 與 1-to-1 測試對照表
 - [`types/registry/`](./types/registry) —— 宣告式 Entity 型別註冊表(加一份 `.toml` 就是新增一個型別)
 
 開發階段:~~P0 骨架~~ → ~~P1 core/md/store~~ → ~~P2 CLI~~ → ~~P3 REST API~~ → **P4 衝突偵測** →

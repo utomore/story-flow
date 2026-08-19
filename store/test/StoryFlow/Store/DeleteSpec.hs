@@ -1,4 +1,4 @@
--- | func-0005 T11:刪除。
+-- | entity-graph-core/F005 T11:刪除。
 --
 -- 範例 Vault 的關聯本來就交織:@ent-7f3b@ 與 @ent-7f3c@ 都 @partOf@ 指向主體
 -- @ent-7f3a@,而 @lvl-3a01@ 的 Node @involves@ 指向 @ent-7f3a@ 與 @ent-c41d@。

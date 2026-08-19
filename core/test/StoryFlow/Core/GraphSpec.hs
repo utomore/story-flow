@@ -1,4 +1,4 @@
--- | func-0002 T7 的對照測試:關聯圖遍歷與推論。
+-- | entity-graph-core/F002 T7 的對照測試:關聯圖遍歷與推論。
 module StoryFlow.Core.GraphSpec (spec) where
 
 import qualified Data.Map.Strict as M

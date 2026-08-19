@@ -15,7 +15,7 @@ cabal.project.freeze
 # 本機設定與祕密 —— 永遠不進版控
 .env
 
-# Vault 資料不放在這個 repo(見 ADR-0008:程式碼與設計資產分開版控)。
+# Vault 資料不放在這個 repo(見 ADR-008:程式碼與設計資產分開版控)。
 # 這幾行只是防呆,避免有人不小心把 vault 建在專案目錄下。
 /vaults/
 .storyflow/

@@ -54,7 +54,7 @@ follow kinds depth start g =
 
 -- | 被 @supersedes@ 指到的一律視為過時,遞移閉包。
 --
--- ADR-0005:B 被 A 取代後不再當比對基準;而 B 又取代了 C 時,C 當然也過時。
+-- ADR-005:B 被 A 取代後不再當比對基準;而 B 又取代了 C 時,C 當然也過時。
 supersededSet :: LinkGraph -> Set Ref
 supersededSet g = go (S.fromList seeds) seeds
   where

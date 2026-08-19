@@ -3,7 +3,7 @@
 -- 兩組區別是本模組存在的理由,不能靠註解維持:
 --
 -- * 'FileWriteFailed' 是__真正的失敗__(資料沒寫進去);'IndexUpdateFailed'
---   是__檔案已經寫成功、只有索引沒跟上__(ADR-0002:索引是衍生物,重建即可)。
+--   是__檔案已經寫成功、只有索引沒跟上__(ADR-002:索引是衍生物,重建即可)。
 --   呼叫端必須能區分,所以是兩個建構子而不是一個帶旗標的建構子
 -- * 'ParseFailed' 帶 'MdError' 清單,是「檔案內容不合法」;'SqliteError' 是
 --   「索引層自己出事」。所有 SQLite 例外都在本套件邊界被捕捉轉成後者,
@@ -118,7 +118,7 @@ renderStoreError = \case
       <> " 底下新增會讓標題層級變成 "
       <> tshow lvl
       <> ",而 Markdown 只有六級標題;"
-      <> "請把這棵子樹拆成另一份 Level,再以關聯串接(見 ADR-0009)"
+      <> "請把這棵子樹拆成另一份 Level,再以關聯串接(見 ADR-009)"
   CannotRemoveRootNode i ->
     renderId i
       <> " 是這份 Level 的根 Node,刪掉之後整份檔案就解析不出 root;"

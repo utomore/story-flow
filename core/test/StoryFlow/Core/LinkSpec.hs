@@ -1,4 +1,4 @@
--- | func-0002 T3 的對照測試:核心關聯詞彙與自訂關聯。
+-- | entity-graph-core/F002 T3 的對照測試:核心關聯詞彙與自訂關聯。
 module StoryFlow.Core.LinkSpec (spec) where
 
 import StoryFlow.Core.Link
@@ -10,7 +10,7 @@ spec = do
     it "八個核心建構子的 parse . render 是恆等" $
       mapM_ (\k -> parseLinkKind (renderLinkKind k) `shouldBe` k) coreLinkKinds
 
-    it "渲染成 architecture.md 詞彙表的字串" $
+    it "渲染成 system.md 詞彙表的字串" $
       map renderLinkKind coreLinkKinds
         `shouldBe` [ "contradicts"
                    , "supersedes"
@@ -39,7 +39,7 @@ spec = do
     it "大小寫不同於核心關聯的字串仍是 Custom —— 引擎不猜" $
       parseLinkKind "Contradicts" `shouldBe` Custom "Contradicts"
 
-  describe "suggestCoreKind —— ADR-0005 的誤解緩解措施" $ do
+  describe "suggestCoreKind —— ADR-005 的誤解緩解措施" $ do
     it "「矛盾於」建議 Contradicts" $
       suggestCoreKind "矛盾於" `shouldBe` Just Contradicts
 

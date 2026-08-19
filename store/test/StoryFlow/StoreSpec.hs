@@ -8,7 +8,7 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "storyflow-store 骨架" $
-    -- func-0001 T5:依賴方向的驗證。func-0004 把佔位的 storeVersion 換成真正的
+    -- entity-graph-core/F001 T5:依賴方向的驗證。entity-graph-core/F004 把佔位的 storeVersion 換成真正的
     -- 門面模組後,這條改以 core 的實際函式證明同一件事。
     it "可 import storyflow-core,證明 store → core 的依賴方向已接上" $
       renderIdPrefix PEnt `shouldBe` "ent"

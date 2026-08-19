@@ -1,6 +1,6 @@
 -- | T7:請求與 View 型別的 JSON round-trip。
 --
--- func-0008 的 servant API 型別直接吃這一套編碼,func-0007 的 @--json@ 也是。
+-- service-and-interfaces/F003 的 servant API 型別直接吃這一套編碼,service-and-interfaces/F002 的 @--json@ 也是。
 -- 編碼規則只有一份,所以只要 round-trip 在這裡守住,三個介面就不可能各自漂移。
 module StoryFlow.Service.JsonSpec (spec) where
 

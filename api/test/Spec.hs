@@ -13,7 +13,7 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    -- 依 func-0008 的 TodoList 順序
+    -- 依 service-and-interfaces/F003 的 TodoList 順序
     StoryFlow.Api.CabalSpec.spec
     StoryFlow.Api.HttpDataSpec.spec
     StoryFlow.Api.SchemaSpec.spec

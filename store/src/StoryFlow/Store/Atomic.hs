@@ -1,6 +1,6 @@
 -- | 原子寫入:寫同目錄暫存檔 → 關檔 → rename 覆蓋。
 --
--- 「先寫檔、再更新索引」(ADR-0002)的前半段。中途失敗時原檔__完好無損__,
+-- 「先寫檔、再更新索引」(ADR-002)的前半段。中途失敗時原檔__完好無損__,
 -- 不會出現半寫的檔案——Markdown 是唯一的真相來源,半個檔案等於資料遺失。
 --
 -- 三個實作上的堅持:
@@ -12,7 +12,7 @@
 -- * 失敗時清掉暫存檔,不在作者的 Vault 裡留垃圾
 --
 -- 殘留競態:重讀檔案(樂觀鎖比對)與 rename 之間有極短窗口,兩個行程剛好在此
--- 交錯仍可能互相覆蓋。這是 func-0004 明確接受的殘留風險(P1 不做作業系統層
+-- 交錯仍可能互相覆蓋。這是 entity-graph-core/F004 明確接受的殘留風險(P1 不做作業系統層
 -- 檔案鎖):單機、單人 + AI Agent,窗口是毫秒級,損失可由 git 復原。
 module StoryFlow.Store.Atomic
   ( atomicWriteText
@@ -51,7 +51,7 @@ atomicWriteText target txt = do
     go =
       bracketOnError
         -- 暫存檔名由 openBinaryTempFile 產生:同目錄、原子建立、跨平台唯一。
-        -- func-0004 原本寫的是 <target>.tmp-<pid>,但 base 在 Windows 上沒有
+        -- entity-graph-core/F004 原本寫的是 <target>.tmp-<pid>,但 base 在 Windows 上沒有
         -- 取 pid 的介面,而 openBinaryTempFile 連「同時兩個行程」都涵蓋。
         (openBinaryTempFile (takeDirectory target) (takeFileName target <> ".tmp"))
         discard

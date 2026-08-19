@@ -1,6 +1,6 @@
 -- | T6:server 不依賴落地層。
 --
--- func-0008 驗收標準 3 的一半是「@storyflow-server@ 不 import @storyflow-store@」。
+-- service-and-interfaces/F003 驗收標準 3 的一半是「@storyflow-server@ 不 import @storyflow-store@」。
 -- 那句話唯一守得住的形式是 @build-depends@ 裡沒有它——而這條約束正是
 -- "StoryFlow.Server.Error" 改成以 'StoryFlow.Service.errorCode' 的字串分派狀態碼、
 -- 而不是對 @StoreError@ 的建構子 pattern match 的原因。

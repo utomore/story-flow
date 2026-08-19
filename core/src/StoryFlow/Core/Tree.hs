@@ -1,6 +1,6 @@
 -- | Level 場景樹的建構、驗證與走訪。
 --
--- ADR-0004:Level 是嚴格樹——每個 Node 恰有一個父節點(根除外)、不成環、
+-- ADR-004:Level 是嚴格樹——每個 Node 恰有一個父節點(根除外)、不成環、
 -- 同層兄弟以 @order@ 排序。分支合流以 @convergesTo@ 關聯標註,
 -- __不參與結構__,因此本模組的走訪演算法永遠只看父子邊。
 module StoryFlow.Core.Tree
@@ -186,7 +186,7 @@ entitiesIn t = nub (concatMap nodEntities (preorder t))
 
 -- | 列出所有 @convergesTo@ 標註,以及它是否指向本 Level 內存在的 Node。
 --
--- ADR-0004 明說合流是標註不是結構,因此只能靠檢查發現懸空——這是 P2
+-- ADR-004 明說合流是標註不是結構,因此只能靠檢查發現懸空——這是 P2
 -- @story-flow level lint@ 的資料來源。跨 Vault 的 target 一律視為不存在,
 -- 因為它不可能指向本 Level 內的 Node。
 convergenceReport :: NodeTree -> [(Id, Ref, Bool)]

@@ -18,7 +18,7 @@ parent: llm-workshop-mcp
 
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
-| 階段一 | W1 | #1 llm-endpoint (F001) | pending |
+| 階段一 | W1 | #1 llm-endpoint (F001) | design-done,實作中 |
 | 階段二 | W2 | #2 workshop-stages (F002) | 本次不跑 |
 | 階段二 | W3 | #3 workshop-emit (F003) | 本次不跑 |
 | 階段二 | W4 | #4 workshop-interface (F004) | 本次不跑 |
@@ -59,7 +59,7 @@ fan out 前預先分配,subagent 不得自行配號。
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | pending |
+| llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | design-done(10 個 Todo) |
 | workshop-stages | F002 | (保留,階段二) | — | — | 未展開 |
 | workshop-emit | F003 | (保留,階段二) | — | — | 未展開 |
 | workshop-interface | F004 | (保留,階段二) | — | — | 未展開 |
@@ -73,7 +73,14 @@ feature 疊在上面」那一列。F002–F005 先保留號碼,回來跑接續�
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| (待 F001 回報後填入) | | | |
+| F001 A1 | `lcTimeout :: Int` 的**單位**契約沒寫 | 毫秒,TOML 鍵名 `timeout_ms`,預設 60000 | 待裁決 |
+| F001 A2 | `design.md` 把「沒有 `[llm]` 段回錯誤」歸給 `newLlmClient`,但 `LlmConfig -> IO LlmClient` 沒有錯誤通道 | 錯誤由 `Llm.Config` 的**載入階段**產生,`newLlmClient` 維持契約簽名且為全函式 | **編排者已處理**:那句話是編排者在批次澄清時寫的,歸屬寫錯了。已回寫 `design.md` 改成「設定載入階段回錯誤」。閘門請確認 |
+| F001 A3 | `LlmError` 是否只准「連不上」與「格式不對」兩類 | 另加 `LlmHttpStatus` 與兩個設定類建構子——401 與「形狀不對」的下一步不同 | 待裁決 |
+| F001 A4 | `[llm]` 的鍵名與未知鍵怎麼處理 | snake_case 五鍵;未知鍵**視為錯誤**(沿用 `Types.Loader` 的立場) | 待裁決 |
+| F001 A5 | 預設值 | `timeout_ms = 60000`、`retries = 1` | 待裁決 |
+| F001 A6 | `llmConfig` 回 `Either` 還是丟 `ServiceError` | 回 `ServiceM (Either LlmError LlmConfig)`,不讓下層錯誤型別認識上層 | 待裁決 |
+| F001 A7 | 設定錯誤訊息要不要帶絕對路徑 | 只寫相對的 `.storyflow/config.toml`(`vaultConfig` 拿不到 `vaultRoot`) | 待裁決 |
+| F001 A8 | 改名後的存取子名 | `LlmSection` / `llmSectionTable`(不沿用 `llmTable`) | 待裁決 |
 
 ## 階段結果
 

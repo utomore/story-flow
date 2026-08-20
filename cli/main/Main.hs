@@ -19,7 +19,7 @@ import AssetDB.Cli.Reorg (runReorg)
 import AssetDB.Cli.Scan (runScan)
 import AssetDB.Cli.Search (runIndex, runSearch)
 import AssetDB.Cli.Thumbs (runThumbs)
-import AssetDB.Cli.Project (runNewProject)
+import AssetDB.Cli.Project (runNewProject, runProjectSync)
 import AssetDB.Cli.Notes (runLink, runNoteImport, runNoteList)
 import AssetDB.Console (setupConsole)
 import Data.Text.IO qualified as TIO
@@ -50,6 +50,7 @@ main = do
     CmdIndex -> forQuery >>= runIndex
     CmdThumbs f -> forQuery >>= \db -> runThumbs db f
     CmdNewProject a -> forQuery >>= \db -> runNewProject db a
+    CmdProjectSync a -> forQuery >>= \db -> runProjectSync db a
     CmdNoteImport a -> forQuery >>= \db -> runNoteImport db a
     CmdNoteList k -> forQuery >>= \db -> runNoteList db k
     CmdLink a -> forQuery >>= \db -> runLink db a

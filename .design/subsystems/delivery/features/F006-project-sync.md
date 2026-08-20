@@ -3,9 +3,9 @@ id: F006
 type: feature
 title: project-sync
 description: 把符合條件的素材增量加入已登記專案,對帳分四類且只增不刪
-status: open
+status: done
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 depends-on: [F005, F001]
 related-adr: []
 related-feature: []
@@ -367,24 +367,24 @@ CmdProjectSync a -> forQuery >>= \db -> runProjectSync db a
 
 ## TodoList
 
-- [ ] T1: 把 `Create` 與 `Sync` 共用的私有輔助搬到 `AssetDB.Project.Internal`(other-module),
+- [x] T1: 把 `Create` 與 `Sync` 共用的私有輔助搬到 `AssetDB.Project.Internal`(other-module),
       `Create` 改為 import;cabal 加 `assetdb-ingest` 相依與 `other-modules`  `dep: F005`
-- [ ] T2: 建立 `AssetDB.Project.Sync`,定義六個型別並實作專案定位
+- [x] T2: 建立 `AssetDB.Project.Sync`,定義六個型別並實作專案定位
       (`ProjectNotRegistered` / `ProjectDirMissing`,兩者都不動任何檔案)  `dep: T1`
-- [ ] T3: 對帳:既有登記查詢 + 磁碟狀態(大小優先短路 → `sha256File`)+ 四類判定  `dep: T2`
-- [ ] T4: 授權閘門:只對「新增」類呼叫 `nonCommercialPacks`;既有素材包降級改走
+- [x] T3: 對帳:既有登記查詢 + 磁碟狀態(大小優先短路 → `sha256File`)+ 四類判定  `dep: T2`
+- [x] T4: 授權閘門:只對「新增」類呼叫 `nonCommercialPacks`;既有素材包降級改走
       `soOnEvent` 逐包警告  `dep: T3`
-- [ ] T5: `planSync` 組裝與 `syncProject` 的預覽分支(`soConfirm=False` 時不寫磁碟、
+- [x] T5: `planSync` 組裝與 `syncProject` 的預覽分支(`soConfirm=False` 時不寫磁碟、
       不寫資料庫、可重複執行)  `dep: T4`
-- [ ] T6: `syncProject` 的 `--confirm` 寫入:`copyAssets` 逐筆解壓新增項、只 INSERT 不 DELETE
+- [x] T6: `syncProject` 的 `--confirm` 寫入:`copyAssets` 逐筆解壓新增項、只 INSERT 不 DELETE
       的登記(含 `copied_sha256`)、同交易更新 `projects.updated_at`  `dep: T5`
-- [ ] T7: 以重讀的登記全集重寫 `assets/manifest.json` 與 `assets/Assets.hs`;樣板檔案與
+- [x] T7: 以重讀的登記全集重寫 `assets/manifest.json` 與 `assets/Assets.hs`;樣板檔案與
       `<NAME>.cabal` 一律不重寫  `dep: T6`
-- [ ] T8: CLI 文法:`SyncArgs`、`project` 指令群與 `sync` 子指令、`CmdProjectSync`、
+- [x] T8: CLI 文法:`SyncArgs`、`project` 指令群與 `sync` 子指令、`CmdProjectSync`、
       `Main.hs` 的 dispatch(走查詢語意)  `dep: T2`
-- [ ] T9: CLI runner `runProjectSync`:四類筆數與清單、被擋/被警告素材包、複製與失敗筆數的
+- [x] T9: CLI runner `runProjectSync`:四類筆數與清單、被擋/被警告素材包、複製與失敗筆數的
       輸出,以及 `syncExitCode` 的結束碼規則  `dep: T6, T8`
-- [ ] T10: 樣板 `SKILL.md` 的「加入新素材」段落改寫為 `project sync` 的用法  `dep: -`
+- [x] T10: 樣板 `SKILL.md` 的「加入新素材」段落改寫為 `project sync` 的用法  `dep: -`
 
 ## 1-to-1 測試對照表
 
@@ -427,6 +427,23 @@ CmdProjectSync a -> forQuery >>= \db -> runProjectSync db a
   契約意義的判斷,而 `runProjectSync` 會呼叫 `exitFailure`,測不動)→ 影響:建議編排者
   在 `design.md` 的 `cli` 模組介面補上這一行;若不接受,T9 只剩 `EndToEndSpec` 那一條,
   「0 筆新增結束碼 0」將無法在不建 ZIP fixture 的情況下測到。
+- A6: 測試套件的相依比「套件設定變更」列的多三個 → 採取:`project` 測試套件另加
+  `assetdb-ingest`(用 `sha256Bytes` 在測試裡算出固定資料的雜湊,免得寫死十六進位字串)、
+  `aeson`(把 `manifest.json` 解回 `Manifest` 來斷言,而不是比對格式化後的字串);
+  `assetdb-core` 已在清單內,用它的 `logicalNameText` 取 `maKey`。另外測試不用
+  `discoverTools`,改直接建 `ArchiveTools Nothing` 並讓固定資料的壓縮檔一律是 `.rar`
+  —— 讀取失敗因此必然發生,與這台機器上有沒有 7-Zip 無關 → 影響:純測試相依,
+  不影響 library 的相依方向與公開介面;若要收斂,只能改回寫死雜湊字串與字串比對。
+- A7: `soAllowNonCommercial = True` 時,「既有登記素材的素材包授權降級」的逐包警告
+  也一併關閉 → 採取:警告與閘門同源(都來自 `nonCommercialPacks`),使用者既然已經
+  明講接受非商用素材,再對既有素材示警只是噪音 → 影響:若希望警告與閘門解耦
+  (旗標只放行、不消音),把 `nonCommercialPacks` 的呼叫移出 `soAllowNonCommercial`
+  的判斷即可,屬單一分支的調整。
+- A8: `AssetDB.Project.Internal` 除了文檔列的九項,另外新增一個 `destRelOf`
+  (由 `Pick` 算出專案內的相對路徑)→ 採取:`Sync` 的新增項落點、`copyAssets` 實際寫入
+  的位置與 `toManifest` 的 `maPath` 三者必須一致,把它命名出來比在 `Sync` 再抄一次安全;
+  `Create` 維持原樣不動(T1 是純搬移)→ 影響:純內部輔助,套件外看不到;
+  未來若要讓 `Create` 也改用它,是一次獨立的小重構。
 
 ## 實作備註
 

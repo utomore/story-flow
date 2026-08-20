@@ -6,6 +6,7 @@ module AssetDB.Cli.Options
   , RuleArgs (..)
   , SearchArgs (..)
   , ProjectArgs (..)
+  , SyncArgs (..)
   , NoteArgs (..)
   , LinkArgs (..)
   , AiConn (..)
@@ -41,7 +42,7 @@ import AssetDB.Cli.Ai
   )
 import AssetDB.Cli.Cluster (RuleArgs (..))
 import AssetDB.Cli.Search (SearchArgs (..))
-import AssetDB.Cli.Project (ProjectArgs (..))
+import AssetDB.Cli.Project (ProjectArgs (..), SyncArgs (..))
 import AssetDB.Cli.Notes (LinkArgs (..), NoteArgs (..))
 import Options.Applicative
 import System.Directory (doesFileExist, getCurrentDirectory, makeAbsolute)
@@ -68,6 +69,7 @@ data Command
   | CmdIndex
   | CmdThumbs Bool
   | CmdNewProject ProjectArgs
+  | CmdProjectSync SyncArgs
   | CmdNoteImport NoteArgs
   | CmdNoteList (Maybe Text)
   | CmdLink LinkArgs
@@ -152,6 +154,7 @@ commandP =
               (progDesc "產生縮圖(內容定址,每份唯一內容只算一次)")
           )
         <> command "new-project" (info (CmdNewProject <$> projectP) (progDesc "建立遊戲專案並放入選定素材"))
+        <> command "project" (info projectGroupP (progDesc "已登記專案的維護動作"))
         <> command "note" (info noteP (progDesc "知識建檔與行銷資訊"))
         <> command "link" (info (CmdLink <$> linkP) (progDesc "在實體之間建立關聯"))
         <> command "ai" (info aiP (progDesc "本機 LLM:分類、標註與自然語句查詢"))
@@ -331,6 +334,34 @@ projectP =
     <*> switch
       ( long "allow-non-commercial"
           <> help "略過授權閘門。**只在確定專案不商業發行時使用**"
+      )
+
+-- | @new-project@ 維持原名不動 —— 改名會讓既有的腳本與文件全部失效。
+-- 需要「已登記專案」這個受詞的動作才收進 @project@ 指令群。
+projectGroupP :: Parser Command
+projectGroupP =
+  hsubparser
+    ( command
+        "sync"
+        ( info
+            (CmdProjectSync <$> syncP)
+            (progDesc "把符合條件的素材增量加入已登記的專案(預設只預覽)")
+        )
+    )
+
+syncP :: Parser SyncArgs
+syncP =
+  SyncArgs
+    <$> option (T.pack <$> str) (long "name" <> metavar "NAME" <> help "已登記的專案名稱")
+    <*> many (option (T.pack <$> str) (long "pack" <> metavar "SLUG" <> help "納入整個素材包,可重複"))
+    <*> optional (option (T.pack <$> str) (long "match" <> metavar "Q" <> help "只納入邏輯名稱含此字串的素材"))
+    <*> switch
+      ( long "allow-non-commercial"
+          <> help "略過授權閘門。**只在確定專案不商業發行時使用**"
+      )
+    <*> switch
+      ( long "confirm"
+          <> help "真的複製與登記。沒有這個旗標時只列出對帳結果,不動磁碟也不動資料庫"
       )
 
 searchP :: Parser SearchArgs

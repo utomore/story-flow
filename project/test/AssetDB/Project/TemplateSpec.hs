@@ -29,6 +29,17 @@ spec = do
     it "SKILL.md 明確禁止手動複製素材" $
       contentOf files "SKILL.md" `shouldSatisfy` T.isInfixOf "不要手動複製檔案"
 
+    -- delivery/F006 V11:`project sync` 上線之前,樣板教的是「重新產生到新目錄
+    -- 再把 assets/ 換過去」。指令存在之後還留著那段話,等於教人繞遠路。
+    it "「加入新素材」段落教的是 project sync,不再寫「尚未實作」" $ do
+      let skill = contentOf files "SKILL.md"
+      skill `shouldSatisfy` T.isInfixOf "assetdb project sync"
+      skill `shouldSatisfy` T.isInfixOf "--confirm"
+      skill `shouldNotSatisfy` T.isInfixOf "尚未實作"
+
+    it "「加入新素材」段落講明同步不覆蓋既有檔案" $
+      contentOf files "SKILL.md" `shouldSatisfy` T.isInfixOf "不刪除、不覆蓋"
+
     it "gitattributes 把二進位素材交給 LFS" $
       contentOf files ".gitattributes" `shouldSatisfy` T.isInfixOf "filter=lfs"
 

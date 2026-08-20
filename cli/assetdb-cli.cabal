@@ -78,10 +78,12 @@ test-suite assetdb-cli-test
     other-modules:
         AssetDB.Cli.OptionsSpec
         AssetDB.Cli.ParserSpec
+        AssetDB.Cli.ProjectSpec
         AssetDB.Cli.EndToEndSpec
     hs-source-dirs:   test
     build-depends:
         , assetdb-cli
+        , assetdb-project
         , base
         , bytestring
         , directory            >=1.3

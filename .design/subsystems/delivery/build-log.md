@@ -5,7 +5,7 @@ title: delivery-build
 description: 委派展開 delivery 階段 14 的專案增量同步
 status: in-progress
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 parent: delivery
 ---
 
@@ -20,7 +20,7 @@ parent: delivery
 
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
-| 階段 14 | W1 | project-sync | in-progress |
+| 階段 14 | W1 | project-sync | done(待閘門裁決) |
 
 ## 委派決策記錄
 
@@ -45,7 +45,7 @@ parent: delivery
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | design-done |
+| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | impl-done |
 
 模型選擇理由:`project-sync` 跨 `project` 與 `cli` 兩個套件、要新增套件依賴、四類對帳的
 邊界條件多,且是唯一會動使用者既有專案檔案的指令(誤判就是覆蓋或漏判使用者的手動修改)。
@@ -61,12 +61,40 @@ parent: delivery
 | F006 A4 | `project_assets.copied_sha256` 為 NULL 的舊列如何判定 | 退回與 `assets.sha256` 比對;不同就算 `SyncLocallyModified`(保守,永不覆蓋) | 待裁決 |
 | F006 A5 | `AssetDB.Cli.Project` 匯出 `syncExitCode`,**超出契約卡列舉的介面** | 比照 `nonCommercialPacks` 的可測性先例匯出(`runProjectSync` 會 `exitFailure`,測不動) | 待裁決(**契約變動**:接受就在 `design.md` 的 `cli` 模組介面補一行;不接受則 T9 只剩 E2E 一條) |
 
+實作階段追加三條(A6–A8),經 arch-audit 逐條複查,全部「如宣稱」且停在實作自主權內:
+
+| 來源 | 假設 | 採取的判斷 | 閘門裁決 |
+|---|---|---|---|
+| F006 A6 | `project` 測試套件另加 `assetdb-ingest` / `aeson` 等相依 | 純測試相依;測試不用 `discoverTools`,固定資料一律 `.rar` 讓讀取失敗與本機有無 7-Zip 無關 | 待裁決(library 相依方向未受影響) |
+| F006 A7 | `--allow-non-commercial` 是否連既有素材包的降級警告也一併關掉 | 一併關掉(警告與閘門同源) | 待裁決(§6 只規定閘門預設值,未規定兩者是否解耦) |
+| F006 A8 | `Internal` 除文檔列的九項外多一個 `destRelOf` | 純內部輔助,`Create` 維持原樣不改用 | 待裁決(副作用:落點算法現有兩份,逐字相同但正是 T1 想消滅的漂移風險) |
+
 另有一項編排者選配、未動的:`design.md` 的「內部模組劃分」是否為 `project` 補一列
 `AssetDB.Project.Internal`(`Create` 與 `Sync` 共用的私有輔助,`other-modules` 不 exposed)。
-依慣例「Level 2 禁止定義私有實作細節」暫不補,列在此供閘門一併裁決。
+arch-audit 認為它是**模組**層級的劃分而非私有函數命名,補上不違反抽象邊界規範,建議補。
 
 ## 階段結果
 
 ### 階段 14
 
-(執行中)
+**完成的 features**:`F006` project-sync(TodoList 10/10,設計與實作都未降級模型)。
+
+**測試**:592 examples / 0 failures,9 個 test suite 全 PASS(基準線 558 → +34)。
+`assetdb-project-test` 24 → 47、`assetdb-cli-test` 37 → 48,其餘七個 suite 數字未變且全綠
+(`CreateSpec` / `TemplateSpec` / `AssetsSpec` 綠燈 = T1 的跨模組搬移無回歸)。
+編排者獨立重跑驗證,非採信回報。
+
+**三條硬規則的獨立查證**(編排者 grep + arch-audit 靜態閱讀,兩邊各自確認):
+
+1. 不得刪 `project_assets` —— `Sync.hs` 只有 `INSERT OR IGNORE` 與 `UPDATE projects.updated_at`;
+   `DELETE FROM project_assets` 全庫只在 `Create.hs:128`,且 `registerProject` 不在 `Create`
+   的匯出清單裡,語言層面就到不了
+2. 不覆蓋既有檔案 —— `project/` 與 `cli/` 全域無 `removeFile` / `renameFile` / `copyFile`;
+   `copyAssets` 的輸入只有 `SyncNew` 類
+3. `new-project` 行為不受影響 —— 四處落點算法逐字相同,唯一輸出變動是契約要求的 V11
+   (SKILL.md 樣板改寫)
+
+**arch-audit 發現**:嚴重 0、中等 3、輕微 10。中等三條見下方裁決事項;輕微多為文檔落差
+(P6 段落順序、契約卡負責模組漏列、`system.md` 未登記 `project` 指令群)。
+
+**閘門結論**:(待開發者裁決)

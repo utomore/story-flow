@@ -15,7 +15,17 @@ import System.Process
 import Test.Hspec
 
 spec :: Spec
-spec =
+spec = do
+  -- delivery/F006 V1 的 CLI 側:專案定位失敗必須是非 0 結束碼。
+  -- 腳本只看得到結束碼,「未登記」被當成成功的話,包裝它的自動化會繼續往下走。
+  describe "assetdb project sync(未登記的專案)" $
+    it "以非 0 結束碼失敗,而不是靜靜地回報沒有東西要加" $
+      inEmptyDir $ \dir -> do
+        (initCode, _) <- runCli dir ["scan", "--root", dir, "--quiet"]
+        initCode `shouldBe` ExitSuccess
+        (code, _) <- runCli dir ["project", "sync", "--name", "nosuchproject"]
+        code `shouldNotBe` ExitSuccess
+
   describe "assetdb search(錯誤的工作目錄)" $ do
     it "以非 0 結束碼失敗,而不是回報查無結果" $
       inEmptyDir $ \dir -> do

@@ -39,7 +39,8 @@ HTTP 請求、瀏覽器上看得見的網格、以及最後落在遊戲專案目
 **明確不做**
 
 - **不做掃描、雜湊、縮圖產生、格式解碼、叢集推論**:那些是 ingest 的職責,delivery 只
-  呼叫它們並把進度印出來。
+  呼叫它們並把進度印出來。**「不做」指的是不自行實作**——`project` 的同步對帳呼叫
+  ingest 的 `sha256File` 是允許的,自己寫一份摘要演算法則不允許。
 - **不做 LLM 推論**:`assetdb ai …` 只是 ai-tagging 的命令列外殼。
 - **不定義領域型別、資料庫 schema 或查詢語意**:全部來自 catalog。HTTP 的查詢參數是
   `AssetDB.Store.Search.SearchQuery` 的一層薄映射,不是第二套查詢語言。
@@ -202,12 +203,27 @@ OpenAPI 工具鏈,但沒有少掉它要解決的問題。
   | 來源已更新 | 已登記,磁碟檔案雜湊 = `copied_sha256`,但來源 `sha256` 不同 | 只回報,不覆蓋 |
   | 本地已修改 | 已登記,磁碟檔案雜湊 ≠ `copied_sha256`(含檔案已不在) | 只回報,不覆蓋 |
 
+  「磁碟檔案雜湊」是 SHA-256,取自 ingest 的內容雜湊介面 —— delivery 不自行實作雜湊,
+  也不得改用其他摘要;內容識別在全系統只有一種定義(ADR-002)。
+
 - **預設只預覽**:列出四類的筆數與清單,不寫磁碟、不寫資料庫;`--confirm` 才執行「新增」類。
 - **只增不刪、不覆蓋**:專案裡既有的檔案、手寫程式碼與 `project_assets` 既有列一律不動。
   「更新到來源新版本」與「還原本地修改」是另外的指令,不在本契約內。
 - `--confirm` 時以**登記的全集**(既有 + 新增)重新產生 `assets/manifest.json` 與
   `assets/Assets.hs`;其餘樣板檔案(`SKILL.md`、`README.md`、`<NAME>.cabal`、`docs/`)不重寫;
   `projects.updated_at` 更新。
+- **授權閘門只擋新增,不回溯既有**。既有登記素材的素材包後來授權降級或被改回未查證時,
+  它仍留在磁碟上、仍列入重新產生的 `manifest.json` 與 `Assets.hs`(否則 manifest 與磁碟
+  不一致,而遊戲端已經引用的 `AssetKey` 常數會靜默消失),但**必須在回報中逐包列出並警告
+  發行前要處理**(`spWarnedPacks`)。一個無關的新增不因舊的授權問題被卡死;授權問題也不
+  因此被靜靜吞掉。
+  **警告的涵蓋範圍是登記的全集,不是本次候選**——重寫的 manifest 涵蓋全集,警告就必須
+  跟著全集;只查本次 `--pack` / `--match` 命中的那些,等於讓不在篩選條件內的授權問題
+  靜靜通過。
+- **兩個產物必須用同一個集合**。`manifest.json` 與 `Assets.hs` 從同一份登記全集產生,
+  任何一筆被排除(邏輯名稱缺漏、ULID 或名稱驗證失敗)就**兩邊一起排除**,而且要經
+  `soOnEvent` 出聲。兩邊集合不同會產生「`Assets.hs` 有這個 `AssetKey` 常數,但 manifest
+  查不到」的組合——編譯得過、執行期查表落空,正是這套型別安全設計要消滅的失敗模式。
 - **0 筆新增不是失敗**(與 `new-project` 相反):「沒有東西要加」是正常結果,結束碼 0。
   只有專案定位失敗、或 `--confirm` 下所有新增項都讀取失敗時才以非 0 結束。
 
@@ -225,7 +241,8 @@ OpenAPI 工具鏈,但沒有少掉它要解決的問題。
 | `project` | `AssetDB.Project.Template` | 樣板是**資料**(路徑 → 內容):目錄清單、初始檔案、致謝區塊 | 不碰檔案系統 |
 | `project` | `AssetDB.Project.Assets` | 邏輯名稱 → Haskell 識別字、`Assets.hs` 渲染 | 不碰檔案系統 |
 | `project` | `AssetDB.Project.Create` | 編排:選素材 → 授權閘門 → 寫樣板 → 單筆解壓 → 寫 manifest/`Assets.hs`/cabal → 登記專案 | 不定義 Manifest schema |
-| `project` | `AssetDB.Project.Sync` | 編排:定位已登記專案 → 選素材(同 Create 的條件)→ 授權閘門 → 與 `project_assets` 及磁碟對帳分四類 → (確認後)單筆解壓新增項 → 以全集重寫 manifest/`Assets.hs` → 登記 | 不重寫樣板、不刪除、不覆蓋既有檔案 |
+| `project` | `AssetDB.Project.Sync` | 編排:定位已登記專案 → 選素材(同 Create 的條件)→ 與 `project_assets` 及磁碟對帳分四類 → 授權閘門 → (確認後)單筆解壓新增項 → 登記 → 以全集重寫 manifest/`Assets.hs` | 不重寫樣板、不刪除、不覆蓋既有檔案 |
+| `project` | `AssetDB.Project.Internal` | `Create` 與 `Sync` 共用的取材 SQL、落點算法、單筆解壓、manifest 組件與 UTF-8 寫檔(`other-modules`,套件外不可見) | 不編排、不定義契約 |
 | `web` | `src/api/types.ts` | 後端 DTO 的 TypeScript 映射(**產生物,禁止手改**) | — |
 | `web` | `src/api/client.ts` | `Query` 型別、query string 組裝、四個端點的取用函式、縮圖 URL | 不持有畫面狀態 |
 | `web` | `src/App.tsx` | 查詢狀態的唯一擁有者、輸入去抖、facet 與 health 取用、版面組合 | 不做分頁 |
@@ -316,13 +333,15 @@ assetdb new-project --name --path [--pack]… [--match]
 assetdb project sync --name [--pack]… [--match] [--allow-non-commercial] [--confirm]
   → 以 name 查 projects 取得登記的 path;未登記 / 目錄不存在 → 非 0 結束,不動任何檔案
   → 依與 P5 相同的條件選出候選素材
-  → 授權閘門(同 P5)
   → 對帳:候選 × project_assets 既有列 × 磁碟檔案雜湊
        → 新增 / 已存在 / 來源已更新 / 本地已修改
+  → 授權閘門(同 P5,但只作用在「新增」類 —— 必須先分類才知道誰是新增)
+       → 另對登記全集的素材包查授權,產出 spWarnedPacks
   → 輸出對帳摘要與各類清單(預設到此為止,不寫磁碟、不寫資料庫)
   → --confirm:逐筆自壓縮檔取出「新增」項寫進 assets/<kind>/<邏輯名稱><副檔名>
-  → 以登記的全集重寫 assets/manifest.json 與 assets/Assets.hs
   → 登記新增列(含 copied_sha256)、更新 projects.updated_at
+  → 重讀登記全集,據以重寫 assets/manifest.json 與 assets/Assets.hs
+       (先登記再重讀,新增項才會出現在產物裡;兩個產物必須用同一個集合)
   → 回報四類筆數與讀取失敗筆數;0 筆新增不是失敗
 ```
 
@@ -423,6 +442,7 @@ runIndex      :: FilePath                -> IO ()
 runThumbs     :: FilePath -> Bool        -> IO ()
 runNewProject :: FilePath -> ProjectArgs -> IO ()
 runProjectSync :: FilePath -> SyncArgs   -> IO ()
+syncExitCode  :: SyncArgs -> SyncResult -> ExitCode   -- 結束碼規則,單獨匯出以便直接測
 runDoctor     :: FilePath                -> IO ()
 runReorg      :: FilePath -> ReorgArgs   -> IO ()
 ```
@@ -449,10 +469,14 @@ data SyncOptions = SyncOptions { soName :: Text, soLibraryRoot :: FilePath
                                , soOnEvent :: Text -> IO () }
 data SyncClass   = SyncNew | SyncUnchanged | SyncSourceUpdated | SyncLocallyModified
 data SyncEntry   = SyncEntry { seUlid :: Text, seName :: Text, seRelPath :: Text, seClass :: SyncClass }
-data SyncPlan    = SyncPlan { spProjectPath :: FilePath, spEntries :: [SyncEntry], spBlocked :: [Text] }
+data SyncPlan    = SyncPlan { spProjectPath :: FilePath, spEntries :: [SyncEntry]
+                            , spBlocked :: [Text], spWarnedPacks :: [Text] }
 data SyncResult  = SyncResult { syPlan :: SyncPlan, syCopied :: Int, sySkipped :: [Text] }
 data SyncError   = ProjectNotRegistered Text | ProjectDirMissing FilePath
 planSync    :: Store -> SyncOptions -> IO (Either SyncError SyncPlan)                  -- 只對帳,不寫
+-- spBlocked 是「被擋下、不會加入」的素材包;spWarnedPacks 是「既有素材仍留著、但授權有問題」
+-- 的素材包,兩者語意不同不可合併。spWarnedPacks 取自**登記的全集**而不是本次候選 ——
+-- 重寫的 manifest 涵蓋全集,警告的涵蓋範圍就必須跟著全集,否則會靜靜吞掉授權問題。
 syncProject :: Store -> ArchiveTools -> SyncOptions -> IO (Either SyncError SyncResult) -- soConfirm=False 時等同 planSync
 
 -- AssetDB.Project.Template
@@ -472,7 +496,11 @@ haskellIdent       :: Text -> Text
 
 **消費的 catalog / ingest 介面**:`AssetDB.Manifest`(schema 與 `AssetKey`)、
 `AssetDB.Id`、`AssetDB.Naming`、`AssetDB.Types`、`AssetDB.PathText`、`AssetDB.Store`、
-`AssetDB.Archive`(`ArchiveTools` / `readEntry`)。
+`AssetDB.Archive`(`ArchiveTools` / `readEntry`)、
+`AssetDB.Ingest.Hash`(`Sha256` / `unSha256` / `sha256File`,供 `Sync` 的對帳使用)。
+
+`project` 依賴 `assetdb-ingest` 只為了取用內容雜湊這一個介面。這不違反「delivery 不做雜湊」
+—— 那條的意思是不自行實作,而不是不准呼叫;依賴方向 `ingest ← delivery` 與通訊拓撲一致。
 
 ### `web`
 
@@ -583,11 +611,12 @@ props 讀寫,不各自持有一份查詢條件。
 | 7 | HTTP 服務:Servant API、縮圖靜態服務、`--emit-types` 型別產生器 | ✅ |
 | 8 | 前端:虛擬化縮圖網格、facet 側欄、放大檢視 | ✅ |
 | 9 | 專案產出:樣板、單筆解壓、manifest 與 `Assets.hs`、授權閘門 | ✅ |
-| 14 | 專案增量同步:對帳、只增不刪、以全集重寫 manifest 與 `Assets.hs` | 🔲 規劃中(2026-08-20) |
+| 14 | 專案增量同步:對帳、只增不刪、以全集重寫 manifest 與 `Assets.hs` | ✅ 委派展開完成(2026-08-21,F006) |
 
 階段 2–9 的功能面都已實作完成並通過測試,對應的 feature 文檔為 2026-08 遷移到
-`.design/` 時的回溯建檔。階段 14 是 README「尚未實作」清單裡最痛的一項,2026-08-20
-正式列入功能規劃(#6),契約卡已備妥,走 `/feature-design` 展開。
+`.design/` 時的回溯建檔。階段 14 於 2026-08-21 經 `/subsys-build` 委派展開完成(`F006`),
+閘門裁決把 `syncExitCode` 與 `spWarnedPacks` 納入契約,並開出 `B006`、`B007` 兩份 bugfix,
+兩份皆已 `done`。
 
 ## 功能規劃
 
@@ -598,9 +627,10 @@ props 讀寫,不各自持有一份查詢條件。
 | 3 | ts-type-contract | 後端型別產生器與前端 TypeScript 型別契約 | `server`(`TsTypes`)+ `web/src/api/types.ts` | #2 | F003 |
 | 4 | web-grid-facets | 虛擬化縮圖網格、facet 側欄與放大檢視 | `web`(`App` + `components/*` + `api/client.ts`) | #2, #3 | F004 |
 | 5 | project-scaffold | 專案樣板、單筆解壓、manifest 與 Assets.hs 產生、授權閘門 | `project`(`Template` + `Assets` + `Create`)+ `cli`(`Project`) | #1 | F005 |
-| 6 | project-sync | 把符合條件的素材增量加入已登記的專案:對帳分四類、預設預覽、只增不刪 | `project`(`Sync`)+ `cli`(`Options` + `Project`) | #5 | - |
+| 6 | project-sync | 把符合條件的素材增量加入已登記的專案:對帳分四類、預設預覽、只增不刪 | `project`(`Sync`)+ `cli`(`Options` + `Project`) | #5 | F006 |
 
-(小結:共 6 個 features;#1–#5 已完成,#6 待展開)
+(小結:共 6 個 features,全數完成。#6 於 2026-08-21 經 `/subsys-build` 委派展開,
+展開紀錄見 `build-log.md`)
 
 ## Feature 契約卡
 
@@ -726,15 +756,20 @@ props 讀寫,不各自持有一份查詢條件。
 ### project-sync
 
 - **階段**:階段 14:專案增量同步
-- **負責模組**:`project` 的 `AssetDB.Project.Sync`(新模組);`cli` 的 `AssetDB.Cli.Options`
-  (`project sync` 指令文法)與 `AssetDB.Cli.Project`(runner)
+- **負責模組**:`project` 的 `AssetDB.Project.Sync`(新模組)與 `AssetDB.Project.Internal`
+  (新 other-module,承接 `Create` 與 `Sync` 的共用輔助);`AssetDB.Project.Create`(改為
+  取用 `Internal`,行為不變);`AssetDB.Project.Template`(SKILL.md 樣板段落);`cli` 的
+  `AssetDB.Cli.Options`(`project` 指令群與 `sync` 子指令)、`AssetDB.Cli.Project`(runner)
+  與 `cli/main/Main.hs`(dispatch)
 - **實作的 Level 2 介面**:對外契約 §3 指令表的 `project sync` 列與三條跨指令契約中對它的
   要求(預設預覽、授權閘門預設開);§6「專案增量同步」全部條目;模組間公開介面 `project` 的
   `SyncOptions` / `SyncClass` / `SyncEntry` / `SyncPlan` / `SyncResult` / `SyncError` /
-  `planSync` / `syncProject`,以及 `cli` 的 `CmdProjectSync` / `SyncArgs` / `runProjectSync`。
+  `planSync` / `syncProject`,以及 `cli` 的 `CmdProjectSync` / `SyncArgs` / `runProjectSync` /
+  `syncExitCode`。
   只使用不新增:`project` 的 `nonCommercialPacks` / `AssetRef` / `renderAssetsModule`;
   catalog 的 `AssetDB.Manifest`(`Manifest` / `ManifestAsset` / `currentSchemaVersion`)、
   `AssetDB.PathText`、`AssetDB.Store`;ingest 的 `AssetDB.Archive`(`ArchiveTools` / `readEntry`)
+  與 `AssetDB.Ingest.Hash`(`Sha256` / `unSha256` / `sha256File`)
 - **資料流管線段落**:P6 專案增量同步管線(全段);`--confirm` 下「單筆解壓 → 寫 manifest /
   `Assets.hs` → 登記」三段與 P5 同語意
 - **驗收標準**:
@@ -750,6 +785,8 @@ props 讀寫,不各自持有一份查詢條件。
   - `project_assets` 新增列帶 `copied_sha256`,既有列不變;`projects.updated_at` 更新
   - 授權閘門行為與 `new-project` 完全一致(不可商用與 NULL 都擋;`--allow-non-commercial`
     才放行);被擋下的素材包逐包告知
+  - 授權閘門**只擋新增不回溯既有**:既有登記素材的素材包授權降級後,該素材仍留在磁碟、
+    仍列入重新產生的 manifest 與 `Assets.hs`,但回報逐包列出並警告發行前要處理
   - 0 筆新增時結束碼 0 並說明「沒有需要加入的素材」;`--confirm` 下全部新增項都讀取失敗
     時非 0
   - `assetdb project sync --help` 列出全部旗標;`new-project` 的行為與輸出不受影響

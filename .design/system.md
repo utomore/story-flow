@@ -60,8 +60,8 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 ### 1. CLI(主要入口)
 
 `assetdb <指令> [選項]`,指令群:`scan`、`pack`、`reorganize`、`cluster`、`search`、`index`、
-`thumbs`、`new-project`、`note`、`link`、`ai`(`ping`/`classify`/`vision`/`suggest`/`decide`/
-`apply`/`query`/`status`)、`doctor`。
+`thumbs`、`new-project`、`project`(`sync`)、`note`、`link`、`ai`(`ping`/`classify`/`vision`/
+`suggest`/`decide`/`apply`/`query`/`status`)、`doctor`。
 
 契約原則:破壞性操作一律**先預覽再 `--confirm`**;找不到資料庫時**拒絕自動建檔**(要 `--init`
 明確要求),避免打錯路徑產生一個查詢全回 0 筆的空庫;參數解析失敗回人看得懂的訊息而非例外。
@@ -278,11 +278,11 @@ action = "exclude"
 | 11 | 音效格式驗證(零核心表改動) | ingest | ✅ 已驗證(2026-08-11) |
 | 12 | AI 離線分類與標註(本機 LLM + GBNF) | ai-tagging | ✅ 已對真實素材庫執行 |
 | 13 | 缺陷與技術債收斂(6 bugfix + 14 enhancement) | 全部 | ✅ 全數 done/closed(2026-08-19) |
-| 14 | 專案增量同步(`project sync`):對帳分四類、只增不刪、預設預覽 | delivery | 🔲 規劃中(2026-08-20 列入 delivery 功能規劃 #6,契約卡已備妥) |
+| 14 | 專案增量同步(`project sync`):對帳分四類、只增不刪、預設預覽 | delivery | ✅ 委派展開完成(2026-08-21,`delivery/F006`) |
 
-**目前狀態**:階段 0–13 功能面已完整實作並驗證,已知缺陷與技術債全部收斂完畢
-(紀錄見各子系統的 `bugfixes/`、`enhancements/` 與 `.design/enhancements/` 的全域項目)。
-階段 14 是目前唯一待展開的規劃項目;其餘尚未納入規劃的缺口(前端匯入 / 叢集確認 UI、
-`ai vision` 全量執行、ImageMagick sidecar)列在 `README.md`「尚未實作」。
+**目前狀態**:階段 0–14 功能面已完整實作並驗證。階段 14 是第一個走
+`/subsys-build` 委派展開的項目,展開紀錄見 `.design/subsystems/delivery/build-log.md`;
+閘門開出的兩份 bugfix 見 `delivery/bugfixes/`。尚未納入規劃的缺口(前端匯入 / 叢集確認
+UI、`ai vision` 全量執行、ImageMagick sidecar)列在 `README.md`「尚未實作」。
 新功能請走 `/feature-design`(或 `/subsys-build` 委派展開),並在此表補上對應階段;
 新的缺陷走 `/bugfix`、優化走 `/enhance-design`。

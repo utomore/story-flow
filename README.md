@@ -323,6 +323,32 @@ uiGuiTravelBookFrame01a = AssetKey "ui_gui_travel-book-frame_01a"
 
 確定專案不商業發行時才用 `--allow-non-commercial`。
 
+#### 增量加素材進既有專案
+
+專案建好之後要再加素材,用 `project sync`——**不要手動複製檔案進 `assets/`**,
+那樣 `manifest.json` 與 `Assets.hs` 不會有它,載入器查不到 key,授權閘門也沒看過它。
+
+```bash
+assetdb project sync --name Circle --pack kibyra-potions          # 預設只預覽
+assetdb project sync --name Circle --pack kibyra-potions --confirm
+```
+
+專案以**登記的名稱**定位(不是路徑),條件語意與 `new-project` 相同。預覽會把素材分成四類:
+
+| 類別 | 意思 | `--confirm` 會做什麼 |
+|---|---|---|
+| 新增 | 還沒進過這個專案 | 複製並登記 |
+| 已存在 | 磁碟、登記、來源三方雜湊一致 | 跳過 |
+| 來源已更新 | 廠商出了新版,專案裡還是舊的 | **只回報,不覆蓋** |
+| 本地已修改 | 你手動改過專案裡的那份 | **只回報,不覆蓋** |
+
+**只增不刪、不覆蓋。** 「更新到來源新版本」與「還原本地修改」目前沒有指令——那是刻意的,
+覆蓋使用者手改過的檔案需要比一個旗標更慎重的設計。
+
+`--confirm` 之後 `manifest.json` 與 `Assets.hs` 會以登記的全集重新產生,其餘檔案
+(`SKILL.md`、`README.md`、`<NAME>.cabal`、你自己寫的程式碼)一律不動。
+授權閘門只擋新增;既有素材的素材包若授權降級,素材會留著但發出警告。
+
 ### 5. 知識建檔與行銷資訊
 
 這兩個看起來是兩個子系統,實際上是同一張圖上的節點:`notes` 是節點,`links` 是邊,
@@ -600,7 +626,6 @@ import Assets             -- 專案自己的素材 key 常數
 
 | 缺口 | 影響 | 目前的替代作法 |
 |---|---|---|
-| `assetdb project sync` | **無法增量加素材進既有專案** | 用新條件重新產生到新目錄,把 `assets/`、`manifest.json`、`Assets.hs` 換過去 |
 | `ai vision` 全量執行 | 5,321 份內容只有 5 份有視覺內容標籤;中文搜尋目前只靠叢集層的風格 / 題材標籤 | 過夜跑 `assetdb ai vision`(約 8 小時,見日常操作 7) |
 | 前端匯入 UI | 匯入仍走 CLI | `scan` + 手寫 `packs.toml` |
 | 前端叢集確認 UI | 命名仍走 CLI | `cluster list` / `rule` / `apply` |
@@ -608,9 +633,8 @@ import Assets             -- 專案自己的素材 key 常數
 | ogg / mp3 / flac 解碼 | 只分類不取時長 | 已是 `KAudio`,照樣進搜尋 |
 | ImageMagick sidecar | TIFF / PSD / HEIC 沒有預覽圖 | 仍可索引與搜尋 |
 
-第一項是最痛的一個,已列入規劃:
-[`.design/subsystems/delivery/design.md`](.design/subsystems/delivery/design.md) 功能規劃 #6
-`project-sync`,契約卡已備妥,可用 `/feature-design delivery/project-sync` 展開。
+前兩項是目前最有感的缺口。原本排第一的「無法增量加素材進既有專案」已於 2026-08-21
+實作完成(`assetdb project sync`,見日常操作 4)。
 
 ---
 

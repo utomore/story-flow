@@ -11,27 +11,22 @@ module AssetDB.Project.Create
   ) where
 
 import AssetDB.Archive
-import AssetDB.Id (newULID, parseULID, unULID)
+import AssetDB.Id (newULID, unULID)
 import AssetDB.Manifest
-import AssetDB.Naming (validateLogicalName)
-import AssetDB.PathText (extensionOf)
 import AssetDB.Project.Assets
+import AssetDB.Project.Internal
 import AssetDB.Project.Template
 import AssetDB.Store
-import AssetDB.Types (AssetKind (..), kindDefaultDir, parseTextEnum)
-import Data.Aeson (Value (Null), decodeStrict)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.List (nub)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Database.SQLite.Simple
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, listDirectory)
-import System.FilePath (takeDirectory, (</>))
+import System.FilePath ((</>))
 
 data CreateOptions = CreateOptions
   { coName :: Text
@@ -50,26 +45,6 @@ data CreateResult = CreateResult
   -- ^ 被授權閘門擋下的素材包。
   }
   deriving stock (Eq, Show)
-
--- | 一筆待複製的素材。
-data Pick = Pick
-  { pkUlid :: Text
-  , pkName :: Text
-  , pkKind :: AssetKind
-  , pkSha :: Text
-  , pkMeta :: Maybe Text
-  , pkArchive :: Text
-  , pkEntry :: Text
-  , pkPack :: Text
-  , pkLicense :: Maybe Text
-  }
-
-instance FromRow Pick where
-  fromRow =
-    Pick <$> field <*> field <*> (toKind <$> field) <*> field <*> field
-      <*> field <*> field <*> field <*> field
-    where
-      toKind t = either (const KSource) id (parseTextEnum t)
 
 createProject :: Store -> ArchiveTools -> CreateOptions -> IO CreateResult
 createProject st tools CreateOptions {..} = do
@@ -103,17 +78,21 @@ createProject st tools CreateOptions {..} = do
       (copied, skipped) <- copyAssets tools coLibraryRoot coPath usable
 
       now <- getCurrentTime
-      let mAssets = [a | Right a <- map (toManifest coPath) copied]
+      -- manifest.json 與 Assets.hs 從**同一個集合**產生:任一筆驗證失敗就兩邊
+      -- 一起排除,而且經 coOnEvent 出聲(B007)。
+      listed <- excludeUnusable coOnEvent pickLabel (toManifest coPath) copied
+      -- 素材包與授權中繼資料涵蓋實際複製進去的全部素材:被排除的那一筆檔案仍在
+      -- 專案裡,致謝與授權義務跟著檔案走。
       packsMeta <- manifestPacks (storeConn st) (nub (map pkPack copied))
       licMeta <- manifestLicenses (storeConn st) (nub (map pkPack copied))
 
       writeUtf8Bytes
         (coPath </> "assets" </> "manifest.json")
-        (BL.toStrict (encodePretty (Manifest currentSchemaVersion coName now mAssets packsMeta licMeta)))
+        (BL.toStrict (encodePretty (Manifest currentSchemaVersion coName now (map snd listed) packsMeta licMeta)))
 
       writeUtf8
         (coPath </> "assets" </> "Assets.hs")
-        (renderAssetsModule coName [AssetRef (pkName p) (relOf p) (Just (pkPack p)) | p <- copied])
+        (renderAssetsModule coName [AssetRef (pkName p) (destRelOf p) (Just (pkPack p)) | (p, _) <- listed])
 
       writeUtf8 (coPath </> T.unpack coName <> ".cabal") (cabalFile coName)
 
@@ -122,8 +101,6 @@ createProject st tools CreateOptions {..} = do
       registerProject st coName coPath copied
 
       pure (CreateResult (length copied) skipped blocked)
-  where
-    relOf p = T.pack ("assets/" <> T.unpack (kindDefaultDir (pkKind p))) <> "/" <> pkName p <> extOf (pkEntry p)
 
 --------------------------------------------------------------------------------
 
@@ -158,7 +135,9 @@ registerProject st name path picks = do
                 \  (project_id, asset_id, dest_rel_path, copy_mode, copied_sha256, added_at) \
                 \SELECT ?, a.id, ?, 'copy', ?, ? FROM assets a WHERE a.ulid = ?"
                 ( pid
-                , "assets/" <> kindDefaultDir (pkKind p) <> "/" <> pkName p <> extOf (pkEntry p)
+                , -- 落點只有 'destRelOf' 一份實作(B007 T5):檔案寫到哪、manifest
+                  -- 說在哪、登記說在哪,必須是同一個答案。
+                  destRelOf p
                 , pkSha p
                 , now
                 , pkUlid p
@@ -166,30 +145,6 @@ registerProject st name path picks = do
           )
           picks
       [] -> pure ()
-
-selectAssets :: Connection -> [Text] -> Maybe Text -> IO [Pick]
-selectAssets conn packs q = do
-  let packFilter =
-        if null packs
-          then ""
-          else " AND p.slug IN (" <> T.intercalate "," (map (const "?") packs) <> ")"
-      textFilter =
-        case q of
-          Nothing -> ""
-          Just _ -> " AND a.logical_name LIKE ?"
-      sql =
-        "SELECT a.ulid, a.logical_name, a.kind, a.sha256, a.meta_json, \
-        \       ar.rel_path, a.entry_path, p.slug, l.name \
-        \FROM assets a \
-        \JOIN archives ar ON ar.id = a.archive_id \
-        \JOIN packs p ON p.id = a.pack_id \
-        \LEFT JOIN licenses l ON l.id = p.license_id \
-        \WHERE a.logical_name IS NOT NULL AND a.status = 'active' \
-        \  AND a.sha256 IS NOT NULL"
-          <> packFilter
-          <> textFilter
-          <> " ORDER BY a.logical_name"
-  query conn (Query sql) (map SQLText packs <> maybe [] (\t -> [SQLText ("%" <> t <> "%")]) q)
 
 -- $licenseGate
 --
@@ -232,76 +187,6 @@ packCredits conn slugs = do
       IO [(Text, Maybe Text, Int)]
   pure [(n, l, r /= 0) | (n, l, r) <- rows]
 
-manifestPacks :: Connection -> [Text] -> IO [ManifestPack]
-manifestPacks _ [] = pure []
-manifestPacks conn slugs = do
-  rows <-
-    query
-      conn
-      ( Query
-          ( "SELECT p.name, p.vendor, p.source_url, p.version, l.name \
-            \FROM packs p LEFT JOIN licenses l ON l.id = p.license_id WHERE p.slug IN ("
-              <> T.intercalate "," (map (const "?") slugs)
-              <> ") ORDER BY p.name"
-          )
-      )
-      (map SQLText slugs)
-  pure [ManifestPack n v u ver l | (n, v, u, ver, l) <- rows]
-
-manifestLicenses :: Connection -> [Text] -> IO [ManifestLicense]
-manifestLicenses _ [] = pure []
-manifestLicenses conn slugs = do
-  rows <-
-    query
-      conn
-      ( Query
-          ( "SELECT DISTINCT l.name, l.commercial, l.attribution_required, l.credit_text \
-            \FROM packs p JOIN licenses l ON l.id = p.license_id WHERE p.slug IN ("
-              <> T.intercalate "," (map (const "?") slugs)
-              <> ") ORDER BY l.name"
-          )
-      )
-      (map SQLText slugs) ::
-      IO [(Text, Int, Int, Maybe Text)]
-  pure [ManifestLicense n (c /= 0) (a /= 0) note | (n, c, a, note) <- rows]
-
---------------------------------------------------------------------------------
-
--- | **單筆解壓。** 永遠不會整包解開 —— 專案只拿它真正用到的東西。
-copyAssets :: ArchiveTools -> FilePath -> FilePath -> [Pick] -> IO ([Pick], [Text])
-copyAssets tools libRoot projectRoot picks = go picks [] []
-  where
-    go [] ok bad = pure (reverse ok, reverse bad)
-    go (p : ps) ok bad = do
-      r <- readEntry tools (libRoot </> T.unpack (pkArchive p)) (pkEntry p)
-      case r of
-        Left err -> go ps ok (renderArchiveError err : bad)
-        Right content -> do
-          let dest = projectRoot </> "assets" </> T.unpack (kindDefaultDir (pkKind p)) </> T.unpack (pkName p <> extOf (pkEntry p))
-          createDirectoryIfMissing True (takeDirectory dest)
-          BS.writeFile dest content
-          go ps (p : ok) bad
-
-toManifest :: FilePath -> Pick -> Either Text ManifestAsset
-toManifest _ p = do
-  u <- parseULID (pkUlid p)
-  k <- either (Left . T.pack . show) Right (validateLogicalName (pkName p))
-  pure
-    ManifestAsset
-      { maId = u
-      , maKey = k
-      , maPath = "assets/" <> kindDefaultDir (pkKind p) <> "/" <> pkName p <> extOf (pkEntry p)
-      , maKind = pkKind p
-      , maSha256 = pkSha p
-      , maPack = Just (pkPack p)
-      , maLicense = pkLicense p
-      , maMeta = maybe Null id (pkMeta p >>= decodeStrict . encodeUtf8)
-      }
-
--- | 副檔名抽取的唯一實作在 core 的 AssetDB.PathText(G-E002)。
-extOf :: Text -> Text
-extOf = extensionOf
-
 cabalFile :: Text -> Text
 cabalFile name =
   T.unlines
@@ -324,11 +209,3 @@ cabalFile name =
     , "        -- , apecs"
     , "    default-language: GHC2021"
     ]
-
-writeUtf8 :: FilePath -> Text -> IO ()
-writeUtf8 p = writeUtf8Bytes p . encodeUtf8
-
--- 一律以 UTF-8 位元組寫檔。Data.Text.IO 用 locale 編碼,
--- Windows 上寫不出中文與符號。
-writeUtf8Bytes :: FilePath -> BS.ByteString -> IO ()
-writeUtf8Bytes p bs = createDirectoryIfMissing True (takeDirectory p) >> BS.writeFile p bs

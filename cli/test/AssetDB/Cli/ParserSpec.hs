@@ -122,6 +122,52 @@ spec = do
         Just (Invocation _ (CmdNewProject a)) -> paAllowNonCommercial a `shouldBe` True
         other -> unexpected other
 
+  describe "project sync" $ do
+    it "--help 以成功結束並列出全部旗標" $ do
+      helpExit ["project", "sync", "--help"] `shouldBe` Just ExitSuccess
+      let t = helpText ["project", "sync", "--help"]
+      mapM_
+        (\f -> t `shouldSatisfy` (f `isInfixOf`))
+        ["--name", "--pack", "--match", "--allow-non-commercial", "--confirm"]
+
+    it "--name 是必填,漏掉就解析失敗" $
+      rejects ["project", "sync"]
+
+    it "會改動狀態的動作預設只預覽,授權閘門預設是開的" $
+      -- 兩個預設值寫錯的後果分別是:靜靜覆寫使用者的專案、
+      -- 以及非商用素材靜靜地進到商業專案。
+      case parse ["project", "sync", "--name", "game"] of
+        Just (Invocation _ (CmdProjectSync a)) -> do
+          syName a `shouldBe` "game"
+          syPacks a `shouldBe` []
+          syQuery a `shouldBe` Nothing
+          syConfirm a `shouldBe` False
+          syAllowNonCommercial a `shouldBe` False
+        other -> unexpected other
+
+    it "--pack 可重複並保留順序,--match 與旗標一起收得到" $
+      case parse
+        ["project", "sync", "--name", "g", "--pack", "a", "--pack", "b", "--match", "ui", "--confirm", "--allow-non-commercial"] of
+        Just (Invocation _ (CmdProjectSync a)) -> do
+          syPacks a `shouldBe` ["a", "b"]
+          syQuery a `shouldBe` Just "ui"
+          syConfirm a `shouldBe` True
+          syAllowNonCommercial a `shouldBe` True
+        other -> unexpected other
+
+    it "沒有 sync 子指令時解析失敗,而不是落進某個預設動作" $
+      rejects ["project"]
+
+    -- new-project 維持原名不動:改名會讓既有的腳本與文件全部失效。
+    it "new-project 的解析結果不受 project 指令群影響" $ do
+      helpText ["--help"] `shouldSatisfy` ("new-project" `isInfixOf`)
+      case parse ["new-project", "--name", "game", "--path", "C:/g"] of
+        Just (Invocation _ (CmdNewProject a)) -> do
+          paName a `shouldBe` "game"
+          paPath a `shouldBe` "C:/g"
+          paAllowNonCommercial a `shouldBe` False
+        other -> unexpected other
+
   describe "reorganize" $ do
     -- 其中一個模式會刪掉五千個檔案。「忘記給旗標」不該落進任何一個會動到
     -- 檔案的模式 —— 這條測試鎖住的正是「沒有預設模式」這個刻意的設計。
@@ -217,6 +263,7 @@ commandName = \case
   CmdIndex -> "CmdIndex"
   CmdThumbs {} -> "CmdThumbs"
   CmdNewProject {} -> "CmdNewProject"
+  CmdProjectSync {} -> "CmdProjectSync"
   CmdNoteImport {} -> "CmdNoteImport"
   CmdNoteList {} -> "CmdNoteList"
   CmdLink {} -> "CmdLink"

@@ -45,7 +45,7 @@ parent: delivery
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | pending |
+| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | design-done |
 
 模型選擇理由:`project-sync` 跨 `project` 與 `cli` 兩個套件、要新增套件依賴、四類對帳的
 邊界條件多,且是唯一會動使用者既有專案檔案的指令(誤判就是覆蓋或漏判使用者的手動修改)。
@@ -55,7 +55,15 @@ parent: delivery
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| (待 subagent 回報) | | | |
+| F006 A1 | 「既有登記素材的素材包授權降級」的警告要放哪裡:`SyncPlan` 只有 `spBlocked`,而那些素材並沒有被擋 | 經 `soOnEvent` 逐包發出警告,不進 `spBlocked`(放進去會讓「被擋下」的語意變質) | 待裁決(**契約變動**:要結構化就得給 `SyncPlan` 加 `spWarnedPacks :: [Text]`) |
+| F006 A2 | `manifest.json` 的 `maSha256` 對既有素材取哪一個雜湊;0 筆新增時要不要重寫 manifest | 取 `copied_sha256`(磁碟上真正是什麼);`--confirm` 即使 0 新增也重寫 | 待裁決 |
+| F006 A3 | `--confirm` 下「真的複製成功」的路徑沒有自動化測試 | 遵守 D4,以「新增項讀取失敗」與「0 筆新增」兩條覆蓋 confirm 分支;`copied_sha256` 寫入只能人工驗收 | 待裁決(要補的話最小成本是加一個 stored ZIP fixture) |
+| F006 A4 | `project_assets.copied_sha256` 為 NULL 的舊列如何判定 | 退回與 `assets.sha256` 比對;不同就算 `SyncLocallyModified`(保守,永不覆蓋) | 待裁決 |
+| F006 A5 | `AssetDB.Cli.Project` 匯出 `syncExitCode`,**超出契約卡列舉的介面** | 比照 `nonCommercialPacks` 的可測性先例匯出(`runProjectSync` 會 `exitFailure`,測不動) | 待裁決(**契約變動**:接受就在 `design.md` 的 `cli` 模組介面補一行;不接受則 T9 只剩 E2E 一條) |
+
+另有一項編排者選配、未動的:`design.md` 的「內部模組劃分」是否為 `project` 補一列
+`AssetDB.Project.Internal`(`Create` 與 `Sync` 共用的私有輔助,`other-modules` 不 exposed)。
+依慣例「Level 2 禁止定義私有實作細節」暫不補,列在此供閘門一併裁決。
 
 ## 階段結果
 

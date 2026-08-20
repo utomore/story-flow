@@ -610,9 +610,9 @@ props 讀寫,不各自持有一份查詢條件。
 | 3 | ts-type-contract | 後端型別產生器與前端 TypeScript 型別契約 | `server`(`TsTypes`)+ `web/src/api/types.ts` | #2 | F003 |
 | 4 | web-grid-facets | 虛擬化縮圖網格、facet 側欄與放大檢視 | `web`(`App` + `components/*` + `api/client.ts`) | #2, #3 | F004 |
 | 5 | project-scaffold | 專案樣板、單筆解壓、manifest 與 Assets.hs 產生、授權閘門 | `project`(`Template` + `Assets` + `Create`)+ `cli`(`Project`) | #1 | F005 |
-| 6 | project-sync | 把符合條件的素材增量加入已登記的專案:對帳分四類、預設預覽、只增不刪 | `project`(`Sync`)+ `cli`(`Options` + `Project`) | #5 | - |
+| 6 | project-sync | 把符合條件的素材增量加入已登記的專案:對帳分四類、預設預覽、只增不刪 | `project`(`Sync`)+ `cli`(`Options` + `Project`) | #5 | F006 |
 
-(小結:共 6 個 features;#1–#5 已完成,#6 待展開)
+(小結:共 6 個 features;#1–#5 已完成,#6 設計完成待實作)
 
 ## Feature 契約卡
 

@@ -10,6 +10,9 @@ module AssetDB.Project.Internal
   , selectAssets
   , destRelOf
   , copyAssets
+  , excludeUnusable
+  , pickLabel
+  , labelOf
   , toManifest
   , manifestPacks
   , manifestLicenses
@@ -135,6 +138,52 @@ copyAssets tools libRoot projectRoot picks = go picks [] []
           BS.writeFile dest content
           go ps (p : ok) bad
 
+--------------------------------------------------------------------------------
+
+-- | 產物集合的共用過濾(B007)。
+--
+-- @manifest.json@ 與 @Assets.hs@ 必須從**同一個集合**產生:任一筆驗證失敗
+-- (ULID 解析失敗、邏輯名稱缺漏或不合文法)就兩邊一起排除。兩邊集合不同會產生
+-- 「@Assets.hs@ 有這個 @AssetKey@ 常數,但 manifest 查不到」的組合 —— 編譯得過、
+-- 執行期查表落空,正是產生 @Assets.hs@ 的全部理由要消滅的失敗模式。
+--
+-- 排除一律**出聲**。靜默丟資料是最不該的處理:素材在專案裡卻沒有常數,
+-- 使用者查不出原因,也不知道要去修哪一筆的邏輯名稱。
+excludeUnusable
+  :: (Text -> IO ())
+  -- ^ 事件回呼(@coOnEvent@ / @soOnEvent@)。
+  -> (a -> Text)
+  -- ^ 定位資訊:讓使用者找得到是哪一筆。
+  -> (a -> Either Text b)
+  -- ^ 驗證。'Left' 是被排除的原因。
+  -> [a]
+  -> IO [(a, b)]
+excludeUnusable onEvent locate validate = fmap concat . mapM step
+  where
+    step x = case validate x of
+      Left why ->
+        [] <$ onEvent ("⚠ 排除 " <> locate x <> ":" <> why <> "。manifest.json 與 Assets.hs 都不會列入這一筆")
+      Right b -> pure [(x, b)]
+
+-- | 「名稱 [ulid …,落點 …]」。
+--
+-- 邏輯名稱可能為空,而那正是被排除的原因之一 —— 所以 ULID 與落點永遠都在,
+-- 使用者總有辦法定位到是哪一筆。
+labelOf :: Text -> Text -> Text -> Text
+labelOf name ulid dest =
+  (if T.null name then "(無邏輯名稱)" else "「" <> name <> "」")
+    <> " [ulid "
+    <> ulid
+    <> ",落點 "
+    <> dest
+    <> "]"
+
+-- | 'Pick' 的定位資訊。
+pickLabel :: Pick -> Text
+pickLabel p = labelOf (pkName p) (pkUlid p) (destRelOf p)
+
+--------------------------------------------------------------------------------
+
 toManifest :: FilePath -> Pick -> Either Text ManifestAsset
 toManifest _ p = do
   u <- parseULID (pkUlid p)
@@ -143,7 +192,8 @@ toManifest _ p = do
     ManifestAsset
       { maId = u
       , maKey = k
-      , maPath = "assets/" <> kindDefaultDir (pkKind p) <> "/" <> pkName p <> extOf (pkEntry p)
+      , -- 落點只有 'destRelOf' 一份實作(B007 T5)。
+        maPath = destRelOf p
       , maKind = pkKind p
       , maSha256 = pkSha p
       , maPack = Just (pkPack p)

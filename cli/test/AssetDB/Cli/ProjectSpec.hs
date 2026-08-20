@@ -58,6 +58,7 @@ result classes copied skipped =
           { spProjectPath = "C:/games/game"
           , spEntries = zipWith entry [1 :: Int ..] classes
           , spBlocked = []
+          , spWarnedPacks = []
           }
     , syCopied = copied
     , sySkipped = skipped

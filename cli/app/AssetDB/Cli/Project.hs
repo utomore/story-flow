@@ -119,6 +119,18 @@ runProjectSync dbPath args@SyncArgs {..} = do
       case spBlocked plan of
         [] -> pure ()
         bs -> TIO.putStrLn ("⚠ 授權閘門擋下 " <> tshow (length bs) <> " 個素材包的新增素材:" <> T.intercalate "、" bs)
+      -- 涵蓋登記的**全集**,不是本次候選(B006):既有素材不會被移除,
+      -- 但發行前必須處理,所以它必須在回報裡出現一次。
+      case spWarnedPacks plan of
+        [] -> pure ()
+        ws ->
+          TIO.putStrLn
+            ( "⚠ "
+                <> tshow (length ws)
+                <> " 個素材包的既有素材授權為不可商用或未查證,仍留在專案內:"
+                <> T.intercalate "、" ws
+                <> "。發行前請自行確認風險"
+            )
       TIO.putStrLn ""
       if syConfirm
         then do

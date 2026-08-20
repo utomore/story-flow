@@ -171,6 +171,53 @@ spec = do
         events `shouldSatisfy` any (T.isInfixOf "noncomm")
         events `shouldSatisfy` any (T.isInfixOf "既有登記素材")
 
+    -- B006:重寫的 manifest 涵蓋登記全集,警告就必須跟著全集。只查本次
+    -- --pack / --match 命中的那些,等於讓不在篩選條件內的授權問題靜靜通過。
+    it "警告涵蓋登記的全集,不受 --pack / --match 篩選限制" $
+      withFixture $ \st proj -> do
+        registerProjectRow (conn st) proj
+        -- gamma 屬於 noncomm 包,已登記在專案裡
+        writeAsset proj "assets/sprites/ui_gui_gamma_01.png" (blobContent "gamma")
+        addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA3" "assets/sprites/ui_gui_gamma_01.png" (Just (shaOf "gamma"))
+        -- 本次只挑 comm 包:noncomm 完全不在候選裡
+        plan <- mustPlan (planSync st defOpts {soPacks = ["comm"]})
+        map seName (spEntries plan) `shouldSatisfy` all (/= "ui_gui_gamma_01")
+        spWarnedPacks plan `shouldBe` ["noncomm"]
+
+    it "授權未查證(NULL)的既有素材包同樣進 spWarnedPacks" $
+      withFixture $ \st proj -> do
+        registerProjectRow (conn st) proj
+        writeAsset proj "assets/sprites/ui_gui_delta_01.png" (blobContent "delta")
+        addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA4" "assets/sprites/ui_gui_delta_01.png" (Just (shaOf "delta"))
+        plan <- mustPlan (planSync st defOpts {soPacks = ["comm"]})
+        spWarnedPacks plan `shouldBe` ["unlicensed"]
+
+    it "可商用的既有素材包不進 spWarnedPacks" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      writeAsset proj "assets/sprites/ui_gui_alpha_01.png" (blobContent "alpha")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA1" "assets/sprites/ui_gui_alpha_01.png" (Just (shaOf "alpha"))
+      plan <- mustPlan (planSync st defOpts {soQuery = Just "beta"})
+      spWarnedPacks plan `shouldBe` []
+
+    -- A7:放行旗標一開,警告一併關掉。
+    it "--allow-non-commercial 時 spWarnedPacks 為空" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      writeAsset proj "assets/sprites/ui_gui_gamma_01.png" (blobContent "gamma")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA3" "assets/sprites/ui_gui_gamma_01.png" (Just (shaOf "gamma"))
+      plan <- mustPlan (planSync st defOpts {soPacks = ["comm"], soAllowNonCommercial = True})
+      spWarnedPacks plan `shouldBe` []
+
+    -- 「被擋下、不會加入」與「既有素材仍留著、但授權有問題」是兩件事。
+    it "spBlocked 與 spWarnedPacks 語意不同不可合併" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      -- 既有:unlicensed 包的 delta(留著,只警告)
+      writeAsset proj "assets/sprites/ui_gui_delta_01.png" (blobContent "delta")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA4" "assets/sprites/ui_gui_delta_01.png" (Just (shaOf "delta"))
+      -- 本次候選:noncomm 包的 gamma(新增,被擋下)
+      plan <- mustPlan (planSync st defOpts {soPacks = ["noncomm"]})
+      spBlocked plan `shouldBe` ["noncomm"]
+      spWarnedPacks plan `shouldBe` ["unlicensed"]
+
   describe "預覽" $ do
     it "soConfirm=False 時不動磁碟、不動資料庫" $ withFixture $ \st proj -> do
       registerProjectRow (conn st) proj
@@ -280,6 +327,57 @@ spec = do
       -- 撞名的兩筆只留一個常數,否則產生的模組有重複定義、根本編不過
       countOf "uiGuiTravelBook01 :: AssetKey" src `shouldBe` 1
 
+    -- B007:兩個產物必須用同一個集合。集合不同會產生「Assets.hs 有這個
+    -- AssetKey 常數,但 manifest 查不到」的組合 —— 編譯得過、執行期查表落空,
+    -- 正是產生 Assets.hs 的全部理由要消滅的失敗模式。
+    it "manifest.json 與 Assets.hs 涵蓋同一組 key" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      writeAsset proj "assets/sprites/ui_gui_alpha_01.png" (blobContent "alpha")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA1" "assets/sprites/ui_gui_alpha_01.png" (Just (shaOf "alpha"))
+      -- 不合命名文法(含大寫與空白):toFullManifest 必然 Left
+      insertBadName (conn st)
+      addReg (conn st) badUlid badDest (Just (shaOf "bad"))
+
+      _ <- syncProject st noTools defOpts {soQuery = Just "alpha", soConfirm = True}
+
+      mKeys <- manifestKeys proj
+      aKeys <- assetsModuleKeys proj
+      sort aKeys `shouldBe` sort mKeys
+      -- 而且被排除的那一筆兩邊都不在
+      mKeys `shouldBe` ["ui_gui_alpha_01"]
+
+    it "被排除的列必須經事件回呼出聲,附邏輯名稱與原因" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      writeAsset proj "assets/sprites/ui_gui_alpha_01.png" (blobContent "alpha")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA1" "assets/sprites/ui_gui_alpha_01.png" (Just (shaOf "alpha"))
+      insertBadName (conn st)
+      addReg (conn st) badUlid badDest (Just (shaOf "bad"))
+
+      (_, events) <- withEvents $ \onEvent ->
+        syncProject st noTools defOpts {soQuery = Just "alpha", soConfirm = True, soOnEvent = onEvent}
+
+      events `shouldSatisfy` any (T.isInfixOf badName)
+      events `shouldSatisfy` any (T.isInfixOf badDest)
+
+    -- logical_name 為空的列沒有名字可指,定位資訊只剩 ULID 與落點。
+    it "logical_name 為空的登記列被排除時同樣出聲,並附 ULID 與落點" $
+      withFixture $ \st proj -> do
+        registerProjectRow (conn st) proj
+        execute
+          (conn st)
+          "UPDATE assets SET logical_name = '' WHERE ulid = ?"
+          (Only ("01ARZ3NDEKTSV4RRFFQ69G5FA2" :: Text))
+        addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA2" "assets/sprites/ui_gui_beta_01.png" (Just (shaOf "beta"))
+
+        (_, events) <- withEvents $ \onEvent ->
+          syncProject st noTools defOpts {soQuery = Just "alpha", soConfirm = True, soOnEvent = onEvent}
+
+        events `shouldSatisfy` any (T.isInfixOf "01ARZ3NDEKTSV4RRFFQ69G5FA2")
+        events `shouldSatisfy` any (T.isInfixOf "assets/sprites/ui_gui_beta_01.png")
+        -- 兩邊都不列入,不是只從 manifest 消失
+        manifestKeys proj `shouldReturn` []
+        assetsModuleKeys proj `shouldReturn` []
+
     it "SKILL.md / README.md / <NAME>.cabal 一個位元組都不重寫" $ withFixture $ \st proj -> do
       registerProjectRow (conn st) proj
       mapM_
@@ -331,6 +429,30 @@ countOf needle hay = length (T.breakOnAll needle hay)
 
 readUtf8 :: FilePath -> IO Text
 readUtf8 p = decodeUtf8 <$> BS.readFile p
+
+--------------------------------------------------------------------------------
+-- 兩個產物的 key 集合(B007)
+
+manifestKeys :: FilePath -> IO [Text]
+manifestKeys proj = do
+  raw <- BS.readFile (proj </> "assets" </> "manifest.json")
+  case eitherDecodeStrict raw :: Either String Manifest of
+    Left e -> fail ("manifest.json 解不開:" <> e)
+    Right m -> pure (sort (map (logicalNameText . maKey) (mAssets m)))
+
+-- | @Assets.hs@ 裡每個常數的查表 key,取自 @= AssetKey "…"@ 那一行。
+--
+-- 讀渲染出來的字串而不是重跑 'renderAssetsModule':這條測試要驗的正是
+-- 「寫進磁碟的兩個產物涵蓋同一組 key」。
+assetsModuleKeys :: FilePath -> IO [Text]
+assetsModuleKeys proj = do
+  src <- readUtf8 (proj </> "assets" </> "Assets.hs")
+  pure (sort [k | l <- T.lines src, Just k <- [keyOf l]])
+  where
+    keyOf l = case T.breakOn "= AssetKey \"" l of
+      (_, rest)
+        | T.null rest -> Nothing
+        | otherwise -> Just (T.takeWhile (/= '"') (T.drop (T.length "= AssetKey \"") rest))
 
 --------------------------------------------------------------------------------
 -- 固定資料
@@ -410,6 +532,17 @@ insertAsset c (ulid, name, archiveId, entry, content) = do
     \   pack_id, status, meta_json, created_at, updated_at) \
     \VALUES (?, ?, 'image', ?, ?, ?, '.png', ?, ?, 'active', NULL, 't', 't')"
     (ulid, name, archiveId, entry, entry, sha, packId)
+
+-- | 一筆邏輯名稱不合命名文法的素材(含大寫與空白),'toFullManifest' 必然 Left。
+--
+-- 刻意不放進 'fixtureAssets':它會多出一筆候選,影響其他案例的筆數斷言。
+badUlid, badName, badDest :: Text
+badUlid = "01ARZ3NDEKTSV4RRFFQ69G5FB1"
+badName = "UI Gui Bad 01"
+badDest = "assets/sprites/UI Gui Bad 01.png"
+
+insertBadName :: Connection -> IO ()
+insertBadName c = insertAsset c (badUlid, badName, 1, "bad.png", "bad")
 
 registerProjectRow :: Connection -> FilePath -> IO ()
 registerProjectRow c path =

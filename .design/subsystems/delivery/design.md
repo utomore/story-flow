@@ -615,7 +615,8 @@ props 讀寫,不各自持有一份查詢條件。
 
 階段 2–9 的功能面都已實作完成並通過測試,對應的 feature 文檔為 2026-08 遷移到
 `.design/` 時的回溯建檔。階段 14 於 2026-08-21 經 `/subsys-build` 委派展開完成(`F006`),
-閘門裁決把 `syncExitCode` 與 `spWarnedPacks` 納入契約,並開出兩份 bugfix。
+閘門裁決把 `syncExitCode` 與 `spWarnedPacks` 納入契約,並開出 `B006`、`B007` 兩份 bugfix,
+兩份皆已 `done`。
 
 ## 功能規劃
 

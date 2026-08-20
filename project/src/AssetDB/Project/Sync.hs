@@ -87,6 +87,11 @@ data SyncPlan = SyncPlan
   -- ^ 只含本次候選素材,依邏輯名稱排序。
   , spBlocked :: [Text]
   -- ^ 被授權閘門擋下的素材包(只影響新增)。
+  , spWarnedPacks :: [Text]
+  -- ^ 既有素材仍留著、但授權為不可商用或未查證的素材包。
+  --
+  -- 與 'spBlocked' **語意不同不可合併**:'spBlocked' 是「被擋下、不會加入」,
+  -- 這裡是「已經在專案裡、不會被移除,但發行前要處理」。
   }
   deriving stock (Eq, Show)
 
@@ -123,7 +128,7 @@ syncProject st tools opts@SyncOptions {..} = do
           registerAdditions st (prProjectId pr) copied
           -- 重讀登記全集再重寫,而不是在記憶體裡合併「既有 + 新增」——
           -- 合併邏輯會與登記邏輯漂移,重讀天然保證「manifest 描述的就是登記的」。
-          rewriteGenerated st soName projPath (prProjectId pr)
+          rewriteGenerated st soName projPath (prProjectId pr) soOnEvent
           pure (Right (SyncResult (prPlan pr) (length copied) skipped))
 
 --------------------------------------------------------------------------------
@@ -161,14 +166,18 @@ prepare st SyncOptions {..} = do
           -- **授權閘門只擋新增,不回溯既有。** 既有登記素材的素材包後來授權
           -- 降級時,素材仍留在磁碟、仍列入重寫的 manifest 與 Assets.hs
           -- —— 否則遊戲端已經 import 的 AssetKey 常數會靜默消失。
+          --
+          -- 警告的涵蓋範圍是**登記的全集**,不是本次候選(B006)。重寫的 manifest
+          -- 涵蓋全集,警告就必須跟著全集;只查本次 @--pack@ / @--match@ 命中的
+          -- 那些,等於讓不在篩選條件內的授權問題靜靜通過。
+          registeredPacks <- registeredPackSlugs conn pid
           let newPacks = nub [pkPack p | (p, e) <- classified, seClass e == SyncNew]
-              oldPacks = nub [pkPack p | (p, e) <- classified, seClass e /= SyncNew]
           (blocked, warned) <-
             if soAllowNonCommercial
               then pure ([], [])
               else do
-                bad <- nonCommercialPacks conn (nub (newPacks <> oldPacks))
-                pure (filter (`elem` bad) newPacks, filter (`elem` bad) oldPacks)
+                bad <- nonCommercialPacks conn (nub (newPacks <> registeredPacks))
+                pure (filter (`elem` bad) newPacks, filter (`elem` bad) registeredPacks)
 
           mapM_
             (\b -> soOnEvent ("⚠ 授權閘門擋下素材包「" <> b <> "」(不可商用),該包的新增素材不會加入"))
@@ -193,10 +202,28 @@ prepare st SyncOptions {..} = do
                         { spProjectPath = projPath
                         , spEntries = map snd kept
                         , spBlocked = blocked
+                        , spWarnedPacks = warned
                         }
                   , prNewPicks = [p | (p, e) <- kept, seClass e == SyncNew]
                   }
             )
+
+-- | 登記全集所屬的素材包 slug,**與 'rewriteGenerated' 的涵蓋範圍相同**。
+--
+-- @packs@ 走 INNER JOIN 而不是 LEFT JOIN:@assets.pack_id@ 為 NULL 的列沒有素材包,
+-- 也就沒有授權可查 —— 它不是「未查證的授權」,而是根本不屬於任何包。
+registeredPackSlugs :: Connection -> Int -> IO [Text]
+registeredPackSlugs conn pid =
+  map fromOnly
+    <$> ( query
+            conn
+            "SELECT DISTINCT p.slug FROM project_assets pa \
+            \JOIN assets a ON a.id = pa.asset_id \
+            \JOIN packs p ON p.id = a.pack_id \
+            \WHERE pa.project_id = ? ORDER BY p.slug"
+            (Only pid) ::
+            IO [Only Text]
+        )
 
 loadRegistrations :: Connection -> Int -> IO (Map Text Registration)
 loadRegistrations conn pid = do
@@ -304,8 +331,10 @@ instance FromRow FullRow where
 --
 -- 樣板檔案(@SKILL.md@、@README.md@、@docs\/@、@\<NAME\>.cabal@ …)一個都不重寫,
 -- 連內容相同也不寫 —— 使用者手改過樣板是預期中的事。
-rewriteGenerated :: Store -> Text -> FilePath -> Int -> IO ()
-rewriteGenerated st name projPath pid = do
+-- @manifest.json@ 與 @Assets.hs@ 從**同一個集合**產生:任一筆驗證失敗就兩邊
+-- 一起排除,而且經 @soOnEvent@ 出聲(B007)。
+rewriteGenerated :: Store -> Text -> FilePath -> Int -> (Text -> IO ()) -> IO ()
+rewriteGenerated st name projPath pid onEvent = do
   let conn = storeConn st
   rows <-
     query
@@ -320,19 +349,25 @@ rewriteGenerated st name projPath pid = do
       \ORDER BY a.logical_name"
       (Only pid)
   now <- getCurrentTime
-  let usable = [r | r <- rows, not (T.null (frName r))]
-      mAssets = [a | Right a <- map toFullManifest usable]
-      slugs = nub (mapMaybe frPack usable)
+  usable <- excludeUnusable onEvent rowLabel toFullManifest rows
+  -- 素材包與授權中繼資料涵蓋**登記的全集**,不隨產物排除而縮減:被排除的那一筆
+  -- 檔案仍然在專案目錄裡,致謝與授權義務跟著檔案走,不跟著 AssetKey 常數走。
+  let slugs = nub (mapMaybe frPack rows)
   packsMeta <- manifestPacks conn slugs
   licMeta <- manifestLicenses conn slugs
 
   writeUtf8Bytes
     (projPath </> "assets" </> "manifest.json")
-    (BL.toStrict (encodePretty (Manifest currentSchemaVersion name now mAssets packsMeta licMeta)))
+    (BL.toStrict (encodePretty (Manifest currentSchemaVersion name now (map snd usable) packsMeta licMeta)))
 
   writeUtf8
     (projPath </> "assets" </> "Assets.hs")
-    (renderAssetsModule name [AssetRef (frName r) (frPath r) (frPack r) | r <- usable])
+    (renderAssetsModule name [AssetRef (frName r) (frPath r) (frPack r) | (r, _) <- usable])
+
+-- | 登記全集一列的定位資訊。@frPath@ 是 @dest_rel_path@ —— 專案裡的落點,
+-- 使用者拿它就能直接找到檔案。
+rowLabel :: FullRow -> Text
+rowLabel r = labelOf (frName r) (frUlid r) (frPath r)
 
 -- | maSha256 取 @copied_sha256@ 而不是來源的最新 @sha256@:manifest 描述的是
 -- 專案目錄裡的那一份檔案。取來源 sha 會讓「來源已更新」的項目在 manifest 裡

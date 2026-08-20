@@ -17,7 +17,6 @@ import AssetDB.Project.Assets
 import AssetDB.Project.Internal
 import AssetDB.Project.Template
 import AssetDB.Store
-import AssetDB.Types (kindDefaultDir)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.ByteString.Lazy qualified as BL
 import Data.List (nub)
@@ -79,17 +78,21 @@ createProject st tools CreateOptions {..} = do
       (copied, skipped) <- copyAssets tools coLibraryRoot coPath usable
 
       now <- getCurrentTime
-      let mAssets = [a | Right a <- map (toManifest coPath) copied]
+      -- manifest.json 與 Assets.hs 從**同一個集合**產生:任一筆驗證失敗就兩邊
+      -- 一起排除,而且經 coOnEvent 出聲(B007)。
+      listed <- excludeUnusable coOnEvent pickLabel (toManifest coPath) copied
+      -- 素材包與授權中繼資料涵蓋實際複製進去的全部素材:被排除的那一筆檔案仍在
+      -- 專案裡,致謝與授權義務跟著檔案走。
       packsMeta <- manifestPacks (storeConn st) (nub (map pkPack copied))
       licMeta <- manifestLicenses (storeConn st) (nub (map pkPack copied))
 
       writeUtf8Bytes
         (coPath </> "assets" </> "manifest.json")
-        (BL.toStrict (encodePretty (Manifest currentSchemaVersion coName now mAssets packsMeta licMeta)))
+        (BL.toStrict (encodePretty (Manifest currentSchemaVersion coName now (map snd listed) packsMeta licMeta)))
 
       writeUtf8
         (coPath </> "assets" </> "Assets.hs")
-        (renderAssetsModule coName [AssetRef (pkName p) (relOf p) (Just (pkPack p)) | p <- copied])
+        (renderAssetsModule coName [AssetRef (pkName p) (destRelOf p) (Just (pkPack p)) | (p, _) <- listed])
 
       writeUtf8 (coPath </> T.unpack coName <> ".cabal") (cabalFile coName)
 
@@ -98,8 +101,6 @@ createProject st tools CreateOptions {..} = do
       registerProject st coName coPath copied
 
       pure (CreateResult (length copied) skipped blocked)
-  where
-    relOf p = T.pack ("assets/" <> T.unpack (kindDefaultDir (pkKind p))) <> "/" <> pkName p <> extOf (pkEntry p)
 
 --------------------------------------------------------------------------------
 
@@ -134,7 +135,9 @@ registerProject st name path picks = do
                 \  (project_id, asset_id, dest_rel_path, copy_mode, copied_sha256, added_at) \
                 \SELECT ?, a.id, ?, 'copy', ?, ? FROM assets a WHERE a.ulid = ?"
                 ( pid
-                , "assets/" <> kindDefaultDir (pkKind p) <> "/" <> pkName p <> extOf (pkEntry p)
+                , -- 落點只有 'destRelOf' 一份實作(B007 T5):檔案寫到哪、manifest
+                  -- 說在哪、登記說在哪,必須是同一個答案。
+                  destRelOf p
                 , pkSha p
                 , now
                 , pkUlid p

@@ -10,6 +10,7 @@ import qualified StoryFlow.Service.ErrorSpec
 import qualified StoryFlow.Service.FacadeSpec
 import qualified StoryFlow.Service.JsonSpec
 import qualified StoryFlow.Service.LevelSpec
+import qualified StoryFlow.Service.LinkGraphSpec
 import qualified StoryFlow.Service.LinkSpec
 import qualified StoryFlow.Service.MonadSpec
 import qualified StoryFlow.Service.TypeListSpec
@@ -37,6 +38,7 @@ main = do
     StoryFlow.Service.AliasIndexSpec.spec
     StoryFlow.Service.EntityWriteSpec.spec
     StoryFlow.Service.LinkSpec.spec
+    StoryFlow.Service.LinkGraphSpec.spec
     StoryFlow.Service.LevelSpec.spec
     StoryFlow.Service.FacadeSpec.spec
     StoryFlow.Service.EndToEndSpec.spec

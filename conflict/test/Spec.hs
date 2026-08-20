@@ -4,7 +4,9 @@ import qualified StoryFlow.Conflict.CabalSpec
 import qualified StoryFlow.Conflict.EvidenceSpec
 import qualified StoryFlow.Conflict.GraphSpec
 import qualified StoryFlow.Conflict.JsonSpec
+import qualified StoryFlow.Conflict.MergeSpec
 import qualified StoryFlow.Conflict.OptsSpec
+import qualified StoryFlow.Conflict.PipelineSpec
 import qualified StoryFlow.Conflict.ReportSpec
 import qualified StoryFlow.Conflict.RetrievalEnvSpec
 import qualified StoryFlow.Conflict.RetrievalSpec
@@ -26,3 +28,5 @@ main = do
     describe "F002 StoryFlow.Conflict.Graph" StoryFlow.Conflict.GraphSpec.spec
     describe "F003 StoryFlow.Conflict.Retrieval(純函式)" StoryFlow.Conflict.RetrievalSpec.spec
     describe "F003 StoryFlow.Conflict.Retrieval(整合)" StoryFlow.Conflict.RetrievalEnvSpec.spec
+    describe "F004 StoryFlow.Conflict.Pipeline(合流,純函式)" StoryFlow.Conflict.MergeSpec.spec
+    describe "F004 StoryFlow.Conflict.Pipeline(整合)" StoryFlow.Conflict.PipelineSpec.spec

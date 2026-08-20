@@ -60,6 +60,7 @@ module StoryFlow.Service
   , addLink
   , removeLink
   , linksOf
+  , linkGraph
 
     -- * Level / Node
   , createLevel
@@ -81,6 +82,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import StoryFlow.Core.Entity (Entity (..))
+import StoryFlow.Core.Graph (LinkGraph)
 import StoryFlow.Core.Id (Id, Ref (..), localRef)
 import StoryFlow.Core.Link (Link (..), LinkKind)
 import StoryFlow.Core.Meta (Meta (..))
@@ -371,6 +373,35 @@ linksOf i = do
   out <- liftIO (linksFrom conn i)
   inc <- liftIO (linksTo conn (localRef i))
   pure (LinkReport out inc)
+
+-- | 整張關聯圖。衝突偵測第 1 層(conflict-detection/F002 的 @graphHits@)吃的就是它。
+--
+-- __只開內嵌出口__:不進 @StoryFlowAPI@、不進 CLI 的指令樹。理由與 'aliasIndex'
+-- 同一條——整張圖序列化送出去,對任何一個外部客戶端都不是它要的東西;需要它的
+-- REST 路徑(@POST \/conflict\/context@)是在伺服器端自己呼叫這個函式。
+--
+-- 存在的理由是硬性的:@loadLinkGraph@ 住在 @storyflow-store@,而
+-- @storyflow-conflict@ 的 @build-depends@ 逐字擋著 @storyflow-store@。
+-- 那個套件拿得到整張圖的唯一合法途徑就是經 'ServiceM'。
+--
+-- __不過濾、不投影__:第 1 層的反向索引要看的是「有沒有__任何__關聯」
+-- (conflict-detection/F002 的 @revIndex@ 刻意不依 'StoryFlow.Core.Link.LinkKind'
+-- 過濾),這裡先砍一刀會讓那個判斷失準。
+--
+-- __不變量:指向本 Vault 的目標一律 @refVault = 'Nothing'@__。這不是本函式做的
+-- 正規化,而是__索引寫入端__已經保證的事,呼叫端可以直接依賴:
+--
+-- * "StoryFlow.Store.Index" 的 @insertLinks@ 在寫進 @links@ 表之前套用
+--   @localize@,把 @refVault == Just (vaultName v)@ 的目標改成 'Nothing';
+--   @links@ 表的三個寫入點(Entity \/ Level \/ Node)全部經過它,沒有第四條路徑
+-- * @StoryFlow.Store.Row@ 的 @linkFields@ 把它寫成表的不變量
+-- * @StoryFlow.Store.Query@ 的 @linksTo@ __已經依賴__它(查本地 id 用的是
+--   @WHERE dst = ? AND dst_vault IS NULL@),而 @loadLinkGraph@ 讀的是同一張表
+--
+-- 因此消費端__不該再掃一遍圖做第二次正規化__:同一條規則有兩份時,其中一份會先
+-- 過期。這條不變量由 @StoryFlow.Service.LinkGraphSpec@ 釘住。
+linkGraph :: ServiceM LinkGraph
+linkGraph = asks envConn >>= liftIO . loadLinkGraph
 
 -- | 跨 Vault 的定址只存不解析(service-and-interfaces/F001 第四節)。
 --

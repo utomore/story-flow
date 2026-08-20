@@ -57,6 +57,19 @@ spec = describe "第 2 層放行 service,其餘四項仍然擋住" $ do
     src <- readCabal
     ("StoryFlow.Conflict.Retrieval" `isInfixOf` src) `shouldBe` True
 
+  -- conflict-detection/F004 T6:合流與 context 出口的模組。
+  --
+  -- 它接上了 @service@ 的 @linkGraph@,而 @linkGraph@ 背後是
+  -- @storyflow-store@ 的 @loadLinkGraph@ —— __相依清單卻一個字都不該變__:
+  -- 那正是「整張圖只經 ServiceM 拿」這條界線的證明。相依若在這裡長出
+  -- @storyflow-store@,就代表 Pipeline 自己去讀索引了。
+  it "exposed-modules 含 StoryFlow.Conflict.Pipeline,且相依清單一個字沒變" $ do
+    src <- readCabal
+    ("StoryFlow.Conflict.Pipeline" `isInfixOf` src) `shouldBe` True
+    let deps = dependencyLines src
+    map trim deps `shouldBe` libraryDeps ++ testDeps
+    mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
+
 -- | 函式庫的相依__逐字__釘住:驗收標準 6 說的是「沒有增長」,而
 -- 「沒有出現在禁用清單裡」擋不住偷偷多一個包。
 --

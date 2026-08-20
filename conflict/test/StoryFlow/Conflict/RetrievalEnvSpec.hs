@@ -90,6 +90,17 @@ spec = do
         -- 跨 Vault 的目標在本地根本查不到,硬撈只會拿到 EntityNotFound
         map ident (rrCandidates r) `shouldNotContain` [renderId foreignId]
 
+    it "擴充候選的 caSnippet 就是 metaSnippet(conflict-detection/F004 T2:規則只有一份)" $
+      withVault $ \env -> do
+        -- F004 把 expandOneHop 內部的 snippetOf 提升成公開的 metaSnippet 讓
+        -- 第 1 層共用。這一條釘住「提升之後兩處仍然是同一個答案」——
+        -- 不然規則就變成兩份,而其中一份會先過期。
+        _ <- expansionWorld env
+        r <- runS env (retrieveCandidates opts (grudgeDraft []))
+        let expanded = [c | c <- rrCandidates r, isExpansion (caOrigin c)]
+        expanded `shouldSatisfy` not . null
+        map caSnippet expanded `shouldBe` map (metaSnippet . caMeta) expanded
+
     it "擴充候選的分數嚴格小於它的母候選" $
       withVault $ \env -> do
         _ <- expansionWorld env
@@ -251,6 +262,11 @@ ident = renderId . metaId . caMeta
 
 origins :: RetrievalResult -> [(Text, CandidateOrigin)]
 origins r = [(title c, caOrigin c) | c <- rrCandidates r]
+
+isExpansion :: CandidateOrigin -> Bool
+isExpansion = \case
+  FromExpansion _ _ -> True
+  FromKeyword _ -> False
 
 -- 環境 -------------------------------------------------------------------------
 

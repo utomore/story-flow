@@ -40,6 +40,7 @@ module StoryFlow.Conflict.Retrieval
   , renderRetrievalReason
 
     -- * 純函式部件(供 Pipeline 與測試使用)
+  , metaSnippet
   , matchedNames
   , segmentDraft
   , rankFallbackScore
@@ -233,6 +234,23 @@ chunksOf n t
   | T.null t = []
   | otherwise = let (h, r) = T.splitAt n t in h : chunksOf n r
 
+-- snippet -----------------------------------------------------------------------
+
+-- | 一個片段身上最接近「一句話說明」的東西:@metaSummary@ 去空白後非空就用它,
+-- 否則退回 @metaTitle@。兩者皆空時回空字串(那是 @title@ 自己就是空的)。
+--
+-- __兩個呼叫端共用這一份__,不各自抄一遍:
+--
+-- * 'expandOneHop' 的一跳擴充候選——它不是被檢索命中的,沒有 FTS5 給的 snippet
+-- * @Conflict.Pipeline@ 的第 1 層命中——它命中的是__一條關聯__而不是某一段文字
+--
+-- 兩處問的是同一個問題(「這個片段沒有命中片段可指,拿什麼當 snippet」),
+-- 所以規則只該有一份。
+metaSnippet :: Meta -> Text
+metaSnippet m
+  | not (T.null (T.strip (metaSummary m))) = metaSummary m
+  | otherwise = metaTitle m
+
 -- 分數 -------------------------------------------------------------------------
 
 -- | 'shScore' 為 'Nothing' 時的名次回退:@1 \/ (k + 2)@,@k@ 是 0-based 名次。
@@ -384,16 +402,10 @@ expandOneHop = go
     expandedFrom p k m =
       Candidate
         { caMeta = m
-        , caSnippet = snippetOf m
+        , caSnippet = metaSnippet m
         , caScore = caScore p * expansionDecay
         , caOrigin = FromExpansion (metaId (caMeta p)) k
         }
-
-    -- 擴充目標不是被檢索命中的,沒有 FTS5 給的 snippet;總結是它身上最接近
-    -- 「一句話說明」的東西,總結為空時退回標題。
-    snippetOf m
-      | not (T.null (T.strip (metaSummary m))) = metaSummary m
-      | otherwise = metaTitle m
 
     lookupMeta i =
       (Just . entMeta . evEntity <$> getEntity i) `catchError` const (pure Nothing)

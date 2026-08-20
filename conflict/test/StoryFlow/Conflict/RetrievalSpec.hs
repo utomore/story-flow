@@ -137,6 +137,22 @@ spec = do
       withinWindow (Just 1) [10, 40] (timed 41) `shouldBe` True
       withinWindow (Just 1) [10, 40] (timed 25) `shouldBe` False
 
+  describe "conflict-detection/F004 T2 metaSnippet" $ do
+    it "summary 非空就取 summary" $
+      metaSnippet (summarised "埃提亞的第七織手") `shouldBe` "埃提亞的第七織手"
+
+    it "summary 全為空白時退回 title" $ do
+      metaSnippet (summarised "") `shouldBe` "琳達"
+      metaSnippet (summarised "   ") `shouldBe` "琳達"
+      metaSnippet (summarised "\n\t ") `shouldBe` "琳達"
+
+    it "summary 與 title 皆空時回空字串" $
+      metaSnippet ((summarised "") {metaTitle = ""}) `shouldBe` ""
+
+-- 「一跳擴充候選的 caSnippet 與 metaSnippet 逐字相同」這一半在
+-- "StoryFlow.Conflict.RetrievalEnvSpec" 驗:expandOneHop 是私有的,而拿真的候選
+-- 去比才證明得了「規則只有一份」,在這裡另外組一個假候選只會證明假候選長什麼樣。
+
   describe "T10 理由文案與兩種輸出轉換" $ do
     it "關鍵詞句型含 renderId 的 id 與加了引號的關鍵詞" $ do
       let r = renderRetrievalReason (cand "ent-1001" 0.8 "……織紋刀……" "織紋刀")
@@ -210,6 +226,10 @@ timed n = (metaOf "ent-1001" "片段") {metaTimeline = Timeline (Just "崩塌前
 
 untimed :: Meta
 untimed = (metaOf "ent-1001" "片段") {metaTimeline = emptyTimeline}
+
+-- | 標題固定是「琳達」,總結由呼叫端給——'metaSnippet' 的三條分支就靠它區分。
+summarised :: Text -> Meta
+summarised s = (metaOf "ent-1001" "琳達") {metaSummary = s}
 
 strictlyDecreasing :: [Double] -> Bool
 strictlyDecreasing xs = and (zipWith (>) xs (drop 1 xs))

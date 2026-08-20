@@ -60,6 +60,7 @@ test-suite storyflow-service-test
         StoryFlow.Service.Fixtures
         StoryFlow.Service.JsonSpec
         StoryFlow.Service.LevelSpec
+        StoryFlow.Service.LinkGraphSpec
         StoryFlow.Service.LinkSpec
         StoryFlow.Service.MonadSpec
         StoryFlow.Service.TypeListSpec

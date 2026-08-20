@@ -3,7 +3,7 @@ id: F004
 type: feature
 title: context-command
 description: "前兩層合流的 context 出口:story-flow context 與 POST /conflict/context"
-status: open
+status: done
 created: 2026-08-20
 updated: 2026-08-20
 depends-on: [F001, F002, F003, entity-graph-core/F002, entity-graph-core/F004, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003]
@@ -383,20 +383,20 @@ renderContext :: [ContextHit] -> Text
 
 ## TodoList
 
-- [ ] T1: `StoryFlow.Service` 新增 `linkGraph :: ServiceM LinkGraph`(取 `envConn` → `loadLinkGraph`),加進匯出清單,並在 haddock 寫明「本 Vault 的目標一律 `refVault = Nothing`」這條由索引保證的不變量 `dep: -`
-- [ ] T2: `Conflict.Retrieval` 把 `expandOneHop` 內的 `snippetOf` 提升為公開的 `metaSnippet :: Meta -> Text` 並加進匯出清單,原處改為呼叫它 `dep: -`
-- [ ] T3: 新模組 `StoryFlow.Conflict.Pipeline`,實作 `graphContextHits`:`linkGraph` → `graphHits` → 逐筆 `getEntity` 補 `Meta`(`catchError` 查不到就丟棄)→ `metaSnippet` 補 snippet `dep: T1, T2`
-- [ ] T4: `mergeContextHits` / `sortContextHits` 兩個純函式:依 `metaId` 去重、`xhVia` 取層級較前者、`xhSnippet` 取 `ByRetrieval` 那一筆、排序鍵 `(層級序, Down 分數, metaId)` `dep: T2`
-- [ ] T5: `gatherContext` 門面:第 1 層 + 第 2 層 → `mergeContextHits`;不再套 `coTopN`;空 `drRefs` / 空 `drText` 都不報錯 `dep: T3, T4`
-- [ ] T6: `conflict/storyflow-conflict.cabal` 的 `exposed-modules` 加入 `StoryFlow.Conflict.Pipeline`,`build-depends` **一個字不動**;更新 `Conflict.CabalSpec` 加上對應斷言 `dep: T5`
-- [ ] T7: `storyflow-api` 新增 `ContextReq`(含 `ToJSON` / `FromJSON`)與 `ConflictAPI`,併入 `StoryFlowAPI` 並掛 `conflict` tag;`storyflow-api.cabal` 加 `storyflow-conflict`,`Api.CabalSpec` 的 `required` 補上它 `dep: T5`
-- [ ] T8: `StoryFlow.Api.Instances` 補六個 `ToSchema`(`Draft` / `ConflictOpts` / `GraphEvidence` / `HitLayer` / `ContextHit` / `ContextReq`),`HitLayer` 用聯集物件 + `required = ["layer"]`;`Api.Fixtures` 補樣本 `dep: T7`
-- [ ] T9: 更新 `Api.ApiSpec`(operation 23→24、`expectedRoutes` 加 `/conflict/context` post、`readOnlyRoutes` 加它)與 `Api.OpenApiSpec`(paths 14→15、ops 23→24、`expectedSchemas` 補新型別) `dep: T8`
-- [ ] T10: `storyflow-server` 新增 `conflictH` 一行 handler 併進 `handlers`;`storyflow-server.cabal` 加 `storyflow-conflict`,`Server.CabalSpec` 的 `required` 補上它 `dep: T7`
-- [ ] T11: CLI `Options`:`Command` 加 `Context BodySource [Id] ConflictOpts`,新增頂層 `context` 子指令與 `--for` / `--ref` / `--top-n` / `--timeline-window` / `--graph-depth` 五個旗標 `dep: -`
-- [ ] T12: CLI `Backend`:`cContext` client 函式(解構多接一項)與 `gatherContextB` 兩條分派 `dep: T7, T11`
-- [ ] T13: CLI `Render.renderContext` + `StoryFlow.Cli.handle` 接線(`--for` 走既有 `readBody`),`--json` 走既有信封;`storyflow-cli.cabal` 加 `storyflow-conflict`,`Cli.CabalSpec` 的 `required` 補上它 `dep: T12`
-- [ ] T14: 端到端對照:同一個臨時 Vault、同一份草稿,內嵌與 `--remote` 兩種形式的 stdout 與 `--json` 信封逐字元相等 `dep: T10, T13`
+- [x] T1: `StoryFlow.Service` 新增 `linkGraph :: ServiceM LinkGraph`(取 `envConn` → `loadLinkGraph`),加進匯出清單,並在 haddock 寫明「本 Vault 的目標一律 `refVault = Nothing`」這條由索引保證的不變量 `dep: -`
+- [x] T2: `Conflict.Retrieval` 把 `expandOneHop` 內的 `snippetOf` 提升為公開的 `metaSnippet :: Meta -> Text` 並加進匯出清單,原處改為呼叫它 `dep: -`
+- [x] T3: 新模組 `StoryFlow.Conflict.Pipeline`,實作 `graphContextHits`:`linkGraph` → `graphHits` → 逐筆 `getEntity` 補 `Meta`(`catchError` 查不到就丟棄)→ `metaSnippet` 補 snippet `dep: T1, T2`
+- [x] T4: `mergeContextHits` / `sortContextHits` 兩個純函式:依 `metaId` 去重、`xhVia` 取層級較前者、`xhSnippet` 取 `ByRetrieval` 那一筆、排序鍵 `(層級序, Down 分數, metaId)` `dep: T2`
+- [x] T5: `gatherContext` 門面:第 1 層 + 第 2 層 → `mergeContextHits`;不再套 `coTopN`;空 `drRefs` / 空 `drText` 都不報錯 `dep: T3, T4`
+- [x] T6: `conflict/storyflow-conflict.cabal` 的 `exposed-modules` 加入 `StoryFlow.Conflict.Pipeline`,`build-depends` **一個字不動**;更新 `Conflict.CabalSpec` 加上對應斷言 `dep: T5`
+- [x] T7: `storyflow-api` 新增 `ContextReq`(含 `ToJSON` / `FromJSON`)與 `ConflictAPI`,併入 `StoryFlowAPI` 並掛 `conflict` tag;`storyflow-api.cabal` 加 `storyflow-conflict`,`Api.CabalSpec` 的 `required` 補上它 `dep: T5`
+- [x] T8: `StoryFlow.Api.Instances` 補六個 `ToSchema`(`Draft` / `ConflictOpts` / `GraphEvidence` / `HitLayer` / `ContextHit` / `ContextReq`),`HitLayer` 用聯集物件 + `required = ["layer"]`;`Api.Fixtures` 補樣本 `dep: T7`
+- [x] T9: 更新 `Api.ApiSpec`(operation 23→24、`expectedRoutes` 加 `/conflict/context` post、`readOnlyRoutes` 加它)與 `Api.OpenApiSpec`(paths 14→15、ops 23→24、`expectedSchemas` 補新型別) `dep: T8`
+- [x] T10: `storyflow-server` 新增 `conflictH` 一行 handler 併進 `handlers`;`storyflow-server.cabal` 加 `storyflow-conflict`,`Server.CabalSpec` 的 `required` 補上它 `dep: T7`
+- [x] T11: CLI `Options`:`Command` 加 `Context BodySource [Id] ConflictOpts`,新增頂層 `context` 子指令與 `--for` / `--ref` / `--top-n` / `--timeline-window` / `--graph-depth` 五個旗標 `dep: -`
+- [x] T12: CLI `Backend`:`cContext` client 函式(解構多接一項)與 `gatherContextB` 兩條分派 `dep: T7, T11`
+- [x] T13: CLI `Render.renderContext` + `StoryFlow.Cli.handle` 接線(`--for` 走既有 `readBody`),`--json` 走既有信封;`storyflow-cli.cabal` 加 `storyflow-conflict`,`Cli.CabalSpec` 的 `required` 補上它 `dep: T12`
+- [x] T14: 端到端對照:同一個臨時 Vault、同一份草稿,內嵌與 `--remote` 兩種形式的 stdout 與 `--json` 信封逐字元相等 `dep: T10, T13`
 
 ## 1-to-1 測試對照表
 
@@ -464,7 +464,78 @@ renderContext :: [ContextHit] -> Text
   → 採取:程式碼與測試照新數字更新(T9、T11),**架構文檔一個字都不改**(委派模式不得寫
   `design.md` / `system.md`)
   → 影響:編排者需要在階段閘門回寫兩份架構文檔的這三個數字,否則 `/arch-audit` 會抓到不一致
+  → **實作時的修正**:路徑與 operation 的預測是對的(14 → 15、23 → 24,兩處測試斷言都已更新)。
+  但「21 個子指令」這個數字**在本 feature 動工前就已經與程式碼對不上**:實際的葉子子指令數是
+  **23**(vault 3 + index 2 + type 1 + entity 7 + search 1 + link 3 + level 4 + node 2),加上
+  `context` 之後是 **24**。這不是本 feature 造成的漂移,而是既有的;沒有任何測試釘住這個數字,
+  所以它一路漂到現在。編排者回寫時要用 23 → 24,不是 21 → 22
+- A8: T8 要求「`StoryFlow.Api.Instances` 補**六個** `ToSchema`」,但 `ContextReq` 定義在
+  `StoryFlow.Api`,而 `StoryFlow.Api` 是 `StoryFlow.Api.Instances` 的**下游**(前者 import 後者)
+  ——實例寫進 `Instances` 會造成模組環
+  → 採取:五個孤兒實例(`Draft` / `ConflictOpts` / `GraphEvidence` / `HitLayer` / `ContextHit`)
+  照 T8 放進 `Api.Instances`;`ContextReq` 的 `ToSchema` 與它的 `ToJSON` / `FromJSON` 一起放在
+  `StoryFlow.Api`,與既有的 `NewVaultReq` / `BodyReq` 完全同一種放法
+  → 影響:無外部可見差異。要真的把它搬進 `Instances`,得先把 `ContextReq` 本身搬過去,
+  那會讓 `Api.hs` 不再是「請求 body 小包裝的唯一定義處」
+- A9: T9 要求 `components.schemas` 含 `GraphEvidence`,但 `HitLayer` 的 wire 形狀是**攤平**的
+  (`layer` + 三欄),沒有任何 `$ref` 指向 `GraphEvidence` ——照直覺實作的話它根本不會進 components,
+  `OpenApiSpec` 那條就會紅
+  → 採取:在 `ToSchema HitLayer` 裡呼叫一次 `declareSchemaRef (Proxy :: Proxy GraphEvidence)` 把它
+  登記進 definitions,但不拿那個 ref 當 property。理由是那三欄的**型別本身帶著契約**
+  (`to` 是 `Ref` 而不是 `Id`,跨 Vault 的命中才表達得出來),攤平之後讀 OpenAPI 的 Agent 看不出
+  它們是一組
+  → 影響:`components.schemas` 裡會有一個沒有人 `$ref` 的具名 schema。這在 OpenAPI 是合法的
+  (且 `SchemaSpec` 的 `aligns` 證明它與 `ToJSON GraphEvidence` 逐欄相符,不是說謊的文件)。
+  若編排者認為 components 不該有孤兒項目,拿掉那一行 + `expectedSchemas` 的 `GraphEvidence` 即可
+- A10: T2 的後半「一跳擴充候選的 `caSnippet` 與 `metaSnippet` 逐字相同」原本要寫在
+  `RetrievalSpec`(純函式那一檔),但 `expandOneHop` 是 `Conflict.Retrieval` 的**私有**函式,
+  在那一檔裡只能自己組一個假候選——那證明的是假候選長什麼樣,不是「規則只有一份」
+  → 採取:`metaSnippet` 本身的三條分支留在 `RetrievalSpec`;「兩處同一個答案」那一條移到
+  `RetrievalEnvSpec`(T8 一跳擴充那一節),拿真的跑出來的擴充候選比對
+  → 影響:無。兩條測試都在 `storyflow-conflict` 的 suite 裡,只是分屬純函式檔與整合檔
+- A11: `Api.ApiSpec` 的 `expectedRoutes` 註解明說它是「service-and-interfaces/F001 那份業務操作
+  清單的**獨立副本**」,而 `POST /conflict/context` 對應的不是 service 的業務操作,是
+  `conflict-detection` 的對外契約 `gatherContext`
+  → 採取:新增一張獨立的 `conflictRoutes` 表接在後面,不把它混進那 23 條。operation 數的斷言
+  改寫成「service 的 23 個 + conflict 的 1 個」
+  → 影響:階段二加 `POST /conflict/check` 時往 `conflictRoutes` 加一列即可,兩份來源清單各自
+  對得上帳
 
 ## 實作備註
 
-(實作時填寫)
+1. **`linkGraph` 的不變量測試釘住的是「上游」而不是自己**。
+   `service/test/StoryFlow/Service/LinkGraphSpec.hs` 有五條,其中三條是不變量本身:以帶著本
+   Vault 前綴的 `Ref` 寫進去(`addLink` 一條、`createEntity` 的 `nerLinks` 一條),讀回來時
+   `refVault` 都是 `Nothing`;跨 Vault 的前綴則照樣保留。第三條是刻意的**對照組**——`localize`
+   只壓掉「等於本 Vault 名稱」的那一種,若哪天它變成無差別壓平,第 1 層就會把
+   `shared-lore:ent-xxxx` 當本地 id 反查而製造假命中,這條測試會先紅。
+   `Conflict.Pipeline` 因此一行正規化都沒寫。
+
+2. **`graphContextHits` 的丟棄行為有兩條測試,不只一條**。
+   除了「關聯指向不存在的片段 → 該筆丟棄且不拋錯」,另有一條「存在的與不存在的混在一起 →
+   只丟掉查不到的那一筆」。只驗前者的話,一個「任何一筆查不到就整批回 `[]`」的實作也會通過。
+   懸空關聯是用 `createEntity` 的 `nerLinks` 建出來的:目標存在性只在 `addLink` 驗
+   (`requireTargetExists`),建檔那條路徑不驗——這也正是真實世界裡懸空關聯出現的方式。
+
+3. **`mergeContextHits` 的合併是三選一,不是二選一**。
+   `xhVia` 取層級較前者、`xhSnippet` 取來自 `ByRetrieval` 的那一筆——這兩條規則的**贏家可能
+   不是同一筆**(graph + retrieval 時,via 來自 graph 而 snippet 來自 retrieval)。實作因此不是
+   「挑一筆留下」,而是逐欄組一筆新的。`MergeSpec` 對兩種輸入順序各驗一次,確保結果與
+   `M.insertWith` 的參數順序無關。
+
+4. **`ConflictOpts` 的四欄裡只有三欄開旗標**。
+   `coExpandBody` 是第 3 層(LLM)控制 token 成本的手段,而 `context` 根本不跑第 3 層;給它一個
+   沒有作用的旗標比不給更糟。CLI 那一欄走 `pure (coExpandBody defaultConflictOpts)`。
+
+5. **`renderVia` 的分數固定兩位小數**(`showFFloat (Just 2)`)。
+   `table` 的欄寬由最寬的儲存格決定,浮點的完整尾數會讓 `via` 欄的寬度隨資料跳動;而 T14 的
+   逐字元比對要的是穩定的輸出。要看完整分數的人走 `--json`——那裡是原始的 `Double`。
+
+6. **T14 的四條裡有一條是空清單**。
+   「兩種形式回同一批結果」最容易破的地方不是有結果的時候,而是沒有結果的時候:內嵌可能印
+   `(沒有相關的片段)` 而遠端印空表格。所以空草稿那一條與有命中的那三條同等重要。
+
+7. **`cabal test all` 全綠**:9 個 suite、**1103 examples、0 failures**
+   (types 29 / core 166 / md 189 / api 62 / conflict 139 / service 94 / store 166 / server 63 /
+   cli 195)。相對於本 feature 動工前的 1030 examples,新增 73 條。
+   `storyflow-conflict` 的 `build-depends` **逐字未變**(七項),`CabalSpec` 的雙向斷言仍然成立。

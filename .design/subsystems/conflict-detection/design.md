@@ -235,7 +235,7 @@ data ConflictReport = ConflictReport
 | 1 | conflict-types | 衝突報告的型別、命中層級證據與序列化 | entity-graph-core/F002 | F001 |
 | 2 | conflict-graph | 第 1 層:順 `contradicts` / `supersedes` 遍歷找確定性命中 | #1 | F002 |
 | 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | F003 |
-| 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | - |
+| 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | F004 |
 
 ### 階段二:語意判斷
 

@@ -20,7 +20,7 @@ parent: conflict-detection
 |---|---|---|---|
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
 | 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
-| 階段一 | W2 | #4 context-command (F004) | 設計中 |
+| 階段一 | W2 | #4 context-command (F004) | design-done,實作中 |
 | 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
 | 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
 
@@ -69,7 +69,7 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-types | F001 | F001-conflict-types.md | done(展開前既有) |
 | conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
-| context-command | F004 | F004-context-command.md | pending |
+| context-command | F004 | F004-context-command.md | design-done(14 個 Todo,38 列介面表) |
 | conflict-llm | F005 | (保留,階段二) | 未展開 |
 | conflict-check | F006 | (保留,階段二) | 未展開 |
 
@@ -87,10 +87,17 @@ F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免
 | F003 A6 | ADR-007 沒說一跳擴充要不要含反向關聯 | 只取正向 `lrOutgoing` | 待裁決 |
 | F002 A1 | 取代的三種理由文案都沒接 `linkNote`(只有矛盾兩列有) | 照文檔五列表格逐字實作,`gfNote` 仍保留在 `GraphFinding` | 待裁決 |
 | F002 A2 | 截斷文案「已達深度上限 N」的 N 該取哪個值 | 用 `gfHops`(截斷時恆等於 `coGraphDepth`) | 待裁決 |
-| F002 A3 | 只被**跨 Vault** 參照指到的本地 id,會被 `unlinkedRefs` 列為「零關聯」 | 照文檔「不是任何**本地**關聯的目標」字面實作 | 待裁決(F004 接線做 `Ref` 正規化後自動變正確) |
+| F002 A3 | 只被**跨 Vault** 參照指到的本地 id,會被 `unlinkedRefs` 列為「零關聯」 | 照文檔「不是任何**本地**關聯的目標」字面實作 | **已解決**:F004 設計查證發現正規化上游早就做完了——`Store/Index.hs` 的 `insertLinks` 在寫 `links` 表前套 `localize`,三個寫入點無例外,而 `loadLinkGraph` 讀的正是那張表。編排者已複核 `localize` / `insertLinks` / `loadLinkGraph` 三處原始碼。F004 只需釘住這個不變量,不再掃一遍 |
 | F002 A4 | test-suite 不加 `containers` 相依(硬性邊界),但測試要觀測 `Map`/`Set` | 改用 core 的 `buildGraph` 蓋圖 + `Data.Foldable.toList` 觀測 | 待裁決 |
 | F003 A7 | 一跳擴充帶進來的候選是否也受 timeline 過濾 | 照文檔管線順序(過濾在擴充之前),擴充候選**不**受過濾;但「已見過」集合用掃過的全部,被時序剔除者不會從擴充回來 | 待裁決 |
 | F003 A8 | `ContextHit.xhSnippet` 非 `Maybe`,而擴充候選沒有 FTS5 snippet | 用 `metaSummary`,為空退回 `metaTitle` | 待裁決 |
+| F004 A1 | 契約卡的 CLI 只有 `--for`,**沒有帶 `drRefs` 的旗標——第 1 層在 CLI 上因此永遠不會啟動** | 加 `--ref`(可重複)與 `--top-n` / `--timeline-window` / `--graph-depth`;`coExpandBody` 不開(第 3 層才用) | **待裁決(閘門重點)** |
+| F004 A2 | F002 的 `unlinkedRefs` 在 `[ContextHit]` 的回傳型別裡沒有位置 | 本 feature **不接**——遠端模式拿不到 `ServiceM`,只在內嵌模式多印警告會違反「CLI 與 REST 回同一批結果」;提示留給 F006 | 待裁決 |
+| F004 A3 | 第 1 層命中的 snippet 沒有契約規定(它命中的是一條關聯,不是一段文字) | 用 `metaSnippet`(summary → title),與 F003 一跳擴充同一規則 | 待裁決 |
+| F004 A4 | 兩層命中同一片段時怎麼合併 | `xhVia` 取層級較前者(graph),`xhSnippet` 取 `ByRetrieval` 那一筆 | 待裁決 |
+| F004 A5 | `coTopN` 是否截斷合流後的總清單 | **不截**;它是第 2 層的候選上限 | 待裁決 |
+| F004 A6 | `storyflow-api` 與 `storyflow-server` 會各長出 `storyflow-conflict` 相依 | 照做;`system.md` 的依賴圖與兩個 `CabalSpec` 的禁用清單都允許 | 待裁決 |
+| F004 A7 | 路徑數 / operation 數 / 子指令數會變(14/23/21 → 15/24/22) | 程式碼與測試照新數字改,架構文檔由編排者回寫 | 編排者於實作完成後依實測數字回寫 |
 
 ## 階段結果
 

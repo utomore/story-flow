@@ -5,7 +5,7 @@ title: service-and-interfaces
 description: 業務契約層與它的三種薄包裝:CLI、REST API 與伺服器
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-006, ADR-008, ADR-009]
 ---
@@ -43,7 +43,7 @@ CLI、REST server 與未來的 MCP adapter 全部是同一份契約的薄包裝�
 
 | 元件 | 職責 | 關鍵約束 |
 |---|---|---|
-| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;23 個業務操作;`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
+| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;25 個業務操作(其中 `linkGraph` / `aliasIndex` 只有內嵌出口);`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
 | `storyflow-api` | **只有** servant API 型別、`FromHttpApiData` / `ToHttpApiData`、`ToSchema`、`storyFlowOpenApi` | 不含 `servant-server` / `servant-client` / `warp` ——它是兩個消費端共用的契約 |
 | `storyflow-server` | servant handler(每個一行)、`MVar Env` 序列化、Bearer token middleware、warp 啟動;執行檔 `story-flow-serve` | 不 import `storyflow-store`;handler 內無業務判斷 |
 | `storyflow-cli` | optparse 指令樹、`Backend` 抽象(內嵌 / 遠端)、渲染器、統一信封;執行檔 `story-flow` | 不 import `storyflow-store`、`storyflow-server` 與 `warp` |
@@ -65,7 +65,7 @@ newtype ServiceM a
 openEnv    :: Maybe Text -> FilePath -> IO (Either ServiceError (Env, [IndexIssue]))
 runService :: Env -> ServiceM a -> IO (Either ServiceError a)
 
--- 23 個業務操作,例如:
+-- 25 個業務操作,例如:
 createEntity :: NewEntityReq -> ServiceM EntityView
 updateEntity :: Id -> Int -> EntityPatch -> ServiceM EntityView   -- expected revision 必填
 addNode      :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView
@@ -73,11 +73,16 @@ addNode      :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView
 -- 錯誤:機器看 code、人看 message,三種介面共用
 errorCode           :: ServiceError -> Text   -- snake_case 穩定識別碼
 renderServiceError  :: ServiceError -> Text   -- 繁中,每則都說出下一步
+
+-- P4 消費者(conflict-detection)需要的兩個唯讀出口。2026-08-20 由 /subsys-build 的批次澄清加入。
+-- 只開內嵌出口,不開 CLI 與 REST:它們是子系統之間的查詢介面,不是作者的指令。
+linkGraph  :: ServiceM LinkGraph                      -- 整張關聯圖,第 1 層圖遍歷用
+aliasIndex :: EntityFilter -> ServiceM [(Id, [Text])] -- 片段 id → title 與 aliases,第 2 層反向比對用
 ```
 
 **REST(供外部 Agent 與 `llm-workshop-mcp` 的 MCP adapter)**
 
-14 條路徑、23 個 operation,覆蓋 `ServiceM` 的每一個操作。`revision` 是必填的 query
+14 條路徑、23 個 operation,覆蓋 `ServiceM` **對外**的每一個操作(`linkGraph` / `aliasIndex` 是 P4 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
 parameter。錯誤 body 一律 `{"error":{"code":…,"message":…}}`,`code` 就是 `errorCode`。
 OpenAPI 3 文件由同一份型別推導:`story-flow-serve --openapi > openapi.json`。
 
@@ -128,7 +133,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
                          │                              │
                          │  ServiceM = ReaderT Env      │  Env = Vault+Conn+Registry
                          │             (ExceptT Err IO) │
-                         │  23 個業務操作                │  型別驗證在這裡被呼叫
+                         │  25 個業務操作                │  型別驗證在這裡被呼叫
                          │  ServiceError / errorCode    │  錯誤語彙的唯一來源
                          └───┬──────────────────────┬───┘
                              │                      │
@@ -173,6 +178,11 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 
 - **View 型別**:`EntityView`(Entity + 路徑 + 錨點 + 警告)、`LevelView`(Level + 樹 + 路徑)、
   `VaultView` / `SearchHit` / `LinkReport` / `IndexReport` / `DeleteReport`
+  ——`SearchHit` 自 2026-08-20 起帶 `shScore :: Maybe Double`(0–1,越大越相關):`conflict-detection`
+  第 2 層的 `ByRetrieval` 需要相關度,而那個數字只有這一層拿得到。**FTS5 路徑帶正規化後的 bm25,
+  中文兩字詞走的 `LIKE` 路徑給 `Nothing`** ——那條查詢是 `ORDER BY e.id`,根本沒有相關度可言,
+  給一個合成分數會讓兩種完全不同的東西在型別上長得一模一樣。依既有的「`Maybe` 沒值時整個鍵不
+  出現」約定,舊客戶端不受影響
 - **請求型別**:`NewEntityReq` / `NewFragmentReq` / `NewLevelReq` / `NewNodeReq` / `EntityPatch`
 - **CLI 的統一信封**:`{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`
   ——AI Agent 只需 parse 一種形狀
@@ -230,7 +240,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 - **階段**:階段一(P2 業務契約與內嵌 CLI)
 - **負責模組**:`storyflow-service`
 - **實作的 Level 2 介面**:「對外契約」的內嵌那一組——`Env`、`ServiceM`、`openEnv`、
-  `runService`、23 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
+  `runService`、25 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
   `errorCode` / `renderServiceError`,以及 View 與請求型別
 - **資料流管線段落**:管線中段——「自 Env 取出相依 → 業務驗證 → 委派 store 落地 → 組 View」,
   兩端的解碼與渲染不屬於本項

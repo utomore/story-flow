@@ -5,7 +5,7 @@ title: conflict-detection
 description: 三層衝突偵測:圖遍歷、FTS5 候選撈取與 LLM 判斷
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-002, ADR-003, ADR-005, ADR-007]
 ---
@@ -292,6 +292,19 @@ data ConflictReport = ConflictReport
 - **驗收標準**:`topN` 由 `ConflictOpts` 控制且預設保守;只有 `status = canon` 的片段成為
   比對基準;`timeline` 過濾掉時序上不可能相關的候選;候選以 `partOf` / `occursIn` 一跳擴充;
   換一種候選策略不需要改動第 1、3 層
+- **關鍵詞抽取**(2026-08-20 補):兩路併用後合併去重——(a)**反向比對**既有 canon 片段的
+  `metaTitle` / `metaAliases`,看哪些既有名稱出現在草稿裡(ADR-007「比對到的 aliases」的字面
+  意思,精準且零誤判);(b)**切詞**:依標點與空白切草稿,取足夠長的片段補召回。只做其中一路
+  都不合格:只切詞則中文沒有空白、品質全看標點;只比對 alias 則作者沒寫 alias 的片段完全撈不到,
+  等於把 ADR-007 的緩解措施當成唯一手段
+- **`timeline` 過濾與 `topN` 的先後**(2026-08-20 補):`EntityFilter` 沒有 timeline 欄位,
+  過濾只能發生在 SQL 之後。因此**過度撈取再截斷**:SQL 撈 `topN` 的數倍,過濾掉時序上不可能
+  相關的之後再截到 `topN`。`crScanned` 記的是**實際掃過的候選數(含被過濾掉的)**,使用者才
+  判斷得出 `topN` 夠不夠。先撈 `topN` 再過濾會讓開了 timeline window 之後候選憑空少一截,而
+  調大 `topN` 也未必補得回來
+- **相關度分數的來源**(2026-08-20 補):消費 `service-and-interfaces` 新增的
+  `shScore :: Maybe Double`。`Nothing`(中文兩字詞走的 `LIKE` 路徑沒有相關度可言)時回退到
+  依名次推導,不得捏一個假分數混進 `ByRetrieval`
 - **明確不做**:不做語意判斷;不引入 embedding 模型與第二套索引;不重複 FTS5 的兩字詞處理
   (那在 `entity-graph-core`)
 

@@ -88,7 +88,6 @@ expectedSchemas =
     "ContextReq"
   , "ContextHit"
   , "HitLayer"
-  , "GraphEvidence"
   , "Draft"
   , "ConflictOpts"
   ]

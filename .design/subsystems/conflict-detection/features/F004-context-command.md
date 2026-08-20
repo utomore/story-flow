@@ -480,13 +480,15 @@ renderContext :: [ContextHit] -> Text
 - A9: T9 要求 `components.schemas` 含 `GraphEvidence`,但 `HitLayer` 的 wire 形狀是**攤平**的
   (`layer` + 三欄),沒有任何 `$ref` 指向 `GraphEvidence` ——照直覺實作的話它根本不會進 components,
   `OpenApiSpec` 那條就會紅
-  → 採取:在 `ToSchema HitLayer` 裡呼叫一次 `declareSchemaRef (Proxy :: Proxy GraphEvidence)` 把它
-  登記進 definitions,但不拿那個 ref 當 property。理由是那三欄的**型別本身帶著契約**
-  (`to` 是 `Ref` 而不是 `Id`,跨 Vault 的命中才表達得出來),攤平之後讀 OpenAPI 的 Agent 看不出
-  它們是一組
-  → 影響:`components.schemas` 裡會有一個沒有人 `$ref` 的具名 schema。這在 OpenAPI 是合法的
-  (且 `SchemaSpec` 的 `aligns` 證明它與 `ToJSON GraphEvidence` 逐欄相符,不是說謊的文件)。
-  若編排者認為 components 不該有孤兒項目,拿掉那一行 + `expectedSchemas` 的 `GraphEvidence` 即可
+  → **採取(2026-08-20 階段閘門裁定:不接受孤兒 schema,拿掉)**:`components.schemas`
+  **不含** `GraphEvidence`。`ToSchema HitLayer` 裡那行只為登記而存在的
+  `declareSchemaRef (Proxy :: Proxy GraphEvidence)` 已移除,`OpenApiSpec` 的 `expectedSchemas`
+  也同步移除該項——components 只留路由真的觸得到的 schema
+  → **`ToSchema GraphEvidence` 實例本身保留不刪**:它仍受 `SchemaSpec` 的 `aligns` 對帳
+  (證明與 `ToJSON GraphEvidence` 逐欄相符),且 `conflict-check`(F006)若出現真的巢狀
+  `$ref` 它就會自動進 components
+  → 影響:讀 OpenAPI 的 Agent 在 `HitLayer` 的聯集物件裡只看得到攤平的 `from` / `kind` / `to`,
+  看不出這三欄是一組;這個資訊由 `HitLayer` 的 schema description 承擔
 - A10: T2 的後半「一跳擴充候選的 `caSnippet` 與 `metaSnippet` 逐字相同」原本要寫在
   `RetrievalSpec`(純函式那一檔),但 `expandOneHop` 是 `Conflict.Retrieval` 的**私有**函式,
   在那一檔裡只能自己組一個假候選——那證明的是假候選長什麼樣,不是「規則只有一份」

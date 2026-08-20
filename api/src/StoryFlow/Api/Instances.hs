@@ -537,6 +537,11 @@ instance ToSchema ConflictOpts where
         ]
         []
 
+-- | __不會出現在 @components.schemas@ 裡__:'HitLayer' 的 wire 形狀是攤平的
+-- (@layer@ + 這三欄),沒有任何 @$ref@ 指向它,而 @storyFlowOpenApi@ 只收集
+-- 路由實際觸得到的 schema。這個實例留著是給 @SchemaSpec@ 對帳
+-- (證明它與 @ToJSON GraphEvidence@ 逐欄相符)以及將來真的巢狀引用它的
+-- 端點(conflict-check)用的。
 instance ToSchema GraphEvidence where
   declareNamedSchema _ = do
     idS <- declareSchemaRef (Proxy :: Proxy Id)
@@ -562,12 +567,6 @@ instance ToSchema HitLayer where
     kS <- declareSchemaRef (Proxy :: Proxy LinkKind)
     rS <- declareSchemaRef (Proxy :: Proxy Ref)
     dbl <- declareSchemaRef (Proxy :: Proxy Double)
-    -- @GraphEvidence@ 登記進 @components.schemas@,但__沒有人 @$ref@ 它__:
-    -- 它在 wire 上是攤平的(@layer@ + 它的三欄),不是巢狀物件。之所以仍然要有
-    -- 這個具名 schema,是因為那三欄的型別本身帶著契約——@to@ 是 'Ref' 而不是
-    -- 'Id',跨 Vault 的命中才表達得出來(F001)——而攤平之後,讀 OpenAPI 的 Agent
-    -- 只看得到 @HitLayer@ 那個聯集物件的鍵,看不出這三欄是一組。
-    _ <- declareSchemaRef (Proxy :: Proxy GraphEvidence)
     pure . named "HitLayer" $
       objSchema
         "命中層級,以 layer 標籤區分的和:\

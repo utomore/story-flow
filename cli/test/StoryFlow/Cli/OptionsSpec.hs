@@ -8,6 +8,7 @@ import Data.List (isInfixOf)
 import Data.Text (Text)
 import Options.Applicative (ParserResult (..), renderFailure)
 import StoryFlow.Cli.Options
+import StoryFlow.Conflict.Types (ConflictOpts (..), defaultConflictOpts)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Level (NodeKind (KCast, KScene))
 import StoryFlow.Core.Link (Link (..), LinkKind (Custom, PartOf))
@@ -146,6 +147,58 @@ spec = describe "引數解析" $ do
     it "--root-kind 給不認得的值時失敗" $
       failureMessage ["level", "new", "--title", "x", "--root-title", "y", "--root-kind", "沒這種"]
         `shouldSatisfy` isInfixOf "root-kind"
+
+  describe "context(conflict-detection/F004)" $ do
+    it "只給 --for 時,refs 為空、opts 是 defaultConflictOpts" $
+      snd (parseOk ["context", "--for", "draft.md"])
+        `shouldBe` Context (BodyFile "draft.md") [] defaultConflictOpts
+
+    it "--for - 解成 BodyStdin" $
+      snd (parseOk ["context", "--for", "-"])
+        `shouldBe` Context BodyStdin [] defaultConflictOpts
+
+    it "--ref 可重複,而且順序保留" $
+      -- 順序是 drRefs 的順序,而第 1 層的起點去重是「保持首次出現的順序」
+      -- ——解析階段先把順序弄丟的話,輸出的確定性就沒了。
+      snd (parseOk ["context", "--for", "d.md", "--ref", "ent-7f3a", "--ref", "ent-91cc"])
+        `shouldBe` Context (BodyFile "d.md") [idOf "ent-7f3a", idOf "ent-91cc"] defaultConflictOpts
+
+    it "--ref 給不合法的 id 時是用法錯誤,訊息說得出正確格式" $
+      failureMessage ["context", "--for", "d.md", "--ref", "這不是一個 id"]
+        `shouldSatisfy` isInfixOf "ent-7f3a"
+
+    it "三個數值旗標各自落進 ConflictOpts 對應的欄位" $ do
+      let (_, c) =
+            parseOk
+              [ "context"
+              , "--for"
+              , "d.md"
+              , "--top-n"
+              , "7"
+              , "--timeline-window"
+              , "3"
+              , "--graph-depth"
+              , "4"
+              ]
+      case c of
+        Context bs refs o -> do
+          bs `shouldBe` BodyFile "d.md"
+          refs `shouldBe` []
+          coTopN o `shouldBe` 7
+          coTimelineWindow o `shouldBe` Just 3
+          coGraphDepth o `shouldBe` 4
+          -- coExpandBody 是第 3 層的東西,context 不跑第 3 層,所以沒有旗標
+          coExpandBody o `shouldBe` coExpandBody defaultConflictOpts
+        _ -> expectationFailure ("解析成 " <> show c)
+
+    it "沒給 --timeline-window 時是 Nothing(不做時序過濾)" $
+      case snd (parseOk ["context", "--for", "d.md"]) of
+        Context _ _ o -> coTimelineWindow o `shouldBe` Nothing
+        c -> expectationFailure ("解析成 " <> show c)
+
+    it "缺 --for 是用法錯誤" $
+      -- 草稿要從哪裡來猜不得,所以它沒有預設值。
+      failureMessage ["context"] `shouldSatisfy` isInfixOf "for"
 
 -- 小工具 -----------------------------------------------------------------------
 

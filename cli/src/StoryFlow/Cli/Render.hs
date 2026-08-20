@@ -31,6 +31,8 @@ module StoryFlow.Cli.Render
   , renderIndexReport
   , renderDelete
   , renderCreated
+  , renderContext
+  , renderVia
 
     -- * 排版工具
   , displayWidth
@@ -45,6 +47,13 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import Numeric (showFFloat)
+import StoryFlow.Conflict.Types
+  ( ContextHit (..)
+  , GraphEvidence (..)
+  , HitLayer (..)
+  , layerTag
+  )
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (renderId, renderRef)
 import StoryFlow.Core.Level (Level (..), Node (..), renderNodeKind)
@@ -248,6 +257,43 @@ renderCreated verb v =
   verb <> " " <> renderId (evId v) <> "(" <> T.pack (evPath v) <> anchor <> ")"
   where
     anchor = maybe "" ("#" <>) (evAnchor v)
+
+-- 人類可讀:context(conflict-detection/F004) ---------------------------------------
+
+-- | @id | type | status | title | via | snippet@ 的對齊表格。
+--
+-- @via@ 這一欄是這張表存在的理由:第 1 層的命中是__事實__(作者自己標的關聯),
+-- 第 2 層是__相關度__——ADR-007 明說「使用者需要知道差別」,而在人類模式裡,
+-- 那個差別就是這一欄。
+renderContext :: [ContextHit] -> Text
+renderContext [] = "(沒有相關的片段)"
+renderContext hs = table ["id", "type", "status", "title", "via", "snippet"] (map row hs)
+  where
+    row h =
+      let m = xhMeta h
+       in [ renderId (metaId m)
+          , metaType m
+          , renderStatus (metaStatus m)
+          , metaTitle m
+          , renderVia (xhVia h)
+          , oneLine (xhSnippet h)
+          ]
+
+-- | @graph(contradicts→ent-91cc)@ \/ @retrieval(0.82)@ \/ @judge(0.91)@。
+--
+-- 標籤字串走 'StoryFlow.Conflict.Types.layerTag',__不另寫一份__ ——@--json@ 的
+-- @via.layer@ 用的就是它,兩種模式講的是同一個詞。
+--
+-- 括號裡是那一層特有的證據:第 1 層是造成命中的關聯(所以人不必再去查一次圖),
+-- 第 2、3 層是分數。分數固定兩位小數——欄寬才不會因為浮點的尾數而跳動。
+renderVia :: HitLayer -> Text
+renderVia l = layerTag l <> "(" <> detail <> ")"
+  where
+    detail = case l of
+      ByGraph ev -> renderLinkKind (geKind ev) <> "→" <> renderRef (geTo ev)
+      ByRetrieval s -> score s
+      ByJudge c -> score c
+    score d = T.pack (showFFloat (Just 2) d "")
 
 -- 排版工具 ---------------------------------------------------------------------
 

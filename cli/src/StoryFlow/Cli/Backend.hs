@@ -49,6 +49,9 @@ module StoryFlow.Cli.Backend
   , deleteLevelB
   , addNodeB
   , removeNodeB
+
+    -- * 衝突偵測
+  , gatherContextB
   ) where
 
 import Control.Exception (finally)
@@ -71,8 +74,10 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hAuthorization, statusCode)
 import Servant.API ((:<|>) (..))
 import Servant.Client
-import StoryFlow.Api (BodyReq (..), NewVaultReq (..), StoryFlowAPI)
+import StoryFlow.Api (BodyReq (..), ContextReq (..), NewVaultReq (..), StoryFlowAPI)
 import StoryFlow.Cli.Error
+import StoryFlow.Conflict.Pipeline (gatherContext)
+import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft)
 import StoryFlow.Cli.Options (GlobalOpts (..))
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Link (Link, LinkKind)
@@ -219,6 +224,7 @@ cAddNode :: Id -> Id -> Int -> NewNodeReq -> ClientM LevelView
 cRemoveNode :: Id -> Id -> Int -> Maybe Bool -> ClientM LevelView
 cTypes :: ClientM [EntityTypeSpec]
 cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> ClientM [SearchHit]
+cContext :: ContextReq -> ClientM [ContextHit]
 ( cListVaults
     :<|> cCreateVault
     :<|> cVaultInfo
@@ -236,7 +242,8 @@ cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> Clie
   :<|> (cLinksOf :<|> cAddLink :<|> cRemoveLink)
   :<|> (cListLevels :<|> cCreateLevel :<|> cGetLevel :<|> cDeleteLevel)
   :<|> (cAddNode :<|> cRemoveNode)
-  :<|> (cTypes :<|> cSearch) = client (Proxy :: Proxy StoryFlowAPI)
+  :<|> (cTypes :<|> cSearch)
+  :<|> cContext = client (Proxy :: Proxy StoryFlowAPI)
 
 -- 操作:每個三行 -----------------------------------------------------------------
 
@@ -335,3 +342,15 @@ addNodeB (Remote c) lvl parent rev r = rmt c (cAddNode parent lvl rev r)
 removeNodeB :: Backend -> Id -> Id -> Int -> Bool -> M LevelView
 removeNodeB (Embedded e) lvl i rev f = svc e (S.removeNode lvl i rev f)
 removeNodeB (Remote c) lvl i rev f = rmt c (cRemoveNode i lvl rev (Just f))
+
+-- | 前兩層合流的 context 出口(conflict-detection/F004)。
+--
+-- 兩條路徑回的是__同一個型別__ @[ContextHit]@:內嵌直接拿到,遠端由
+-- @servant-client@ 依同一份 API 型別解碼。指令層與渲染器因此看不出差別,
+-- 「CLI 與 REST 兩種形式回同一批結果」是結構上成立的,不是靠對照測試碰運氣。
+--
+-- __整張關聯圖不會跨過 HTTP__:遠端模式送出去的是 'ContextReq',伺服器端自己在
+-- 'StoryFlow.Service.ServiceM' 裡呼叫 @linkGraph@。
+gatherContextB :: Backend -> ConflictOpts -> Draft -> M [ContextHit]
+gatherContextB (Embedded e) o d = svc e (gatherContext o d)
+gatherContextB (Remote c) o d = rmt c (cContext (ContextReq d o))

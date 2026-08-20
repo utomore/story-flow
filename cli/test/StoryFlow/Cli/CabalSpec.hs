@@ -46,8 +46,21 @@ forbidden =
   , "servant-server"
   ]
 
+-- | conflict-detection/F004:@storyflow-conflict@ 加進來。
+--
+-- @story-flow context@ 的 'StoryFlow.Cli.Options.Command' 帶 @ConflictOpts@、
+-- 渲染器要認得 @ContextHit@、內嵌路徑要呼叫 @gatherContext@ ——三處都在 library。
+-- 它__不在 forbidden 裡__而且不該在:它的 @build-depends@ 自己就逐字擋著落地層,
+-- 所以「CLI 碰不到落地層」這條保護不會因為它而被繞過。
 required :: [String]
-required = ["storyflow-service", "storyflow-core", "storyflow-api", "optparse-applicative", "servant-client"]
+required =
+  [ "storyflow-service"
+  , "storyflow-core"
+  , "storyflow-api"
+  , "storyflow-conflict"
+  , "optparse-applicative"
+  , "servant-client"
+  ]
 
 -- | 取出某個 stanza 的內容:從它的標頭那一行,到下一個頂層標頭為止。
 stanza :: String -> String -> [String]

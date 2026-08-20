@@ -29,6 +29,7 @@ module StoryFlow.Cli.Options
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
+import StoryFlow.Conflict.Types (ConflictOpts (..), defaultConflictOpts)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Level (NodeKind, allNodeKinds, parseNodeKind, renderNodeKind)
 import StoryFlow.Core.Link (Link (..), LinkKind, coreLinkKinds, parseLinkKind, renderLinkKind)
@@ -102,6 +103,11 @@ data Command
   | LevelRm Selector (Maybe Int) Bool
   | NodeAdd Selector (Maybe Int) NewNodeReq
   | NodeRm Selector (Maybe Int) Bool
+  | -- | @context --for \<檔案|-\>@:草稿來源、已引用的片段、三層共用的選項。
+    --
+    -- 草稿是 'BodySource' 而不是 'Text',理由與 'EntitySetBody' 相同——讀檔與讀
+    -- stdin 是 IO,而 'parseCli' 是純的。
+    Context BodySource [Id] ConflictOpts
   deriving stock (Show, Eq)
 
 -- 進入點 -----------------------------------------------------------------------
@@ -151,6 +157,7 @@ commandP =
         <> grp "link" linkP "關聯的增刪查"
         <> grp "level" levelP "Level 場景樹"
         <> grp "node" nodeP "Level 裡的 Node"
+        <> cmd "context" contextP "撈出與一段草稿相關的既有片段(只跑前兩層,不做矛盾判斷)"
     )
 
 -- | 名詞層:再包一層動詞的 @hsubparser@。
@@ -328,6 +335,64 @@ nodeAddP =
             <*> bodyTextOpt
             <*> many linkOpt
         )
+
+-- | @context@ 是__頂層名詞__(與 @search@ 同一種形狀),不是
+-- @story-flow conflict context@ ——它是給外部 Agent 用的日常入口,而 @conflict@
+-- 那個名詞底下之後放的是「做判斷」的那一組(階段二的 @conflict check@)。
+contextP :: Parser Command
+contextP = Context <$> forP <*> many refOpt <*> conflictOptsP
+
+-- | @--for@ __必填__,沒有預設:草稿要從哪裡來,猜不得。
+--
+-- @-@ 解成 'BodyStdin',其餘一律當檔案路徑——與 @entity set-body@ 的 @-@ 同一條
+-- 規則,連 UTF-8 強制解碼與「讀不到檔」的錯誤訊息都沿用 'StoryFlow.Cli' 的
+-- @readBody@。
+forP :: Parser BodySource
+forP =
+  toSource
+    <$> strOption
+      ( long "for"
+          <> metavar "<檔案|->"
+          <> help "草稿的來源檔案(UTF-8);寫 - 就從 stdin 讀"
+      )
+  where
+    toSource :: FilePath -> BodySource
+    toSource "-" = BodyStdin
+    toSource p = BodyFile p
+
+-- | 草稿已經引用了哪些片段。__可重複,順序保留__。
+--
+-- 契約卡的 CLI 形式只寫了 @--for@,但第 1 層完全靠這個清單起步——沒有它,
+-- @story-flow context@ 這條路的第 1 層永遠不會有輸出(見 F004 待確認假設 A1)。
+refOpt :: Parser Id
+refOpt =
+  option
+    (eitherReader (readWith (fmap snd . parseId) "id 的格式應為 <prefix>-<十六進位>,如 ent-7f3a"))
+    ( long "ref"
+        <> metavar "<id>"
+        <> help "草稿已引用的片段 id,可重複;第 1 層由它起步"
+    )
+
+-- | 三個數值旗標對應 'ConflictOpts' 的三欄。
+--
+-- @coExpandBody@ __不開旗標__:它是第 3 層(LLM)控制 token 成本的手段,而
+-- @context@ 根本不跑第 3 層,給它一個沒有作用的旗標只會讓人以為有作用。
+conflictOptsP :: Parser ConflictOpts
+conflictOptsP =
+  ConflictOpts
+    <$> intOpt "top-n" (coTopN defaultConflictOpts) "第 2 層的候選上限"
+    <*> pure (coExpandBody defaultConflictOpts)
+    <*> optional
+      ( option
+          auto
+          ( long "timeline-window"
+              <> metavar "<n>"
+              <> help "只保留 timeline order 與草稿引用片段相距 n 以內的候選;不給就不做時序過濾"
+          )
+      )
+    <*> intOpt "graph-depth" (coGraphDepth defaultConflictOpts) "第 1 層順 supersedes 反向遍歷的深度"
+  where
+    intOpt l d h = option auto (long l <> metavar "<n>" <> value d <> help (h <> ",預設 " <> show d))
 
 -- 共用選項 ---------------------------------------------------------------------
 

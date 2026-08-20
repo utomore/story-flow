@@ -19,7 +19,7 @@ parent: conflict-detection
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
-| 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | pending |
+| 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | design-done,實作中 |
 | 階段一 | W2 | #4 context-command (F004) | pending |
 | 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
 | 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
@@ -68,7 +68,7 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 |---|---|---|---|
 | conflict-types | F001 | F001-conflict-types.md | done(展開前既有) |
 | conflict-graph | F002 | F002-conflict-graph.md | design-done(展開前既有),待實作 |
-| conflict-retrieval | F003 | F003-conflict-retrieval.md | pending |
+| conflict-retrieval | F003 | F003-conflict-retrieval.md | design-done(11 個 Todo,30 列介面表) |
 | context-command | F004 | F004-context-command.md | pending |
 | conflict-llm | F005 | (保留,階段二) | 未展開 |
 | conflict-check | F006 | (保留,階段二) | 未展開 |
@@ -79,7 +79,12 @@ F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| (待各 feature 回報後填入) | | | |
+| F003 A1 | `searchEntities` 的簽名寫在 `entity-graph-core/design.md`,S2 只回寫了 `service-and-interfaces`,漏了資料真正的產出端 | 設計照 S2 寫完,不自行改 design.md,交編排者 | **編排者已處理**:依 S2 的既有決定回寫 `entity-graph-core/design.md` 第 79 行為 `IO [(Meta, Text, Maybe Double)]`,並補一段說明 LIKE 路徑為何一律 `Nothing`。閘門請確認 |
+| F003 A2 | S3 的「傳輸量小得多」理由只對 REST 成立,而 `aliasIndex` 不開 REST | `aliasIndex` 建在既有 `listEntities` 之上,不新增 store 查詢,少改一個子系統的契約 | 待裁決 |
+| F003 A3 | `design.md` 把第 2 層成本寫成「一次 SQL」,但 `searchEntity` 一次只吃一個關鍵詞,D2 要求兩路併用 | 每個關鍵詞一次 SQL,`maxKeywords = 16` 封頂 | **編排者已回寫**:成本欄改為「每個關鍵詞一次 SQL(上限可調)」——這是 D2 的事實後果,不是新決定。閘門請確認 |
+| F003 A4 | `coTimelineWindow` 是「`tlOrder` 的容許距離」,但 `Draft` 沒有 timeline 欄位,契約沒說基準點是誰 | 以 `drRefs` 對應片段的 `tlOrder` 為基準;基準為空時**不過濾**而非全剔除 | 待裁決 |
+| F003 A5 | 一跳擴充的候選沒有檢索分數,卻要與關鍵詞候選一起排序、一起受 `topN` 約束 | 分數 = 母候選 × `expansionDecay 0.5`;`topN` 約束合併後的最終清單 | 待裁決 |
+| F003 A6 | ADR-007 沒說一跳擴充要不要含反向關聯 | 只取正向 `lrOutgoing` | 待裁決 |
 
 ## 階段結果
 

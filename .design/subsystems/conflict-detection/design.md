@@ -48,7 +48,7 @@ claude code 自己有很強的判斷能力。所以前兩層要能單獨出口�
 | `Conflict.Types` | `Draft` / `ConflictOpts` / `GraphEvidence` / `HitLayer` / `ConflictHit` / `ContextHit` / `ConflictReport` | — | — |
 | `Conflict.Json` | 上述型別的 aeson 實例,集中一處(同 `Core.Json` 的理由) | — | — |
 | `Conflict.Graph`(第 1 層) | 順著草稿已引用片段的 `contradicts` / `supersedes` 遍歷,找已知矛盾與已被取代的設定 | 完全確定性、可重現 | 零 |
-| `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 一次 SQL |
+| `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 每個關鍵詞一次 SQL(上限可調) |
 | `Conflict.Judge`(第 3 層) | 草稿 × 候選逐對送 LLM 問「是否矛盾、矛盾在哪」 | 非確定性 | 每對一次呼叫 |
 | `Conflict.Pipeline` | 三層合流、去重、依命中層級排序 | — | — |
 
@@ -130,7 +130,7 @@ Draft(草稿文字 + 已引用的片段 id)
     │  └───────────────────┬──────────────────────────┘   │
     │                      │ 已知矛盾 / 已被取代            │
     │  ┌───────────────────┴──────────────────────────┐   │
-    │  │ 第 2 層 Conflict.Retrieval    確定性・一次 SQL│   │
+    │  │ 第 2 層 Conflict.Retrieval  確定性・每詞一次 SQL│   │
     │  │  FTS5(關鍵詞 + aliases)→ top-N              │   │
     │  │  過濾:status=canon / timeline               │   │
     │  │  擴充:候選的 partOf / occursIn 一跳          │   │
@@ -234,7 +234,7 @@ data ConflictReport = ConflictReport
 |---|---------|-----------|------|------|
 | 1 | conflict-types | 衝突報告的型別、命中層級證據與序列化 | entity-graph-core/F002 | F001 |
 | 2 | conflict-graph | 第 1 層:順 `contradicts` / `supersedes` 遍歷找確定性命中 | #1 | F002 |
-| 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | - |
+| 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | F003 |
 | 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | - |
 
 ### 階段二:語意判斷

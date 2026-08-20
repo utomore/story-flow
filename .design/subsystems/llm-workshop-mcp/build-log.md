@@ -18,7 +18,7 @@ parent: llm-workshop-mcp
 
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
-| 階段一 | W1 | #1 llm-endpoint (F001) | design-done,實作中 |
+| 階段一 | W1 | #1 llm-endpoint (F001) | **done** |
 | 階段二 | W2 | #2 workshop-stages (F002) | 本次不跑 |
 | 階段二 | W3 | #3 workshop-emit (F003) | 本次不跑 |
 | 階段二 | W4 | #4 workshop-interface (F004) | 本次不跑 |
@@ -59,7 +59,7 @@ fan out 前預先分配,subagent 不得自行配號。
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | design-done(10 個 Todo) |
+| llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | **impl-done**(10/10 Todo,commit f2fec1e) |
 | workshop-stages | F002 | (保留,階段二) | — | — | 未展開 |
 | workshop-emit | F003 | (保留,階段二) | — | — | 未展開 |
 | workshop-interface | F004 | (保留,階段二) | — | — | 未展開 |
@@ -81,9 +81,67 @@ feature 疊在上面」那一列。F002–F005 先保留號碼,回來跑接續�
 | F001 A6 | `llmConfig` 回 `Either` 還是丟 `ServiceError` | 回 `ServiceM (Either LlmError LlmConfig)`,不讓下層錯誤型別認識上層 | 待裁決 |
 | F001 A7 | 設定錯誤訊息要不要帶絕對路徑 | 只寫相對的 `.storyflow/config.toml`(`vaultConfig` 拿不到 `vaultRoot`) | 待裁決 |
 | F001 A8 | 改名後的存取子名 | `LlmSection` / `llmSectionTable`(不沿用 `llmTable`) | 待裁決 |
+| F001 A9 | `chatEndpoint :: LlmConfig -> String` 是「新增的介面」清單外的公開名字,且穿透門面 | 住在 `Llm.Config`:它有兩個呼叫端(`parseLlmConfig` 驗證 `base_url`、`chat` 組請求),放進 `Llm.Client` 會讓 Config 反向 import Client;Haskell 無法「只給同套件看」,要藏只能兩邊各寫一份 URL 規則 | 待裁決 |
 
 ## 階段結果
 
-### 階段一
+### 階段一:LLM 存取
 
-(執行中)
+**完成的 feature**:F001 llm-endpoint(10/10 Todo,設計與實作模型皆**未降級**)。
+子系統進度 1/5 (20%)。**`conflict-detection` 階段二的鎖已解開**——`storyflow-llm` 的
+`LlmClient` / `chat` 現在存在了。
+
+**測試**:`cabal test all` **10/10 suites PASS,1169 examples, 0 failures**(編排者獨立複跑驗證)。
+1103 → 1169,淨增 66 條;新增 `storyflow-llm-test` 62 條,`store` +1、`service` +3,其餘七個不變。
+`cabal build all` 零 error、零 warning。
+
+**既有測試只改兩處**,都是改名的必然波及,無一放寬語意;其中 `store/VaultSpec.hs` 另加一條
+「原始碼裡 `LlmConfig` 字串不再出現」的斷言(**加嚴**——改名若只加不減、留個 deprecated 別名,
+行為測試看不出來)。
+
+**風險項的結果**:`http-client-tls-0.3.6.4` 連同 `tls` / `crypton-connection` / `crypton-x509`
+在 GHC 9.14.1 + **未放寬的** `allow-newer` 下全部裝得起來。`cabal.project` 的 `allow-newer`
+一個字沒動(編排者複核 diff 確認:只多了 `packages: llm/` 與一組 ghc-options),
+並另加一條 `CabalSpec` 斷言把「沒有為了它放寬」釘住。
+
+### 階段一 arch-audit 發現(依嚴重度)
+
+**低 / 5 條**——沒有中或高。契約符合度、邊界與測試都乾淨:
+
+- **A-1 文檔漂移(跨子系統)**:`entity-graph-core/features/F004` 第 134 / 172 行仍寫
+  `Maybe LlmConfig`,而型別已改名為 `LlmSection`。那份文檔 `status: done`,不動它;
+  建議加一行註記指向本次改名
+- **A-2 Level 1 缺一個套件**:`system.md` 第 215 / 627 行的技術選型與套件表只寫 `http-client`,
+  沒有 `http-client-tls`(子系統 `design.md` 有列)。屬 Level 1,本 skill 不自行修改
+- **A-3 模組表與現況有落差**:`design.md`「內部模組劃分」把「錯誤語彙」歸給 `Llm.Client`,
+  實作放在獨立的葉子模組 `Llm.Error`(避免 `Client` ↔ `Config` 互相 import),另有門面
+  `StoryFlow.Llm`。屬 Level 3 的模組切分自主權,但表格可補列
+- **A-4 套件表列了用不到的東西**:`design.md`「使用到的套件」寫 `storyflow-core` / `storyflow-service`,
+  實際 `storyflow-llm` 只需要後者;另外實際多用了 `http-types`
+- **A-5(= A9)公開面比「新增的介面」清單大**:門面 `StoryFlow.Llm` 用 `module X` 整包 re-export,
+  所以 `chatEndpoint` 這個內部推導函式也進了公開面。與上一輪 `Conflict.Retrieval` 的匯出面
+  是同一類問題
+
+**通過的檢查**(逐項查證,非採信回報):
+
+- **Level 2 契約符合度**:`newLlmClient :: LlmConfig -> IO LlmClient`、
+  `chat :: LlmClient -> [Message] -> IO (Either LlmError Text)`、`vaultConfig :: ServiceM VaultConfig`
+  與契約逐字相符;`LlmConfig` 五欄到齊;`LlmClient` 是不透明型別(門面沒有 `(..)`)
+- **邊界外洩**:`storyflow-llm` 的 `build-depends` 無 `storyflow-store` / `storyflow-md` / `sqlite-simple`
+  ——設定經 `service` 的 `vaultConfig` 取得,與「所有讀取經 `ServiceM`」同一條紀律
+- **`conflict/` 零改動**(`git status --porcelain conflict/` 回 0 行):`CabalSpec` 的 `forbidden`
+  仍含 `storyflow-llm`,沒有被順手放行
+- **錯誤語彙分層**:`LlmError` 自己一套 + `llmErrorCode` / `renderLlmError`,不重寫下層訊息、
+  也不讓下層認識 `ServiceError`(`llmConfig` 回 `ServiceM (Either LlmError LlmConfig)`),
+  符合 `system.md` 的全域錯誤處理策略
+- **測試真的測到了「連不上服務」**:stub 端點打真的 HTTP,逾時、重試次數、連線被拒、
+  回了但格式不對四種都有覆蓋;無固定長 sleep、無寫死埠號,全套 5.0 秒
+
+### 編排者在本階段對架構文檔做的回寫(閘門請確認)
+
+| 檔案 | 改了什麼 | 依據 |
+|---|---|---|
+| `llm-workshop-mcp/design.md` | `LlmConfig` 加 `lcRetries`;補「與 store 佔位型別的關係」與「沒有 `[llm]` 段時回錯誤」兩段;修正該錯誤的歸屬(`newLlmClient` → 設定載入階段);回填 #1 的 `doc` 欄;MCP 的 operation 計數 23 → 24 | 批次澄清 C1/C3/C4 與 F001 A2;23→24 是既有漂移 |
+| `service-and-interfaces/design.md` | 新增 `vaultConfig :: ServiceM VaultConfig`(只開內嵌出口);操作數 25 → 26 | 批次澄清 S2 |
+
+**`system.md` 本次一個字都沒改。**

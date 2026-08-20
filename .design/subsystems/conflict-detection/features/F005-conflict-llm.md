@@ -3,9 +3,9 @@ id: F005
 type: feature
 title: conflict-llm
 description: 衝突偵測第 3 層:草稿與候選逐對送 LLM 判斷矛盾
-status: open
+status: done
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 depends-on: [F001, F003, llm-workshop-mcp/F001, entity-graph-core/F002, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003]
 related-adr: [ADR-007]
 related-feature: []
@@ -635,17 +635,17 @@ library 與 test-suite 的 `build-depends` 各加 `storyflow-llm`。
 
 ## TodoList
 
-- [ ] T1: `Conflict.Types`:`ConflictOpts` 在 `coTopN` 後插入 `coJudgeN`、`defaultConflictOpts` 補 `coJudgeN = 5`;新增並匯出 `ReportNote (..)`;`ConflictReport` 加 `crNotes`、`emptyReport` 補 `[]`  `dep: F001`
-- [ ] T2: `Conflict.Json`:`ReportNote` 的 `ToJSON` / `FromJSON`(`code` / `detail`);`ConflictOpts` 加 `judge_n`(缺席退預設);`ConflictReport` 加 `notes`(缺席退 `[]`)  `dep: T1`
-- [ ] T3: 擴欄的連帶更新:`api` 的 `ToSchema ConflictOpts` 加 `judge_n`(`required` 不動)與 `sampleConflictOpts` 補欄;`cli` 的 `conflictOptsP` 補 `pure (coJudgeN defaultConflictOpts)`(不開 `--judge-n`);conflict 既有三個 spec 的建構與斷言更新  `dep: T2`
-- [ ] T4: `storyflow-conflict.cabal` library 與 test-suite 加 `storyflow-llm`、`exposed-modules` 加 `StoryFlow.Conflict.Judge`;`CabalSpec` 的 `forbidden` 縮成三項、新增「必須含 `storyflow-llm`」的正向斷言、`libraryDeps` / `testDeps` 逐字清單更新  `dep: T1`
-- [ ] T5: `Verdict` 與解析:`stripCodeFence` 三條規則、`parseVerdict`(fence → decode → `{`…`}` 切片回退 → decode)、confidence clamp、`contradicts = true` 但理由空白視為解析失敗  `dep: T4`
-- [ ] T6: prompt:`judgeSystemPrompt`(只輸出 JSON、三個鍵、繁中一句話理由)、`renderPairPrompt`(固定段落標記、id 走 `renderId`、`drRefs` 不進)、`judgeMessages`(`System` + `User` 兩則)  `dep: T4`
-- [ ] T7: `JudgeTarget` 與 `resolveTargets`:先套 `coJudgeN` 預算再解析文字;預設 `metaSnippet`,`coExpandBody` 時經 `getEntity` 取 `entBody`,空白或讀不到用 `catchError` 退回 summary;`jtExpanded` 如實記錄  `dep: T4`
-- [ ] T8: `JudgeRunner` 與 `judgeLoop`:逐對呼叫、`jrJudged` 計數、`verdictHit` 組裝命中、`judge_call_failed` / `judge_parse_failed` note、`LlmUnavailable` 中止並記 `judge_aborted`、已成功的一律保留  `dep: T5, T6`
-- [ ] T9: `JudgeSkip` / `skipNote`:三個 `judge_` 前綴的代碼與繁中文案(`renderLlmError` 的原文進 `rnDetail`)  `dep: T1`
-- [ ] T10: 門面 `llmRunner` / `judgeCandidatesWith` / `judgeCandidates`;`coJudgeN <= 0` 而候選非空時記 `judge_disabled` 且一次都不呼叫 runner  `dep: T7, T8, T9`
-- [ ] T11: 模組註冊(`conflict/test/Spec.hs` 加 `JudgeSpec` / `JudgeEnvSpec`)與 hermetic 驗證:`judgeLoop` 的 `Monad m` 拿不到 `MonadIO`,整個測試套件零網路請求  `dep: T10`
+- [x] T1: `Conflict.Types`:`ConflictOpts` 在 `coTopN` 後插入 `coJudgeN`、`defaultConflictOpts` 補 `coJudgeN = 5`;新增並匯出 `ReportNote (..)`;`ConflictReport` 加 `crNotes`、`emptyReport` 補 `[]`  `dep: F001`
+- [x] T2: `Conflict.Json`:`ReportNote` 的 `ToJSON` / `FromJSON`(`code` / `detail`);`ConflictOpts` 加 `judge_n`(缺席退預設);`ConflictReport` 加 `notes`(缺席退 `[]`)  `dep: T1`
+- [x] T3: 擴欄的連帶更新:`api` 的 `ToSchema ConflictOpts` 加 `judge_n`(`required` 不動)與 `sampleConflictOpts` 補欄;`cli` 的 `conflictOptsP` 補 `pure (coJudgeN defaultConflictOpts)`(不開 `--judge-n`);conflict 既有三個 spec 的建構與斷言更新  `dep: T2`
+- [x] T4: `storyflow-conflict.cabal` library 與 test-suite 加 `storyflow-llm`、`exposed-modules` 加 `StoryFlow.Conflict.Judge`;`CabalSpec` 的 `forbidden` 縮成三項、新增「必須含 `storyflow-llm`」的正向斷言、`libraryDeps` / `testDeps` 逐字清單更新  `dep: T1`
+- [x] T5: `Verdict` 與解析:`stripCodeFence` 三條規則、`parseVerdict`(fence → decode → `{`…`}` 切片回退 → decode)、confidence clamp、`contradicts = true` 但理由空白視為解析失敗  `dep: T4`
+- [x] T6: prompt:`judgeSystemPrompt`(只輸出 JSON、三個鍵、繁中一句話理由)、`renderPairPrompt`(固定段落標記、id 走 `renderId`、`drRefs` 不進)、`judgeMessages`(`System` + `User` 兩則)  `dep: T4`
+- [x] T7: `JudgeTarget` 與 `resolveTargets`:先套 `coJudgeN` 預算再解析文字;預設 `metaSnippet`,`coExpandBody` 時經 `getEntity` 取 `entBody`,空白或讀不到用 `catchError` 退回 summary;`jtExpanded` 如實記錄  `dep: T4`
+- [x] T8: `JudgeRunner` 與 `judgeLoop`:逐對呼叫、`jrJudged` 計數、`verdictHit` 組裝命中、`judge_call_failed` / `judge_parse_failed` note、`LlmUnavailable` 中止並記 `judge_aborted`、已成功的一律保留  `dep: T5, T6`
+- [x] T9: `JudgeSkip` / `skipNote`:三個 `judge_` 前綴的代碼與繁中文案(`renderLlmError` 的原文進 `rnDetail`)  `dep: T1`
+- [x] T10: 門面 `llmRunner` / `judgeCandidatesWith` / `judgeCandidates`;`coJudgeN <= 0` 而候選非空時記 `judge_disabled` 且一次都不呼叫 runner  `dep: T7, T8, T9`
+- [x] T11: 模組註冊(`conflict/test/Spec.hs` 加 `JudgeSpec` / `JudgeEnvSpec`)與 hermetic 驗證:`judgeLoop` 的 `Monad m` 拿不到 `MonadIO`,整個測試套件零網路請求  `dep: T10`
 
 ## 1-to-1 測試對照表
 

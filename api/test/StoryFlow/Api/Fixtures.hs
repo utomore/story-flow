@@ -206,6 +206,7 @@ sampleConflictOpts :: ConflictOpts
 sampleConflictOpts =
   ConflictOpts
     { coTopN = 5
+    , coJudgeN = 3
     , coExpandBody = True
     , coTimelineWindow = Just 2
     , coGraphDepth = 3

@@ -25,6 +25,7 @@ module StoryFlow.Conflict.Types
   , ConflictReport (..)
   , emptyReport
   , sortHits
+  , ReportNote (..)
   ) where
 
 import Data.List (sortOn)
@@ -48,6 +49,10 @@ data Draft = Draft
 data ConflictOpts = ConflictOpts
   { coTopN :: Int
   -- ^ 第 2 層的候選上限。「top-N 的 N 要可調,且預設保守」
+  , coJudgeN :: Int
+  -- ^ __第 3 層的候選預算__:合流排序後送模型判斷的前 N 個。
+  --   獨立於 'coTopN' ——那個管「撈多廣」,這個管「燒多少」。
+  --   @<= 0@ 代表不跑第 3 層(合法輸入,但候選非空時要記一則 @judge_disabled@)。
   , coExpandBody :: Bool
   -- ^ 第 3 層是否展開 @body@。「優先送 summary 而非全文,必要時才展開 body」
   , coTimelineWindow :: Maybe Int
@@ -60,13 +65,16 @@ data ConflictOpts = ConflictOpts
   }
   deriving stock (Show, Eq)
 
--- | 保守的預設值:topN=20 / expandBody=False / window=Nothing / depth=2。
+-- | 保守的預設值:topN=20 / judgeN=5 / expandBody=False / window=Nothing / depth=2。
 --
 -- @depth = 2@ 是「起點 + 一跳」,與 ADR-007「用關聯圖擴充一跳範圍」一致。
+-- @judgeN = 5@:地端 12B 模型實測一對約 7 秒,五對約 35 秒,是一個指令等得起的
+-- 長度;@coTopN@ 的 20 全判約 140 秒,那不是一個指令等得起的長度。
 defaultConflictOpts :: ConflictOpts
 defaultConflictOpts =
   ConflictOpts
     { coTopN = 20
+    , coJudgeN = 5
     , coExpandBody = False
     , coTimelineWindow = Nothing
     , coGraphDepth = 2
@@ -147,12 +155,26 @@ data ConflictReport = ConflictReport
   { crHits :: [ConflictHit]
   , crScanned :: Int
   , crLlmUsed :: Bool
+  , crNotes :: [ReportNote]
+  -- ^ 命中之外要對使用者說的話(第 3 層的退化/失敗、第 1 層的
+  -- @unlinkedRefs@、關聯建議)。填滿三種來源是 F006 的事,本模組只讓型別存在。
   }
   deriving stock (Show, Eq)
 
 -- | 什麼都沒掃到、也沒跑第 3 層的空報告。
 emptyReport :: ConflictReport
-emptyReport = ConflictReport {crHits = [], crScanned = 0, crLlmUsed = False}
+emptyReport = ConflictReport {crHits = [], crScanned = 0, crLlmUsed = False, crNotes = []}
+
+-- | 報告附帶的提示。__不是命中__,所以不進 'crHits' ——它說的是
+-- 「這份報告本身有什麼要注意的」。放進 DTO 而非只在 CLI 渲染,是因為 CLI 與
+-- REST 必須拿到同一批結果。
+data ReportNote = ReportNote
+  { rnCode :: Text
+  -- ^ 穩定識別碼,給程式化消費者分派,不隨文案改動
+  , rnDetail :: Text
+  -- ^ 繁中訊息,每一則都說出下一步
+  }
+  deriving stock (Show, Eq)
 
 -- | 排序約定的實作:依層級(Graph → Retrieval → Judge),同層依分數遞減。
 --

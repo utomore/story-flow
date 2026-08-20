@@ -521,16 +521,17 @@ instance ToSchema Draft where
         [("text", txt), ("refs", ids)]
         ["text"]
 
--- | __四欄全部選配__:'StoryFlow.Conflict.Json' 的 @FromJSON ConflictOpts@ 逐欄退回
--- @defaultConflictOpts@,客戶端只想調 @top_n@ 時不必寫齊四欄。
+-- | __五欄全部選配__:'StoryFlow.Conflict.Json' 的 @FromJSON ConflictOpts@ 逐欄退回
+-- @defaultConflictOpts@,客戶端只想調 @top_n@ 時不必寫齊五欄。
 instance ToSchema ConflictOpts where
   declareNamedSchema _ = do
     int <- declareSchemaRef (Proxy :: Proxy Int)
     bl <- declareSchemaRef (Proxy :: Proxy Bool)
     pure . named "ConflictOpts" $
       objSchema
-        "三層共用的選項。缺席的欄位一律退回保守的預設值(top_n=20 / graph_depth=2)"
+        "三層共用的選項。缺席的欄位一律退回保守的預設值(top_n=20 / judge_n=5 / graph_depth=2)"
         [ ("top_n", int)
+        , ("judge_n", int)
         , ("expand_body", bl)
         , ("timeline_window", int)
         , ("graph_depth", int)

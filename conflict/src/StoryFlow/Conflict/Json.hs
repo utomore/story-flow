@@ -39,17 +39,19 @@ instance ToJSON ConflictOpts where
   toJSON ConflictOpts {..} =
     object $
       [ "top_n" .= coTopN
+      , "judge_n" .= coJudgeN
       , "expand_body" .= coExpandBody
       , "graph_depth" .= coGraphDepth
       ]
         ++ ["timeline_window" .= v | Just v <- [coTimelineWindow]]
 
 -- | 缺欄位時退回 'defaultConflictOpts' 的那一欄:客戶端只想調 @top_n@ 時,
--- 不該被迫把四個欄位都寫齊。
+-- 不該被迫把五個欄位都寫齊。
 instance FromJSON ConflictOpts where
   parseJSON = withObject "ConflictOpts" $ \o ->
     ConflictOpts
       <$> o .:? "top_n" .!= coTopN defaultConflictOpts
+      <*> o .:? "judge_n" .!= coJudgeN defaultConflictOpts
       <*> o .:? "expand_body" .!= coExpandBody defaultConflictOpts
       <*> o .:? "timeline_window"
       <*> o .:? "graph_depth" .!= coGraphDepth defaultConflictOpts
@@ -102,8 +104,26 @@ instance FromJSON ContextHit where
 
 instance ToJSON ConflictReport where
   toJSON ConflictReport {..} =
-    object ["hits" .= crHits, "scanned" .= crScanned, "llm_used" .= crLlmUsed]
+    object
+      [ "hits" .= crHits
+      , "scanned" .= crScanned
+      , "llm_used" .= crLlmUsed
+      , "notes" .= crNotes
+      ]
 
+-- | @notes@ 缺席退 @[]@:舊客戶端的 payload(F005 之前產生的)不會壞。
 instance FromJSON ConflictReport where
   parseJSON = withObject "ConflictReport" $ \o ->
-    ConflictReport <$> o .:? "hits" .!= [] <*> o .:? "scanned" .!= 0 <*> o .:? "llm_used" .!= False
+    ConflictReport
+      <$> o .:? "hits" .!= []
+      <*> o .:? "scanned" .!= 0
+      <*> o .:? "llm_used" .!= False
+      <*> o .:? "notes" .!= []
+
+-- {"code": "judge_parse_failed", "detail": "…"}
+instance ToJSON ReportNote where
+  toJSON ReportNote {..} = object ["code" .= rnCode, "detail" .= rnDetail]
+
+instance FromJSON ReportNote where
+  parseJSON = withObject "ReportNote" $ \o ->
+    ReportNote <$> o .: "code" <*> o .: "detail"

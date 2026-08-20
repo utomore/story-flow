@@ -30,7 +30,18 @@ spec = describe "三種命中與空報告" $ do
     xhSnippet h `shouldBe` "……徵召……"
     layerTag (xhVia h) `shouldBe` "retrieval"
 
-  it "emptyReport 是空清單、掃過 0 筆、沒跑第 3 層" $ do
+  it "emptyReport 是空清單、掃過 0 筆、沒跑第 3 層、crNotes 也是空清單" $ do
     crHits emptyReport `shouldBe` []
     crScanned emptyReport `shouldBe` 0
     crLlmUsed emptyReport `shouldBe` False
+    crNotes emptyReport `shouldBe` []
+
+  -- conflict-detection/F005 T1:ReportNote 的兩欄 Show / Eq 可用。
+  it "ReportNote 的兩欄可比較" $ do
+    let n1 = ReportNote "judge_parse_failed" "這一對沒有判斷結果"
+        n2 = ReportNote "judge_parse_failed" "這一對沒有判斷結果"
+        n3 = ReportNote "judge_aborted" "尚有 1 對未判斷"
+    n1 `shouldBe` n2
+    n1 `shouldNotBe` n3
+    rnCode n1 `shouldBe` "judge_parse_failed"
+    rnDetail n3 `shouldBe` "尚有 1 對未判斷"

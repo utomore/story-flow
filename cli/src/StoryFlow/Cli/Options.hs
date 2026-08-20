@@ -375,12 +375,14 @@ refOpt =
 
 -- | 三個數值旗標對應 'ConflictOpts' 的三欄。
 --
--- @coExpandBody@ __不開旗標__:它是第 3 層(LLM)控制 token 成本的手段,而
--- @context@ 根本不跑第 3 層,給它一個沒有作用的旗標只會讓人以為有作用。
+-- @coExpandBody@ / @coJudgeN@ __不開旗標__:兩者都是第 3 層(LLM)控制 token
+-- 成本的手段,而 @context@ 根本不跑第 3 層,給它們沒有作用的旗標只會讓人以為
+-- 有作用(@--judge-n@ 由 F006 加在 @conflict check@ 上)。
 conflictOptsP :: Parser ConflictOpts
 conflictOptsP =
   ConflictOpts
     <$> intOpt "top-n" (coTopN defaultConflictOpts) "第 2 層的候選上限"
+    <*> pure (coJudgeN defaultConflictOpts)
     <*> pure (coExpandBody defaultConflictOpts)
     <*> optional
       ( option

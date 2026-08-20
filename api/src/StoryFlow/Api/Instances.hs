@@ -43,6 +43,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (Day)
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
+import StoryFlow.Conflict.Types
+  ( ConflictOpts
+  , ContextHit
+  , Draft
+  , GraphEvidence
+  , HitLayer
+  )
 import StoryFlow.Core.Entity (Entity)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef, renderId, renderRef)
 import StoryFlow.Core.Level (Level, Node, NodeKind, allNodeKinds, parseNodeKind, renderNodeKind)
@@ -499,6 +506,93 @@ instance ToSchema NewNodeReq where
         "掛在某個父 Node 底下的新節點"
         [("title", txt), ("kind", kS), ("summary", txt), ("body", txt), ("links", lkS)]
         ["title", "kind"]
+
+-- ToSchema:衝突偵測(conflict-detection/F004) ---------------------------------------
+
+-- | @refs@ 在 @properties@ 但不在 @required@:'Draft' 的 @FromJSON@ 對它
+-- @.!= []@,@drRefs@ 為空清單是合法輸入(那代表只能跑第 2 層)。
+instance ToSchema Draft where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    ids <- declareSchemaRef (Proxy :: Proxy [Id])
+    pure . named "Draft" $
+      objSchema
+        "待檢查的草稿:文字 + 呼叫端已經知道它引用了哪些片段"
+        [("text", txt), ("refs", ids)]
+        ["text"]
+
+-- | __四欄全部選配__:'StoryFlow.Conflict.Json' 的 @FromJSON ConflictOpts@ 逐欄退回
+-- @defaultConflictOpts@,客戶端只想調 @top_n@ 時不必寫齊四欄。
+instance ToSchema ConflictOpts where
+  declareNamedSchema _ = do
+    int <- declareSchemaRef (Proxy :: Proxy Int)
+    bl <- declareSchemaRef (Proxy :: Proxy Bool)
+    pure . named "ConflictOpts" $
+      objSchema
+        "三層共用的選項。缺席的欄位一律退回保守的預設值(top_n=20 / graph_depth=2)"
+        [ ("top_n", int)
+        , ("expand_body", bl)
+        , ("timeline_window", int)
+        , ("graph_depth", int)
+        ]
+        []
+
+instance ToSchema GraphEvidence where
+  declareNamedSchema _ = do
+    idS <- declareSchemaRef (Proxy :: Proxy Id)
+    kS <- declareSchemaRef (Proxy :: Proxy LinkKind)
+    rS <- declareSchemaRef (Proxy :: Proxy Ref)
+    pure . named "GraphEvidence" $
+      objSchema
+        "第 1 層的證據:造成命中的那一條關聯。to 是 Ref 而非 Id,跨 Vault 的命中才表達得出來"
+        [("from", idS), ("kind", kS), ("to", rS)]
+        ["from", "kind", "to"]
+
+-- | 'HitLayer' 是__和積型別__,schema 因此宣告成__聯集物件__:六個鍵都在
+-- @properties@ 裡,而 @required@ __只有 @layer@__ ——一個樣本值只走得到一個建構子,
+-- 把 @from@ 或 @score@ 列進 @required@ 會讓另外兩個建構子的 JSON 變成不合法。
+--
+-- 這也是 @StoryFlow.Api.SchemaSpec@ 對它用 @alignsSubset@(子集)而不是既有
+-- @aligns@(相等)的原因:相等對和積型別必然不成立,而放寬既有那條斷言等於
+-- 把整組型別的保護一起拆掉。
+instance ToSchema HitLayer where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    idS <- declareSchemaRef (Proxy :: Proxy Id)
+    kS <- declareSchemaRef (Proxy :: Proxy LinkKind)
+    rS <- declareSchemaRef (Proxy :: Proxy Ref)
+    dbl <- declareSchemaRef (Proxy :: Proxy Double)
+    -- @GraphEvidence@ 登記進 @components.schemas@,但__沒有人 @$ref@ 它__:
+    -- 它在 wire 上是攤平的(@layer@ + 它的三欄),不是巢狀物件。之所以仍然要有
+    -- 這個具名 schema,是因為那三欄的型別本身帶著契約——@to@ 是 'Ref' 而不是
+    -- 'Id',跨 Vault 的命中才表達得出來(F001)——而攤平之後,讀 OpenAPI 的 Agent
+    -- 只看得到 @HitLayer@ 那個聯集物件的鍵,看不出這三欄是一組。
+    _ <- declareSchemaRef (Proxy :: Proxy GraphEvidence)
+    pure . named "HitLayer" $
+      objSchema
+        "命中層級,以 layer 標籤區分的和:\
+        \graph 帶 from/kind/to(第 1 層是事實)、\
+        \retrieval 帶 score(FTS5 相關度)、\
+        \judge 帶 confidence(第 3 層是判斷)。除 layer 外的鍵依 layer 而定"
+        [ ("layer", txt)
+        , ("from", idS)
+        , ("kind", kS)
+        , ("to", rS)
+        , ("score", dbl)
+        , ("confidence", dbl)
+        ]
+        ["layer"]
+
+instance ToSchema ContextHit where
+  declareNamedSchema _ = do
+    mS <- declareSchemaRef (Proxy :: Proxy Meta)
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    lS <- declareSchemaRef (Proxy :: Proxy HitLayer)
+    pure . named "ContextHit" $
+      objSchema
+        "撈出來的素材:直接帶 Meta 與命中片段,外部 Agent 不必再往返一次"
+        [("meta", mS), ("snippet", txt), ("via", lS)]
+        ["meta", "snippet", "via"]
 
 instance ToSchema EntityPatch where
   declareNamedSchema _ = do

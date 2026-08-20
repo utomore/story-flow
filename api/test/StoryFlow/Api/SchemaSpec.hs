@@ -19,8 +19,10 @@ import Data.OpenApi (ToSchema, properties, toSchema)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
-import StoryFlow.Api ()
+import StoryFlow.Api (ContextReq)
 import StoryFlow.Api.Fixtures
+import StoryFlow.Conflict.Json ()
+import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft, GraphEvidence, HitLayer)
 import StoryFlow.Core.Entity (Entity)
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Level (Level, Node)
@@ -62,6 +64,24 @@ spec = describe "ToSchema 與 ToJSON 逐欄對齊" $ do
     it "NewNodeReq" $ aligns (Proxy :: Proxy NewNodeReq) sampleNewNodeReq
     it "EntityPatch" $ aligns (Proxy :: Proxy EntityPatch) sampleEntityPatch
 
+  describe "衝突偵測的型別(conflict-detection/F004)" $ do
+    it "Draft" $ aligns (Proxy :: Proxy Draft) sampleDraft
+    it "ConflictOpts" $ aligns (Proxy :: Proxy ConflictOpts) sampleConflictOpts
+    it "GraphEvidence" $ aligns (Proxy :: Proxy GraphEvidence) sampleGraphEvidence
+    it "ContextHit" $ aligns (Proxy :: Proxy ContextHit) sampleContextHit
+    it "ContextReq" $ aligns (Proxy :: Proxy ContextReq) sampleContextReq
+
+    -- HitLayer 是和積型別:一個樣本只走得到一個建構子,鍵集合__相等__必然不成立。
+    -- 既有的 aligns 一個字都不改,和積型別走新增的 alignsSubset。
+    it "HitLayer 的三個建構子都是 schema properties 的子集,且都帶 layer" $ do
+      alignsSubset (Proxy :: Proxy HitLayer) sampleGraphLayer
+      alignsSubset (Proxy :: Proxy HitLayer) sampleRetrievalLayer
+      alignsSubset (Proxy :: Proxy HitLayer) sampleJudgeLayer
+
+    it "HitLayer 的 schema 涵蓋三個建構子的全部鍵" $
+      schemaKeys (Proxy :: Proxy HitLayer)
+        `shouldBe` sort ["layer", "from", "kind", "to", "score", "confidence"]
+
   describe "純量型別是字串,不是物件" $
     it "Id / Ref 的 schema 沒有 properties" $ do
       schemaKeys (Proxy :: Proxy Id) `shouldBe` []
@@ -93,6 +113,28 @@ aligns p x = case toJSON x of
     diff a b = [k | k <- a, k `notElem` b]
     render [] = "(無)"
     render ks = T.intercalate ", " ks
+
+-- | 和積型別用的版本:樣本值的 JSON 鍵集合是 schema @properties@ 的__子集__,
+-- 而且一定含標籤鍵 @layer@。
+--
+-- 為什麼不能用 'aligns':和積型別的 schema 是三個建構子的聯集,而任何一個樣本
+-- 只走得到其中一個建構子——鍵集合相等在型別上就不可能成立。反過來把 'aligns'
+-- 放寬成子集也不行:那會讓所有積型別「schema 多了一個 JSON 沒有的鍵」變成合法,
+-- 而那正是這一整組測試存在的理由。
+alignsSubset :: (ToJSON a, ToSchema a) => Proxy a -> a -> Expectation
+alignsSubset p x = case toJSON x of
+  Object o ->
+    let jsonKeys = sort (map K.toText (KM.keys o))
+        schKeys = schemaKeys p
+        extra = [k | k <- jsonKeys, k `notElem` schKeys]
+     in do
+          if null extra
+            then pure ()
+            else
+              expectationFailure . T.unpack $
+                "JSON 有而 schema 沒有:" <> T.intercalate ", " extra
+          ("layer" `elem` jsonKeys, jsonKeys) `shouldBe` (True, jsonKeys)
+  other -> expectationFailure ("樣本的 toJSON 不是物件:" <> show other)
 
 schemaKeys :: (ToSchema a) => Proxy a -> [Text]
 schemaKeys p = sort (IOM.keys (toSchema p ^. properties))

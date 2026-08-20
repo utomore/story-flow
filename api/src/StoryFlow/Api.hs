@@ -29,17 +29,19 @@ module StoryFlow.Api
   , LevelAPI
   , NodeAPI
   , MiscAPI
+  , ConflictAPI
 
     -- * 請求 body 的小包裝
   , NewVaultReq (..)
   , BodyReq (..)
+  , ContextReq (..)
 
     -- * OpenAPI
   , storyFlowOpenApi
   ) where
 
 import Control.Lens ((&), (.~), (?~))
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.!=), (.:), (.:?), (.=))
 import Data.OpenApi
   ( NamedSchema (..)
   , OpenApi
@@ -65,6 +67,8 @@ import Data.Text (Text)
 import Servant.API hiding (Link)
 import Servant.OpenApi (subOperations, toOpenApi)
 import StoryFlow.Api.Instances ()
+import StoryFlow.Conflict.Json ()
+import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft, defaultConflictOpts)
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Link (Link, LinkKind)
 import StoryFlow.Core.Meta (Meta, Status)
@@ -134,6 +138,39 @@ instance ToSchema BodyReq where
         & description ?~ "換掉整段正文"
         & properties .~ IOM.fromList [("body", txt)]
         & required .~ ["body"]
+
+-- | @POST \/conflict\/context@ 的 body。
+--
+-- @opts@ __缺席時退回 'defaultConflictOpts'__ ——與 @Conflict.Json@ 的
+-- @FromJSON ConflictOpts@ 逐欄退預設是同一個待客之道:客戶端只想調 @top_n@ 時,
+-- 不必把整個 @opts@ 物件寫齊,連 @opts@ 這個鍵都可以不出現。
+data ContextReq = ContextReq
+  { crqDraft :: Draft
+  , crqOpts :: ConflictOpts
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON ContextReq where
+  toJSON ContextReq {..} = object ["draft" .= crqDraft, "opts" .= crqOpts]
+
+instance FromJSON ContextReq where
+  parseJSON = withObject "ContextReq" $ \o ->
+    ContextReq <$> o .: "draft" <*> o .:? "opts" .!= defaultConflictOpts
+
+-- | schema 與 'NewVaultReq' \/ 'BodyReq' 放在同一處(而不是
+-- "StoryFlow.Api.Instances"):那個模組是本模組的__上游__,而 'ContextReq' 定義在
+-- 這裡——實例寫過去會造成模組環。其餘五個衝突偵測型別的 'ToSchema' 是孤兒實例,
+-- 照約定集中在 "StoryFlow.Api.Instances"。
+instance ToSchema ContextReq where
+  declareNamedSchema _ = do
+    dS <- declareSchemaRef (Proxy :: Proxy Draft)
+    oS <- declareSchemaRef (Proxy :: Proxy ConflictOpts)
+    pure . NamedSchema (Just "ContextReq") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "只跑前兩層的 context 查詢;opts 缺席時退回保守的預設值"
+        & properties .~ IOM.fromList [("draft", dS), ("opts", oS)]
+        & required .~ ["draft"]
 
 -- 共用的 query parameter --------------------------------------------------------
 
@@ -288,7 +325,33 @@ type MiscAPI =
       :> QueryParam' '[Required, Strict] "q" Text
       :> Filter (Get '[JSON] [SearchHit])
 
-type StoryFlowAPI = VaultAPI :<|> EntityAPI :<|> LinkAPI :<|> LevelAPI :<|> NodeAPI :<|> MiscAPI
+-- | 衝突偵測的 context 出口(conflict-detection/F004)。
+--
+-- __唯讀,所以沒有 @revision@__:整條路徑只讀不寫(@linkGraph@ \/ @getEntity@ \/
+-- @aliasIndex@ \/ @searchEntity@ \/ @linksOf@ 五個讀取操作),樂觀鎖在這裡沒有
+-- 意義,而收一個不參與判斷的必填參數就是說謊(同 @POST
+-- \/entities\/{id}\/fragments@ 的理由)。
+--
+-- __整張關聯圖不會被序列化送出去__:@service@ 的 @linkGraph@ 只開內嵌出口,
+-- 伺服器端是自己在 'StoryFlow.Service.ServiceM' 裡呼叫它,客戶端拿到的是
+-- @[ContextHit]@。
+--
+-- 階段二的 @POST \/conflict\/check@(F006)之後會加進同一個子 API。
+type ConflictAPI =
+  "conflict"
+    :> "context"
+    :> Summary "只跑前兩層,把相關片段連內容一起撈出來(不做矛盾判斷)"
+    :> ReqBody '[JSON] ContextReq
+    :> Post '[JSON] [ContextHit]
+
+type StoryFlowAPI =
+  VaultAPI
+    :<|> EntityAPI
+    :<|> LinkAPI
+    :<|> LevelAPI
+    :<|> NodeAPI
+    :<|> MiscAPI
+    :<|> ConflictAPI
 
 storyFlowAPI :: Proxy StoryFlowAPI
 storyFlowAPI = Proxy
@@ -314,3 +377,4 @@ storyFlowOpenApi =
         . applyTagsFor (subOperations (Proxy :: Proxy LevelAPI) storyFlowAPI) ["level"]
         . applyTagsFor (subOperations (Proxy :: Proxy NodeAPI) storyFlowAPI) ["node"]
         . applyTagsFor (subOperations (Proxy :: Proxy MiscAPI) storyFlowAPI) ["misc"]
+        . applyTagsFor (subOperations (Proxy :: Proxy ConflictAPI) storyFlowAPI) ["conflict"]

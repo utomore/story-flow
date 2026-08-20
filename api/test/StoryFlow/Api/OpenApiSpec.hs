@@ -33,9 +33,11 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "OpenAPI 文件" $ do
-  it "paths 數等於實際的路徑數(14 條路徑、23 個 operation)" $ do
-    IOM.size (doc ^. paths) `shouldBe` 14
-    length operations `shouldBe` 23
+  -- conflict-detection/F004 加了 POST /conflict/context:14 → 15 條路徑、
+  -- 23 → 24 個 operation。
+  it "paths 數等於實際的路徑數(15 條路徑、24 個 operation)" $ do
+    IOM.size (doc ^. paths) `shouldBe` 15
+    length operations `shouldBe` 24
 
   it "每個 operation 都有非空 summary" $
     mapM_ (\(k, op) -> (k, fmap T.null (op ^. summary)) `shouldBe` (k, Just False)) labelled
@@ -82,6 +84,13 @@ expectedSchemas =
   , "EntityPatch"
   , "NewVaultReq"
   , "BodyReq"
+  , -- conflict-detection/F004
+    "ContextReq"
+  , "ContextHit"
+  , "HitLayer"
+  , "GraphEvidence"
+  , "Draft"
+  , "ConflictOpts"
   ]
 
 doc :: OpenApi

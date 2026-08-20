@@ -30,6 +30,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Servant
 import StoryFlow.Api
   ( BodyReq (..)
+  , ConflictAPI
+  , ContextReq (..)
   , EntityAPI
   , LevelAPI
   , LinkAPI
@@ -40,6 +42,7 @@ import StoryFlow.Api
   , VaultAPI
   , storyFlowAPI
   )
+import StoryFlow.Conflict.Pipeline (gatherContext)
 import StoryFlow.Server.Auth
 import StoryFlow.Server.Error
 import StoryFlow.Server.State (AppState, closeAppState, newAppState, run1, runIO)
@@ -126,7 +129,14 @@ app token st = bearerAuth token (serve storyFlowAPI (handlers st))
 -- Handler -----------------------------------------------------------------------
 
 handlers :: AppState -> Server StoryFlowAPI
-handlers st = vaultH st :<|> entityH st :<|> linkH st :<|> levelH st :<|> nodeH st :<|> miscH st
+handlers st =
+  vaultH st
+    :<|> entityH st
+    :<|> linkH st
+    :<|> levelH st
+    :<|> nodeH st
+    :<|> miscH st
+    :<|> conflictH st
 
 -- | 前兩條走 'runIO':它們對應 service 不需要 @Env@ 的兩個函式,所以在沒有目前
 -- Vault 的目錄裡也答得出來。
@@ -172,3 +182,13 @@ miscH :: AppState -> Server MiscAPI
 miscH st =
   run1 st S.listEntityTypes
     :<|> (\q ty sta tag lim -> run1 st (S.searchEntity q (EntityFilter ty sta tag lim)))
+
+-- | 衝突偵測的 context 出口(conflict-detection/F004)。
+--
+-- 一樣是一行結構:body 拆成兩個參數交給 'gatherContext',handler 本身不含任何
+-- 業務判斷。__整張關聯圖不會離開這個行程__ ——@gatherContext@ 在 'ServiceM' 裡
+-- 自己呼叫 @linkGraph@,送出去的是 @[ContextHit]@。
+--
+-- 走 'run1'(而不是 'runIO'):它需要目前 Vault 的 'StoryFlow.Service.Monad.Env'。
+conflictH :: AppState -> Server ConflictAPI
+conflictH st = \ContextReq {..} -> run1 st (gatherContext crqOpts crqDraft)

@@ -6,21 +6,24 @@
 不重新打包、是備份與授權爭議時的證據。資料庫索引它們的內容而不解壓,
 專案需要素材時才單筆取出並改名。
 
-目前的實況(`assetdb doctor`):
+目前的實況(2026-08-20 的 `assetdb doctor` 與 `assetdb ai status`):
 
 | | |
 |---|---:|
 | 素材包 | 27 |
 | 壓縮檔 | 27 |
-| 資源 | 6,397 |
-| 唯一內容(blobs) | 6,238 |
+| 資源 | 6,783 |
+| 唯一內容(blobs) | 6,255 |
 | 已產生縮圖 | 5,320 |
 | 已指定邏輯名稱 | 1,653 |
+| 已分類(AI 叢集層分類套用後) | 5,794 |
+| 已有視覺內容標籤 | 5 / 5,321 |
 | 去重後總量 | 3.2 GiB |
 
 系統主架構在 [`.design/system.md`](.design/system.md),各子系統設計在
 [`.design/subsystems/`](.design/subsystems/),架構決策紀錄在 [`.design/adr/`](.design/adr/)。
 素材包清單在 [`docs/_archive/PACKS.md`](docs/_archive/PACKS.md)。
+給 AI agent 的入口是 [`CLAUDE.md`](CLAUDE.md)(建置規則、架構硬規則、開發流程)。
 
 ---
 
@@ -73,6 +76,7 @@ cd C:\Users\User\Documents\alchbees-assets
 
 ```bash
 assetdb search -q "book-frame" --kind image --facets
+assetdb search -q "藥水" --facets            # 中文靠 AI 標註寫進索引(日常操作 7)
 ```
 
 ### 開圖形介面
@@ -297,7 +301,7 @@ projects/Circle/
 │   ├── tilesets/ fonts/ levels/ shaders/ theme/
 │   └── audio/                先建空目錄
 ├── .gitattributes            Git LFS(*.png *.psd *.wav)
-└── .assetdb/project.json
+└── .assetdb/                 預留給專案層級的狀態(目前只建空目錄)
 ```
 
 `Assets.hs` 長這樣:
@@ -352,6 +356,113 @@ assetdb doctor
 
 會列出:draft 狀態的包、AI 揭露未填、未命名資源數、未分類資源數、
 壓縮檔之間的內容重疊、以及散檔覆蓋率(重構刪除閘門的依據)。
+
+### 7. AI 分類與標註(選配,需要本機 llama.cpp)
+
+前面六節都不需要 LLM。這一節是**離線**把分類與中文標籤寫進索引的流程:
+素材包的檔名、包名、作者全是英文,CJK 索引本身是好的,缺的只是語料裡沒有中文。
+跑過一次之後,中文搜尋就是純 SQLite 查詢 —— 零延遲、零 LLM,推論服務關掉照常運作。
+
+推論服務是 llama.cpp 的 OpenAI 相容端點。**服務沒開時所有 `ai` 指令都會優雅退出**,
+不會弄壞資料庫,也不會讓伺服器掛掉。
+
+**① 前置**
+
+```bash
+assetdb ai ping        # 要看到 ✓ 與模型名稱;失敗就是 llama.cpp 沒開
+assetdb thumbs         # 視覺標註送的是縮圖,縮圖必須先有
+assetdb ai status      # 建議數、標註進度、批次紀錄,也會說還有幾份內容缺縮圖
+```
+
+**② 叢集層分類**(快,約 8 分鐘)
+
+6,783 筆資源塌縮成約 132 個叢集,所以這一輪是 132 次呼叫,不是五千多次。
+產出每個叢集的分類(`gui` / `icon/potion` / …)與共用的風格、題材標籤。
+
+```bash
+assetdb ai classify --limit 5      # 先看五個叢集的結果
+assetdb ai classify                # 全跑
+```
+
+**③ 逐份內容的視覺標註**(慢,過夜的工作)
+
+```bash
+assetdb ai vision
+```
+
+**5.4 秒 / 份 × 5,321 份 ≈ 8 小時。** 它產出的是「這張圖畫的是什麼」的內容標籤,
+叢集層給不了:一個 64 張圖的 treasure-icons 叢集,64 張畫的是 64 種不同的寶物。
+目前真實素材庫只跑過 5 份驗證用,尚未全量執行。
+
+**資料庫就是檢查點。** 每一筆的建議與狀態在同一個 transaction 裡提交,LLM 呼叫
+嚴格在 transaction 之外:
+
+- Ctrl-C 最多損失進行中的那一筆;重跑同一個指令就是續跑(`pending` 就是佇列)
+- 推論服務中途掛掉 → **整批中止,未處理的項目維持 `pending`**,不會被逐一標成失敗
+- 真正壞掉的那幾筆記成 `failed` 並存下原因,重跑時跳過;要重試加 `--retry-failed`
+
+讓它活過關掉終端機,並從另一個終端機看進度:
+
+```powershell
+Start-Process -FilePath assetdb -ArgumentList 'ai','vision' -WindowStyle Hidden -RedirectStandardOutput vision.log
+assetdb ai status
+```
+
+**④ 確認與套用**
+
+`classify` 與 `vision` 直接寫進建議暫存表 —— **寫進暫存表本身就是預覽**,閘門只有
+一道,在 `apply`。五千份內容會產生約六萬筆建議,逐筆看是不可能的;實際做法是
+抽樣檢查再整批確認(信心值沒有鑑別力,這顆模型幾乎全部回 0.9 到 1.0)。
+
+```bash
+assetdb ai suggest list --status pending --limit 60
+assetdb ai suggest list --target blob --field tag --limit 40     # 抽樣看幾個分類
+assetdb ai suggest confirm --all-pending --confirm
+assetdb ai apply --confirm                                       # 寫入 + 自動重建索引
+```
+
+`apply --confirm` 結尾會自動重建全文索引。漏掉這一步的話上面全部照樣回報成功,
+而中文搜尋照樣零筆 —— 這是整個功能最容易靜默失敗的地方,所以綁進 `apply`。
+
+**⑤ 驗收**
+
+```bash
+assetdb search -q 藥水 --limit 5
+assetdb search --category icon/potion --facets
+```
+
+叢集層做完之後的實測:藥水 72 筆、像素風 5,550 筆,奇幻、中世紀、特效、礦石、
+藥草都有結果。先前這些全部是零筆。
+
+**⑥ 自然語句查詢**(額外入口,不是主要路徑)
+
+```bash
+assetdb ai query -q "中世紀風格的藥水圖示"
+```
+
+把一句話翻成搜尋條件再執行;推論服務離線時降級為字面搜尋。
+
+**出事時**
+
+| 症狀 | 意思 | 怎麼辦 |
+|---|---|---|
+| `✗ 批次中止:連不上推論服務` | 服務掛了,佇列還在 | 重啟 llama.cpp,重跑同一個指令 |
+| `輸出被截斷,推理用掉 N tokens 而 content 仍為空` | 模型推理吃光預算 | 確認 thinking 是關的(預設關);或加大 `max_tokens` |
+| `content 為空` | 模型想了但沒答 | 同上。驅動器已自動用兩倍預算重試過一次 |
+| `略過 N(缺縮圖)` | 那幾份內容沒有縮圖 | 先跑 `assetdb thumbs` |
+| 套用後中文還是搜不到 | 索引沒重建 | `assetdb index` |
+
+換模型之後值得重量 thinking 開關:`assetdb ai classify --limit 3 --force` 對照 `--thinking`。
+實測 `gemma-4-12b-it` 關掉 thinking 是 3 分 57 秒 → 14.3 秒,而且品質更好;
+`Gemma-4-E4B-Uncensored` 則不理會這個欄位,只能靠 `max_tokens` 開大。
+
+**這個模組不做什麼**
+
+- **不改任何既有資料。** 標籤一律以 `source='inferred'` 寫入且 `INSERT OR IGNORE`;
+  人工標籤(`manual`)永遠贏,重跑不會覆蓋。
+- **不在查詢時呼叫 LLM。** 中文搜尋是純 SQLite。
+- **不猜。** 分類是封閉列舉,由 GBNF 在產生時約束 —— 模型吐不出詞彙表以外的值,
+  判斷不出來時填 `unknown`。
 
 ---
 
@@ -490,13 +601,16 @@ import Assets             -- 專案自己的素材 key 常數
 | 缺口 | 影響 | 目前的替代作法 |
 |---|---|---|
 | `assetdb project sync` | **無法增量加素材進既有專案** | 用新條件重新產生到新目錄,把 `assets/`、`manifest.json`、`Assets.hs` 換過去 |
+| `ai vision` 全量執行 | 5,321 份內容只有 5 份有視覺內容標籤;中文搜尋目前只靠叢集層的風格 / 題材標籤 | 過夜跑 `assetdb ai vision`(約 8 小時,見日常操作 7) |
 | 前端匯入 UI | 匯入仍走 CLI | `scan` + 手寫 `packs.toml` |
 | 前端叢集確認 UI | 命名仍走 CLI | `cluster list` / `rule` / `apply` |
-| `categories` 分類 | 6,397 筆全部未分類 | 用 `--pack` / `--match` / 全文搜尋 |
+| 989 筆未分類 | 叢集層分類判不出來的填 `unknown` | 用 `--pack` / `--match` / 全文搜尋,或等視覺標註補上 |
 | ogg / mp3 / flac 解碼 | 只分類不取時長 | 已是 `KAudio`,照樣進搜尋 |
 | ImageMagick sidecar | TIFF / PSD / HEIC 沒有預覽圖 | 仍可索引與搜尋 |
 
-第一項是最痛的一個,建議優先補。
+第一項是最痛的一個,已列入規劃:
+[`.design/subsystems/delivery/design.md`](.design/subsystems/delivery/design.md) 功能規劃 #6
+`project-sync`,契約卡已備妥,可用 `/feature-design delivery/project-sync` 展開。
 
 ---
 
@@ -504,20 +618,25 @@ import Assets             -- 專案自己的素材 key 常數
 
 ```bash
 cabal build all
-cabal test all      # 393 examples, 0 failures(7 個 test suite)
+cabal test all      # 558 examples, 0 failures(9 個 test suite,2026-08-20)
 ```
 
 | 套件 | 職責 | 測試 |
 |---|---|---:|
-| `core/` | 領域型別、ULID、命名文法、Manifest schema。**遊戲也依賴這個** | 89 |
-| `store/` | SQLite schema、migration、FTS 與 token 前處理 | 99 |
+| `core/` | 領域型別、ULID、命名文法、Manifest schema。**遊戲也依賴這個** | 101 |
+| `store/` | SQLite schema、migration、FTS 與 token 前處理 | 109 |
 | `archive/` | 壓縮檔存取:列出內容與讀取單筆項目,**不解壓到磁碟** | 39 |
-| `ingest/` | 掃描、內容雜湊、格式處理器註冊表、叢集推論、縮圖、筆記 | 103 |
-| `reorg/` | 重構計畫、執行、對帳、undo | 39 |
-| `project/` | 專案樣板、`manifest.json`、`Assets.hs` 產生 | 17 |
-| `server/` | servant HTTP API、靜態服務、TS 型別產生 | 7 |
-| `cli/` | `assetdb` 執行檔 | |
+| `ingest/` | 掃描、內容雜湊、格式處理器註冊表、叢集推論、縮圖、筆記 | 116 |
+| `reorg/` | 重構計畫、執行、對帳、undo | 32 |
+| `project/` | 專案樣板、`manifest.json`、`Assets.hs` 產生 | 24 |
+| `ai/` | 本機 LLM 客戶端、GBNF 文法、叢集分類、視覺標註、建議暫存與套用、自然語句查詢 | 42 |
+| `server/` | servant HTTP API、靜態服務、TS 型別產生 | 58 |
+| `cli/` | `assetdb` 執行檔:參數解析、資料庫路徑解析、端到端 | 37 |
 | `web/` | Vite + React + TanStack Virtual | |
+
+子系統與套件的對應:`catalog` = core + store;`ingest` = archive + ingest + reorg;
+`ai-tagging` = ai;`delivery` = cli + server + web + project。設計文檔在
+[`.design/subsystems/`](.design/subsystems/)。
 
 ### 加一種新素材格式
 
@@ -566,3 +685,9 @@ kind 專屬的中繼資料一律以 JSON 存進 `meta_json`。
 **6. PowerShell 的 `Select-Object -First N` 會終止上游行程。**
 `assetdb cluster rule --confirm | Select-Object -First 20` 會在寫入規則之前把程式殺掉,
 結果是「看起來跑完了但只做了一半」。**有副作用的指令一律重導向到檔案再讀。**
+
+**7. PATH 上的 `assetdb` 是 `cabal install` 當下的快照,不會跟著程式碼走。**
+schema 改版後用舊執行檔開資料庫會直接丟 `DatabaseNewerThanCode 4 3`(資料庫 v4、程式碼 v3)
+—— 這是刻意的:沒有 down migration(ADR-006),舊程式碼不該碰新資料庫。
+`git pull` 之後重跑一次安裝章節的 `cabal install … --overwrite-policy=always`;
+開發時一律 `cabal run assetdb -- <子指令>`,不要拿 PATH 上的那份驗證行為。

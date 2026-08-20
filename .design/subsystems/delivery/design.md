@@ -5,7 +5,7 @@ title: delivery
 description: 系統對人的四個入口:CLI、HTTP API、Web 前端與專案產出
 status: active
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-001]
 ---
@@ -34,6 +34,7 @@ HTTP 請求、瀏覽器上看得見的網格、以及最後落在遊戲專案目
 - 後端 → 前端的 TypeScript 型別契約與它的防漂移機制
 - 前端的查詢狀態、分頁載入策略、facet 呈現與放大檢視
 - 專案樣板、素材單筆解壓、manifest 與 `Assets.hs` 產生、授權閘門的執行
+- 既有專案的增量同步:與登記紀錄和磁碟對帳、只增不刪、重新產生 manifest 與 `Assets.hs`
 
 **明確不做**
 
@@ -136,6 +137,7 @@ assetdb-server --help | -h
 | `index` | 重建全文索引 | catalog |
 | `thumbs` | 產生縮圖 | ingest |
 | `new-project` | 建立遊戲專案並放入選定素材 | delivery(`project`) |
+| `project sync` | 把符合條件的素材增量加入已登記的專案(預設預覽,`--confirm` 才寫入) | delivery(`project`) |
 | `note import` / `note list` / `link` | 知識建檔與關聯圖譜 | ingest |
 | `ai ping` / `classify` / `vision` / `suggest list` / `suggest confirm` / `suggest reject` / `apply` / `query` / `status` | 本機 LLM | ai-tagging |
 
@@ -144,10 +146,10 @@ assetdb-server --help | -h
 - **資料庫路徑有兩種語意,而且分開表示**。查詢類指令要求資料庫**必須已存在**,找不到就以
   非 0 結束碼結束並印出「用 `--db` 指定」與「先跑 `scan`」的指引;只有 `scan` 是初始化語意,
   允許在找不到時開新庫。合成一個函式並預設後者,會讓在錯誤工作目錄下的任何查詢都靜默建出空庫。
-- **會改動狀態的動作預設只預覽**。`cluster rule`、`ai suggest confirm/reject`、`ai apply`
-  都要 `--confirm` 才真的寫入;`reorganize` 的模式旗標互斥且**沒有預設值**,而可回退的階段 A
-  與不可回退的階段 B 需要兩個旗標。
-- **授權閘門預設是開的**。`new-project` 要 `--allow-non-commercial` 才會關掉。
+- **會改動狀態的動作預設只預覽**。`cluster rule`、`ai suggest confirm/reject`、`ai apply`、
+  `project sync` 都要 `--confirm` 才真的寫入;`reorganize` 的模式旗標互斥且**沒有預設值**,
+  而可回退的階段 A 與不可回退的階段 B 需要兩個旗標。
+- **授權閘門預設是開的**。`new-project` 與 `project sync` 要 `--allow-non-commercial` 才會關掉。
 
 ### 4. 前端與後端的型別契約
 
@@ -182,6 +184,33 @@ OpenAPI 工具鏈,但沒有少掉它要解決的問題。
   被改過」與「來源壓縮檔更新了」可以分辨。
 - 一筆素材都沒複製時以非 0 結束碼結束——空專案是失敗,不是成功。
 
+### 6. 專案增量同步
+
+`assetdb project sync --name <NAME> [--pack SLUG]… [--match Q] [--allow-non-commercial] [--confirm]`
+對**已登記的專案**增量加入素材,契約:
+
+- 專案以 `projects` 表登記的 `name` 定位,目錄取登記的 `path`;未登記、或目錄已不存在時
+  不動任何檔案,以非 0 結束碼結束並分別說明原因。
+- 選素材的條件語意與 `new-project` **完全相同**(已命名、active、有內容雜湊;`--pack` 先取包、
+  `--match` 再篩名稱);授權閘門同樣預設開啟、擋法相同。
+- **對帳先於寫入**。每筆候選素材歸入四類之一:
+
+  | 類別 | 判定 | 動作 |
+  |---|---|---|
+  | 新增 | 未登記在 `project_assets` | `--confirm` 下複製並登記 |
+  | 已存在 | 已登記,磁碟檔案雜湊 = `copied_sha256` = 來源 `sha256` | 跳過 |
+  | 來源已更新 | 已登記,磁碟檔案雜湊 = `copied_sha256`,但來源 `sha256` 不同 | 只回報,不覆蓋 |
+  | 本地已修改 | 已登記,磁碟檔案雜湊 ≠ `copied_sha256`(含檔案已不在) | 只回報,不覆蓋 |
+
+- **預設只預覽**:列出四類的筆數與清單,不寫磁碟、不寫資料庫;`--confirm` 才執行「新增」類。
+- **只增不刪、不覆蓋**:專案裡既有的檔案、手寫程式碼與 `project_assets` 既有列一律不動。
+  「更新到來源新版本」與「還原本地修改」是另外的指令,不在本契約內。
+- `--confirm` 時以**登記的全集**(既有 + 新增)重新產生 `assets/manifest.json` 與
+  `assets/Assets.hs`;其餘樣板檔案(`SKILL.md`、`README.md`、`<NAME>.cabal`、`docs/`)不重寫;
+  `projects.updated_at` 更新。
+- **0 筆新增不是失敗**(與 `new-project` 相反):「沒有東西要加」是正常結果,結束碼 0。
+  只有專案定位失敗、或 `--confirm` 下所有新增項都讀取失敗時才以非 0 結束。
+
 ## 內部模組劃分(Internal Modules)
 
 | 套件 | 模組 | 職責 | 不做 |
@@ -196,6 +225,7 @@ OpenAPI 工具鏈,但沒有少掉它要解決的問題。
 | `project` | `AssetDB.Project.Template` | 樣板是**資料**(路徑 → 內容):目錄清單、初始檔案、致謝區塊 | 不碰檔案系統 |
 | `project` | `AssetDB.Project.Assets` | 邏輯名稱 → Haskell 識別字、`Assets.hs` 渲染 | 不碰檔案系統 |
 | `project` | `AssetDB.Project.Create` | 編排:選素材 → 授權閘門 → 寫樣板 → 單筆解壓 → 寫 manifest/`Assets.hs`/cabal → 登記專案 | 不定義 Manifest schema |
+| `project` | `AssetDB.Project.Sync` | 編排:定位已登記專案 → 選素材(同 Create 的條件)→ 授權閘門 → 與 `project_assets` 及磁碟對帳分四類 → (確認後)單筆解壓新增項 → 以全集重寫 manifest/`Assets.hs` → 登記 | 不重寫樣板、不刪除、不覆蓋既有檔案 |
 | `web` | `src/api/types.ts` | 後端 DTO 的 TypeScript 映射(**產生物,禁止手改**) | — |
 | `web` | `src/api/client.ts` | `Query` 型別、query string 組裝、四個端點的取用函式、縮圖 URL | 不持有畫面狀態 |
 | `web` | `src/App.tsx` | 查詢狀態的唯一擁有者、輸入去抖、facet 與 health 取用、版面組合 | 不做分頁 |
@@ -280,6 +310,25 @@ assetdb new-project --name --path [--pack]… [--match]
   → 回報複製筆數、讀取失敗筆數、被擋下的素材包;0 筆為失敗
 ```
 
+### P6 專案增量同步管線
+
+```text
+assetdb project sync --name [--pack]… [--match] [--allow-non-commercial] [--confirm]
+  → 以 name 查 projects 取得登記的 path;未登記 / 目錄不存在 → 非 0 結束,不動任何檔案
+  → 依與 P5 相同的條件選出候選素材
+  → 授權閘門(同 P5)
+  → 對帳:候選 × project_assets 既有列 × 磁碟檔案雜湊
+       → 新增 / 已存在 / 來源已更新 / 本地已修改
+  → 輸出對帳摘要與各類清單(預設到此為止,不寫磁碟、不寫資料庫)
+  → --confirm:逐筆自壓縮檔取出「新增」項寫進 assets/<kind>/<邏輯名稱><副檔名>
+  → 以登記的全集重寫 assets/manifest.json 與 assets/Assets.hs
+  → 登記新增列(含 copied_sha256)、更新 projects.updated_at
+  → 回報四類筆數與讀取失敗筆數;0 筆新增不是失敗
+```
+
+對帳與寫入刻意分成兩個入口:對帳是純查詢,可以對著真實登記資料直接測;寫入需要
+壓縮檔與 `ArchiveTools`,與 P5 共用同一套單筆解壓語意。
+
 ## 模組間公開介面(Module Interfaces)
 
 ### `server`
@@ -348,7 +397,8 @@ data Invocation = Invocation GlobalArgs Command
 data Command    = CmdScan ScanArgs | CmdTools | CmdDoctor | CmdPackList | CmdPackApply FilePath
                 | CmdReorgPlan ReorgArgs | CmdClusterList (Maybe Text) | CmdClusterRule RuleArgs
                 | CmdClusterApply (Maybe Text) | CmdSearch SearchArgs | CmdIndex | CmdThumbs Bool
-                | CmdNewProject ProjectArgs | CmdNoteImport NoteArgs | CmdNoteList (Maybe Text)
+                | CmdNewProject ProjectArgs | CmdProjectSync SyncArgs
+                | CmdNoteImport NoteArgs | CmdNoteList (Maybe Text)
                 | CmdLink LinkArgs | CmdAiPing AiConn | CmdAiClassify AiConn AiClassifyArgs
                 | CmdAiVision AiConn AiVisionArgs | CmdAiSuggestList AiListArgs
                 | CmdAiDecide AiDecideArgs | CmdAiApply AiApplyArgs
@@ -372,11 +422,12 @@ runSearch     :: FilePath -> SearchArgs  -> IO ()
 runIndex      :: FilePath                -> IO ()
 runThumbs     :: FilePath -> Bool        -> IO ()
 runNewProject :: FilePath -> ProjectArgs -> IO ()
+runProjectSync :: FilePath -> SyncArgs   -> IO ()
 runDoctor     :: FilePath                -> IO ()
 runReorg      :: FilePath -> ReorgArgs   -> IO ()
 ```
 
-`ScanArgs` / `SearchArgs` / `ProjectArgs` / `ReorgArgs` / `RuleArgs` / `NoteArgs` /
+`ScanArgs` / `SearchArgs` / `ProjectArgs` / `SyncArgs` / `ReorgArgs` / `RuleArgs` / `NoteArgs` /
 `LinkArgs` / `AiConn` / `Ai*Args` 各由自己的指令族模組定義並由 `Options` 再匯出 ——
 參數的形狀屬於執行它的模組,而不是屬於解析器。
 
@@ -390,6 +441,19 @@ data CreateOptions = CreateOptions { coName :: Text, coPath, coLibraryRoot :: Fi
 data CreateResult  = CreateResult { crCopied :: Int, crSkipped, crBlocked :: [Text] }
 createProject      :: Store -> ArchiveTools -> CreateOptions -> IO CreateResult
 nonCommercialPacks :: Connection -> [Text] -> IO [Text]   -- 授權閘門的判斷,單獨匯出以便直接測
+
+-- AssetDB.Project.Sync
+data SyncOptions = SyncOptions { soName :: Text, soLibraryRoot :: FilePath
+                               , soPacks :: [Text], soQuery :: Maybe Text
+                               , soAllowNonCommercial :: Bool, soConfirm :: Bool
+                               , soOnEvent :: Text -> IO () }
+data SyncClass   = SyncNew | SyncUnchanged | SyncSourceUpdated | SyncLocallyModified
+data SyncEntry   = SyncEntry { seUlid :: Text, seName :: Text, seRelPath :: Text, seClass :: SyncClass }
+data SyncPlan    = SyncPlan { spProjectPath :: FilePath, spEntries :: [SyncEntry], spBlocked :: [Text] }
+data SyncResult  = SyncResult { syPlan :: SyncPlan, syCopied :: Int, sySkipped :: [Text] }
+data SyncError   = ProjectNotRegistered Text | ProjectDirMissing FilePath
+planSync    :: Store -> SyncOptions -> IO (Either SyncError SyncPlan)                  -- 只對帳,不寫
+syncProject :: Store -> ArchiveTools -> SyncOptions -> IO (Either SyncError SyncResult) -- soConfirm=False 時等同 planSync
 
 -- AssetDB.Project.Template
 data TemplateFile = TemplateFile { tfPath :: FilePath, tfContent :: Text }
@@ -490,6 +554,7 @@ props 讀寫,不各自持有一份查詢條件。
     │         │                        ┌──────┴──────┐
     │         │                        │  project    │
     │         │                        │  Create     │
+    │         │                        │  Sync       │
     │         │                        │  Template   │
     │         │                        │  Assets     │
     │         │                        └──┬───┬──────┘
@@ -518,9 +583,11 @@ props 讀寫,不各自持有一份查詢條件。
 | 7 | HTTP 服務:Servant API、縮圖靜態服務、`--emit-types` 型別產生器 | ✅ |
 | 8 | 前端:虛擬化縮圖網格、facet 側欄、放大檢視 | ✅ |
 | 9 | 專案產出:樣板、單筆解壓、manifest 與 `Assets.hs`、授權閘門 | ✅ |
+| 14 | 專案增量同步:對帳、只增不刪、以全集重寫 manifest 與 `Assets.hs` | 🔲 規劃中(2026-08-20) |
 
-四個階段的功能面都已實作完成並通過測試。本子系統的 feature 文檔為 2026-08 遷移到
-`.design/` 時的回溯建檔,後續變更走 `/enhance-design` 或 `/bugfix`。
+階段 2–9 的功能面都已實作完成並通過測試,對應的 feature 文檔為 2026-08 遷移到
+`.design/` 時的回溯建檔。階段 14 是 README「尚未實作」清單裡最痛的一項,2026-08-20
+正式列入功能規劃(#6),契約卡已備妥,走 `/feature-design` 展開。
 
 ## 功能規劃
 
@@ -531,6 +598,9 @@ props 讀寫,不各自持有一份查詢條件。
 | 3 | ts-type-contract | 後端型別產生器與前端 TypeScript 型別契約 | `server`(`TsTypes`)+ `web/src/api/types.ts` | #2 | F003 |
 | 4 | web-grid-facets | 虛擬化縮圖網格、facet 側欄與放大檢視 | `web`(`App` + `components/*` + `api/client.ts`) | #2, #3 | F004 |
 | 5 | project-scaffold | 專案樣板、單筆解壓、manifest 與 Assets.hs 產生、授權閘門 | `project`(`Template` + `Assets` + `Create`)+ `cli`(`Project`) | #1 | F005 |
+| 6 | project-sync | 把符合條件的素材增量加入已登記的專案:對帳分四類、預設預覽、只增不刪 | `project`(`Sync`)+ `cli`(`Options` + `Project`) | #5 | - |
+
+(小結:共 6 個 features;#1–#5 已完成,#6 待展開)
 
 ## Feature 契約卡
 
@@ -649,5 +719,42 @@ props 讀寫,不各自持有一份查詢條件。
   - 一筆都沒複製時以非 0 結束碼結束,並提示可能是條件太窄或素材尚未命名
   - 專案與素材登記進資料庫,含複製當下的內容雜湊
 - **明確不做**:不做多模板(`projects.template` 欄位為未來預留,**刻意不開 `--template`
-  參數**,免得出現「可以指定但沒有效果」的假選項);不做增量更新既有專案;不產生可直接
+  參數**,免得出現「可以指定但沒有效果」的假選項);不做增量更新既有專案(由 #6
+  `project-sync` 負責);不產生可直接
   執行的遊戲程式碼(樣板把 h-raylib / apecs 相依註解起來);不驗證產出的 cabal 專案能編譯。
+
+### project-sync
+
+- **階段**:階段 14:專案增量同步
+- **負責模組**:`project` 的 `AssetDB.Project.Sync`(新模組);`cli` 的 `AssetDB.Cli.Options`
+  (`project sync` 指令文法)與 `AssetDB.Cli.Project`(runner)
+- **實作的 Level 2 介面**:對外契約 §3 指令表的 `project sync` 列與三條跨指令契約中對它的
+  要求(預設預覽、授權閘門預設開);§6「專案增量同步」全部條目;模組間公開介面 `project` 的
+  `SyncOptions` / `SyncClass` / `SyncEntry` / `SyncPlan` / `SyncResult` / `SyncError` /
+  `planSync` / `syncProject`,以及 `cli` 的 `CmdProjectSync` / `SyncArgs` / `runProjectSync`。
+  只使用不新增:`project` 的 `nonCommercialPacks` / `AssetRef` / `renderAssetsModule`;
+  catalog 的 `AssetDB.Manifest`(`Manifest` / `ManifestAsset` / `currentSchemaVersion`)、
+  `AssetDB.PathText`、`AssetDB.Store`;ingest 的 `AssetDB.Archive`(`ArchiveTools` / `readEntry`)
+- **資料流管線段落**:P6 專案增量同步管線(全段);`--confirm` 下「單筆解壓 → 寫 manifest /
+  `Assets.hs` → 登記」三段與 P5 同語意
+- **驗收標準**:
+  - 未登記的 `--name`、以及登記了但目錄已不存在的專案,都不動任何檔案、非 0 結束,
+    訊息分別指出「未登記」與「目錄不存在」
+  - 預設(無 `--confirm`)不寫磁碟、不寫資料庫,但印出四類筆數與清單;連跑兩次結果一致
+  - 四類判定可被直接測到:同一筆素材在「未登記」「已登記且三個雜湊相同」「來源 sha 改變」
+    「磁碟檔案被改 / 被刪」四種狀態下各落入對應類別
+  - `--confirm` 後只新增「新增」類:已存在的檔案一個位元組都沒變;「來源已更新」與
+    「本地已修改」的檔案不被覆蓋,且仍列在回報裡
+  - `--confirm` 後 `manifest.json` 與 `Assets.hs` 含既有 + 新增的全集,識別字去重規則與
+    `new-project` 一致;`SKILL.md`、`README.md`、`<NAME>.cabal` 的內容不變
+  - `project_assets` 新增列帶 `copied_sha256`,既有列不變;`projects.updated_at` 更新
+  - 授權閘門行為與 `new-project` 完全一致(不可商用與 NULL 都擋;`--allow-non-commercial`
+    才放行);被擋下的素材包逐包告知
+  - 0 筆新增時結束碼 0 並說明「沒有需要加入的素材」;`--confirm` 下全部新增項都讀取失敗
+    時非 0
+  - `assetdb project sync --help` 列出全部旗標;`new-project` 的行為與輸出不受影響
+  - 樣板 `SKILL.md` 的「加入新素材」段落改為說明 `project sync` 的用法,不再寫「尚未實作」
+- **明確不做**:不刪除、不覆蓋、不搬移專案內任何既有檔案;不提供「更新到來源新版本」或
+  「還原本地修改」的旗標(那是另一個 feature,要先回到本文件補契約);不重寫樣板檔案;
+  不改 `new-project` 的選素材語意;不新增 HTTP 端點或前端入口;不做 hardlink 複製模式
+  (`copy_mode` 仍固定 `'copy'`);不把 `new-project` 改成 `project new`(既有指令名不動)。

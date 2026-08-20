@@ -39,7 +39,8 @@ HTTP 請求、瀏覽器上看得見的網格、以及最後落在遊戲專案目
 **明確不做**
 
 - **不做掃描、雜湊、縮圖產生、格式解碼、叢集推論**:那些是 ingest 的職責,delivery 只
-  呼叫它們並把進度印出來。
+  呼叫它們並把進度印出來。**「不做」指的是不自行實作**——`project` 的同步對帳呼叫
+  ingest 的 `sha256File` 是允許的,自己寫一份摘要演算法則不允許。
 - **不做 LLM 推論**:`assetdb ai …` 只是 ai-tagging 的命令列外殼。
 - **不定義領域型別、資料庫 schema 或查詢語意**:全部來自 catalog。HTTP 的查詢參數是
   `AssetDB.Store.Search.SearchQuery` 的一層薄映射,不是第二套查詢語言。
@@ -202,12 +203,19 @@ OpenAPI 工具鏈,但沒有少掉它要解決的問題。
   | 來源已更新 | 已登記,磁碟檔案雜湊 = `copied_sha256`,但來源 `sha256` 不同 | 只回報,不覆蓋 |
   | 本地已修改 | 已登記,磁碟檔案雜湊 ≠ `copied_sha256`(含檔案已不在) | 只回報,不覆蓋 |
 
+  「磁碟檔案雜湊」是 SHA-256,取自 ingest 的內容雜湊介面 —— delivery 不自行實作雜湊,
+  也不得改用其他摘要;內容識別在全系統只有一種定義(ADR-002)。
+
 - **預設只預覽**:列出四類的筆數與清單,不寫磁碟、不寫資料庫;`--confirm` 才執行「新增」類。
 - **只增不刪、不覆蓋**:專案裡既有的檔案、手寫程式碼與 `project_assets` 既有列一律不動。
   「更新到來源新版本」與「還原本地修改」是另外的指令,不在本契約內。
 - `--confirm` 時以**登記的全集**(既有 + 新增)重新產生 `assets/manifest.json` 與
   `assets/Assets.hs`;其餘樣板檔案(`SKILL.md`、`README.md`、`<NAME>.cabal`、`docs/`)不重寫;
   `projects.updated_at` 更新。
+- **授權閘門只擋新增,不回溯既有**。既有登記素材的素材包後來授權降級或被改回未查證時,
+  它仍留在磁碟上、仍列入重新產生的 `manifest.json` 與 `Assets.hs`(否則 manifest 與磁碟
+  不一致,而遊戲端已經引用的 `AssetKey` 常數會靜默消失),但**必須在回報中逐包列出並警告
+  發行前要處理**。一個無關的新增不因舊的授權問題被卡死;授權問題也不因此被靜靜吞掉。
 - **0 筆新增不是失敗**(與 `new-project` 相反):「沒有東西要加」是正常結果,結束碼 0。
   只有專案定位失敗、或 `--confirm` 下所有新增項都讀取失敗時才以非 0 結束。
 
@@ -472,7 +480,11 @@ haskellIdent       :: Text -> Text
 
 **消費的 catalog / ingest 介面**:`AssetDB.Manifest`(schema 與 `AssetKey`)、
 `AssetDB.Id`、`AssetDB.Naming`、`AssetDB.Types`、`AssetDB.PathText`、`AssetDB.Store`、
-`AssetDB.Archive`(`ArchiveTools` / `readEntry`)。
+`AssetDB.Archive`(`ArchiveTools` / `readEntry`)、
+`AssetDB.Ingest.Hash`(`Sha256` / `unSha256` / `sha256File`,供 `Sync` 的對帳使用)。
+
+`project` 依賴 `assetdb-ingest` 只為了取用內容雜湊這一個介面。這不違反「delivery 不做雜湊」
+—— 那條的意思是不自行實作,而不是不准呼叫;依賴方向 `ingest ← delivery` 與通訊拓撲一致。
 
 ### `web`
 
@@ -735,6 +747,7 @@ props 讀寫,不各自持有一份查詢條件。
   只使用不新增:`project` 的 `nonCommercialPacks` / `AssetRef` / `renderAssetsModule`;
   catalog 的 `AssetDB.Manifest`(`Manifest` / `ManifestAsset` / `currentSchemaVersion`)、
   `AssetDB.PathText`、`AssetDB.Store`;ingest 的 `AssetDB.Archive`(`ArchiveTools` / `readEntry`)
+  與 `AssetDB.Ingest.Hash`(`Sha256` / `unSha256` / `sha256File`)
 - **資料流管線段落**:P6 專案增量同步管線(全段);`--confirm` 下「單筆解壓 → 寫 manifest /
   `Assets.hs` → 登記」三段與 P5 同語意
 - **驗收標準**:
@@ -750,6 +763,8 @@ props 讀寫,不各自持有一份查詢條件。
   - `project_assets` 新增列帶 `copied_sha256`,既有列不變;`projects.updated_at` 更新
   - 授權閘門行為與 `new-project` 完全一致(不可商用與 NULL 都擋;`--allow-non-commercial`
     才放行);被擋下的素材包逐包告知
+  - 授權閘門**只擋新增不回溯既有**:既有登記素材的素材包授權降級後,該素材仍留在磁碟、
+    仍列入重新產生的 manifest 與 `Assets.hs`,但回報逐包列出並警告發行前要處理
   - 0 筆新增時結束碼 0 並說明「沒有需要加入的素材」;`--confirm` 下全部新增項都讀取失敗
     時非 0
   - `assetdb project sync --help` 列出全部旗標;`new-project` 的行為與輸出不受影響

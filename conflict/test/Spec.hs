@@ -2,6 +2,7 @@ module Main (main) where
 
 import qualified StoryFlow.Conflict.CabalSpec
 import qualified StoryFlow.Conflict.EvidenceSpec
+import qualified StoryFlow.Conflict.GraphSpec
 import qualified StoryFlow.Conflict.JsonSpec
 import qualified StoryFlow.Conflict.OptsSpec
 import qualified StoryFlow.Conflict.ReportSpec
@@ -20,3 +21,4 @@ main = do
     describe "T4 ConflictHit / ContextHit / ConflictReport" StoryFlow.Conflict.ReportSpec.spec
     describe "T5 layerTag / sortHits" StoryFlow.Conflict.SortSpec.spec
     describe "T6 StoryFlow.Conflict.Json" StoryFlow.Conflict.JsonSpec.spec
+    describe "F002 StoryFlow.Conflict.Graph" StoryFlow.Conflict.GraphSpec.spec

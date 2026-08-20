@@ -23,6 +23,7 @@ library
     import:           warnings, lang
     hs-source-dirs:   src
     exposed-modules:
+        StoryFlow.Conflict.Graph
         StoryFlow.Conflict.Json
         StoryFlow.Conflict.Types
     -- ADR-007 說三層「各自可獨立演進」,而那句話成立的前提是三層對同一組型別
@@ -44,6 +45,7 @@ test-suite storyflow-conflict-test
         StoryFlow.Conflict.CabalSpec
         StoryFlow.Conflict.EvidenceSpec
         StoryFlow.Conflict.Fixtures
+        StoryFlow.Conflict.GraphSpec
         StoryFlow.Conflict.JsonSpec
         StoryFlow.Conflict.OptsSpec
         StoryFlow.Conflict.ReportSpec

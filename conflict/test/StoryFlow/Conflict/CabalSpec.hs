@@ -27,6 +27,41 @@ spec = describe "型別套件不依賴任何實作端" $ do
     deps <- dependencyLines <$> readCabal
     any ("storyflow-core" `isInfixOf`) deps `shouldBe` True
 
+  -- conflict-detection/F002 T7:第 1 層是純函式,長出一個新模組不該把
+  -- service / store 拖進來。新模組要在 exposed-modules 裡,相依維持原樣。
+  it "新增模組未帶進新相依" $ do
+    src <- readCabal
+    ("StoryFlow.Conflict.Graph" `isInfixOf` src) `shouldBe` True
+    let deps = dependencyLines src
+    mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
+    map trim deps `shouldBe` libraryDeps ++ testDeps
+
+-- | 函式庫的相依__逐字__釘住:驗收標準 6 說的是「沒有增長」,而
+-- 「沒有出現在禁用清單裡」擋不住偷偷多一個包。
+libraryDeps :: [String]
+libraryDeps =
+  [ ", aeson"
+  , ", base            >=4.14 && <5"
+  , ", containers"
+  , ", storyflow-core"
+  , ", text"
+  ]
+
+-- | test-suite 的相依。第 1 層的測試靠 core 的 @buildGraph@ 蓋圖、靠
+-- 'Data.Foldable.toList' 觀測 @Map@ / @Set@,所以這裡也沒有多出東西。
+testDeps :: [String]
+testDeps =
+  [ ", aeson"
+  , ", base"
+  , ", bytestring"
+  , ", directory"
+  , ", hspec"
+  , ", storyflow-conflict"
+  , ", storyflow-core"
+  , ", text"
+  , ", time"
+  ]
+
 -- | 實作端的套件。出現在這裡就是架構違規——型別會被綁到某一層的實作進度上。
 forbidden :: [String]
 forbidden =
@@ -57,3 +92,7 @@ dependencyLines = filter isDep . lines
     isDep l = case dropWhile isSpace l of
       (',' : _) -> True
       _ -> False
+
+-- | 去掉前後空白。@.cabal@ 是 CRLF,'lines' 會把 @\\r@ 留在行尾。
+trim :: String -> String
+trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse

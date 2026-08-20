@@ -100,6 +100,13 @@ data VaultView = VaultView
 data SearchHit = SearchHit
   { shMeta :: Meta
   , shSnippet :: Text
+  , shScore :: Maybe Double
+  -- ^ 0–1,越大越相關。FTS5 路徑帶正規化後的 bm25
+  -- ('StoryFlow.Store.Query.normalizeBm25');中文兩字詞走的 @LIKE@ 路徑是
+  -- @ORDER BY e.id@,沒有相關度可言,一律 'Nothing'。
+  --
+  -- 呼叫端拿到 'Nothing' 時該做的是__依名次自己回退__,不是捏一個假分數:
+  -- 「我不知道有多相關」與「相關度是 0.5」是兩件事(conflict-detection/F003)。
   }
   deriving stock (Show, Eq)
 

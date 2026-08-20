@@ -51,6 +51,7 @@ module StoryFlow.Service
   , getEntity
   , listEntities
   , searchEntity
+  , aliasIndex
   , updateEntity
   , setEntityBody
   , deleteEntity
@@ -59,6 +60,7 @@ module StoryFlow.Service
   , addLink
   , removeLink
   , linksOf
+  , linkGraph
 
     -- * Level / Node
   , createLevel
@@ -77,8 +79,10 @@ import Data.List (nub)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import StoryFlow.Core.Entity (Entity (..))
+import StoryFlow.Core.Graph (LinkGraph)
 import StoryFlow.Core.Id (Id, Ref (..), localRef)
 import StoryFlow.Core.Link (Link (..), LinkKind)
 import StoryFlow.Core.Meta (Meta (..))
@@ -180,11 +184,36 @@ listEntities f = do
   liftIO (S.listEntities conn f)
 
 -- | FTS5 檢索。中文的兩字詞由 @store@ 那一層改走 @LIKE@,這裡不重複那個判斷。
+--
+-- 相關度原樣攤進 'SearchHit' __不做任何加工__:分數的語意由 @store@ 定義
+-- ('StoryFlow.Store.Query.normalizeBm25'),這一層再壓一次只會讓兩處各有一份
+-- 規則。
 searchEntity :: Text -> EntityFilter -> ServiceM [SearchHit]
 searchEntity q f = do
   conn <- asks envConn
   hits <- liftIO (searchEntities conn q f)
-  pure [SearchHit m s | (m, s) <- hits]
+  pure [SearchHit m s sc | (m, s, sc) <- hits]
+
+-- | 片段 id → 它的 @metaTitle@ 與 @metaAliases@。
+--
+-- 給衝突偵測第 2 層(conflict-detection/F003)做「既有名稱有沒有出現在草稿裡」的
+-- 反向比對用。呼叫端傳 @'emptyFilter' { efStatus = Just Canon }@ 取比對基準。
+--
+-- __標題排第一__:它是最常被寫進草稿的名稱,而呼叫端的關鍵詞順序直接決定
+-- 檢索順序。
+--
+-- __空字串名稱一律濾掉__:@metaAliases@ 允許使用者寫空項,而
+-- @Data.Text.isInfixOf ""@ 對任何草稿都成立——留著會讓每個片段都變成關鍵詞命中。
+--
+-- 建在 'listEntities' 之上,__不新增 @store@ 查詢__:@ORDER BY e.id@ 已經保證
+-- 輸出順序確定,而「只傳字串比較省」的論據只對 REST 成立——這個出口
+-- __只開內嵌__:不接 CLI、不接 REST。
+aliasIndex :: EntityFilter -> ServiceM [(Id, [Text])]
+aliasIndex f = do
+  metas <- listEntities f
+  pure [(metaId m, names m) | m <- metas]
+  where
+    names m = nub (filter (not . T.null . T.strip) (metaTitle m : metaAliases m))
 
 -- | 組出 'EntityView':路徑與錨點是__索引才知道__的事,型別警告是
 -- 註冊表才知道的事,兩者都不在 'Entity' 裡。
@@ -344,6 +373,35 @@ linksOf i = do
   out <- liftIO (linksFrom conn i)
   inc <- liftIO (linksTo conn (localRef i))
   pure (LinkReport out inc)
+
+-- | 整張關聯圖。衝突偵測第 1 層(conflict-detection/F002 的 @graphHits@)吃的就是它。
+--
+-- __只開內嵌出口__:不進 @StoryFlowAPI@、不進 CLI 的指令樹。理由與 'aliasIndex'
+-- 同一條——整張圖序列化送出去,對任何一個外部客戶端都不是它要的東西;需要它的
+-- REST 路徑(@POST \/conflict\/context@)是在伺服器端自己呼叫這個函式。
+--
+-- 存在的理由是硬性的:@loadLinkGraph@ 住在 @storyflow-store@,而
+-- @storyflow-conflict@ 的 @build-depends@ 逐字擋著 @storyflow-store@。
+-- 那個套件拿得到整張圖的唯一合法途徑就是經 'ServiceM'。
+--
+-- __不過濾、不投影__:第 1 層的反向索引要看的是「有沒有__任何__關聯」
+-- (conflict-detection/F002 的 @revIndex@ 刻意不依 'StoryFlow.Core.Link.LinkKind'
+-- 過濾),這裡先砍一刀會讓那個判斷失準。
+--
+-- __不變量:指向本 Vault 的目標一律 @refVault = 'Nothing'@__。這不是本函式做的
+-- 正規化,而是__索引寫入端__已經保證的事,呼叫端可以直接依賴:
+--
+-- * "StoryFlow.Store.Index" 的 @insertLinks@ 在寫進 @links@ 表之前套用
+--   @localize@,把 @refVault == Just (vaultName v)@ 的目標改成 'Nothing';
+--   @links@ 表的三個寫入點(Entity \/ Level \/ Node)全部經過它,沒有第四條路徑
+-- * @StoryFlow.Store.Row@ 的 @linkFields@ 把它寫成表的不變量
+-- * @StoryFlow.Store.Query@ 的 @linksTo@ __已經依賴__它(查本地 id 用的是
+--   @WHERE dst = ? AND dst_vault IS NULL@),而 @loadLinkGraph@ 讀的是同一張表
+--
+-- 因此消費端__不該再掃一遍圖做第二次正規化__:同一條規則有兩份時,其中一份會先
+-- 過期。這條不變量由 @StoryFlow.Service.LinkGraphSpec@ 釘住。
+linkGraph :: ServiceM LinkGraph
+linkGraph = asks envConn >>= liftIO . loadLinkGraph
 
 -- | 跨 Vault 的定址只存不解析(service-and-interfaces/F001 第四節)。
 --

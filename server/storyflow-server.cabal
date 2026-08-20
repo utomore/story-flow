@@ -42,6 +42,7 @@ library
         , servant
         , servant-server
         , storyflow-api
+        , storyflow-conflict
         , storyflow-core
         , storyflow-service
         , text
@@ -88,6 +89,7 @@ test-suite storyflow-server-test
         , servant-client
         , servant-server
         , storyflow-api
+        , storyflow-conflict
         , storyflow-core
         , storyflow-server
         , storyflow-service

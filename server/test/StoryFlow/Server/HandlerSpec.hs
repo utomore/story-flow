@@ -7,12 +7,21 @@ module StoryFlow.Server.HandlerSpec (spec) where
 
 import Data.List (sort)
 import qualified Data.Text as T
-import StoryFlow.Api (BodyReq (..), NewVaultReq (..))
+import StoryFlow.Api (BodyReq (..), ContextReq (..), NewVaultReq (..))
+import StoryFlow.Conflict.Types
+  ( ContextHit (..)
+  , Draft (..)
+  , defaultConflictOpts
+  , layerTag
+  )
 import StoryFlow.Core.Entity (Entity (..))
-import StoryFlow.Core.Id (localRef)
+import StoryFlow.Core.Id (localRef, renderId)
 import StoryFlow.Core.Level (Level (..), Node (..))
-import StoryFlow.Core.Link (Link (..), LinkKind (PartOf, References))
-import StoryFlow.Core.Meta (Meta (..), Status (Draft))
+import StoryFlow.Core.Link (Link (..), LinkKind (Contradicts, PartOf, References))
+-- @Status@ 的 @Draft@ 建構子與 'StoryFlow.Conflict.Types.Draft' 同名,
+-- 所以 core 的 'Status' 走 qualified(同 conflict 那一邊的 RetrievalEnvSpec)。
+import StoryFlow.Core.Meta (Meta (..))
+import qualified StoryFlow.Core.Meta as CM
 import StoryFlow.Core.Tree (NodeTree (..))
 import StoryFlow.Server.Fixtures
 import StoryFlow.Service
@@ -78,10 +87,10 @@ spec = describe "每條路由" $ do
       _ <- runC env (cCreateEntity api (newEntity "character" "琳達" "第七織手"))
       _ <-
         runC env . cCreateEntity api $
-          (newEntity "lore" "埃提亞" "崩塌前的地區") {nerStatus = Draft, nerTags = ["地理"]}
+          (newEntity "lore" "埃提亞" "崩塌前的地區") {nerStatus = CM.Draft, nerTags = ["地理"]}
       all' <- runC env (cListEntities api Nothing Nothing Nothing Nothing)
       byType <- runC env (cListEntities api (Just "character") Nothing Nothing Nothing)
-      byStatus <- runC env (cListEntities api Nothing (Just Draft) Nothing Nothing)
+      byStatus <- runC env (cListEntities api Nothing (Just CM.Draft) Nothing Nothing)
       byTag <- runC env (cListEntities api Nothing Nothing (Just "地理") Nothing)
       byLimit <- runC env (cListEntities api Nothing Nothing Nothing (Just 1))
       map length [all', byType, byStatus, byTag, byLimit] `shouldBe` [2, 1, 1, 1, 1]
@@ -130,6 +139,36 @@ spec = describe "每條路由" $ do
 
       del <- runC env (cDeleteLevel api lid (lvRevision removed) (Just False))
       delRemoved del `shouldSatisfy` elem lid
+
+  describe "conflict(conflict-detection/F004)" $ do
+    it "POST /conflict/context 不帶 opts 也通,回得出兩層的命中" $ withServer $ \env -> do
+      b <- evId <$> runC env (cCreateEntity api (newEntity "character" "被推翻的設定" "舊的說法"))
+      a <-
+        evId
+          <$> runC
+            env
+            ( cCreateEntity api $
+                (newEntity "character" "琳達" "埃提亞的第七織手")
+                  {nerLinks = [Link Contradicts (localRef b) Nothing]}
+            )
+
+      -- opts 缺席 → 伺服器端退回 defaultConflictOpts(ContextReq 的 FromJSON)。
+      -- 這裡送的是完整的 ContextReq,而 defaultConflictOpts 就是它的預設值。
+      hits <- runC env (cContext api (ContextReq (Draft "琳達走進廢墟" [a]) defaultConflictOpts))
+      let byId = [(renderId (metaId (xhMeta h)), layerTag (xhVia h)) | h <- hits]
+      lookup (renderId b) byId `shouldBe` Just "graph"
+      lookup (renderId a) byId `shouldBe` Just "retrieval"
+
+    it "空草稿回空清單而不是錯誤" $ withServer $ \env -> do
+      _ <- runC env (cCreateEntity api (newEntity "character" "琳達" "第七織手"))
+      runC env (cContext api (ContextReq (Draft "" []) defaultConflictOpts)) `shouldReturn` []
+
+    it "每筆 ContextHit 都帶得動 Meta 與 snippet(外部 Agent 不必再往返)" $ withServer $ \env -> do
+      _ <- runC env (cCreateEntity api (newEntity "character" "琳達" "埃提亞的第七織手"))
+      hits <- runC env (cContext api (ContextReq (Draft "琳達走進廢墟" []) defaultConflictOpts))
+      hits `shouldSatisfy` not . null
+      map (T.null . metaTitle . xhMeta) hits `shouldNotContain` [True]
+      map (T.null . xhSnippet) hits `shouldNotContain` [True]
 
   describe "狀態碼" $ do
     it "不存在的 id → 404" $ withServer $ \env -> do

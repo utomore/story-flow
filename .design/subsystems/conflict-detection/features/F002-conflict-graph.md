@@ -3,9 +3,9 @@ id: F002
 type: feature
 title: conflict-graph
 description: 衝突偵測第 1 層:順關聯圖找出確定性的矛盾與已被取代命中
-status: open
+status: done
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 depends-on: [entity-graph-core/F002, F001]
 related-adr: [ADR-005, ADR-007]
 related-feature: []
@@ -306,13 +306,13 @@ unlinkedRefs :: LinkGraph -> [Id] -> [Id]
 
 ## TodoList
 
-- [ ] T1: `revIndex` 與 `RevIndex`:反向索引,只收 `refVault == Nothing` 的關聯  `dep: F001`
-- [ ] T2: `contradictionFindings`:正向 + 反向、固定一跳、略過自我關聯,證據保留關聯原文方向  `dep: T1`
-- [ ] T3: `supersessionFindings`:反向 BFS 最多 `coGraphDepth` 跳、只回鏈末端、`gfTruncated` 與防環  `dep: T1`
-- [ ] T4: `renderGraphReason`:五種句型(矛盾 ±附註、取代 一跳/多跳/截斷),跨 Vault 目標用 `renderRef`  `dep: T2, T3`
-- [ ] T5: `dedupeFindings` 與 `sortFindings`:去重鍵與三層排序鍵  `dep: T2, T3`
-- [ ] T6: `graphHits` 門面(輸入去重保序 → 兩種發現 → 去重 → 排序 → `ConflictHit`)與 `unlinkedRefs`  `dep: T4, T5`
-- [ ] T7: cabal `exposed-modules` 與 `test/Spec.hs` 註冊新模組,確認 `build-depends` 未增長  `dep: T6`
+- [x] T1: `revIndex` 與 `RevIndex`:反向索引,只收 `refVault == Nothing` 的關聯  `dep: F001`
+- [x] T2: `contradictionFindings`:正向 + 反向、固定一跳、略過自我關聯,證據保留關聯原文方向  `dep: T1`
+- [x] T3: `supersessionFindings`:反向 BFS 最多 `coGraphDepth` 跳、只回鏈末端、`gfTruncated` 與防環  `dep: T1`
+- [x] T4: `renderGraphReason`:五種句型(矛盾 ±附註、取代 一跳/多跳/截斷),跨 Vault 目標用 `renderRef`  `dep: T2, T3`
+- [x] T5: `dedupeFindings` 與 `sortFindings`:去重鍵與三層排序鍵  `dep: T2, T3`
+- [x] T6: `graphHits` 門面(輸入去重保序 → 兩種發現 → 去重 → 排序 → `ConflictHit`)與 `unlinkedRefs`  `dep: T4, T5`
+- [x] T7: cabal `exposed-modules` 與 `test/Spec.hs` 註冊新模組,確認 `build-depends` 未增長  `dep: T6`
 
 ## 1-to-1 測試對照表
 
@@ -325,7 +325,61 @@ unlinkedRefs :: LinkGraph -> [Id] -> [Id]
 | T5 | 同檔 → `去重與排序是確定的` | 同一條證據由兩個起點抵達只留一筆且取最小跳數;同一 target 的矛盾與取代兩筆都留下;排序結果為 跳數 → `Contradicts` 先於 `Supersedes` → id 字典序;打亂輸入順序後輸出不變 |
 | T6 | 同檔 → `門面的輸出契約` | `graphHits` 每一筆 `chLayer` 都是 `ByGraph`、`chSnippet` 恆為 `Nothing`、`chReason` 非空;重複的起點只算一次;空圖或空起點回空清單;`unlinkedRefs` 只列出零關聯的起點、保序去重,有出向或入向關聯的都不列 |
 | T7 | `conflict/test/StoryFlow/Conflict/CabalSpec.hs` → `新增模組未帶進新相依` | `exposed-modules` 含 `StoryFlow.Conflict.Graph`;`build-depends` 仍不含 `storyflow-service` / `storyflow-store` / `storyflow-md` / `storyflow-llm` / `sqlite-simple`(沿用 F001 T1 的斷言) |
+## 待確認假設
+
+- A1: 取代的三種文案(一跳 / 多跳 / 截斷)都沒有把 `linkNote` 接進句尾,只有矛盾那兩列有
+  → 採取:照「六、理由文案」的五列表格逐字實作,單跳取代的 `linkNote` 仍保留在
+  `GraphFinding` 的 `gfNote`,只是不進 `chReason` → 影響:若後來認為單跳取代也該顯示附註,
+  改 `renderGraphReason` 一個分支即可,`GraphFinding` 不必動
+- A2: 截斷文案「已達深度上限 N」的 N 沒有指明是深度上限還是跳數 → 採取:用 `gfHops`
+  ——截斷只發生在 `d == coGraphDepth`,兩者恆等,但用 `gfHops` 不必把選項再傳一手 →
+  影響:若將來截斷判定改成可能發生在 `d < depth`,這個文案會失真,要改成傳入深度上限
+- A3: 只被跨 Vault 參照指到的本地 id(例如 `shared-lore:ent-e5` 的 `ent-e5`)在
+  `unlinkedRefs` 會被列為「零關聯」→ 採取:照「七、空起點的回報」的字面
+  ——「不是任何**本地**關聯的目標」——列出它 → 影響:若 #4 接線時把指向本 Vault 的 `Ref`
+  正規化成 `refVault = Nothing`(本文檔第二節提過的根治方式),這個行為自動變成正確的,
+  不必改本層
+- A4: 測試需要觀測 `RevIndex`(`M.Map`)與 core 的 `supersededSet`(`Set`),而
+  `containers` 不在 test-suite 的 `build-depends` 裡 → 採取:不加相依——圖一律用 core 的
+  `buildGraph` 從 `Meta` 蓋,`Map` / `Set` 一律用 `Data.Foldable.toList` 觀測,反向索引的鍵
+  從桶裡每一筆的 `linkTarget` 復原(`RevIndex` 只收 `refVault == Nothing`,`refId` 必等於鍵)
+  → 影響:F003 若因別的理由把 `containers` 加進 test-suite,`GraphSpec` 的
+  `revBuckets` / `bucketOf` 兩個輔助可以換成 `M.toList` / `M.findWithDefault`,測試斷言不變
 
 ## 實作備註
 
-(撰寫時留空)
+1. **`revIndex` 不依 `LinkKind` 過濾**。過濾是 `contradictionFindings` 與
+   `supersessionFindings` 各自的事;`unlinkedRefs` 問的是「有沒有**任何**關聯」,索引先砍成
+   兩種核心關聯就答不出來了。代價只是索引大一點,而它本來就是一次建、三處用。
+
+2. **反向 BFS 判斷「還有沒有取代者」時,用的是進入該輪**前**的 `visited`**。同一輪發現的
+   兩個節點之間也可能有取代關係(`P` 與 `Q` 都取代了上一輪的 `n`,而 `Q` 又取代 `P`);拿
+   已經含 `Q` 的集合去問,`P` 會被誤判成鏈末端而回報一個已經過時的取代者。用前一輪的集合
+   則 `P` 正確地不算末端,`Q` 照樣在同一輪以最小跳數回報。環的保險不受影響:2-環的另一端
+   一定在前一輪就進了 `visited`。
+
+3. **`geTo` 一律寫 `localRef start`**。單跳時它與關聯原文的 `linkTarget` 是同一個值——
+   `RevIndex` 只收 `refVault == Nothing` 的目標,所以 `refId (linkTarget l) == start`
+   ——因此「單跳是原文、多跳是壓縮結論」這個區分不需要在程式碼裡分支,只需要在 `gfHops`
+   與 `gfNote` 上表達。
+
+4. **理由文案的「另一端」由證據推導,不由 `gfTarget` 推導**:`geFrom == gfStart` 時另一端在
+   `geTo`(走 `renderRef`,跨 Vault 因此顯示成 `vault:id`),否則另一端在 `geFrom`
+   (走 `renderId`)。這一條讓正向矛盾、反向矛盾與取代三種命中共用同一個 helper,也是
+   「矛盾句型對稱、不區分正反向」真正落地的地方。`chTarget :: Id` 丟掉的 vault 名由
+   `geTo` 保存,驗收標準 5 因此成立。
+
+5. **`dedupeFindings` 用 `M.fromListWith` 後取 `M.elems`**,輸出依鍵遞增而非輸入順序——
+   去重這一步本身就是確定性的,不必倚賴後面的 `sortFindings` 才變確定。實務上兩個起點
+   撞同一把鍵只發生在「草稿同時引用矛盾對的兩端」:取代命中的 `geTo` 就是起點,鍵天生
+   帶著起點,不同起點撞不到一起。
+
+6. **T7 的斷言比文檔原本寫的更緊**:除了沿用 F001 的禁用清單,還把 `.cabal` 兩段
+   `build-depends` 的內容**逐字**釘住。「沒有出現在禁用清單裡」擋不住偷偷多一個包,而驗收
+   標準 6 說的是「沒有增長」。F003 要加 `storyflow-service` 時,`CabalSpec` 的
+   `libraryDeps` 會立刻紅燈——那正是 F001 註解裡說的「這條測試要**被明確改掉**」。
+
+7. **`storyflow-conflict` 的 `build-depends` 前後完全相同**(`aeson` / `base` /
+   `containers` / `storyflow-core` / `text`),`exposed-modules` 只多一行
+   `StoryFlow.Conflict.Graph`;test-suite 只多一行 `StoryFlow.Conflict.GraphSpec`。
+   `Types.hs` / `Json.hs` 一個字都沒改。

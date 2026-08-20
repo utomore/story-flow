@@ -26,12 +26,30 @@ module StoryFlow.Api.Fixtures
   , sampleNewLevelReq
   , sampleNewNodeReq
   , sampleEntityPatch
+
+    -- * 衝突偵測(conflict-detection/F004)
+  , sampleDraft
+  , sampleConflictOpts
+  , sampleGraphEvidence
+  , sampleGraphLayer
+  , sampleRetrievalLayer
+  , sampleJudgeLayer
+  , sampleContextHit
+  , sampleContextReq
   , idOf
   , refOf
   ) where
 
 import Data.Text (Text)
 import Data.Time (fromGregorian)
+import StoryFlow.Api (ContextReq (..))
+import StoryFlow.Conflict.Types
+  ( ConflictOpts (..)
+  , ContextHit (..)
+  , Draft (..)
+  , GraphEvidence (..)
+  , HitLayer (..)
+  )
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Level (Level (..), Node (..), NodeKind (KCast, KScene))
@@ -114,8 +132,10 @@ sampleLevelView = LevelView sampleLevel sampleTree "levels/教室.md"
 sampleVaultView :: VaultView
 sampleVaultView = VaultView "liftgame" "/home/u/story-vaults/liftgame" (Just 42)
 
+-- | @score@ 刻意給 'Just':'StoryFlow.Api.SchemaSpec' 的樣本要把選配欄位填滿,
+-- 否則「@Maybe@ 沒值就整個鍵不出現」的約定會讓鍵集合比對假性不一致。
 sampleSearchHit :: SearchHit
-sampleSearchHit = SearchHit sampleMeta "……埃提亞的第七織手……"
+sampleSearchHit = SearchHit sampleMeta "……埃提亞的第七織手……" (Just 0.87)
 
 sampleLinkReport :: LinkReport
 sampleLinkReport = LinkReport [sampleLink] [(idOf "ent-7f3b", sampleLink)]
@@ -174,6 +194,40 @@ sampleEntityPatch =
     , epAliases = Just ["小琳"]
     , epSource = Just Human
     }
+
+-- 衝突偵測(conflict-detection/F004) -----------------------------------------------
+
+sampleDraft :: Draft
+sampleDraft = Draft "琳達在埃提亞崩塌那年失去雙親" [idOf "ent-7f3a"]
+
+-- | @timeline_window@ 刻意給 'Just':選配欄位沒值時整個鍵不出現,樣本留空的話
+-- 'StoryFlow.Api.SchemaSpec' 的鍵集合比對會假性不一致。
+sampleConflictOpts :: ConflictOpts
+sampleConflictOpts =
+  ConflictOpts
+    { coTopN = 5
+    , coExpandBody = True
+    , coTimelineWindow = Just 2
+    , coGraphDepth = 3
+    }
+
+sampleGraphEvidence :: GraphEvidence
+sampleGraphEvidence = GraphEvidence (idOf "ent-7f3c") Contradicts (refOf "ent-91cc")
+
+-- | 'HitLayer' 的三個建構子各一個樣本。
+--
+-- 它是和積型別,一個樣本只走得到一個建構子 —— 所以 schema 那一側是聯集物件,
+-- 而測試比對的是__子集__而不是相等(見 'StoryFlow.Api.SchemaSpec')。
+sampleGraphLayer, sampleRetrievalLayer, sampleJudgeLayer :: HitLayer
+sampleGraphLayer = ByGraph sampleGraphEvidence
+sampleRetrievalLayer = ByRetrieval 0.82
+sampleJudgeLayer = ByJudge 0.91
+
+sampleContextHit :: ContextHit
+sampleContextHit = ContextHit sampleMeta "……埃提亞的第七織手……" sampleRetrievalLayer
+
+sampleContextReq :: ContextReq
+sampleContextReq = ContextReq sampleDraft sampleConflictOpts
 
 idOf :: Text -> Id
 idOf t = case parseId t of

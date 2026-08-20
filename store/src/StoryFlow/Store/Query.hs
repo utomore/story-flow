@@ -23,6 +23,7 @@ module StoryFlow.Store.Query
 
     -- * 檢索
   , searchEntities
+  , normalizeBm25
   ) where
 
 import qualified Data.Map.Strict as M
@@ -263,7 +264,7 @@ loadLinkGraph conn = do
 
 -- 檢索 ------------------------------------------------------------------------
 
--- | FTS5 檢索,回傳 (Meta, 命中片段)。
+-- | FTS5 檢索,回傳 (Meta, 命中片段, 相關度)。
 --
 -- 兩條路徑:
 --
@@ -272,7 +273,15 @@ loadLinkGraph conn = do
 -- * __兩個字元以下走 LIKE 掃描__。trigram 以三字元為索引單位,「織紋」這種
 --   二字詞 MATCH 一定不命中(entity-graph-core/F001 已驗證這個限制),而角色名與道具名
 --   常常就是兩個字——這是本層必須自己補的那一段
-searchEntities :: Connection -> Text -> EntityFilter -> IO [(Meta, Text)]
+--
+-- __相關度只有 MATCH 路徑給得出來__(@bm25()@ 經 'normalizeBm25' 壓到 0–1)。
+-- LIKE 那條是 @ORDER BY e.id@,連名次都不是相關度名次,合成一個分數只會讓兩種
+-- 完全不同的東西在型別上長得一模一樣,所以一律 'Nothing'
+-- (conflict-detection/F003 T1)。
+--
+-- 兩條路徑因此共用同一個 row 型別 @(Text, Text, Maybe Double)@ ——@likeQuery@ 在
+-- 對應位置 @SELECT NULL@,'run' 不必分岔。
+searchEntities :: Connection -> Text -> EntityFilter -> IO [(Meta, Text, Maybe Double)]
 searchEntities conn raw filt
   | T.null needle = pure []
   | T.length needle >= 3 = run ftsQuery [sText (phrase needle)]
@@ -284,13 +293,18 @@ searchEntities conn raw filt
     (lim, limArgs) = limitOf filt
 
     run sql args = do
-      rows <- query conn (Query sql) (args ++ condArgs ++ limArgs) :: IO [(Text, Text)]
-      metas <- metasInOrder conn (map fst rows)
+      rows <- query conn (Query sql) (args ++ condArgs ++ limArgs) :: IO [(Text, Text, Maybe Double)]
+      metas <- metasInOrder conn [i | (i, _, _) <- rows]
       let byId = M.fromList [(renderId (metaId m), m) | m <- metas]
-      pure [(m, snip) | (i, snip) <- rows, Just m <- [M.lookup i byId]]
+      pure
+        [ (m, snip, normalizeBm25 <$> score)
+        | (i, snip, score) <- rows
+        , Just m <- [M.lookup i byId]
+        ]
 
     ftsQuery =
-      "SELECT m.entity_id, snippet(entities_fts, -1, '[', ']', '…', 12)\
+      "SELECT m.entity_id, snippet(entities_fts, -1, '[', ']', '…', 12),\
+      \ bm25(entities_fts)\
       \ FROM entities_fts\
       \ JOIN fts_map m ON m.rowid = entities_fts.rowid\
       \ JOIN entities e ON e.id = m.entity_id\
@@ -306,7 +320,8 @@ searchEntities conn raw filt
       \      WHEN f.summary LIKE ? ESCAPE '\\' THEN f.summary\
       \      WHEN f.body LIKE ? ESCAPE '\\' THEN f.body\
       \      WHEN f.aliases LIKE ? ESCAPE '\\' THEN f.aliases\
-      \      ELSE f.tags END\
+      \      ELSE f.tags END,\
+      \ NULL\
       \ FROM entities_fts f\
       \ JOIN fts_map m ON m.rowid = f.rowid\
       \ JOIN entities e ON e.id = m.entity_id\
@@ -317,6 +332,18 @@ searchEntities conn raw filt
         <> lim
 
     likePattern = "%" <> escapeLike needle <> "%"
+
+-- | @bm25()@(負值、越負越相關)→ @(0,1)@ 的單調遞增壓縮:
+-- @rel = max 0 (negate raw)@,結果是 @rel \/ (1 + rel)@。
+--
+-- __刻意不用「結果集內 min-max」__:那會讓每一次查詢的最高分都恰好是 @1.0@,
+-- 不同查詢之間的分數就完全不可比。而衝突偵測第 2 層要把多個關鍵詞的結果__合併
+-- 排序__,那正需要跨查詢可比。@rel \/ (1 + rel)@ 是純函式、與結果集無關、保序,
+-- 且永遠落在開區間 @(0,1)@。
+normalizeBm25 :: Double -> Double
+normalizeBm25 x = rel / (1 + rel)
+  where
+    rel = max 0 (negate x)
 
 -- | 包成 phrase query。FTS5 的雙引號字串裡,字面雙引號寫成兩個。
 phrase :: Text -> Text

@@ -63,9 +63,12 @@ spec = describe "人類可讀輸出" $ do
         ["ent-7f3c", "與塔主的過節", "canon", "characters/琳達.md#ent-7f3c"]
 
   describe "renderSearch" $
-    it "比 entity list 多一欄 snippet" $ do
-      let hdr = firstOf (T.lines (renderSearch [SearchHit linda "……第七織手……"]))
+    it "比 entity list 多一欄 snippet,但人類模式不印 score" $ do
+      -- score 有值也不該出現在人類模式的表格裡:這張表本來就很寬,
+      -- 相關度只走 --json(conflict-detection/F003 T2)。
+      let hdr = firstOf (T.lines (renderSearch [SearchHit linda "……第七織手……" (Just 0.42)]))
       hdr `shouldSatisfy` T.isInfixOf "snippet"
+      hdr `shouldSatisfy` (not . T.isInfixOf "score")
 
   describe "renderLinks" $
     it "正向與反向各成一段" $ do

@@ -75,11 +75,13 @@ instance FromJSON VaultView where
     VaultView <$> o .: "name" <*> o .: "root" <*> o .:? "entity_count"
 
 instance ToJSON SearchHit where
-  toJSON SearchHit {..} = object ["meta" .= shMeta, "snippet" .= shSnippet]
+  toJSON SearchHit {..} =
+    object $
+      ["meta" .= shMeta, "snippet" .= shSnippet] ++ optional "score" shScore
 
 instance FromJSON SearchHit where
   parseJSON = withObject "SearchHit" $ \o ->
-    SearchHit <$> o .: "meta" <*> o .: "snippet"
+    SearchHit <$> o .: "meta" <*> o .: "snippet" <*> o .:? "score"
 
 instance ToJSON LinkReport where
   toJSON LinkReport {..} =

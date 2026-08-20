@@ -5,7 +5,7 @@ title: entity-graph-core
 description: 片段圖譜核心:型別、註冊表、Markdown 解析與可重建索引
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-008, ADR-009, ADR-010]
 ---
@@ -76,11 +76,16 @@ resolveVaultWith :: FilePath -> Maybe Text -> FilePath -> IO (Either StoreError 
 openVaultIndex   :: Vault -> IO (Either StoreError (Connection, [IndexIssue]))
 lookupEntity     :: Connection -> Id -> IO (Maybe Entity)
 listEntities     :: Connection -> EntityFilter -> IO [Meta]
-searchEntities   :: Connection -> Text -> EntityFilter -> IO [(Meta, Text)]
+searchEntities   :: Connection -> Text -> EntityFilter -> IO [(Meta, Text, Maybe Double)]
 createEntityFile :: Connection -> Vault -> TypeRegistry -> NewEntity -> IO (Either StoreError CreateResult)
 writeEntityPatch :: Connection -> Vault -> Id -> Int -> Maybe Text -> (MetaOverride -> MetaOverride) -> …
 rebuildIndex     :: Connection -> Vault -> IO (Either StoreError [IndexIssue])
 ```
+
+`searchEntities` 的第三個欄位是相關度(0–1,越大越相關),2026-08-20 加入以支撐 `conflict-detection`
+第 2 層的 `ByRetrieval`。**只有 `MATCH` 路徑給得出來**:中文兩字詞落到 `LIKE` 全表掃描那條路徑,
+它的順序是 `ORDER BY e.id`,沒有任何相關度可言,一律 `Nothing`。合成一個分數會讓「有相關度」與
+「沒有相關度」在型別上長得一模一樣,呼叫端就再也分不出來了。
 
 **錯誤契約**:`StoreError` 的每個建構子都有 `renderStoreError` 的繁中訊息,而且每一則都
 **說出下一步該做什麼**。上層(`service`)原樣包成 `StoreFailed` 不重寫。

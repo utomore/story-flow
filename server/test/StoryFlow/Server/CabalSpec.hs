@@ -27,8 +27,21 @@ spec = describe "套件邊界" $ do
 forbidden :: [String]
 forbidden = ["storyflow-store", "storyflow-md", "sqlite-simple", "direct-sqlite", "storyflow-cli"]
 
+-- | conflict-detection/F004:@storyflow-conflict@ 進了這張表。
+--
+-- @POST \/conflict\/context@ 的 handler 呼叫 @gatherContext@,所以 server 認得它
+-- 是必然的。它__不是落地層__ ——那個套件的 @build-depends@ 逐字擋著
+-- @storyflow-store@ \/ @sqlite-simple@,所以「server 不 import 落地層」這條約束
+-- 不會因為它而被繞過。
 required :: [String]
-required = ["storyflow-api", "storyflow-core", "storyflow-service", "warp", "servant-server"]
+required =
+  [ "storyflow-api"
+  , "storyflow-conflict"
+  , "storyflow-core"
+  , "storyflow-service"
+  , "warp"
+  , "servant-server"
+  ]
 
 readCabal :: IO String
 readCabal = go ["storyflow-server.cabal", "server/storyflow-server.cabal"]

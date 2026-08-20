@@ -5,7 +5,7 @@ title: story-flow
 description: 以 Entity 片段圖譜管理故事設定並偵測劇情衝突的工具
 status: active
 created: 2026-08-16
-updated: 2026-08-19
+updated: 2026-08-20
 subsystems: [entity-graph-core, service-and-interfaces, conflict-detection, llm-workshop-mcp]
 ---
 
@@ -102,9 +102,9 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 
 | 出入口 | 形式 | 契約定義處 |
 |---|---|---|
-| REST API | `story-flow-serve` 綁 loopback;14 條路徑 / 23 個 operation;OpenAPI 3 由 servant 型別推導(`story-flow-serve --openapi`);錯誤 body 一律 `{"error":{"code":…,"message":…}}` | `service-and-interfaces`(`storyflow-api`) |
+| REST API | `story-flow-serve` 綁 loopback;15 條路徑 / 24 個 operation(含 `conflict-detection` 的 `POST /conflict/context`);OpenAPI 3 由 servant 型別推導(`story-flow-serve --openapi`);錯誤 body 一律 `{"error":{"code":…,"message":…}}` | `service-and-interfaces`(`storyflow-api`) |
 | CLI | `story-flow [--vault <名稱>\|--remote <url>] [--json] <名詞> <動詞>`;`--json` 輸出統一信封 `{"ok":true,"data":…}` / `{"ok":false,"error":{…}}`;exit code `0` 成功、`1` 業務或傳輸失敗、`2` 用法錯誤 | `service-and-interfaces`(`storyflow-cli`) |
-| MCP | stdio adapter,tools 由 REST 的 23 個 operation 映射;供 claude code / codex 接入 | `llm-workshop-mcp`(`storyflow-mcp`) |
+| MCP | stdio adapter,tools 由 REST 的 24 個 operation 映射;供 claude code / codex 接入 | `llm-workshop-mcp`(`storyflow-mcp`) |
 | Vault 檔案 | 一主題一 `.md`、檔內分節為片段;檔案層 frontmatter + 節層 ` ```meta ` 區塊;Level 檔以標題階層表達樹;`.storyflow/config.toml` 與全域 `~/.config/story-flow/vaults.toml` | `entity-graph-core`,格式細節見下方「資料結構的框架格式」 |
 
 **AI Agent 只需要 parse 一種形狀**:CLI 的統一信封與 REST 的錯誤 body 用的是同一組

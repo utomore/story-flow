@@ -42,6 +42,8 @@ import StoryFlow.Cli.Error
 import StoryFlow.Cli.Options
 import StoryFlow.Cli.Render
 import StoryFlow.Cli.Resolve
+import StoryFlow.Conflict.Json ()
+import StoryFlow.Conflict.Types (Draft (..))
 import StoryFlow.Core.Id (Id, renderId, renderRef)
 import StoryFlow.Core.Link (Link (..), LinkKind, isCoreKind, renderLinkKind, suggestCoreKind)
 import StoryFlow.Service
@@ -172,6 +174,13 @@ handle io b = \case
     rev <- levelRevision b lvl mrev
     v <- removeNodeB b lvl node rev force
     pure (plain ("已刪除節點 " <> renderId node <> " 與它的子樹") v)
+  -- --for 走既有的 readBody:UTF-8 強制解碼與「讀不到檔」的訊息都與
+  -- entity set-body 同一份。--ref 原樣進 drRefs,不在 CLI 這一層解析或驗證
+  -- ——不存在的 id 由第 1 層在圖上查不到、第 2 層 catchError 吞掉。
+  Context bs refs copts -> do
+    txt <- readBody io bs
+    hs <- gatherContextB b copts (Draft txt refs)
+    pure (plain (renderContext hs) hs)
   where
     vaultCreated v = plain ("已建立 Vault " <> vvName v <> "(" <> T.pack (vvRoot v) <> ")") v
     updated v = "已更新 " <> renderId (evId v) <> "(revision " <> tshow (evRevision v) <> ")"

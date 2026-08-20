@@ -5,7 +5,7 @@ title: conflict-detection
 description: 三層衝突偵測:圖遍歷、FTS5 候選撈取與 LLM 判斷
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-002, ADR-003, ADR-005, ADR-007]
 ---
@@ -48,7 +48,7 @@ claude code 自己有很強的判斷能力。所以前兩層要能單獨出口�
 | `Conflict.Types` | `Draft` / `ConflictOpts` / `GraphEvidence` / `HitLayer` / `ConflictHit` / `ContextHit` / `ConflictReport` | — | — |
 | `Conflict.Json` | 上述型別的 aeson 實例,集中一處(同 `Core.Json` 的理由) | — | — |
 | `Conflict.Graph`(第 1 層) | 順著草稿已引用片段的 `contradicts` / `supersedes` 遍歷,找已知矛盾與已被取代的設定 | 完全確定性、可重現 | 零 |
-| `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 一次 SQL |
+| `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 每個關鍵詞一次 SQL(上限可調) |
 | `Conflict.Judge`(第 3 層) | 草稿 × 候選逐對送 LLM 問「是否矛盾、矛盾在哪」 | 非確定性 | 每對一次呼叫 |
 | `Conflict.Pipeline` | 三層合流、去重、依命中層級排序 | — | — |
 
@@ -77,7 +77,17 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 | 出口 | CLI | REST |
 |---|---|---|
 | 完整偵測 | `story-flow conflict check --draft <檔案\|-> [--top-n] [--no-llm]` | `POST /conflict/check` |
-| 只撈 context | `story-flow context --for <檔案\|->` | `POST /conflict/context` |
+| 只撈 context | `story-flow context --for <檔案\|-> [--ref <id>]… [--top-n] [--timeline-window] [--graph-depth]` | `POST /conflict/context` |
+
+**`gatherContext` 的輸入來源**(2026-08-20 閘門裁定):`Draft` 的 `drRefs` 是第 1 層唯一的起點,
+因此 CLI 必須給得出它——`--ref <id>` 可重複、順序保留。這在原本的對外形式表裡漏了,而漏掉的後果
+不是少一個方便的旗標,是**第 1 層在 CLI 上永遠不會啟動**。`--top-n` / `--timeline-window` /
+`--graph-depth` 對應 `ConflictOpts` 的另外三欄;`--expand-body` 不開,那是第 3 層才用得到的東西。
+
+**`coTopN` 的作用範圍**(2026-08-20 閘門裁定):它是**第 2 層的候選上限**,不是最終輸出的筆數上限。
+跨層合流後的總清單**不**受它截斷——第 1 層的命中是事實,不該因為第 2 層撈滿了 top-N 就被擠掉。
+一跳擴充帶進來的候選沒有自己的檢索分數,取**母候選分數乘上一個衰減係數**,與關鍵詞候選一起競爭
+第 2 層的名額。
 
 **輸出契約**:report 的每一筆都帶 **(候選片段 id, 命中層級, 理由)**。命中層級必須標示出來
 —— 第 1 層的結果是**事實**,第 3 層的結果是**判斷**,使用者需要知道差別。CLI 的人類模式
@@ -130,7 +140,7 @@ Draft(草稿文字 + 已引用的片段 id)
     │  └───────────────────┬──────────────────────────┘   │
     │                      │ 已知矛盾 / 已被取代            │
     │  ┌───────────────────┴──────────────────────────┐   │
-    │  │ 第 2 層 Conflict.Retrieval    確定性・一次 SQL│   │
+    │  │ 第 2 層 Conflict.Retrieval  確定性・每詞一次 SQL│   │
     │  │  FTS5(關鍵詞 + aliases)→ top-N              │   │
     │  │  過濾:status=canon / timeline               │   │
     │  │  擴充:候選的 partOf / occursIn 一跳          │   │
@@ -234,8 +244,8 @@ data ConflictReport = ConflictReport
 |---|---------|-----------|------|------|
 | 1 | conflict-types | 衝突報告的型別、命中層級證據與序列化 | entity-graph-core/F002 | F001 |
 | 2 | conflict-graph | 第 1 層:順 `contradicts` / `supersedes` 遍歷找確定性命中 | #1 | F002 |
-| 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | - |
-| 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | - |
+| 3 | conflict-retrieval | 第 2 層:FTS5 候選撈取,含 `canon` / `timeline` 過濾與一跳擴充,策略可替換 | #1 | F003 |
+| 4 | context-command | `story-flow context --for` 與 `POST /conflict/context`,只跑前兩層 | #2, #3 | F004 |
 
 ### 階段二:語意判斷
 
@@ -292,6 +302,23 @@ data ConflictReport = ConflictReport
 - **驗收標準**:`topN` 由 `ConflictOpts` 控制且預設保守;只有 `status = canon` 的片段成為
   比對基準;`timeline` 過濾掉時序上不可能相關的候選;候選以 `partOf` / `occursIn` 一跳擴充;
   換一種候選策略不需要改動第 1、3 層
+- **關鍵詞抽取**(2026-08-20 補):兩路併用後合併去重——(a)**反向比對**既有 canon 片段的
+  `metaTitle` / `metaAliases`,看哪些既有名稱出現在草稿裡(ADR-007「比對到的 aliases」的字面
+  意思,精準且零誤判);(b)**切詞**:依標點與空白切草稿,取足夠長的片段補召回。只做其中一路
+  都不合格:只切詞則中文沒有空白、品質全看標點;只比對 alias 則作者沒寫 alias 的片段完全撈不到,
+  等於把 ADR-007 的緩解措施當成唯一手段
+- **`timeline` 過濾的基準點**(2026-08-20 閘門裁定):`coTimelineWindow` 比對的距離以 **`drRefs` 對應
+  片段的 `tlOrder`** 為基準——那是草稿身上唯一的時序線索。基準點取不到時(沒給 `--ref`,或那些片段
+  都沒有 `tlOrder`)**不過濾**,而不是把候選全部剔除。代價要說明白:**沒有 `--ref` 的草稿等於關掉了
+  timeline 過濾**;這與上一條的 `--ref` 是同一個洞的兩面
+- **`timeline` 過濾與 `topN` 的先後**(2026-08-20 補):`EntityFilter` 沒有 timeline 欄位,
+  過濾只能發生在 SQL 之後。因此**過度撈取再截斷**:SQL 撈 `topN` 的數倍,過濾掉時序上不可能
+  相關的之後再截到 `topN`。`crScanned` 記的是**實際掃過的候選數(含被過濾掉的)**,使用者才
+  判斷得出 `topN` 夠不夠。先撈 `topN` 再過濾會讓開了 timeline window 之後候選憑空少一截,而
+  調大 `topN` 也未必補得回來
+- **相關度分數的來源**(2026-08-20 補):消費 `service-and-interfaces` 新增的
+  `shScore :: Maybe Double`。`Nothing`(中文兩字詞走的 `LIKE` 路徑沒有相關度可言)時回退到
+  依名次推導,不得捏一個假分數混進 `ByRetrieval`
 - **明確不做**:不做語意判斷;不引入 embedding 模型與第二套索引;不重複 FTS5 的兩字詞處理
   (那在 `entity-graph-core`)
 

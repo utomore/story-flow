@@ -1,6 +1,7 @@
 module Main (main) where
 
 import qualified StoryFlow.Cli.CabalSpec
+import qualified StoryFlow.Cli.ContextCmdSpec
 import qualified StoryFlow.Cli.EndToEndSpec
 import qualified StoryFlow.Cli.EntityNewSpec
 import qualified StoryFlow.Cli.EntityReadSpec
@@ -48,3 +49,5 @@ main = do
     StoryFlow.Cli.RemoteResolveSpec.spec
     StoryFlow.Cli.RemoteCmdSpec.spec
     StoryFlow.Cli.ParitySpec.spec
+    -- conflict-detection/F004:context 出口(內嵌與遠端兩條路徑都在這一檔)
+    StoryFlow.Cli.ContextCmdSpec.spec

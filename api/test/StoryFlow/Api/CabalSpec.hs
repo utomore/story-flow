@@ -35,8 +35,14 @@ forbidden =
   , "direct-sqlite"
   ]
 
+-- | conflict-detection/F004:@storyflow-conflict@ 加進這張表而不是留白。
+--
+-- @POST \/conflict\/context@ 的 body 與回應型別(@Draft@ \/ @ConflictOpts@ \/
+-- @ContextHit@)住在那個套件裡,契約套件當然要認得它。它不進 'forbidden' 的理由是
+-- 它__不是實作端__:它沒有 servant handler、沒有 client、沒有落地層,與
+-- @storyflow-service@ 同一種性質。
 required :: [String]
-required = ["servant", "openapi3", "storyflow-core", "storyflow-service"]
+required = ["servant", "openapi3", "storyflow-core", "storyflow-service", "storyflow-conflict"]
 
 readCabal :: IO String
 readCabal = go ["storyflow-api.cabal", "api/storyflow-api.cabal"]

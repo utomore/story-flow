@@ -76,7 +76,7 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 
 | 出口 | CLI | REST |
 |---|---|---|
-| 完整偵測 | `story-flow conflict check --draft <檔案\|-> [--top-n] [--no-llm]` | `POST /conflict/check` |
+| 完整偵測 | `story-flow conflict check --draft <檔案\|-> [--ref <id>]… [--top-n] [--judge-n] [--timeline-window] [--graph-depth] [--expand-body] [--no-llm]` | `POST /conflict/check` |
 | 只撈 context | `story-flow context --for <檔案\|-> [--ref <id>]… [--top-n] [--timeline-window] [--graph-depth]` | `POST /conflict/context` |
 
 **`gatherContext` 的輸入來源**(2026-08-20 閘門裁定):`Draft` 的 `drRefs` 是第 1 層唯一的起點,
@@ -88,6 +88,29 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 跨層合流後的總清單**不**受它截斷——第 1 層的命中是事實,不該因為第 2 層撈滿了 top-N 就被擠掉。
 一跳擴充帶進來的候選沒有自己的檢索分數,取**母候選分數乘上一個衰減係數**,與關鍵詞候選一起競爭
 第 2 層的名額。
+
+**第 3 層的候選預算**(2026-08-20 階段二裁定):第 3 層**不**把第 2 層的候選全部逐對送模型。
+`ConflictOpts` 因此有一欄獨立於 `coTopN` 的 **`coJudgeN`**(預設保守),取合流排序後的前 N 個
+候選送判斷。這是本子系統「成本遞增、輸出遞減」分層原則的落實處——`coTopN` 管的是**撈多廣**,
+`coJudgeN` 管的是**燒多少**,兩者混成一個旋鈕會讓「想要廣召回的 context」與「想要快的 check」
+互相綁架。實測依據:地端 12B 模型判斷一對約 7 秒,`coTopN` 預設值 20 全判等於一次指令跑兩分鐘。
+
+**第 3 層的退化與部分失敗**(2026-08-20 階段二裁定):
+
+- **拿不到可用的 `LlmClient` 一律退化成前兩層,不讓整個指令失敗**——外部 Agent 靠這條路徑吃飯。
+  但**退化的原因必須說出來**:`[llm]` 段沒設定、端點連不上、`--no-llm` 三者對使用者是三個
+  完全不同的下一步,只給一個 `crLlmUsed = False` 等於把 `llm-workshop-mcp` 那條「不猜預設值」
+  裁定的價值吃掉。原因走 `crNotes`
+- **逐對判斷途中失敗時,保留已經成功的那幾對**,失敗的略過並記進 `crNotes`。地端小模型不穩是
+  常態而非例外,已經燒掉的 token 不該因為第 N 對逾時就整批作廢
+- **`crLlmUsed` 的語意是「第 3 層有沒有真的產出至少一筆判斷」**,不是「有沒有嘗試」。
+  全部失敗與從未啟動對使用者是同一件事(這份報告只有前兩層),差別由 `crNotes` 承載
+
+**`crNotes` 的三種來源**(2026-08-20 階段二裁定):第 3 層的退化/失敗原因;第 1 層
+`unlinkedRefs` 找出的「草稿引用了但沒有任何本地關聯」的片段(F004 刻意留給本階段的出口);
+以及確認衝突後「要不要建立 `contradicts` 關聯」的建議。三者共用同一個欄位而不是各長一欄,
+是因為未來每多一種提示就多動一次 DTO 契約,而它們對消費者是同一種東西——附帶訊息,以
+`rnCode` 分派。
 
 **輸出契約**:report 的每一筆都帶 **(候選片段 id, 命中層級, 理由)**。命中層級必須標示出來
 —— 第 1 層的結果是**事實**,第 3 層的結果是**判斷**,使用者需要知道差別。CLI 的人類模式
@@ -216,7 +239,15 @@ data ContextHit = ContextHit
 data ConflictReport = ConflictReport
   { crHits    :: [ConflictHit]   -- 依層級與分數排序
   , crScanned :: Int             -- 掃過幾個候選,讓使用者判斷 top-N 夠不夠
-  , crLlmUsed :: Bool            -- 有沒有跑第 3 層
+  , crLlmUsed :: Bool            -- 有沒有真的跑到第 3 層(見「第 3 層的退化與部分失敗」)
+  , crNotes   :: [ReportNote]    -- 命中之外要對使用者說的話
+  }
+
+-- 報告附帶的提示。**不是命中**,所以不進 crHits ——它們說的是「這份報告本身有什麼
+-- 要注意的」。放進 DTO 而非只在 CLI 渲染,是因為 CLI 與 REST 必須拿到同一批結果。
+data ReportNote = ReportNote
+  { rnCode   :: Text   -- 穩定識別碼,給程式化消費者分派,不隨文案改動
+  , rnDetail :: Text   -- 繁中訊息,每一則都說出下一步
   }
 ```
 
@@ -345,8 +376,21 @@ data ConflictReport = ConflictReport
 - **驗收標準**:預設只送 `summary`,必要時才展開 `body`;模型信心以 0–1 的浮點進 `ByJudge`,
   不在型別層壓成三級;`LlmClient` 不可用時整條管線退化成前兩層而不是整個失敗;
   每筆命中都帶模型給的理由
+- **候選預算**(2026-08-20 補):送模型的不是第 2 層的全部候選,而是合流排序後的前
+  `coJudgeN` 個(見「對外契約」的第 3 層候選預算)。第 3 層是**成本最高、輸出最少**的一層,
+  預算旋鈕獨立於 `coTopN`
+- **回應格式**(2026-08-20 補,已對真端點實測):要求模型輸出 JSON(是否矛盾 / 信心 0–1 /
+  一句理由)。**解析前必須剝除 markdown code fence** ——實測地端 `gemma-4-12b-it` 回的是
+  ````json 包起來的內容而不是裸 JSON,直接 decode 會**每一對都失敗**。剝除後仍解析不出來的,
+  該對算**判斷失敗**(記進 `crNotes`),**不得捏一個信心值混進 `ByJudge`** ——與第 2 層
+  「`Nothing` 時不得捏假分數」同一條紀律
+- **退化與部分失敗**:見「對外契約」那一節的裁定。三種退化原因要分得出來;逐對失敗保留已成功的
+- **測試**(2026-08-20 補):自動化測試**保持 hermetic**,`cabal test all` 不得依賴任何外部端點
+  ——公開面照本卡吃 `LlmClient`,內部把呼叫抽象成可注入的函式,用假 runner 覆蓋退化、部分失敗、
+  fence 剝除、JSON 解析失敗這四條路徑。真端點的驗收由編排者在閘門另外跑
 - **明確不做**:不實作 LLM 端點(那是 `llm-workshop-mcp` 的 `llm-endpoint`);
-  **永不自動修改資料**;不決定命中是否成立(那是作者的判斷)
+  **永不自動修改資料**;不決定命中是否成立(那是作者的判斷);不自己讀 `[llm]` 設定與建
+  `LlmClient`(那是 `conflict-check` 接線時的事,本模組只消費傳進來的 client)
 
 ### conflict-check
 
@@ -359,4 +403,16 @@ data ConflictReport = ConflictReport
 - **驗收標準**:report 每一筆都標示命中層級(第 1 層是事實、第 3 層是判斷,使用者看得出差別);
   `crScanned` 讓使用者判斷 top-N 夠不夠、`crLlmUsed` 說明有沒有跑第 3 層;`--no-llm` 與
   未設定端點都退化成兩層;確認衝突後提示作者建立 `contradicts` 關聯(下次就是零成本命中)
+- **`crNotes` 要接滿三種來源**(2026-08-20 補):(a) 第 3 層的退化或部分失敗原因;
+  (b) 第 1 層 `Conflict.Graph.unlinkedRefs` 找出的「草稿引用了但沒有任何本地關聯」的片段
+  ——它自 F002 就存在、至今**沒有任何生產程式碼消費者**,F004 明確把出口留給本 feature;
+  (c) 確認衝突後建立 `contradicts` 關聯的建議。三者以 `rnCode` 分派
+- **CLI 旗標面**(2026-08-20 補):`--ref` 可重複——沒有它 `drRefs` 就是空的,**第 1 層在
+  `conflict check` 上永遠不會啟動**,與 F004 A1 是同一個洞的第二次出現。連同
+  `--top-n` / `--judge-n` / `--timeline-window` / `--graph-depth` / `--expand-body` /
+  `--no-llm`,`ConflictOpts` 五欄全部可調(`--expand-body` 在 `context` 那條路刻意不開,
+  因為它是第 3 層才用得到的東西——本 feature 正是第 3 層的出口)
+- **`LlmClient` 的建立在接線層**:`Conflict.Judge` 只消費 client。讀 `[llm]` 設定
+  (`StoryFlow.Llm.llmConfig`)、`newLlmClient`、以及把 `LlmError` 翻成 `crNotes` 的文案,
+  都發生在這一層。**遠端模式下 client 由 server 端建**,與 `linkGraph` 一樣不跨 HTTP
 - **明確不做**:不自動寫入關聯,只提示;不修改任何片段;不在 CLI 層重做排序邏輯

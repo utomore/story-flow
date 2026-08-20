@@ -21,13 +21,21 @@ parent: conflict-detection
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
 | 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
 | 階段一 | W2 | #4 context-command (F004) | **done** |
-| 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
-| 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
+| 階段二 | W3 | #5 conflict-llm (F005) | **進行中**(2026-08-20 第二次展開) |
+| 階段二 | W4 | #6 conflict-check (F006) | 待 W3 完成 |
 
 **W1 的不對稱**:#2 已有 Level 3 設計文檔(F002,`status: open`、7 個 Todo 全未勾),只需委派**實作**;
 #3 需要委派**設計 + 實作**。因此 W1 的設計 fan out 只有一個 subagent。
 
 **階段內實作序列**:F002 → F003 → F004(同一個套件、同一批檔案,平行會互蓋)。
+
+### 階段二的排程(2026-08-20 第二次展開)
+
+`#5 → #6` 是一條鏈,**每波只有一個 feature**——#6 的設計要看 #5 的產出,沒有平行空間。
+設計與實作全程序列。跑完子系統即 6/6。
+
+**階段一「等」的排程決定已解除**:`llm-workshop-mcp` 的 F001 llm-endpoint 已 `done`,
+`storyflow-llm` 套件存在,匯出 `LlmClient` / `chat` / `llmConfig` / 五類 `LlmError`。
 
 ### 跨子系統依賴的處理決定
 
@@ -45,6 +53,33 @@ parent: conflict-detection
 | D1 | 本次跑到哪一階段(階段二卡在不存在的 `storyflow-llm` 套件) | 只跑階段一 | F005 / F006 不展開;`build-log` 保持 `in-progress` |
 | D2 | 草稿關鍵詞的抽取策略(契約卡完全沒寫,ADR-007 只說「關鍵詞 + 比對到的 aliases」) | alias/title 反向比對 **與** 切詞**併用**,候選合併去重 | F003 |
 | D3 | 程式碼 commit 到哪 | 新開 `feat/conflict-stage1-0011`,每個 feature 實作完 commit 一次;閘門驗收後走 `/branch-pr` | F002 / F003 / F004 |
+
+### 階段二的批次澄清(2026-08-20)
+
+契約類的五項已回寫 `design.md`(對外形式表、`ConflictReport`/`ReportNote` 型別、
+第 3 層候選預算、退化與部分失敗、`crNotes` 三種來源,以及兩張契約卡),不在此重複。
+
+| # | 問題 | 開發者決定 | 影響範圍 |
+|---|------|-----------|---------|
+| D4 | 本次跑到哪一階段 | **階段二跑完**(F005 + F006)。子系統達 6/6,主架構 P4 完成標準達成 | F005 / F006 |
+| D5 | 模型送回的內容格式(地端小模型 JSON 不穩) | 要求 JSON;解析失敗就算**該對判斷失敗**,記進 `crNotes`,**不捏假信心值**。呼應 F003「不得捏假分數混進 `ByRetrieval`」 | F005 |
+| D6 | 第 3 層怎麼測(`chat` 吃不透明的 `LlmClient`,只能由 `newLlmClient` 造) | **測試套件保持 hermetic**,`cabal test all` 不打網路;公開面照契約卡吃 `LlmClient`,內部注入可替換的 runner。真端點驗收由編排者在閘門另外跑 | F005 / F006 |
+| D7 | 執行模型 | **設計繼承主 session,實作降級 `sonnet`** | F005 / F006 |
+| D8 | 程式碼 commit 到哪 | 新開 `feat/conflict-stage2-0013`,每個 feature 實作完 checkpoint commit;閘門驗收後走 `/branch-pr` | F005 / F006 |
+
+### 真端點的實測結果(2026-08-20,編排者在批次澄清時查證)
+
+開發者已在本機起了 OpenAI 相容端點 `http://127.0.0.1:8080/v1`,模型
+`unsloth/gemma-4-12b-it-GGUF:Q8_0`(llama.cpp,`n_ctx` 32768)。編排者實打了一輪
+`/chat/completions`,三項結果直接寫進 F005 的契約卡:
+
+1. **`system` role 可用**——gemma 的 chat template 在這個 serving 設定下接受它,
+   `Message System` 不必折進 user 訊息
+2. **回覆內容包在 ````json fence 裡,不是裸 JSON**。這是 D5 那條裁定的關鍵前提:
+   若照直覺對 `message.content` 直接 `eitherDecode`,**每一對都會判斷失敗**
+3. **一對約 7 秒 / 343 completion tokens**(多數是 `reasoning_content`,`storyflow-llm` 的
+   `ChatChoice` 只讀 `message.content`,行為正確不必改)。這個數字正是「第 3 層要有自己的
+   候選預算」的依據:`coTopN` 預設 20 全判 ≈ 140 秒
 
 ## 跨子系統契約變更(本次批次澄清的結果)
 
@@ -70,10 +105,14 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
 | context-command | F004 | F004-context-command.md | **impl-done**(14/14 Todo) |
-| conflict-llm | F005 | (保留,階段二) | 未展開 |
-| conflict-check | F006 | (保留,階段二) | 未展開 |
+| conflict-llm | F005 | F005-conflict-llm.md | 設計:繼承 / 實作:sonnet — **進行中** |
+| conflict-check | F006 | F006-conflict-check.md | 設計:繼承 / 實作:sonnet — 待 W3 |
 
-F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免屆時重新掃描配到別的號。
+F005 / F006 的號碼在階段一就保留了,第二次展開直接沿用(見 D7 的模型分配)。
+
+**為什麼實作降級而設計不降**:兩張卡的契約在批次澄清後都已寫死到「照表操課」的程度
+——F005 的回應格式、fence 剝除、退化語意、預算旋鈕全部在卡上;F006 的 `crNotes` 三種來源、
+CLI 旗標面、client 建立位置也全部在卡上。而 1-to-1 測試接得住實作錯誤,設計錯了則整條鏈重跑。
 
 ## 待確認假設彙總
 

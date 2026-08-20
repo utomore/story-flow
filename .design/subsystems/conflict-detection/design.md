@@ -282,7 +282,7 @@ data ReportNote = ReportNote
 
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
-| 5 | conflict-llm | 第 3 層:草稿 × 候選逐對判斷,優先送 `summary` | #3, llm-workshop-mcp #1 | - |
+| 5 | conflict-llm | 第 3 層:草稿 × 候選逐對判斷,優先送 `summary` | #3, llm-workshop-mcp #1 | F005 |
 | 6 | conflict-check | 三層合流與排序、report 渲染(標示命中層級)、確認衝突後提示建立 `contradicts` 關聯 | #4, #5 | - |
 
 小結:共 **6 個 features、2 個階段**。階段一結束即可交付 `context` 指令;兩階段都完成才算

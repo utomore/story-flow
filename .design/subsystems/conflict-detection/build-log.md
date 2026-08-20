@@ -105,7 +105,7 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
 | context-command | F004 | F004-context-command.md | **impl-done**(14/14 Todo) |
-| conflict-llm | F005 | F005-conflict-llm.md | 設計:繼承 / 實作:sonnet — **進行中** |
+| conflict-llm | F005 | F005-conflict-llm.md | 設計:繼承 / 實作:sonnet — **設計 done**(11 Todo) |
 | conflict-check | F006 | F006-conflict-check.md | 設計:繼承 / 實作:sonnet — 待 W3 |
 
 F005 / F006 的號碼在階段一就保留了,第二次展開直接沿用(見 D7 的模型分配)。

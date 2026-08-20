@@ -51,6 +51,7 @@ module StoryFlow.Service
   , getEntity
   , listEntities
   , searchEntity
+  , aliasIndex
   , updateEntity
   , setEntityBody
   , deleteEntity
@@ -77,6 +78,7 @@ import Data.List (nub)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, Ref (..), localRef)
@@ -180,11 +182,36 @@ listEntities f = do
   liftIO (S.listEntities conn f)
 
 -- | FTS5 檢索。中文的兩字詞由 @store@ 那一層改走 @LIKE@,這裡不重複那個判斷。
+--
+-- 相關度原樣攤進 'SearchHit' __不做任何加工__:分數的語意由 @store@ 定義
+-- ('StoryFlow.Store.Query.normalizeBm25'),這一層再壓一次只會讓兩處各有一份
+-- 規則。
 searchEntity :: Text -> EntityFilter -> ServiceM [SearchHit]
 searchEntity q f = do
   conn <- asks envConn
   hits <- liftIO (searchEntities conn q f)
-  pure [SearchHit m s | (m, s) <- hits]
+  pure [SearchHit m s sc | (m, s, sc) <- hits]
+
+-- | 片段 id → 它的 @metaTitle@ 與 @metaAliases@。
+--
+-- 給衝突偵測第 2 層(conflict-detection/F003)做「既有名稱有沒有出現在草稿裡」的
+-- 反向比對用。呼叫端傳 @'emptyFilter' { efStatus = Just Canon }@ 取比對基準。
+--
+-- __標題排第一__:它是最常被寫進草稿的名稱,而呼叫端的關鍵詞順序直接決定
+-- 檢索順序。
+--
+-- __空字串名稱一律濾掉__:@metaAliases@ 允許使用者寫空項,而
+-- @Data.Text.isInfixOf ""@ 對任何草稿都成立——留著會讓每個片段都變成關鍵詞命中。
+--
+-- 建在 'listEntities' 之上,__不新增 @store@ 查詢__:@ORDER BY e.id@ 已經保證
+-- 輸出順序確定,而「只傳字串比較省」的論據只對 REST 成立——這個出口
+-- __只開內嵌__:不接 CLI、不接 REST。
+aliasIndex :: EntityFilter -> ServiceM [(Id, [Text])]
+aliasIndex f = do
+  metas <- listEntities f
+  pure [(metaId m, names m) | m <- metas]
+  where
+    names m = nub (filter (not . T.null . T.strip) (metaTitle m : metaAliases m))
 
 -- | 組出 'EntityView':路徑與錨點是__索引才知道__的事,型別警告是
 -- 註冊表才知道的事,兩者都不在 'Entity' 裡。

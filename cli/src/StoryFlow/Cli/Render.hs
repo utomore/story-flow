@@ -143,7 +143,9 @@ renderSearch :: [SearchHit] -> Text
 renderSearch [] = "(沒有命中)"
 renderSearch hs = table ["id", "type", "status", "title", "summary", "snippet"] (map row hs)
   where
-    row (SearchHit m s) =
+    -- 人類模式__不加 score 欄__:這張表本來就很寬,多一欄會把它擠爆。
+    -- 相關度要看的人走 @--json@(conflict-detection/F003 T2)。
+    row (SearchHit m s _) =
       [ renderId (metaId m)
       , metaType m
       , renderStatus (metaStatus m)

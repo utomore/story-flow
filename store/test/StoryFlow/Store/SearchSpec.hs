@@ -5,6 +5,8 @@
 -- 「二字詞走 LIKE 掃描」這個補救措施的驗收。
 module StoryFlow.Store.SearchSpec (spec) where
 
+import Data.List (sortOn)
+import Data.Ord (Down (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import StoryFlow.Core.Id (renderId)
@@ -29,7 +31,7 @@ spec = describe "T11 searchEntities" $ do
   it "回傳的片段含命中詞" $
     withSampleIndex $ \_ conn -> do
       hits <- searchEntities conn "埃提亞崩塌" emptyFilter
-      let snips = map snd hits
+      let snips = map snippetOf hits
       snips `shouldSatisfy` any (T.isInfixOf "埃提亞崩塌")
       snips `shouldSatisfy` all (not . T.null)
 
@@ -47,7 +49,7 @@ spec = describe "T11 searchEntities" $ do
       map ident withDraft `shouldContain` ["ent-c41f"]
       canonOnly <- searchEntities conn "埃提亞" emptyFilter {efStatus = Just Canon}
       map ident canonOnly `shouldNotContain` ["ent-c41f"]
-      map (metaStatus . fst) canonOnly `shouldSatisfy` all (== Canon)
+      map (metaStatus . metaOf) canonOnly `shouldSatisfy` all (== Canon)
 
   it "二字詞也吃得到 EntityFilter 與 limit" $
     withSampleIndex $ \_ conn -> do
@@ -61,5 +63,48 @@ spec = describe "T11 searchEntities" $ do
       searchEntities conn "這串字不存在於任何片段" emptyFilter `shouldReturn` []
       searchEntities conn "" emptyFilter `shouldReturn` []
 
-ident :: (Meta, Text) -> Text
-ident = renderId . metaId . fst
+  -- conflict-detection/F003 T1:相關度是第 2 層排序的依據,而它只有 MATCH
+  -- 路徑給得出來。LIKE 路徑編一個分數出來,會讓「不知道有多相關」與「相關度
+  -- 是某個數」在型別上長得一模一樣。
+  describe "MATCH 路徑帶得出相關度,LIKE 路徑不編分數" $ do
+    it "三字元以上的查詢每一筆都有 0 到 1 之間的分數" $
+      withSampleIndex $ \_ conn -> do
+        hits <- searchEntities conn "埃提亞" emptyFilter
+        hits `shouldSatisfy` not . null
+        map scoreOf hits `shouldSatisfy` all inUnitRange
+
+    it "結果順序與分數遞減一致(ORDER BY rank 沒被打破)" $
+      withSampleIndex $ \_ conn -> do
+        hits <- searchEntities conn "埃提亞" emptyFilter
+        let scores = [s | Just s <- map scoreOf hits]
+        length scores `shouldBe` length hits
+        scores `shouldBe` sortOn Down scores
+
+    it "二字詞(LIKE 路徑)每一筆都是 Nothing" $
+      withSampleIndex $ \_ conn -> do
+        hits <- searchEntities conn "織紋" emptyFilter
+        hits `shouldSatisfy` not . null
+        map scoreOf hits `shouldBe` map (const Nothing) hits
+
+    it "normalizeBm25 對更負的輸入回更大的值、對 0 回 0" $ do
+      normalizeBm25 0 `shouldBe` 0
+      normalizeBm25 (-1) `shouldSatisfy` (> normalizeBm25 (-0.5))
+      normalizeBm25 (-10) `shouldSatisfy` (> normalizeBm25 (-1))
+      normalizeBm25 (-1e9) `shouldSatisfy` (< 1)
+      -- 正值(理論上不會由 bm25 產生)被夾到 0,而不是變成負分
+      normalizeBm25 1 `shouldBe` 0
+
+ident :: (Meta, Text, Maybe Double) -> Text
+ident = renderId . metaId . metaOf
+
+metaOf :: (Meta, Text, Maybe Double) -> Meta
+metaOf (m, _, _) = m
+
+snippetOf :: (Meta, Text, Maybe Double) -> Text
+snippetOf (_, s, _) = s
+
+scoreOf :: (Meta, Text, Maybe Double) -> Maybe Double
+scoreOf (_, _, s) = s
+
+inUnitRange :: Maybe Double -> Bool
+inUnitRange = maybe False (\s -> s > 0 && s < 1)

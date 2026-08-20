@@ -366,12 +366,21 @@ instance ToSchema VaultView where
         [("name", txt), ("root", txt), ("entity_count", int)]
         ["name", "root"]
 
+-- | @score@ 在 @properties@ 但不在 @required@:它是選配的。
+--
+-- 中文兩字詞走的是 @LIKE@ 路徑,那條查詢沒有相關度可言,'shScore' 因此是
+-- 'Nothing',而 @Maybe@ 沒值時整個鍵不出現(service-and-interfaces/F001 的編碼
+-- 約定)。把它列進 @required@ 會讓 OpenAPI 說謊。
 instance ToSchema SearchHit where
   declareNamedSchema _ = do
     mS <- declareSchemaRef (Proxy :: Proxy Meta)
     txt <- declareSchemaRef (Proxy :: Proxy Text)
+    dbl <- declareSchemaRef (Proxy :: Proxy Double)
     pure . named "SearchHit" $
-      objSchema "檢索命中:Meta + 命中片段" [("meta", mS), ("snippet", txt)] ["meta", "snippet"]
+      objSchema
+        "檢索命中:Meta + 命中片段 + 相關度(0–1,只有 FTS5 路徑給得出來)"
+        [("meta", mS), ("snippet", txt), ("score", dbl)]
+        ["meta", "snippet"]
 
 -- | @(Id, Link)@ 這個配對在 schema 裡需要一個名字。
 --

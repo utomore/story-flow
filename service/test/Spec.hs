@@ -1,5 +1,6 @@
 module Main (main) where
 
+import qualified StoryFlow.Service.AliasIndexSpec
 import qualified StoryFlow.Service.CabalSpec
 import qualified StoryFlow.Service.EndToEndSpec
 import qualified StoryFlow.Service.EntityReadSpec
@@ -33,6 +34,7 @@ main = do
     StoryFlow.Service.VaultSpec.spec
     StoryFlow.Service.TypeListSpec.spec
     StoryFlow.Service.EntityReadSpec.spec
+    StoryFlow.Service.AliasIndexSpec.spec
     StoryFlow.Service.EntityWriteSpec.spec
     StoryFlow.Service.LinkSpec.spec
     StoryFlow.Service.LevelSpec.spec

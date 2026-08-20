@@ -314,7 +314,7 @@ snapshot conn ids = do
       , snTree = case buildTree lvl nodes of
           Right t -> [(metaTitle (nodMeta n), kindOf n, nodOrder n) | n <- preorder t]
           Left _ -> []
-      , snSearch = sort [metaTitle m | (m, _) <- hits]
+      , snSearch = sort [metaTitle m | (m, _, _) <- hits]
       }
   where
     kindOf n = T.pack (show (nodKind n))

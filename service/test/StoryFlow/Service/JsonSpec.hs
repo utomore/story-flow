@@ -43,7 +43,8 @@ spec = describe "JSON 編解碼" $ do
     roundTrip (LevelView sampleLevel sampleTree "levels/教室.md")
     roundTrip (VaultView "liftgame" "/tmp/liftgame" (Just 12))
     roundTrip (VaultView "liftgame" "/tmp/liftgame" Nothing)
-    roundTrip (SearchHit sampleMeta "……織紋……")
+    roundTrip (SearchHit sampleMeta "……織紋……" (Just 0.8))
+    roundTrip (SearchHit sampleMeta "……織紋……" Nothing)
     roundTrip (LinkReport [aLink] [(idOf "ent-7f3c", aLink)])
     roundTrip (IndexReport 5 ["某個檔案解析失敗"])
     roundTrip (DeleteReport "characters/琳達.md" [idOf "ent-7f3a"] [(idOf "ent-c41f", aLink)])
@@ -57,6 +58,16 @@ spec = describe "JSON 編解碼" $ do
     keysOf (toJSON (EntityView sampleEntity "p" Nothing [])) `shouldNotContain` ["anchor"]
     keysOf (toJSON (VaultView "v" "r" Nothing)) `shouldNotContain` ["entity_count"]
     keysOf (toJSON emptyPatch) `shouldBe` []
+
+  -- conflict-detection/F003 T2:相關度是選配欄位,LIKE 路徑給不出來。
+  it "SearchHit 的 score 有值才出現" $ do
+    let withScore = SearchHit sampleMeta "……織紋……" (Just 0.8)
+        without = SearchHit sampleMeta "……織紋……" Nothing
+    keysOf (toJSON withScore) `shouldContain` ["score"]
+    keysOf (toJSON without) `shouldNotContain` ["score"]
+    -- round-trip 不失真:0.8 進去 0.8 出來,Nothing 進去 Nothing 出來
+    (shScore <$> decode (encode withScore)) `shouldBe` Just (Just 0.8)
+    (shScore <$> decode (encode without)) `shouldBe` Just (Nothing :: Maybe Double)
 
   it "反向關聯編成有鍵名的物件,不是二元陣列" $ do
     let r = LinkReport [] [(idOf "ent-7f3c", aLink)]

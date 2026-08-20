@@ -114,8 +114,10 @@ sampleLevelView = LevelView sampleLevel sampleTree "levels/教室.md"
 sampleVaultView :: VaultView
 sampleVaultView = VaultView "liftgame" "/home/u/story-vaults/liftgame" (Just 42)
 
+-- | @score@ 刻意給 'Just':'StoryFlow.Api.SchemaSpec' 的樣本要把選配欄位填滿,
+-- 否則「@Maybe@ 沒值就整個鍵不出現」的約定會讓鍵集合比對假性不一致。
 sampleSearchHit :: SearchHit
-sampleSearchHit = SearchHit sampleMeta "……埃提亞的第七織手……"
+sampleSearchHit = SearchHit sampleMeta "……埃提亞的第七織手……" (Just 0.87)
 
 sampleLinkReport :: LinkReport
 sampleLinkReport = LinkReport [sampleLink] [(idOf "ent-7f3b", sampleLink)]

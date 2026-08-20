@@ -5,7 +5,7 @@ title: assetdb
 description: 工作室素材庫的索引、檢索與專案素材配置系統
 status: active
 created: 2026-08-16
-updated: 2026-08-19
+updated: 2026-08-20
 subsystems: [catalog, ingest, ai-tagging, delivery]
 ---
 
@@ -13,8 +13,9 @@ subsystems: [catalog, ingest, ai-tagging, delivery]
 
 > 本文取代舊版 `docs/architecture.md`(2026-08-19 遷移至 dev-flow 0.7.0 的 `.design/` 三層結構)。
 > 更早的 `docs/DESIGN.md`、`docs/AI.md`、`docs/PACKS.md` 與兩份分析報告保留在 `docs/_archive/`;
-> 素材包盤點資料見 `docs/_archive/PACKS.md` 與機器可讀的 `data/packs.toml`,AI 功能的操作手冊
-> (troubleshooting、CLI 逐步流程)保留在 `docs/_archive/AI.md`。
+> 素材包盤點資料見 `docs/_archive/PACKS.md` 與機器可讀的 `data/packs.toml`。AI 功能的操作手冊
+> 已於 2026-08-20 併入根目錄 `README.md`「日常操作 7」,`docs/_archive/AI.md` 只是歷史快照。
+> 給 AI agent 的入口是根目錄 `CLAUDE.md`。
 
 ## 需求說明
 
@@ -277,8 +278,11 @@ action = "exclude"
 | 11 | 音效格式驗證(零核心表改動) | ingest | ✅ 已驗證(2026-08-11) |
 | 12 | AI 離線分類與標註(本機 LLM + GBNF) | ai-tagging | ✅ 已對真實素材庫執行 |
 | 13 | 缺陷與技術債收斂(6 bugfix + 14 enhancement) | 全部 | ✅ 全數 done/closed(2026-08-19) |
+| 14 | 專案增量同步(`project sync`):對帳分四類、只增不刪、預設預覽 | delivery | 🔲 規劃中(2026-08-20 列入 delivery 功能規劃 #6,契約卡已備妥) |
 
-**目前狀態**:功能面已完整實作並驗證,階段 13 的已知缺陷與技術債全部收斂完畢
+**目前狀態**:階段 0–13 功能面已完整實作並驗證,已知缺陷與技術債全部收斂完畢
 (紀錄見各子系統的 `bugfixes/`、`enhancements/` 與 `.design/enhancements/` 的全域項目)。
+階段 14 是目前唯一待展開的規劃項目;其餘尚未納入規劃的缺口(前端匯入 / 叢集確認 UI、
+`ai vision` 全量執行、ImageMagick sidecar)列在 `README.md`「尚未實作」。
 新功能請走 `/feature-design`(或 `/subsys-build` 委派展開),並在此表補上對應階段;
 新的缺陷走 `/bugfix`、優化走 `/enhance-design`。

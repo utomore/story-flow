@@ -7,7 +7,7 @@
 | 檔案 | 內容 | 被誰取代 |
 |---|---|---|
 | `DESIGN.md` | 最早的整體設計文件 | `.design/system.md` |
-| `AI.md` | AI 分類功能的完整操作手冊(troubleshooting、CLI 逐步流程) | 架構部分進 `.design/subsystems/ai-tagging/design.md`;操作手冊仍以本檔為準 |
+| `AI.md` | AI 分類功能的完整操作手冊(troubleshooting、CLI 逐步流程) | 架構部分進 `.design/subsystems/ai-tagging/design.md`;操作手冊已於 2026-08-20 併入根目錄 `README.md`「日常操作 7」 |
 | `PACKS.md` | 素材包盤點資料(非架構內容) | 機器可讀版本是 `data/packs.toml` |
 | `report-2026-08-11-console-encoding-and-db-path.md` | 主控台編碼與資料庫路徑的分析報告 | 結論已落地為 bugfix 文檔 |
 | `report-2026-08-12-architecture-review.md` | 全專案架構健檢報告 | 發現已全部展開為 bugfix / enhancement 文檔並完成 |

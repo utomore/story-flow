@@ -102,7 +102,35 @@ P1 就凍結 P5 還沒想清楚的設定形狀」。現在正是 P5:**形狀由�
 步。錯誤發生在**載入**而不是 `newLlmClient`——後者的簽名 `LlmConfig -> IO LlmClient` 沒有錯誤通道,
 拿到 `LlmConfig` 的那一刻設定就已經是好的了。**怎麼退化是消費者的決定**——`conflict-detection` 第 3
 層的契約本來就寫著「`LlmClient` 不可用時整條管線退化成前兩層」。
-`remote_unavailable` / `remote_bad_response` 相同:兩者的下一步完全不同。
+
+**`LlmError` 的分類**(2026-08-20 閘門裁定升格為契約):要能區分「連不上服務」與「模型回了但格式
+不對」,理由與 CLI 的 `remote_unavailable` / `remote_bad_response` 相同:兩者的下一步完全不同。
+實際落到**五類**——契約卡原本只寫兩類,但 401 與「形狀不對」的下一步同樣是兩回事,而「你還沒
+設定」與「設定寫錯了」又是第三、第四回事:
+
+| 建構子 | 什麼情況 | 可重試 | 下一步 |
+|---|---|---|---|
+| `LlmUnavailable` | 連線被拒、DNS 解不出、逾時、傳輸中斷 | **是** | 檢查地端服務有沒有起來 |
+| `LlmHttpStatus` | 服務回了,但狀態碼不是 2xx(帶狀態碼與截斷的內文) | 否 | 看狀態碼:401 是金鑰、404 是路徑 |
+| `LlmBadResponse` | 回了 2xx,但 JSON 不是 OpenAI 相容的形狀 | 否 | 換端點或換模型 |
+| `LlmConfigMissing` | Vault 的 `config.toml` 沒有 `[llm]` 段 | 否 | 去加那一段 |
+| `LlmConfigInvalid` | `[llm]` 在,但鍵缺漏 / 型別不對 / 認不得 | 否 | 照訊息改那一個鍵 |
+
+**只有 `LlmUnavailable` 會被 `lcRetries` 重試**——其餘四類重試幾次都不會變對。
+
+**`[llm]` 段的設定格式**(2026-08-20 閘門裁定升格為契約):這是使用者要手寫的東西,屬對外行為。
+
+```toml
+[llm]
+base_url   = "http://127.0.0.1:8080/v1"  # 必填。指到 /v1 那一層,/chat/completions 由實作接上
+model      = "..."                       # 必填
+api_key    = "..."                       # 選填。地端通常不用;沒有時請求不帶 Authorization
+timeout_ms = 60000                       # 選填,預設 60000。單位寫在鍵名裡
+retries    = 1                           # 選填,預設 1。只作用於 LlmUnavailable
+```
+
+**未知鍵視為錯誤**(`LlmConfigInvalid`),與型別註冊表載入器同一立場:設定檔裡拼錯的鍵被默默
+忽略,使用者會以為自己設定好了。
 
 ## 資料流管線(Data Flow Pipeline)
 

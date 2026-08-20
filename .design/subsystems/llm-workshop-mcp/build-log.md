@@ -73,15 +73,15 @@ feature 疊在上面」那一列。F002–F005 先保留號碼,回來跑接續�
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| F001 A1 | `lcTimeout :: Int` 的**單位**契約沒寫 | 毫秒,TOML 鍵名 `timeout_ms`,預設 60000 | 待裁決 |
+| F001 A1 | `lcTimeout :: Int` 的**單位**契約沒寫 | 毫秒,TOML 鍵名 `timeout_ms`,預設 60000 | **接受**,已與 A4/A5 一併把 `[llm]` 的設定格式寫進 design.md 對外契約 |
 | F001 A2 | `design.md` 把「沒有 `[llm]` 段回錯誤」歸給 `newLlmClient`,但 `LlmConfig -> IO LlmClient` 沒有錯誤通道 | 錯誤由 `Llm.Config` 的**載入階段**產生,`newLlmClient` 維持契約簽名且為全函式 | **編排者已處理**:那句話是編排者在批次澄清時寫的,歸屬寫錯了。已回寫 `design.md` 改成「設定載入階段回錯誤」。閘門請確認 |
-| F001 A3 | `LlmError` 是否只准「連不上」與「格式不對」兩類 | 另加 `LlmHttpStatus` 與兩個設定類建構子——401 與「形狀不對」的下一步不同 | 待裁決 |
-| F001 A4 | `[llm]` 的鍵名與未知鍵怎麼處理 | snake_case 五鍵;未知鍵**視為錯誤**(沿用 `Types.Loader` 的立場) | 待裁決 |
-| F001 A5 | 預設值 | `timeout_ms = 60000`、`retries = 1` | 待裁決 |
-| F001 A6 | `llmConfig` 回 `Either` 還是丟 `ServiceError` | 回 `ServiceM (Either LlmError LlmConfig)`,不讓下層錯誤型別認識上層 | 待裁決 |
-| F001 A7 | 設定錯誤訊息要不要帶絕對路徑 | 只寫相對的 `.storyflow/config.toml`(`vaultConfig` 拿不到 `vaultRoot`) | 待裁決 |
-| F001 A8 | 改名後的存取子名 | `LlmSection` / `llmSectionTable`(不沿用 `llmTable`) | 待裁決 |
-| F001 A9 | `chatEndpoint :: LlmConfig -> String` 是「新增的介面」清單外的公開名字,且穿透門面 | 住在 `Llm.Config`:它有兩個呼叫端(`parseLlmConfig` 驗證 `base_url`、`chat` 組請求),放進 `Llm.Client` 會讓 Config 反向 import Client;Haskell 無法「只給同套件看」,要藏只能兩邊各寫一份 URL 規則 | 待裁決 |
+| F001 A3 | `LlmError` 是否只准「連不上」與「格式不對」兩類 | 另加 `LlmHttpStatus` 與兩個設定類建構子——401 與「形狀不對」的下一步不同 | **接受**,五類已升格為 design.md 對外契約的一張表(含可否重試與下一步) |
+| F001 A4 | `[llm]` 的鍵名與未知鍵怎麼處理 | snake_case 五鍵;未知鍵**視為錯誤**(沿用 `Types.Loader` 的立場) | **接受**,已寫進 design.md 對外契約 |
+| F001 A5 | 預設值 | `timeout_ms = 60000`、`retries = 1` | **接受**,已寫進 design.md 對外契約 |
+| F001 A6 | `llmConfig` 回 `Either` 還是丟 `ServiceError` | 回 `ServiceM (Either LlmError LlmConfig)`,不讓下層錯誤型別認識上層 | 接受 |
+| F001 A7 | 設定錯誤訊息要不要帶絕對路徑 | 只寫相對的 `.storyflow/config.toml`(`vaultConfig` 拿不到 `vaultRoot`) | 接受 |
+| F001 A8 | 改名後的存取子名 | `LlmSection` / `llmSectionTable`(不沿用 `llmTable`) | 接受 |
+| F001 A9 | `chatEndpoint :: LlmConfig -> String` 是「新增的介面」清單外的公開名字,且穿透門面 | 住在 `Llm.Config`:它有兩個呼叫端(`parseLlmConfig` 驗證 `base_url`、`chat` 組請求),放進 `Llm.Client` 會讓 Config 反向 import Client;Haskell 無法「只給同套件看」,要藏只能兩邊各寫一份 URL 規則 | **不接受**:閘門裁定要它退出公開面。門面改為逐項列舉匯出 15 個名字,`chatEndpoint` 仍住 `Llm.Config` 供套件內部共用(URL 規則沒有變成兩份)。以 `cabal repl` 走已編譯的 package interface 實測:`import StoryFlow.Llm` 後 `chatEndpoint` 不在作用域,再 `:m + StoryFlow.Llm.Config` 就看得到 |
 
 ## 階段結果
 
@@ -145,3 +145,22 @@ feature 疊在上面」那一列。F002–F005 先保留號碼,回來跑接續�
 | `service-and-interfaces/design.md` | 新增 `vaultConfig :: ServiceM VaultConfig`(只開內嵌出口);操作數 25 → 26 | 批次澄清 S2 |
 
 **`system.md` 本次一個字都沒改。**
+
+### 階段一閘門結論(2026-08-20)
+
+開發者裁決:**接受,就此停下**。9 條待確認假設全部裁定,零條懸而未決:
+
+- **A3**(`LlmError` 五類)、**A1 / A4 / A5**(`[llm]` 的鍵名、單位、預設值、未知鍵處理)
+  → 接受,並**升格為契約**寫進 `design.md` 的對外契約章節。前者是一張含「可否重試」與
+  「下一步」的表,後者是一段可以照抄的 TOML 範例。理由都一樣:F002 工作坊與
+  `conflict-detection` 第 3 層消費它們時不該再猜一次,而 `[llm]` 是使用者要手寫的東西,
+  屬對外行為
+- **A9**(`chatEndpoint` 穿透門面)→ **不接受**,已改為逐項列舉匯出並實測驗證
+- **A2** → 編排者處理(錯誤歸屬是批次澄清時寫錯的,已修正 `design.md`)
+- 其餘 5 條(A6 / A7 / A8 與實作細節)接受,留在本檔備查
+
+**契約有無變更**:有,見上表與本次新增的兩節。階段二(工作坊)、階段三(MCP)未展開。
+
+**編排者自己的兩處筆誤**(如實記下):修 A2 時多蓋掉一行,把 `LlmError` 段落的開頭吃掉了,
+在寫 A3 裁決時補回;委派 F001 設計的 prompt 裡誤稱 `http-client` 不在任何套件的相依裡,
+實際上 `cli/storyflow-cli.cabal:41` 早就有——subagent 查證後糾正,已核實。

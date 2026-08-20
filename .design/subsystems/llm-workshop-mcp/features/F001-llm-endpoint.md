@@ -554,14 +554,19 @@ newtype LlmSection = LlmSection { llmSectionTable :: TOML.Table }
   會與程式碼漂移,是否加註由編排者決定(委派模式不改別人的文檔)。
 - A9: `chatEndpoint :: LlmConfig -> String`(去掉 `base_url` 尾斜線再接
   `/chat/completions`)是「新增的介面」清單沒有列到的一個名字,而它**住在
-  `Llm.Config` 並被匯出**,因此也穿透了門面。→ 採取:如上。理由是它有**兩個**
-  呼叫端:`parseLlmConfig` 要用它做 `base_url` 的純驗證(文檔第五節明寫
-  `parseRequest (chatEndpoint cfg) :: Maybe Request`),`chat` 要用它組請求。放進
-  `Llm.Client` 會讓 `Llm.Config` 反向 import `Llm.Client`,與 `Llm.Error` 被拆出來
-  是同一個理由;Haskell 沒辦法「只給同套件看」,要藏起來只能讓兩邊各寫一份,
-  那等於同一條 URL 規則有兩份。→ 影響:若要求它不出現在公開面,門面
-  `StoryFlow.Llm` 要改成逐項列舉的匯出清單(不再 `module X` 整模組 re-export),
-  並把 `chatEndpoint` 從那份清單裡拿掉。
+  `Llm.Config` 並被匯出**,原本因此也穿透了門面。→ **2026-08-20 階段閘門裁定:
+  要求它退出公開面**。實際作法分兩半:(a) `chatEndpoint` **仍住在 `Llm.Config`**
+  並繼續被 `Llm.Client` import——它有**兩個**呼叫端(`parseLlmConfig` 用它做
+  `base_url` 的純驗證,見第五節的 `parseRequest (chatEndpoint cfg) :: Maybe Request`;
+  `chat` 用它組請求),放進 `Llm.Client` 會讓 `Llm.Config` 反向 import `Llm.Client`,
+  而為了藏它讓兩邊各寫一份 URL 規則等於同一條規則有兩份,兩種代價都不接受;
+  (b) 門面 `StoryFlow.Llm` 從 `module X` 整包 re-export 改成**逐項列舉的匯出清單**,
+  內容等於「新增的介面」章節列的那些名字,`chatEndpoint` 不在其中。
+  → 影響:公開面不再由「某個名字剛好被哪個內部模組匯出」決定,而是由文檔決定;
+  代價是**以後每加一個公開名字要改兩個地方**(內部模組的匯出清單,以及門面),
+  這一點已寫進 `StoryFlow.Llm` 的 haddock。驗證方式:`cabal repl` 下
+  `import StoryFlow.Llm` 後 `:t chatEndpoint` 回 `Variable not in scope`,而
+  `import StoryFlow.Llm.Config`(套件內模組)後仍拿得到。
 
 ## 實作備註
 
@@ -574,7 +579,9 @@ newtype LlmSection = LlmSection { llmSectionTable :: TOML.Table }
 **全函式**(A2 的裁定),設定錯誤全部在 `parseLlmConfig` / `llmConfig` 那一步產生;
 `chat` 的簽名逐字如契約。`Message` / `Role` 如文檔的判斷住在 `storyflow-llm`。
 
-唯一超出「新增的介面」清單的公開名字是 `chatEndpoint`,理由與代價記在 A9。
+公開面**逐字等於**「新增的介面」清單的 15 個名字:門面 `StoryFlow.Llm` 用逐項列舉匯出而非
+整包 re-export(2026-08-20 閘門裁定 A9)。`chatEndpoint` 仍住在 `Llm.Config` 供套件內部共用,
+URL 規則只有一份,但不再穿透門面。
 
 ### 值得記下來的三件事
 

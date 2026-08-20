@@ -3,7 +3,7 @@ id: F003
 type: feature
 title: conflict-retrieval
 description: 衝突偵測第 2 層:關鍵詞撈候選,含 canon/timeline 過濾與一跳擴充
-status: open
+status: done
 created: 2026-08-20
 updated: 2026-08-20
 depends-on: [F001, entity-graph-core/F002, entity-graph-core/F004, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003]
@@ -555,17 +555,17 @@ candidateConflictHit :: Candidate -> ConflictHit
 
 ## TodoList
 
-- [ ] T1: `store` 的 `searchEntities` 改回三元組:`ftsQuery` 的 `SELECT` 加 `bm25(entities_fts)`、`likeQuery` 對應位置給 `NULL`;新增並匯出 `normalizeBm25`  `dep: entity-graph-core/F004`
-- [ ] T2: `SearchHit` 加 `shScore`,並更新 `Service.hs` 的組裝、`Service/Json.hs` 的 `ToJSON`/`FromJSON`、`api` 的 `ToSchema` 與 `sampleSearchHit`、`cli` 的 `renderSearch`,以及 store/service/cli 三個套件既有的 `SearchHit` 斷言  `dep: T1`
-- [ ] T3: `StoryFlow.Service` 新增 `aliasIndex`(建在 `listEntities` 之上,濾掉空字串名稱),加進門面匯出清單;不接 CLI、不接 REST  `dep: service-and-interfaces/F001`
-- [ ] T4: `storyflow-conflict.cabal` 加 `storyflow-service` / `mtl` 與測試相依;`CabalSpec` 的 `forbidden` 移除 `storyflow-service` 並改成「必須含 service、仍然不含其餘四項」的雙向斷言  `dep: T3`
-- [ ] T5: `matchedNames` / `segmentDraft` / `defaultKeywordStrategy`:兩路併用、合併去重、`maxKeywords` 截斷  `dep: T4`
-- [ ] T6: 候選撈取:逐關鍵詞 `searchEntity`(`efStatus = Just Canon` + `overFetchLimit`)、`rankFallbackScore` 回退、`mergeCandidates` 去重取最高分  `dep: T2, T5`
-- [ ] T7: `timelineAnchors`(`drRefs` → `getEntity`,單一 id 查不到用 `catchError` 吞掉)與 `withinWindow` 過濾;`rrScanned` 的計數含被剔除者  `dep: T6`
-- [ ] T8: 一跳擴充:`linksOf` 取 `PartOf` / `OccursIn` 的本地正向目標、非 canon 丟棄、分數乘 `expansionDecay`、`caOrigin = FromExpansion`  `dep: T7`
-- [ ] T9: `retrieveCandidatesWith` / `retrieveCandidates` 門面:排序(分數遞減 → id 字典序)、`take coTopN`、`coTopN <= 0` 的行為、`RetrievalResult` 組裝  `dep: T8`
-- [ ] T10: `renderRetrievalReason` 兩種句型與 `candidateContextHit` / `candidateConflictHit` 轉換  `dep: T9`
-- [ ] T11: 模組註冊(cabal `exposed-modules`、`conflict/test/Spec.hs`)與策略可替換性:換一個 `KeywordStrategy` 即改變候選集合,其餘模組零改動  `dep: T9`
+- [x] T1: `store` 的 `searchEntities` 改回三元組:`ftsQuery` 的 `SELECT` 加 `bm25(entities_fts)`、`likeQuery` 對應位置給 `NULL`;新增並匯出 `normalizeBm25`  `dep: entity-graph-core/F004`
+- [x] T2: `SearchHit` 加 `shScore`,並更新 `Service.hs` 的組裝、`Service/Json.hs` 的 `ToJSON`/`FromJSON`、`api` 的 `ToSchema` 與 `sampleSearchHit`、`cli` 的 `renderSearch`,以及 store/service/cli 三個套件既有的 `SearchHit` 斷言  `dep: T1`
+- [x] T3: `StoryFlow.Service` 新增 `aliasIndex`(建在 `listEntities` 之上,濾掉空字串名稱),加進門面匯出清單;不接 CLI、不接 REST  `dep: service-and-interfaces/F001`
+- [x] T4: `storyflow-conflict.cabal` 加 `storyflow-service` / `mtl` 與測試相依;`CabalSpec` 的 `forbidden` 移除 `storyflow-service` 並改成「必須含 service、仍然不含其餘四項」的雙向斷言  `dep: T3`
+- [x] T5: `matchedNames` / `segmentDraft` / `defaultKeywordStrategy`:兩路併用、合併去重、`maxKeywords` 截斷  `dep: T4`
+- [x] T6: 候選撈取:逐關鍵詞 `searchEntity`(`efStatus = Just Canon` + `overFetchLimit`)、`rankFallbackScore` 回退、`mergeCandidates` 去重取最高分  `dep: T2, T5`
+- [x] T7: `timelineAnchors`(`drRefs` → `getEntity`,單一 id 查不到用 `catchError` 吞掉)與 `withinWindow` 過濾;`rrScanned` 的計數含被剔除者  `dep: T6`
+- [x] T8: 一跳擴充:`linksOf` 取 `PartOf` / `OccursIn` 的本地正向目標、非 canon 丟棄、分數乘 `expansionDecay`、`caOrigin = FromExpansion`  `dep: T7`
+- [x] T9: `retrieveCandidatesWith` / `retrieveCandidates` 門面:排序(分數遞減 → id 字典序)、`take coTopN`、`coTopN <= 0` 的行為、`RetrievalResult` 組裝  `dep: T8`
+- [x] T10: `renderRetrievalReason` 兩種句型與 `candidateContextHit` / `candidateConflictHit` 轉換  `dep: T9`
+- [x] T11: 模組註冊(cabal `exposed-modules`、`conflict/test/Spec.hs`)與策略可替換性:換一個 `KeywordStrategy` 即改變候選集合,其餘模組零改動  `dep: T9`
 
 ## 1-to-1 測試對照表
 
@@ -591,7 +591,58 @@ candidateConflictHit :: Candidate -> ConflictHit
 - A4: `ConflictOpts.coTimelineWindow` 是「比對 `tlOrder` 的容許距離」,但 `Draft` 沒有 timeline 欄位,契約沒說距離要對誰算 → 採取:以 **`drRefs` 對應片段的 `tlOrder` 為基準點**(草稿身上唯一的時序線索);基準點為空時**不過濾**而非全部剔除 → 影響:若正確語意是「由使用者顯式給一個時間點」,`Draft` 或 `ConflictOpts` 要多一個欄位(F001 的型別變更),`withinWindow` 的簽名跟著改;`drRefs` 為空的草稿目前等於關掉 timeline 過濾
 - A5: 一跳擴充帶進來的候選沒有任何檢索分數可言,但它得和關鍵詞候選一起排序、一起受 `coTopN` 約束 → 採取:分數 = 母候選分數 × `expansionDecay = 0.5`,並讓 `coTopN` 約束**合併後的最終清單**(擴充只填關鍵詞候選沒用完的名額) → 影響:若擴充候選應該獨立於 `topN` 之外(亦即最終筆數可以超過 `topN`),`retrieveCandidates` 的截斷點與 F004 / F006 對 `topN` 的說明都要改;若衰減係數不該固定,它要升格成 `ConflictOpts` 的一欄
 - A6: 「一跳擴充」ADR-007 寫的是「候選的 `partOf` / `occursIn` 目標一併帶進來」,沒說要不要反向 → 採取:**只取正向**(`lrOutgoing`) → 影響:若反向也該納入(「誰屬於這個候選」),`linksOf` 的 `lrIncoming` 也要處理,而一個角色主體的反向 `partOf` 可能有幾十筆,`topN` 的預算與擴充的分數衰減都要重新設計
+- A7(實作時新增): 一跳擴充帶進來的候選**要不要也受 timeline 過濾**?本文檔第一節的管線把 timeline 過濾排在擴充**之前**,而第七節列出的擴充規則(本地、正向、canon、不重複、衰減)沒有 timeline 這一條 → 採取:照管線順序實作,**擴充候選不受 timeline 過濾**;但擴充的「已見過」集合用的是**掃過的全部候選**(含被 timeline 剔除的),所以被時序剔除的片段**不會**從擴充那條路偷偷回來 → 影響:若正確語意是「擴充目標也必須落在 window 內」,`expandOneHop` 要多吃一組基準點並在加入前再過一次 `withinWindow`,而 `rrScanned` 的計數方式也要跟著調整(目前擴充只計入實際加入的那些)
+- A8(實作時新增): `ContextHit.xhSnippet` 不是 `Maybe`,但擴充候選**不是被檢索命中的**,手上沒有 FTS5 給的 snippet → 採取:用 `metaSummary`,總結為空字串時退回 `metaTitle`(型別註冊表把 `summary` 列為必填,所以實務上幾乎總是有值) → 影響:若 context 出口要求「snippet 必須是正文裡真正出現過的一段」,擴充候選就得多讀一次 body 並自己截段(多一次 `getEntity` 的 body 讀檔),或者 `ContextHit` 要能表達「這一筆沒有片段可指」
 
 ## 實作備註
 
-(撰寫時留空)
+11 個 Todo 全部完成,九個測試套件全綠(合計 1030 examples、0 failures)。
+
+### 與設計文檔的差異
+
+沒有偏離「新增的介面」與「對應的 Level 2 契約」的任何一條。三處值得記錄的實作決定:
+
+1. **`mergeCandidates` 的輸出位置**:同 id 取最高分時,那一筆放在該 id **第一次出現**的位置,
+   而不是高分那筆出現的位置。文檔只要求「輸入順序即優先序」,兩種都符合;選第一次出現是因為
+   它讓「不同 id 全部保留且保序」這句話在有重複的輸入上仍然成立
+2. **一跳擴充的排除集合**用的是**掃過的全部候選**而不只是通過 timeline 過濾的那些
+   (見 A7)。否則一個剛被時序剔除的片段,會因為某個存活候選指向它而立刻回到清單裡
+3. **擴充候選的 snippet** 取 `metaSummary`,為空時退回 `metaTitle`(見 A8)
+
+### 既有測試的修改(逐條說明為什麼)
+
+每一條都是**因為型別變了而必須改**,沒有為了變綠而放寬語意;三處反而收得更緊。
+
+| 檔案 | 改動 | 為什麼 |
+|---|---|---|
+| `store/test/.../SearchSpec.hs` | `ident` 改吃三元組;新增 `metaOf` / `snippetOf` / `scoreOf` 三個 accessor;`map snd hits` → `map snippetOf hits`;`map (metaStatus . fst)` → `map (metaStatus . metaOf)` | `searchEntities` 的回傳從二元組變三元組(T1)。既有七條斷言的**語意一字未改** |
+| `store/test/.../EndToEndSpec.hs` | `snapshot` 的 `[metaTitle m \| (m, _) <- hits]` → `(m, _, _)` | 同上;快照比對的內容不變 |
+| `service/test/.../JsonSpec.hs` | `roundTrip (SearchHit sampleMeta "……織紋……")` → 拆成 `Just 0.8` 與 `Nothing` 兩條 | `SearchHit` 多一欄(T2)。**收得更緊**:原本一條變兩條,選配欄位的兩種狀態都要 round-trip |
+| `cli/test/.../RenderSpec.hs` | `SearchHit linda "……第七織手……"` → 補 `(Just 0.42)`,並加一條「表頭不含 score」 | 建構子多一欄。**收得更緊**:原本只斷言表頭有 `snippet`,現在同時釘住「人類模式不印 score」——那是 S2 只要求 `--json` 的直接後果 |
+| `api/test/.../Fixtures.hs` | `sampleSearchHit` 補 `Just 0.87` | `SchemaSpec` 的樣本刻意把選配欄位填滿,否則「`Maybe` 沒值就整個鍵不出現」會讓鍵集合比對假性不一致。`SchemaSpec` 本身**一字未改**,它自動涵蓋了新的 `score` 欄 |
+| `conflict/test/.../CabalSpec.hs` | `forbidden` 移除 `storyflow-service`;`libraryDeps` / `testDeps` 逐字清單更新;新增「必須含 service」與「exposed-modules 含 Retrieval」兩條 | F001 的模組註解預告的那一刻(T4)。**收得更緊**:單向的「不含」變成雙向的「必須含 service、仍然不含其餘四項」,逐字釘住的相依清單同時擋掉「趁這次順道多一個包」 |
+
+`server/test/.../HandlerSpec.hs` 與 `service/test/.../EntityReadSpec.hs` 用的是 record accessor
+(`shMeta` / `shSnippet`),**確實不受影響,一字未改**——文檔的查證結論正確。
+
+### 測試數量前後對照
+
+| 套件 | 前 | 後 | 差 |
+|---|---|---|---|
+| storyflow-types | 29 | 29 | — |
+| storyflow-core | 166 | 166 | — |
+| storyflow-md | 189 | 189 | — |
+| storyflow-api | 51 | 51 | — |
+| storyflow-service | 83 | 88 | +5(`AliasIndexSpec` 4 條 + `JsonSpec` 的 score 1 條) |
+| storyflow-store | 162 | 166 | +4(T1 的四條相關度斷言) |
+| storyflow-server | 60 | 60 | — |
+| storyflow-cli | 172 | 172 | — |
+| storyflow-conflict | 62 | 109 | +47(`RetrievalSpec` 24 + `RetrievalEnvSpec` 15 + `CabalSpec` 兩條新斷言 + 原有的 6 條保留) |
+
+### 給編排者的兩件事
+
+1. **`entity-graph-core/design.md` 第 79 行仍是舊簽名**(A1)。程式碼已經照 S2 的決定改成
+   `searchEntities :: Connection -> Text -> EntityFilter -> IO [(Meta, Text, Maybe Double)]`,
+   並新增匯出 `normalizeBm25`;依委派模式第 4 條,本 feature 不自行修改 `design.md`
+2. `service-and-interfaces/design.md` 的 `aliasIndex` 與 `SearchHit.shScore` 編排者已回寫,
+   程式碼與那份契約逐字一致

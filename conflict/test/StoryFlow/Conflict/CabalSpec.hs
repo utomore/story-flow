@@ -1,12 +1,23 @@
 -- | T1:套件邊界。
 --
--- 這份 spec 的驗收標準 4 說「@build-depends@ 只有 @storyflow-core@,沒有
+-- 這份 spec 的驗收標準 4 原本說「@build-depends@ 只有 @storyflow-core@,沒有
 -- @storyflow-service@ / @storyflow-store@ / @storyflow-llm@」。那句話唯一守得住
 -- 的形式是 @.cabal@ 檔裡沒有那些名字,所以用測試釘住,不是靠 code review 記得。
 --
--- 為什麼值得釘:@storyflow-conflict@ 後續會依賴 @service@(第 2 層要用它的
--- @searchEntity@),那時這條測試要__被明確改掉__,而不是某次順手加相依就悄悄
--- 失去了「型別層不綁實作進度」這個性質。
+-- __conflict-detection/F003 T4:@storyflow-service@ 這一項被明確改掉了__ ——
+-- 這正是 F001 註解預告的那一刻:
+--
+-- > @storyflow-conflict@ 後續會依賴 @service@(第 2 層要用它的 @searchEntity@),
+-- > 那時這條測試要被明確改掉,而不是某次順手加相依就悄悄失去了「型別層不綁
+-- > 實作進度」這個性質。
+--
+-- 放行的理由是本套件__已經不再只是型別套件__:F001 的斷言守的是「型別不被綁到
+-- 某一層的實作進度上」,而第 2 層本來就是實作,它的存在前提就是 service 已經
+-- 到位(service-and-interfaces 全部 done)。
+--
+-- 放行的同時把剩下四項守得__更緊__:斷言從單向的「不含」改成雙向的
+-- 「必須含 service、仍然不含其餘四項」,而逐字釘住的相依清單則保證沒有第六個
+-- 名字趁這一次順道混進來。
 module StoryFlow.Conflict.CabalSpec (spec) where
 
 import qualified Data.ByteString as BS
@@ -18,8 +29,12 @@ import System.Directory (doesFileExist)
 import Test.Hspec
 
 spec :: Spec
-spec = describe "型別套件不依賴任何實作端" $ do
-  it "build-depends 不含 service / store / md / llm / sqlite" $ do
+spec = describe "第 2 層放行 service,其餘四項仍然擋住" $ do
+  it "build-depends 含 storyflow-service(第 2 層的候選來源)" $ do
+    deps <- dependencyLines <$> readCabal
+    any ("storyflow-service" `isInfixOf`) deps `shouldBe` True
+
+  it "build-depends 不含 store / md / llm / sqlite" $ do
     deps <- dependencyLines <$> readCabal
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
 
@@ -36,37 +51,54 @@ spec = describe "型別套件不依賴任何實作端" $ do
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
     map trim deps `shouldBe` libraryDeps ++ testDeps
 
+  -- conflict-detection/F003 T11:第 2 層的模組要註冊得到,否則
+  -- @Conflict.Pipeline@ 與 F004 都 import 不到它。
+  it "exposed-modules 含 StoryFlow.Conflict.Retrieval" $ do
+    src <- readCabal
+    ("StoryFlow.Conflict.Retrieval" `isInfixOf` src) `shouldBe` True
+
 -- | 函式庫的相依__逐字__釘住:驗收標準 6 說的是「沒有增長」,而
 -- 「沒有出現在禁用清單裡」擋不住偷偷多一個包。
+--
+-- @mtl@ 是第 2 層唯一需要的新基礎相依:'Control.Monad.Except.catchError' 用來
+-- 吞掉單一 @drRef@ 的 @EntityNotFound@ ——呼叫端給的 id 打錯一個,不該讓整條
+-- @context@ 管線失敗。
 libraryDeps :: [String]
 libraryDeps =
   [ ", aeson"
-  , ", base            >=4.14 && <5"
+  , ", base              >=4.14 && <5"
   , ", containers"
+  , ", mtl"
   , ", storyflow-core"
+  , ", storyflow-service"
   , ", text"
   ]
 
--- | test-suite 的相依。第 1 層的測試靠 core 的 @buildGraph@ 蓋圖、靠
--- 'Data.Foldable.toList' 觀測 @Map@ / @Set@,所以這裡也沒有多出東西。
+-- | test-suite 的相依。第 1 層的測試靠 core 的 @buildGraph@ 蓋圖;第 2 層的整合
+-- 測試建臨時 Vault,而 @temporary@ \/ @directory@ \/ @filepath@ 加上
+-- @storyflow-service@ 的門面就夠了——@storyflow-store@ 一次都不必露臉。
 testDeps :: [String]
 testDeps =
   [ ", aeson"
   , ", base"
   , ", bytestring"
   , ", directory"
+  , ", filepath"
   , ", hspec"
   , ", storyflow-conflict"
   , ", storyflow-core"
+  , ", storyflow-service"
+  , ", temporary"
   , ", text"
   , ", time"
   ]
 
--- | 實作端的套件。出現在這裡就是架構違規——型別會被綁到某一層的實作進度上。
+-- | 仍然禁用的實作端套件。「所有讀取經 @ServiceM@」這條子系統界線
+-- (@conflict-detection/design.md@ 兩處明寫)靠的正是這四個名字不出現:
+-- 只要其中一個進來,第 2 層就有可能繞過 service 自己開索引連線。
 forbidden :: [String]
 forbidden =
-  [ "storyflow-service"
-  , "storyflow-store"
+  [ "storyflow-store"
   , "storyflow-md"
   , "storyflow-llm"
   , "sqlite-simple"

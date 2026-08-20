@@ -25,15 +25,20 @@ library
     exposed-modules:
         StoryFlow.Conflict.Graph
         StoryFlow.Conflict.Json
+        StoryFlow.Conflict.Retrieval
         StoryFlow.Conflict.Types
-    -- ADR-007 說三層「各自可獨立演進」,而那句話成立的前提是三層對同一組型別
-    -- 工作。這個套件就是那組型別,因此它只能站在 core 上:service / store / llm
-    -- 出現在這裡,型別就會被綁到某一層的實作進度上(conflict-detection/F001 T1)。
+    -- 第 2 層(conflict-detection/F003)起,本套件不再只是型別:@Conflict.Retrieval@
+    -- 的存在前提就是 service 已經到位,所以 storyflow-service 在這裡是合法的。
+    -- 放行的同時剩下四項守得更緊 —— storyflow-store / storyflow-md /
+    -- storyflow-llm / sqlite-simple 一個都不准進來:「所有讀取經 ServiceM」這條
+    -- 子系統界線靠的正是這四個名字不出現。
     build-depends:
         , aeson
-        , base            >=4.14 && <5
+        , base              >=4.14 && <5
         , containers
+        , mtl
         , storyflow-core
+        , storyflow-service
         , text
 
 test-suite storyflow-conflict-test
@@ -49,14 +54,21 @@ test-suite storyflow-conflict-test
         StoryFlow.Conflict.JsonSpec
         StoryFlow.Conflict.OptsSpec
         StoryFlow.Conflict.ReportSpec
+        StoryFlow.Conflict.RetrievalEnvSpec
+        StoryFlow.Conflict.RetrievalSpec
         StoryFlow.Conflict.SortSpec
+    -- 整合測試建臨時 Vault __只靠 storyflow-service__:createVault / openEnv /
+    -- runService 都在門面上,storyflow-store 一次都不必露臉。
     build-depends:
         , aeson
         , base
         , bytestring
         , directory
+        , filepath
         , hspec
         , storyflow-conflict
         , storyflow-core
+        , storyflow-service
+        , temporary
         , text
         , time

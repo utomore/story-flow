@@ -19,8 +19,8 @@ parent: conflict-detection
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
-| 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | design-done,實作中 |
-| 階段一 | W2 | #4 context-command (F004) | pending |
+| 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
+| 階段一 | W2 | #4 context-command (F004) | 設計中 |
 | 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
 | 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
 
@@ -67,8 +67,8 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | feature | id | 檔名 | 狀態 |
 |---|---|---|---|
 | conflict-types | F001 | F001-conflict-types.md | done(展開前既有) |
-| conflict-graph | F002 | F002-conflict-graph.md | design-done(展開前既有),待實作 |
-| conflict-retrieval | F003 | F003-conflict-retrieval.md | design-done(11 個 Todo,30 列介面表) |
+| conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
+| conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
 | context-command | F004 | F004-context-command.md | pending |
 | conflict-llm | F005 | (保留,階段二) | 未展開 |
 | conflict-check | F006 | (保留,階段二) | 未展開 |
@@ -85,6 +85,12 @@ F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免
 | F003 A4 | `coTimelineWindow` 是「`tlOrder` 的容許距離」,但 `Draft` 沒有 timeline 欄位,契約沒說基準點是誰 | 以 `drRefs` 對應片段的 `tlOrder` 為基準;基準為空時**不過濾**而非全剔除 | 待裁決 |
 | F003 A5 | 一跳擴充的候選沒有檢索分數,卻要與關鍵詞候選一起排序、一起受 `topN` 約束 | 分數 = 母候選 × `expansionDecay 0.5`;`topN` 約束合併後的最終清單 | 待裁決 |
 | F003 A6 | ADR-007 沒說一跳擴充要不要含反向關聯 | 只取正向 `lrOutgoing` | 待裁決 |
+| F002 A1 | 取代的三種理由文案都沒接 `linkNote`(只有矛盾兩列有) | 照文檔五列表格逐字實作,`gfNote` 仍保留在 `GraphFinding` | 待裁決 |
+| F002 A2 | 截斷文案「已達深度上限 N」的 N 該取哪個值 | 用 `gfHops`(截斷時恆等於 `coGraphDepth`) | 待裁決 |
+| F002 A3 | 只被**跨 Vault** 參照指到的本地 id,會被 `unlinkedRefs` 列為「零關聯」 | 照文檔「不是任何**本地**關聯的目標」字面實作 | 待裁決(F004 接線做 `Ref` 正規化後自動變正確) |
+| F002 A4 | test-suite 不加 `containers` 相依(硬性邊界),但測試要觀測 `Map`/`Set` | 改用 core 的 `buildGraph` 蓋圖 + `Data.Foldable.toList` 觀測 | 待裁決 |
+| F003 A7 | 一跳擴充帶進來的候選是否也受 timeline 過濾 | 照文檔管線順序(過濾在擴充之前),擴充候選**不**受過濾;但「已見過」集合用掃過的全部,被時序剔除者不會從擴充回來 | 待裁決 |
+| F003 A8 | `ContextHit.xhSnippet` 非 `Maybe`,而擴充候選沒有 FTS5 snippet | 用 `metaSummary`,為空退回 `metaTitle` | 待裁決 |
 
 ## 階段結果
 

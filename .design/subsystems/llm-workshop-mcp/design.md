@@ -5,7 +5,7 @@ title: llm-workshop-mcp
 description: 地端 LLM 端點、階段式引導工作坊與 MCP adapter
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-003, ADR-005, ADR-006]
 ---
@@ -55,7 +55,7 @@ related-adr: [ADR-003, ADR-005, ADR-006]
 | `storyflow-workshop` | `Workshop.Session` | 一次工作坊的狀態:型別、已選的硬約束 Entity、目前階段、各階段的定案 |
 | | `Workshop.Stages` | 依註冊表的 `stages` 驅動的狀態機:進入 / 對話 / 定案 / 下一階段 |
 | | `Workshop.Emit` | 定案 → 多個 `NewEntityReq` / `NewFragmentReq`,經 service 寫進圖譜 |
-| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器,把 REST 的 23 個操作暴露成 MCP tools |
+| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器,把 REST 的 24 個操作暴露成 MCP tools |
 
 **工作坊的狀態存在哪裡**:記憶體 + 一份可序列化的 session 快照。工作坊是**互動流程**,
 中途的對話不是「故事設定」,不該寫進 Vault 汙染圖譜;只有**定案的片段**才寫進去。
@@ -70,6 +70,9 @@ data LlmConfig = LlmConfig
   , lcModel   :: Text
   , lcApiKey  :: Maybe Text
   , lcTimeout :: Int
+  , lcRetries :: Int         -- 2026-08-20 補:驗收標準說「逾時與重試由 LlmConfig 控制」,但原本
+                             -- 沒有這一欄。預設保守,且只重試「連不上服務」類的錯誤——模型回了
+                             -- 但格式不對,重試也不會變對
   }
 newLlmClient :: LlmConfig -> IO LlmClient
 chat :: LlmClient -> [Message] -> IO (Either LlmError Text)
@@ -85,10 +88,49 @@ commitStage    :: Session -> ServiceM (Session, [EntityView])   -- 定案該階�
 | 出口 | CLI | REST |
 |---|---|---|
 | 工作坊 | `story-flow workshop start --type <型別> [--constraint <id>]…` / `step` / `commit` | `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit` |
-| MCP | — | stdio(`storyflow-mcp`),tools 由 REST 的 23 個操作映射 |
+| MCP | — | stdio(`storyflow-mcp`),tools 由 REST 的 24 個操作映射 |
 
-`LlmError` 要能區分「連不上地端服務」與「模型回了但格式不對」,理由與 CLI 的
-`remote_unavailable` / `remote_bad_response` 相同:兩者的下一步完全不同。
+**`LlmConfig` 與 `storyflow-store` 的佔位型別**(2026-08-20 批次澄清):`store` 早在 P1 就有一個
+`newtype LlmConfig`,包著**未解讀的** `[llm]` TOML 表——它那行註解寫著「現在替它定義欄位,等於在
+P1 就凍結 P5 還沒想清楚的設定形狀」。現在正是 P5:**形狀由本子系統定**,`store` 的佔位型別改名
+(職責是「原樣捧著那張表」,不是「設定」),本子系統負責把表解析成上面四加一欄的 `LlmConfig`。
+讀取路徑走 `service-and-interfaces` 新增的內嵌出口,**不直接依賴 `storyflow-store`**。
+
+**Vault 沒有 `[llm]` 段時**(2026-08-20 批次澄清;2026-08-20 閘門前修正錯誤歸屬):**設定載入階段**
+回錯誤,**不猜預設值**。訊息要說出下一步(在 `.storyflow/config.toml` 加 `[llm]` 段)。給一組地端
+預設值看似方便,但連不上時使用者看到的是「連線失敗」而不是「你還沒設定」,那是兩個完全不同的下一
+步。錯誤發生在**載入**而不是 `newLlmClient`——後者的簽名 `LlmConfig -> IO LlmClient` 沒有錯誤通道,
+拿到 `LlmConfig` 的那一刻設定就已經是好的了。**怎麼退化是消費者的決定**——`conflict-detection` 第 3
+層的契約本來就寫著「`LlmClient` 不可用時整條管線退化成前兩層」。
+
+**`LlmError` 的分類**(2026-08-20 閘門裁定升格為契約):要能區分「連不上服務」與「模型回了但格式
+不對」,理由與 CLI 的 `remote_unavailable` / `remote_bad_response` 相同:兩者的下一步完全不同。
+實際落到**五類**——契約卡原本只寫兩類,但 401 與「形狀不對」的下一步同樣是兩回事,而「你還沒
+設定」與「設定寫錯了」又是第三、第四回事:
+
+| 建構子 | 什麼情況 | 可重試 | 下一步 |
+|---|---|---|---|
+| `LlmUnavailable` | 連線被拒、DNS 解不出、逾時、傳輸中斷 | **是** | 檢查地端服務有沒有起來 |
+| `LlmHttpStatus` | 服務回了,但狀態碼不是 2xx(帶狀態碼與截斷的內文) | 否 | 看狀態碼:401 是金鑰、404 是路徑 |
+| `LlmBadResponse` | 回了 2xx,但 JSON 不是 OpenAI 相容的形狀 | 否 | 換端點或換模型 |
+| `LlmConfigMissing` | Vault 的 `config.toml` 沒有 `[llm]` 段 | 否 | 去加那一段 |
+| `LlmConfigInvalid` | `[llm]` 在,但鍵缺漏 / 型別不對 / 認不得 | 否 | 照訊息改那一個鍵 |
+
+**只有 `LlmUnavailable` 會被 `lcRetries` 重試**——其餘四類重試幾次都不會變對。
+
+**`[llm]` 段的設定格式**(2026-08-20 閘門裁定升格為契約):這是使用者要手寫的東西,屬對外行為。
+
+```toml
+[llm]
+base_url   = "http://127.0.0.1:8080/v1"  # 必填。指到 /v1 那一層,/chat/completions 由實作接上
+model      = "..."                       # 必填
+api_key    = "..."                       # 選填。地端通常不用;沒有時請求不帶 Authorization
+timeout_ms = 60000                       # 選填,預設 60000。單位寫在鍵名裡
+retries    = 1                           # 選填,預設 1。只作用於 LlmUnavailable
+```
+
+**未知鍵視為錯誤**(`LlmConfigInvalid`),與型別註冊表載入器同一立場:設定檔裡拼錯的鍵被默默
+忽略,使用者會以為自己設定好了。
 
 ## 資料流管線(Data Flow Pipeline)
 
@@ -161,7 +203,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
                                 │ REST
                    ┌────────────┴─────────────┐
                    │     storyflow-mcp        │  薄層:無業務邏輯
-                   │  MCP tools ← 23 個操作    │
+                   │  MCP tools ← 24 個操作    │
                    └────────────┬─────────────┘
                                 │ stdio
                         claude code / codex
@@ -176,7 +218,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
 | `Workshop.Stages` → `Llm.Client` | 只用 `chat :: LlmClient -> [Message] -> IO (Either LlmError Text)`,不知道後端是地端還是雲端 |
 | `Workshop.Stages` → `Workshop.Session` | 讀寫 `Session`(型別、硬約束、目前階段、各階段定案),狀態只在這裡變動 |
 | `Workshop.Emit` → `service-and-interfaces` | 經 `ServiceM` 以 `NewEntityReq` 寫入,與 CLI 用同一組操作 |
-| `Mcp.Server` → `service-and-interfaces` | 打 REST 的 23 個 operation,不 import `storyflow-service` |
+| `Mcp.Server` → `service-and-interfaces` | 打 REST 的 24 個 operation,不 import `storyflow-service` |
 
 資料結構:
 
@@ -221,7 +263,7 @@ data Role = System | User | Assistant
 
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
-| 1 | llm-endpoint | OpenAI 相容端點抽象(地端 / 雲端同一介面)、設定、逾時與錯誤語彙 | service-and-interfaces | - |
+| 1 | llm-endpoint | OpenAI 相容端點抽象(地端 / 雲端同一介面)、設定、逾時與錯誤語彙 | service-and-interfaces | F001 |
 
 ### 階段二:工作坊
 
@@ -235,7 +277,7 @@ data Role = System | User | Assistant
 
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
-| 5 | mcp-adapter | MCP stdio adapter,把 REST 的 23 個操作暴露成 MCP tools | service-and-interfaces | - |
+| 5 | mcp-adapter | MCP stdio adapter,把 REST 的 24 個操作暴露成 MCP tools | service-and-interfaces | - |
 
 小結:共 **5 個 features、3 個階段**。全部完成即達成主架構 P5 的完成標準「地端模型能引導
 產出片段;claude code 以 MCP 直接操作」。
@@ -307,10 +349,10 @@ data Role = System | User | Assistant
 - **階段**:階段三(MCP)
 - **負責模組**:`Mcp.Server`
 - **實作的 Level 2 介面**:「對外契約」對外形式表的 MCP 那一列——stdio 傳輸,tools 由
-  `service-and-interfaces` REST 的 23 個 operation 映射;「模組間公開介面」的
+  `service-and-interfaces` REST 的 24 個 operation 映射;「模組間公開介面」的
   `Mcp.Server` → `service-and-interfaces`
 - **資料流管線段落**:MCP 管線全段(tool call → REST → tool result)
-- **驗收標準**:23 個操作都有對應的 MCP tool 且參數形狀來自同一份 API 型別;錯誤沿用 REST 的
+- **驗收標準**:24 個操作都有對應的 MCP tool 且參數形狀來自同一份 API 型別;錯誤沿用 REST 的
   `code` 與訊息;claude code 掛上後不必再讀 API 文件就能建/查片段與關聯
 - **明確不做**:不含任何業務邏輯;不 import `storyflow-service`(只打 HTTP);
   不自行擴充 REST 沒有的操作

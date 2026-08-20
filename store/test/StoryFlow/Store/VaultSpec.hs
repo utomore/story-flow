@@ -9,7 +9,7 @@ import qualified Data.Text.Encoding as TE
 import StoryFlow.Store.Error (StoreError (..), renderStoreError)
 import StoryFlow.Store.Fixtures (withTempVault)
 import StoryFlow.Store.Vault
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath ((</>))
 import Test.Hspec
 import qualified TOML
@@ -96,8 +96,19 @@ spec = describe "T1 Vault 定位" $ do
         Right v -> do
           let cfg = vaultCfg v
           cfgReferences cfg `shouldBe` ["shared-lore"]
-          fmap (M.lookup "model" . llmTable) (cfgLlm cfg)
+          fmap (M.lookup "model" . llmSectionTable) (cfgLlm cfg)
             `shouldBe` Just (Just (TOML.String "qwen2.5-14b-instruct"))
+
+  -- llm-workshop-mcp/F001 T3:佔位型別 @LlmConfig@ 改名為 @LlmSection@ ——
+  -- 名字讓給 @storyflow-llm@ 的五欄設定型別,這一層捧的是「那張表」不是「設定」。
+  --
+  -- __行為測試看不出改名__:上面那條就算舊名字還留著(deprecated alias、或只加
+  -- 不減)一樣會過。所以直接讀原始碼斷言舊名字__不再出現__,否則兩個同名同義
+  -- 不同型的 @LlmConfig@ 會同時存在於 store 與 llm 兩個套件裡。
+  it "改名徹底:原始碼裡不再出現 LlmConfig 這個名字" $ do
+    src <- readUtf8Source "StoryFlow/Store/Vault.hs"
+    ("LlmConfig" `T.isInfixOf` src) `shouldBe` False
+    ("LlmSection" `T.isInfixOf` src) `shouldBe` True
 
   it "vaultRelPath 一律回傳以 / 分隔的相對路徑" $
     withTempVault $ \dir -> do
@@ -113,3 +124,16 @@ noRegistry dir = dir </> "no-such-registry.toml"
 -- Windows 上會把中文寫成 cp950。
 writeText :: FilePath -> Text -> IO ()
 writeText fp = BS.writeFile fp . TE.encodeUtf8
+
+-- | 讀本套件 @src\/@ 底下的原始碼檔。
+--
+-- 兩個候選路徑是因為 test 的工作目錄在 @cabal test@(套件目錄)與從專案根
+-- 執行時不同;以 UTF-8 位元組解碼,不走系統預設編碼——原始碼裡有繁中註解,
+-- Windows 的預設 code page 讀到第一個中文字就會丟 InvalidArgument。
+readUtf8Source :: FilePath -> IO Text
+readUtf8Source rel = go ["src" </> rel, "store" </> "src" </> rel]
+  where
+    go [] = fail ("找不到原始碼檔:" <> rel)
+    go (c : rest) = do
+      ok <- doesFileExist c
+      if ok then TE.decodeUtf8 <$> BS.readFile c else go rest

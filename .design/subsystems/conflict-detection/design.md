@@ -77,7 +77,17 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 | 出口 | CLI | REST |
 |---|---|---|
 | 完整偵測 | `story-flow conflict check --draft <檔案\|-> [--top-n] [--no-llm]` | `POST /conflict/check` |
-| 只撈 context | `story-flow context --for <檔案\|->` | `POST /conflict/context` |
+| 只撈 context | `story-flow context --for <檔案\|-> [--ref <id>]… [--top-n] [--timeline-window] [--graph-depth]` | `POST /conflict/context` |
+
+**`gatherContext` 的輸入來源**(2026-08-20 閘門裁定):`Draft` 的 `drRefs` 是第 1 層唯一的起點,
+因此 CLI 必須給得出它——`--ref <id>` 可重複、順序保留。這在原本的對外形式表裡漏了,而漏掉的後果
+不是少一個方便的旗標,是**第 1 層在 CLI 上永遠不會啟動**。`--top-n` / `--timeline-window` /
+`--graph-depth` 對應 `ConflictOpts` 的另外三欄;`--expand-body` 不開,那是第 3 層才用得到的東西。
+
+**`coTopN` 的作用範圍**(2026-08-20 閘門裁定):它是**第 2 層的候選上限**,不是最終輸出的筆數上限。
+跨層合流後的總清單**不**受它截斷——第 1 層的命中是事實,不該因為第 2 層撈滿了 top-N 就被擠掉。
+一跳擴充帶進來的候選沒有自己的檢索分數,取**母候選分數乘上一個衰減係數**,與關鍵詞候選一起競爭
+第 2 層的名額。
 
 **輸出契約**:report 的每一筆都帶 **(候選片段 id, 命中層級, 理由)**。命中層級必須標示出來
 —— 第 1 層的結果是**事實**,第 3 層的結果是**判斷**,使用者需要知道差別。CLI 的人類模式
@@ -297,6 +307,10 @@ data ConflictReport = ConflictReport
   意思,精準且零誤判);(b)**切詞**:依標點與空白切草稿,取足夠長的片段補召回。只做其中一路
   都不合格:只切詞則中文沒有空白、品質全看標點;只比對 alias 則作者沒寫 alias 的片段完全撈不到,
   等於把 ADR-007 的緩解措施當成唯一手段
+- **`timeline` 過濾的基準點**(2026-08-20 閘門裁定):`coTimelineWindow` 比對的距離以 **`drRefs` 對應
+  片段的 `tlOrder`** 為基準——那是草稿身上唯一的時序線索。基準點取不到時(沒給 `--ref`,或那些片段
+  都沒有 `tlOrder`)**不過濾**,而不是把候選全部剔除。代價要說明白:**沒有 `--ref` 的草稿等於關掉了
+  timeline 過濾**;這與上一條的 `--ref` 是同一個洞的兩面
 - **`timeline` 過濾與 `topN` 的先後**(2026-08-20 補):`EntityFilter` 沒有 timeline 欄位,
   過濾只能發生在 SQL 之後。因此**過度撈取再截斷**:SQL 撈 `topN` 的數倍,過濾掉時序上不可能
   相關的之後再截到 `topN`。`crScanned` 記的是**實際掃過的候選數(含被過濾掉的)**,使用者才

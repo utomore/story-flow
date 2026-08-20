@@ -9,7 +9,7 @@ module StoryFlow.Store.Vault
   ( -- * 型別
     Vault (..)
   , VaultConfig (..)
-  , LlmConfig (..)
+  , LlmSection (..)
 
     -- * 定位
   , resolveVault
@@ -66,13 +66,17 @@ data VaultConfig = VaultConfig
   { cfgName :: Text
   , cfgReferences :: [Text]
   -- ^ 引用的其他 Vault 名稱。對本 Vault 而言唯讀(ADR-008)
-  , cfgLlm :: Maybe LlmConfig
+  , cfgLlm :: Maybe LlmSection
   }
   deriving stock (Show, Eq)
 
--- | @[llm]@ 是 P5 的東西。P1 __原樣讀存不解讀__,所以直接保留 TOML 表本身——
--- 現在替它定義欄位,等於在 P1 就凍結 P5 還沒想清楚的設定形狀。
-newtype LlmConfig = LlmConfig {llmTable :: TOML.Table}
+-- | @[llm]@ 那張表,__原樣捧著不解讀__。
+--
+-- 這一層的職責是「把表捧著」,不是「表達設定」——設定的形狀(@base_url@ /
+-- @model@ / @api_key@ / @timeout_ms@ / @retries@)由 @storyflow-llm@ 的
+-- @StoryFlow.Llm.Config@ 在 P5 定義並解析。P1 就替它定義欄位,等於在 P1 凍結
+-- P5 還沒想清楚的設定形狀。
+newtype LlmSection = LlmSection {llmSectionTable :: TOML.Table}
   deriving stock (Show, Eq)
 
 -- 路徑 ------------------------------------------------------------------------
@@ -169,7 +173,7 @@ parseConfig fp txt = case TOML.decode txt of
       Just (TOML.Array xs) -> traverse str xs
       Just _ -> Left (VaultConfigInvalid fp "鍵 `references` 必須是字串陣列")
     let llm = case M.lookup "llm" tbl of
-          Just (TOML.Table t) -> Just (LlmConfig t)
+          Just (TOML.Table t) -> Just (LlmSection t)
           _ -> Nothing
     Right (VaultConfig name refs llm)
   Right _ -> Left (VaultConfigInvalid fp "檔案的最上層不是 TOML 表")

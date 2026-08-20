@@ -3,7 +3,7 @@ id: F001
 type: feature
 title: llm-endpoint
 description: OpenAI 相容 LLM 端點抽象、設定載入、逾時重試與錯誤語彙
-status: open
+status: done
 created: 2026-08-20
 updated: 2026-08-20
 depends-on: [service-and-interfaces/F001, entity-graph-core/F004]
@@ -471,16 +471,16 @@ newtype LlmSection = LlmSection { llmSectionTable :: TOML.Table }
 
 ## TodoList
 
-- [ ] T1: 建 `llm/storyflow-llm.cabal`(common 段照抄 conflict)、`cabal.project` 加 `llm/` 與 ghc-options 段、`StoryFlow.Llm` 門面模組  `dep: -`
-- [ ] T2: `StoryFlow.Llm.Error`:`LlmError` 五個建構子、`renderLlmError`、`llmErrorCode`  `dep: T1`
-- [ ] T3: `store` 的佔位 `LlmConfig` 改名 `LlmSection`(型別、匯出清單、`cfgLlm` 欄位型別、`parseConfig` 的建構、store 測試)  `dep: -`
-- [ ] T4: `StoryFlow.Service` 新增 `vaultConfig :: ServiceM VaultConfig`,並在「沿用 store 的定義」那組 re-export `VaultConfig (..)` / `LlmSection (..)`  `dep: T3`
-- [ ] T5: `StoryFlow.Llm.Config`:`LlmConfig` 五欄、預設常數、`parseLlmConfig`(含必填/型別/未知鍵/`base_url` 驗證)、`llmConfig`  `dep: T2, T4`
-- [ ] T6: `StoryFlow.Llm.Client`:`Role` / `Message` 與它們的 wire 編碼、`LlmClient`、`newLlmClient`、`chat` 的成功路徑(組 URL、header、`stream:false`、取 `choices[0].message.content`)  `dep: T5`
-- [ ] T7: `chat` 的錯誤分類:`HttpException` → `LlmUnavailable` / `LlmConfigInvalid`;非 2xx → `LlmHttpStatus`;2xx 形狀不對 → `LlmBadResponse`  `dep: T6`
-- [ ] T8: 重試:總嘗試 `1 + lcRetries`,**只在 `LlmUnavailable` 時續試**,無退避睡眠,回傳最後一次的錯誤  `dep: T7`
-- [ ] T9: 測試底稿 `StoryFlow.Llm.Fixtures`:warp stub 端點(可設定回應內文/狀態碼/延遲,並以 `IORef` 計請求數)、`withDeadPort`、臨時 Vault + `[llm]` 段的 `withLlmVault`  `dep: T6`
-- [ ] T10: 套件邊界測試:`build-depends` 逐字釘住、禁用清單、`cabal.project` 已登錄 `llm/`  `dep: T1`
+- [x] T1: 建 `llm/storyflow-llm.cabal`(common 段照抄 conflict)、`cabal.project` 加 `llm/` 與 ghc-options 段、`StoryFlow.Llm` 門面模組  `dep: -`
+- [x] T2: `StoryFlow.Llm.Error`:`LlmError` 五個建構子、`renderLlmError`、`llmErrorCode`  `dep: T1`
+- [x] T3: `store` 的佔位 `LlmConfig` 改名 `LlmSection`(型別、匯出清單、`cfgLlm` 欄位型別、`parseConfig` 的建構、store 測試)  `dep: -`
+- [x] T4: `StoryFlow.Service` 新增 `vaultConfig :: ServiceM VaultConfig`,並在「沿用 store 的定義」那組 re-export `VaultConfig (..)` / `LlmSection (..)`  `dep: T3`
+- [x] T5: `StoryFlow.Llm.Config`:`LlmConfig` 五欄、預設常數、`parseLlmConfig`(含必填/型別/未知鍵/`base_url` 驗證)、`llmConfig`  `dep: T2, T4`
+- [x] T6: `StoryFlow.Llm.Client`:`Role` / `Message` 與它們的 wire 編碼、`LlmClient`、`newLlmClient`、`chat` 的成功路徑(組 URL、header、`stream:false`、取 `choices[0].message.content`)  `dep: T5`
+- [x] T7: `chat` 的錯誤分類:`HttpException` → `LlmUnavailable` / `LlmConfigInvalid`;非 2xx → `LlmHttpStatus`;2xx 形狀不對 → `LlmBadResponse`  `dep: T6`
+- [x] T8: 重試:總嘗試 `1 + lcRetries`,**只在 `LlmUnavailable` 時續試**,無退避睡眠,回傳最後一次的錯誤  `dep: T7`
+- [x] T9: 測試底稿 `StoryFlow.Llm.Fixtures`:warp stub 端點(可設定回應內文/狀態碼/延遲,並以 `IORef` 計請求數)、`withDeadPort`、臨時 Vault + `[llm]` 段的 `withLlmVault`  `dep: T6`
+- [x] T10: 套件邊界測試:`build-depends` 逐字釘住、禁用清單、`cabal.project` 已登錄 `llm/`  `dep: T1`
 
 ## 1-to-1 測試對照表
 
@@ -552,5 +552,57 @@ newtype LlmSection = LlmSection { llmSectionTable :: TOML.Table }
   → 影響:改名波及 store 原始碼 4 處 + store 測試 1 處 + service re-export;
   `entity-graph-core/features/F004-store-vault-io-and-index.md` 第 134 / 172 行的敘述
   會與程式碼漂移,是否加註由編排者決定(委派模式不改別人的文檔)。
+- A9: `chatEndpoint :: LlmConfig -> String`(去掉 `base_url` 尾斜線再接
+  `/chat/completions`)是「新增的介面」清單沒有列到的一個名字,而它**住在
+  `Llm.Config` 並被匯出**,因此也穿透了門面。→ 採取:如上。理由是它有**兩個**
+  呼叫端:`parseLlmConfig` 要用它做 `base_url` 的純驗證(文檔第五節明寫
+  `parseRequest (chatEndpoint cfg) :: Maybe Request`),`chat` 要用它組請求。放進
+  `Llm.Client` 會讓 `Llm.Config` 反向 import `Llm.Client`,與 `Llm.Error` 被拆出來
+  是同一個理由;Haskell 沒辦法「只給同套件看」,要藏起來只能讓兩邊各寫一份,
+  那等於同一條 URL 規則有兩份。→ 影響:若要求它不出現在公開面,門面
+  `StoryFlow.Llm` 要改成逐項列舉的匯出清單(不再 `module X` 整模組 re-export),
+  並把 `chatEndpoint` 從那份清單裡拿掉。
 
 ## 實作備註
+
+**全部 10 項 Todo 完成,10 個 1-to-1 測試全部落地,`cabal test all` 10/10 suites PASS
+(1169 examples, 0 failures)。**
+
+### 契約落點與偏差
+
+沒有偏離 Level 2 契約。`newLlmClient :: LlmConfig -> IO LlmClient` 維持契約簽名且是
+**全函式**(A2 的裁定),設定錯誤全部在 `parseLlmConfig` / `llmConfig` 那一步產生;
+`chat` 的簽名逐字如契約。`Message` / `Role` 如文檔的判斷住在 `storyflow-llm`。
+
+唯一超出「新增的介面」清單的公開名字是 `chatEndpoint`,理由與代價記在 A9。
+
+### 值得記下來的三件事
+
+1. **`http-client-tls-0.3.6.4` 不是阻塞項,已實測**。在 GHC 9.14.1 + 現行
+   `allow-newer`(只開 `*:base` / `*:template-haskell` / `*:ghc-prim`)下,連同
+   `tls-1.9.0` / `crypton-connection-0.4.5` / `crypton-x509-*` 一整串相依都裝得起來,
+   **`cabal.project` 的 `allow-newer` 一個字都沒動**。`CabalSpec` 另加一條斷言把
+   「沒有為了它放寬 allow-newer」釘住
+2. **非 2xx 不會丟例外**。`parseRequest` 產生的 `Request` 其 `checkResponse` 是 no-op,
+   所以 500 / 401 是正常回一個 `Response`,狀態碼由 `readResponse` 自己看
+   (`statusCode . responseStatus`)。文檔已經預告了這一點,實作與測試都照著做
+3. **stub 的請求計數必須在 `threadDelay` 之前遞增**。逾時測試的客戶端會在 stub 還在睡
+   的時候就斷線,計數若放在回應之後就永遠數不到那一次,T8 的「請求計數 = 2」會變成
+   恆為 0。這是實作底稿時真正踩到的唯一一個陷阱,已寫進 `Fixtures.hs` 的註解
+
+### 測試的穩定性
+
+逾時測試用 `lcTimeout = 150ms` 對 stub `threadDelay 800ms`,差距 5 倍以上;
+`withDeadPort` 用「起 warp 拿埠 → 離開區塊關掉 → 用那個埠」,連過去立刻是
+`ConnectionFailure`,不必等逾時。**沒有任何固定長 sleep,也沒有寫死的埠號**。
+`storyflow-llm-test` 整套跑完 5.0 秒(其中大半是兩次 Vault 整合測試的 `openEnv`)。
+
+### 既有測試的修改(兩處,都不是為了讓測試變綠)
+
+| 檔案 | 改動 | 為什麼 |
+|---|---|---|
+| `store/test/StoryFlow/Store/VaultSpec.hs` | `llmTable` → `llmSectionTable`;**另加**一條讀原始碼斷言 `LlmConfig` 不再出現 | 前者是改名的必然波及;後者是 T3 明列的測試——改名若只加不減(留一個 deprecated 別名),行為測試看不出來,而兩個同名同義不同型的 `LlmConfig` 同時存在正是本 feature 要消滅的問題 |
+| `service/test/Spec.hs` + `storyflow-service.cabal` | 掛上新的 `StoryFlow.Service.VaultConfigSpec` | T4 的測試住在 `service` 的 test-suite,因為被測的是 **service 的匯出面** |
+
+**沒有任何既有斷言被放寬或刪除。** `storyflow-conflict` 一個字都沒動——它的
+`forbidden` 清單仍然含 `storyflow-llm`,那是刻意的(conflict 現在還不該依賴 llm)。

@@ -34,11 +34,14 @@ module StoryFlow.Service
   , IndexIssue (..)
   , issueHasError
   , renderIndexIssue
+  , VaultConfig (..)
+  , LlmSection (..)
 
     -- * Vault
   , createVault
   , listVaults
   , vaultInfo
+  , vaultConfig
   , reindex
   , refreshIndex
 
@@ -145,6 +148,24 @@ vaultInfo = do
   Env v conn _ <- ask
   metas <- liftIO (S.listEntities conn emptyFilter)
   pure (VaultView (vaultName v) (vaultRoot v) (Just (length metas)))
+
+-- | 這個 Vault 的 @.storyflow\/config.toml@ 內容。
+--
+-- __只開內嵌出口__:不進 @StoryFlowAPI@、不進 CLI 的指令樹。理由與 'linkGraph' /
+-- 'aliasIndex' 同一條——Vault 設定不是作者用指令查的東西,是__子系統之間的讀取__;
+-- 作者要看設定就直接打開那個檔案,而序列化整份設定送給外部客戶端只會多一個
+-- 得跟著維護的 DTO。
+--
+-- 存在的理由是硬性的:@[llm]@ 那張表('cfgLlm')住在 @storyflow-store@,而
+-- @storyflow-llm@ 的 @build-depends@ 逐字擋著 @storyflow-store@ ——與
+-- @storyflow-conflict@ 完全相同的界線。那個套件拿得到 Vault 設定的唯一合法途徑
+-- 就是經 'ServiceM'。
+--
+-- __不解讀 @[llm]@__:這裡原樣交出 'LlmSection' 捧著的 TOML 表。設定的形狀
+-- (@base_url@ / @model@ / …)由 @storyflow-llm@ 定義並解析,service 這一層
+-- 認得的只有「有沒有那張表」。
+vaultConfig :: ServiceM VaultConfig
+vaultConfig = asks (vaultCfg . envVault)
 
 -- | 全量重建索引。ADR-002 的「刪掉 index.db 也回得來」就是這一條。
 reindex :: ServiceM IndexReport

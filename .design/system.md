@@ -174,19 +174,43 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 可獨立部署的好處。唯一走 HTTP 的兩處都是**對外**:`story-flow --remote` 與 MCP adapter,
 兩者打的都是同一份 REST 契約。
 
-依賴方向單向向下,編號小的不知道編號大的存在:
+**依賴方向分兩層講。** 只說「單向向下」會講錯——`service-and-interfaces` 這個子系統
+**橫跨依賴順序的兩端**:它涵蓋的四個套件裡,`storyflow-service` 在所有人下面,
+`storyflow-api` / `storyflow-server` / `storyflow-cli` 在所有人上面。
 
 ```text
-entity-graph-core ──► service-and-interfaces ──► conflict-detection
-                                    ▲                    │
-                                    └── llm-workshop-mcp ◄┘(介面相依)
+箭頭 = 依賴方向(A ──► B 表示 A 認識 B)
+
+        介面包裝層  storyflow-api · -server · -cli · -mcp
+                          │            │            │
+          ┌───────────────┘            │            │
+          ▼                            ▼            │
+   conflict-detection ──────────►  llm-workshop-mcp │
+   storyflow-conflict   介面相依   storyflow-llm     │
+          │             (第 3 層)   storyflow-workshop
+          │                            │            │
+          └──────────────┬─────────────┘            │
+                         ▼                          │
+          契約層  storyflow-service  ◄───────────────┘
+                         │
+                         ▼
+          entity-graph-core
+          storyflow-types · -core · -md · -store
 ```
 
-- `entity-graph-core` 的唯一消費者是 `service-and-interfaces`;它不知道有 API 與 CLI
-- `conflict-detection` 與 `llm-workshop-mcp` 都是 `service-and-interfaces` 的**消費者**,
-  `storyflow-service` 不 import 它們
-- 唯一的橫向相依是 `conflict-detection` 第 3 層用 `llm-workshop-mcp` 的 LLM 端點抽象。
+- **契約層單向**:`storyflow-service` **不 import 任何比它上層的東西**——不 import
+  `storyflow-conflict`、不 import `storyflow-llm`。這條由 `CabalSpec` 的相依斷言釘住,
+  不是靠自律
+- **介面包裝層是全面下游**:`api` / `server` / `cli` / `mcp` 的職責就是把各子系統的出口
+  暴露出去,所以它們**必然**認識每一個被暴露的子系統。`storyflow-api` 依賴
+  `storyflow-conflict`(`POST /conflict/context`)不是層級倒轉,是包裝層的定義
+- **`entity-graph-core`** 的唯一消費者是 `service-and-interfaces` 的契約層;它不知道有 API 與 CLI
+- **唯一的橫向相依**是 `conflict-detection` 第 3 層用 `llm-workshop-mcp` 的 LLM 端點抽象。
   那是**介面相依**(只用 `chat` 的簽名),不是層級倒轉
+
+為什麼不把 `api` / `server` / `cli` 拆成獨立子系統:它們存在的唯一目的是暴露 `storyflow-service`
+的契約,而 ADR-006 的「業務邏輯只有一份」靠的正是包裝與它所包的契約住在同一個子系統裡。
+拆開會讓那條約束失去歸屬。詳見 **ADR-011**。
 
 **全域錯誤處理策略**:
 
@@ -212,7 +236,9 @@ entity-graph-core ──► service-and-interfaces ──► conflict-detection
 - **業務層**:`mtl` 的 `ReaderT` + `ExceptT` 疊成 `ServiceM`,讓多步驟的業務組合不必手工串 `Either`
 - **CLI**:`optparse-applicative`,所有指令支援 `--json`,輸出為統一信封
   `{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`——AI Agent 只需 parse 一種形狀
-- **LLM**:`http-client` + `aeson` 直接打 OpenAI 相容端點(不引入重量級 SDK)
+- **LLM**:`http-client` + `http-client-tls` + `aeson` 直接打 OpenAI 相容端點(不引入重量級 SDK)
+  ——`http-client-tls` 是雲端端點走 HTTPS 必需的;地端 llama.cpp 走 http 用不到它,但兩者共用
+  同一組型別與呼叫路徑,所以相依一起帶(llm-workshop-mcp/F001)
 - **設定**:Vault 內 `.storyflow/config.toml`,全域 `~/.config/story-flow/vaults.toml`
   ——後者的位置可由環境變數 `STORYFLOW_VAULTS` 覆寫(與型別註冊表的 `STORYFLOW_REGISTRY`
   對稱)。測試與多工作集切換都需要一個不動使用者真實註冊表的覆寫點;`story-flow vault init`
@@ -287,9 +313,11 @@ entity-graph-core ──► service-and-interfaces ──► conflict-detection
 | `conflict-detection` 衝突偵測 | `storyflow-conflict` |
 | `llm-workshop-mcp` LLM 與工作坊 | `storyflow-llm` · `storyflow-workshop` · `storyflow-mcp` |
 
-依賴方向與上表由上而下的順序一致:排在前面的不知道排在後面的存在。唯一的例外是
-`conflict-detection` 的第 3 層要用 `llm-workshop-mcp` 的 LLM 端點抽象 —— 那是一個介面相依,
-不是層級倒轉。
+上表是**子系統**與套件的對照,不是依賴順序——`service-and-interfaces` 橫跨兩端(見「通訊拓撲
+與原則」):它的 `storyflow-service` 在圖的中間,而 `storyflow-api` / `-server` / `-cli` 在圖的下方,
+是所有子系統的下游。**圖上的箭頭才是依賴順序的權威**,`storyflow-conflict` / `-llm` / `-workshop`
+畫在 `storyflow-api` 上方就是這個意思。橫向相依只有一條:`conflict-detection` 的第 3 層用
+`llm-workshop-mcp` 的 LLM 端點抽象 —— 那是介面相依,不是層級倒轉(ADR-011)。
 
 資料流 A(AI Agent 討論新劇情,含衝突偵測):
 
@@ -625,6 +653,7 @@ schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建�
 | `sqlite-simple` + `direct-sqlite` (`+fulltextsearch`) | SQLite 與 FTS5 trigram |
 | `servant` / `servant-server` / `warp` | REST API,API 型別即契約 |
 | `servant-client` / `http-client` | CLI 遠端模式、LLM 端點呼叫 |
+| `http-client-tls` | LLM 雲端端點的 HTTPS(地端 http 用不到,但共用同一條呼叫路徑) |
 | `servant-openapi3` + `openapi3` | 由 API 型別自動推導 OpenAPI 3 文件,讓 Agent 只靠文件就能接 |
 | `mtl` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`,業務層的組合 |
 | `optparse-applicative` | CLI 指令解析 |

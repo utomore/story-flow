@@ -3,7 +3,7 @@ id: delivery-build
 type: build-log
 title: delivery-build
 description: 委派展開 delivery 階段 14 的專案增量同步
-status: in-progress
+status: done
 created: 2026-08-20
 updated: 2026-08-21
 parent: delivery
@@ -45,7 +45,7 @@ parent: delivery
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | impl-done |
+| project-sync | F006 | F006-project-sync.md | 繼承 | 繼承 | impl-done(閘門通過) |
 
 模型選擇理由:`project-sync` 跨 `project` 與 `cli` 兩個套件、要新增套件依賴、四類對帳的
 邊界條件多,且是唯一會動使用者既有專案檔案的指令(誤判就是覆蓋或漏判使用者的手動修改)。
@@ -55,19 +55,19 @@ parent: delivery
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| F006 A1 | 「既有登記素材的素材包授權降級」的警告要放哪裡:`SyncPlan` 只有 `spBlocked`,而那些素材並沒有被擋 | 經 `soOnEvent` 逐包發出警告,不進 `spBlocked`(放進去會讓「被擋下」的語意變質) | 待裁決(**契約變動**:要結構化就得給 `SyncPlan` 加 `spWarnedPacks :: [Text]`) |
-| F006 A2 | `manifest.json` 的 `maSha256` 對既有素材取哪一個雜湊;0 筆新增時要不要重寫 manifest | 取 `copied_sha256`(磁碟上真正是什麼);`--confirm` 即使 0 新增也重寫 | 待裁決 |
-| F006 A3 | `--confirm` 下「真的複製成功」的路徑沒有自動化測試 | 遵守 D4,以「新增項讀取失敗」與「0 筆新增」兩條覆蓋 confirm 分支;`copied_sha256` 寫入只能人工驗收 | 待裁決(要補的話最小成本是加一個 stored ZIP fixture) |
-| F006 A4 | `project_assets.copied_sha256` 為 NULL 的舊列如何判定 | 退回與 `assets.sha256` 比對;不同就算 `SyncLocallyModified`(保守,永不覆蓋) | 待裁決 |
-| F006 A5 | `AssetDB.Cli.Project` 匯出 `syncExitCode`,**超出契約卡列舉的介面** | 比照 `nonCommercialPacks` 的可測性先例匯出(`runProjectSync` 會 `exitFailure`,測不動) | 待裁決(**契約變動**:接受就在 `design.md` 的 `cli` 模組介面補一行;不接受則 T9 只剩 E2E 一條) |
+| F006 A1 | 「既有登記素材的素材包授權降級」的警告要放哪裡:`SyncPlan` 只有 `spBlocked`,而那些素材並沒有被擋 | 經 `soOnEvent` 逐包發出警告,不進 `spBlocked`(放進去會讓「被擋下」的語意變質) | **要改** —— 契約已加 `spWarnedPacks :: [Text]`,涵蓋範圍改為登記全集(併入 B006) |
+| F006 A2 | `manifest.json` 的 `maSha256` 對既有素材取哪一個雜湊;0 筆新增時要不要重寫 manifest | 取 `copied_sha256`(磁碟上真正是什麼);`--confirm` 即使 0 新增也重寫 | **接受** —— 與 §6 字面相容 |
+| F006 A3 | `--confirm` 下「真的複製成功」的路徑沒有自動化測試 | 遵守 D4,以「新增項讀取失敗」與「0 筆新增」兩條覆蓋 confirm 分支;`copied_sha256` 寫入只能人工驗收 | **接受** —— 已知測試缺口,不阻擋放行;要補時最小成本是 stored ZIP fixture |
+| F006 A4 | `project_assets.copied_sha256` 為 NULL 的舊列如何判定 | 退回與 `assets.sha256` 比對;不同就算 `SyncLocallyModified`(保守,永不覆蓋) | **接受** |
+| F006 A5 | `AssetDB.Cli.Project` 匯出 `syncExitCode`,**超出契約卡列舉的介面** | 比照 `nonCommercialPacks` 的可測性先例匯出(`runProjectSync` 會 `exitFailure`,測不動) | **接受** —— 已補進 `design.md` 的 `cli` 模組介面與契約卡 |
 
 實作階段追加三條(A6–A8),經 arch-audit 逐條複查,全部「如宣稱」且停在實作自主權內:
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| F006 A6 | `project` 測試套件另加 `assetdb-ingest` / `aeson` 等相依 | 純測試相依;測試不用 `discoverTools`,固定資料一律 `.rar` 讓讀取失敗與本機有無 7-Zip 無關 | 待裁決(library 相依方向未受影響) |
-| F006 A7 | `--allow-non-commercial` 是否連既有素材包的降級警告也一併關掉 | 一併關掉(警告與閘門同源) | 待裁決(§6 只規定閘門預設值,未規定兩者是否解耦) |
-| F006 A8 | `Internal` 除文檔列的九項外多一個 `destRelOf` | 純內部輔助,`Create` 維持原樣不改用 | 待裁決(副作用:落點算法現有兩份,逐字相同但正是 T1 想消滅的漂移風險) |
+| F006 A6 | `project` 測試套件另加 `assetdb-ingest` / `aeson` 等相依 | 純測試相依;測試不用 `discoverTools`,固定資料一律 `.rar` 讓讀取失敗與本機有無 7-Zip 無關 | **接受** —— 純測試相依,library 相依方向未受影響 |
+| F006 A7 | `--allow-non-commercial` 是否連既有素材包的降級警告也一併關掉 | 一併關掉(警告與閘門同源) | **接受** —— 維持現狀(§6 只規定閘門預設值,未規定兩者是否解耦) |
+| F006 A8 | `Internal` 除文檔列的九項外多一個 `destRelOf` | 純內部輔助,`Create` 維持原樣不改用 | **接受** —— 但落點算法兩份的漂移風險記在 B007,修復時一併收斂 |
 
 另有一項編排者選配、未動的:`design.md` 的「內部模組劃分」是否為 `project` 補一列
 `AssetDB.Project.Internal`(`Create` 與 `Sync` 共用的私有輔助,`other-modules` 不 exposed)。
@@ -97,4 +97,16 @@ arch-audit 認為它是**模組**層級的劃分而非私有函數命名,補上�
 **arch-audit 發現**:嚴重 0、中等 3、輕微 10。中等三條見下方裁決事項;輕微多為文檔落差
 (P6 段落順序、契約卡負責模組漏列、`system.md` 未登記 `project` 指令群)。
 
-**閘門結論**:(待開發者裁決)
+**閘門結論**:**通過放行**(2026-08-21)。開發者裁決四項:
+
+1. `syncExitCode` 納入契約 —— 已補進 `design.md` 的 `cli` 模組間公開介面與 `project-sync` 契約卡
+2. 警告改為結構化 —— `SyncPlan` 加 `spWarnedPacks :: [Text]`,**契約已變動**,由 B006 實作
+3. M1 與 M3 兩個缺陷現在就修 —— 開 `B006`、`B007`
+4. 文檔落差全部補齊 —— P6 段落順序、`Internal` 模組列、契約卡負責模組、`system.md` 的
+   `project` 指令群與階段 14、README 的「尚未實作」與新增的使用章節
+
+編排者另發現 M3 的雙集合寫法在 `Create.hs:82/92` 早已存在,是從 `F005` 繼承的既有缺陷
+而非本次委派寫壞,因此 B007 涵蓋 `new-project` 與 `project sync` 兩條路徑。
+
+**契約在過程中被修訂**:是。§6 加了「警告涵蓋登記全集」與「兩個產物同一集合」兩條、
+`SyncPlan` 加 `spWarnedPacks`、`cli` 介面加 `syncExitCode`、P6 兩處段落順序修正。

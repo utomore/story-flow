@@ -5,7 +5,7 @@ title: llm-workshop-mcp
 description: 地端 LLM 端點、階段式引導工作坊與 MCP adapter
 status: active
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-08-20
 parent: system
 related-adr: [ADR-003, ADR-005, ADR-006]
 ---
@@ -70,6 +70,9 @@ data LlmConfig = LlmConfig
   , lcModel   :: Text
   , lcApiKey  :: Maybe Text
   , lcTimeout :: Int
+  , lcRetries :: Int         -- 2026-08-20 補:驗收標準說「逾時與重試由 LlmConfig 控制」,但原本
+                             -- 沒有這一欄。預設保守,且只重試「連不上服務」類的錯誤——模型回了
+                             -- 但格式不對,重試也不會變對
   }
 newLlmClient :: LlmConfig -> IO LlmClient
 chat :: LlmClient -> [Message] -> IO (Either LlmError Text)
@@ -86,6 +89,17 @@ commitStage    :: Session -> ServiceM (Session, [EntityView])   -- 定案該階�
 |---|---|---|
 | 工作坊 | `story-flow workshop start --type <型別> [--constraint <id>]…` / `step` / `commit` | `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit` |
 | MCP | — | stdio(`storyflow-mcp`),tools 由 REST 的 23 個操作映射 |
+
+**`LlmConfig` 與 `storyflow-store` 的佔位型別**(2026-08-20 批次澄清):`store` 早在 P1 就有一個
+`newtype LlmConfig`,包著**未解讀的** `[llm]` TOML 表——它那行註解寫著「現在替它定義欄位,等於在
+P1 就凍結 P5 還沒想清楚的設定形狀」。現在正是 P5:**形狀由本子系統定**,`store` 的佔位型別改名
+(職責是「原樣捧著那張表」,不是「設定」),本子系統負責把表解析成上面四加一欄的 `LlmConfig`。
+讀取路徑走 `service-and-interfaces` 新增的內嵌出口,**不直接依賴 `storyflow-store`**。
+
+**Vault 沒有 `[llm]` 段時**(2026-08-20 批次澄清):`newLlmClient` **回錯誤,不猜預設值**。訊息要
+說出下一步(在 `.storyflow/config.toml` 加 `[llm]` 段)。給一組地端預設值看似方便,但連不上時使用
+者看到的是「連線失敗」而不是「你還沒設定」,那是兩個完全不同的下一步。**怎麼退化是消費者的決定**
+——`conflict-detection` 第 3 層的契約本來就寫著「`LlmClient` 不可用時整條管線退化成前兩層」。
 
 `LlmError` 要能區分「連不上地端服務」與「模型回了但格式不對」,理由與 CLI 的
 `remote_unavailable` / `remote_bad_response` 相同:兩者的下一步完全不同。

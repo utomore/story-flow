@@ -20,7 +20,7 @@ parent: conflict-detection
 |---|---|---|---|
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
 | 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
-| 階段一 | W2 | #4 context-command (F004) | design-done,實作中 |
+| 階段一 | W2 | #4 context-command (F004) | **done** |
 | 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
 | 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
 
@@ -69,7 +69,7 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-types | F001 | F001-conflict-types.md | done(展開前既有) |
 | conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
-| context-command | F004 | F004-context-command.md | design-done(14 個 Todo,38 列介面表) |
+| context-command | F004 | F004-context-command.md | **impl-done**(14/14 Todo) |
 | conflict-llm | F005 | (保留,階段二) | 未展開 |
 | conflict-check | F006 | (保留,階段二) | 未展開 |
 
@@ -101,6 +101,75 @@ F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免
 
 ## 階段結果
 
-### 階段一
+### 階段一:確定性的兩層(不需要模型)
 
-(執行中)
+**完成的 features**:F002 conflict-graph(7/7 Todo)、F003 conflict-retrieval(11/11)、F004 context-command(14/14)。
+連同展開前既有的 F001,階段一四項全數 `done`,子系統進度 4/6 (67%)。
+
+**測試**:`cabal test all` 9/9 suites PASS,**1103 examples, 0 failures**(編排者獨立複跑驗證,非採信回報)。
+起點 974 → 收工 1103,淨增 129 條。`cabal build all` 零 error、零 warning。
+
+| suite | 起點 | W1 後 | W2 後 |
+|---|---|---|---|
+| types / core / md / store(store 見註) | 29 / 166 / 189 / 162 | — / — / — / 166 | 不變 |
+| api | 51 | 51 | 62 |
+| conflict | 26 | 109 | 139 |
+| service | 83 | 88 | 94 |
+| server | 60 | 60 | 63 |
+| cli | 172 | 172 | 195 |
+| **合計** | **938** | **1030** | **1103** |
+
+**新增的程式碼**:`Conflict.Graph`(第 1 層純函式)、`Conflict.Retrieval`(第 2 層)、
+`Conflict.Pipeline`(合流與 context 出口);`Service.linkGraph` / `Service.aliasIndex`;
+`SearchHit.shScore`;`store` 的 `searchEntities` 三元組;`POST /conflict/context`;
+`story-flow context` 子指令。
+
+**實際的對外面**:REST 15 條路徑 / 24 個 operation;CLI 24 個葉子子指令;
+`story-flow context` 支援 `--for`(必填)、`--ref`(可重複)、`--top-n`、`--timeline-window`、
+`--graph-depth`,`--expand-body` 刻意不開(第 3 層才用)。
+
+### 階段一 arch-audit 發現(依嚴重度)
+
+**中 / 1 條**
+
+- **A-1 Level 1 的通訊拓撲敘述已與現實不符**:`system.md` 說依賴「單向向下,編號小的不知道
+  編號大的存在」,但 `storyflow-api` / `storyflow-server` / `storyflow-cli`(三者都屬
+  `service-and-interfaces`)現在都 `build-depends` 了 `storyflow-conflict`。**不是循環相依**
+  (conflict 不依賴這三個,`storyflow-service` 本身也仍然乾淨),但敘述需要把「契約層單向」與
+  「介面包裝層必然是所有子系統的下游」分開講。階段二的 F006 接 `conflict check` 時會再擴大一次。
+  **屬 Level 1,本 skill 不自行修改**——建議走 `/system-design` 更新模式
+
+**低 / 3 條**
+
+- **A-2 文檔漂移**:`conflict-detection/design.md`「模組間公開介面與資料結構」表列了
+  `Conflict.Retrieval → service-and-interfaces`,但漏了 `Conflict.Pipeline → service-and-interfaces`
+  ——Pipeline 現在直接呼叫 `linkGraph` 與 `getEntity`
+- **A-3 匯出面大於契約卡承諾**:契約卡說「候選撈取策略本身是本模組的內部抽象,對外只露『候選』
+  這個結果」,但 `Conflict.Retrieval` 公開匯出 13 個純函式部件與 6 個調校常數
+  (`segMinLen` / `chunkLen` / `maxKeywordLen` / `maxKeywords` / `overFetchFactor` / `expansionDecay`)。
+  目前只有測試與 Pipeline(用 `metaSnippet`)消費,但常數一旦被外部引用,
+  「換一種候選策略不需要改動第 1、3 層」就會悄悄失效
+- **A-4 死碼**:`unlinkedRefs` 沒有任何生產程式碼消費者(F004 的 A2 決定不接)。有測試、有文檔,
+  但要到 F006 才有出口
+
+**通過的檢查**(逐項查證,非採信回報):
+
+- 資料流管線一致性:`gatherContext` = 第 1 層 → 第 2 層 → 合流 → 出口 A,與 design.md 逐段相符
+- SRP:五個模組的職責與「內部模組劃分」表逐一對應,無模組長出第二職責
+- 邊界外洩:`cli` / `server` / `api` 只消費 `gatherContext` + `Conflict.Types` 的 DTO +
+  `Conflict.Json` 的實例,**無人 import `Conflict.Graph` / `Conflict.Retrieval` 的內部**
+- 子系統界線:`storyflow-conflict` 的 `build-depends` 為
+  `aeson / base / containers / mtl / storyflow-core / storyflow-service / text`
+  ——`storyflow-store` / `storyflow-md` / `storyflow-llm` / `sqlite-simple` 一個都沒有;
+  `storyflow-service` 不依賴 `storyflow-conflict`(方向正確,無環)
+- **「永不自動修改資料」**:grep 全部 14 個 service 寫入操作名,`conflict/src` 零呼叫
+- 契約卡對帳:四張已完成的卡,負責模組與實際落地位置逐一相符
+
+### 編排者在本階段對架構文檔做的回寫(閘門請確認)
+
+| 檔案 | 改了什麼 | 依據 |
+|---|---|---|
+| `conflict-detection/design.md` | conflict-retrieval 契約卡補四條;第 2 層成本欄「一次 SQL」→「每個關鍵詞一次 SQL」;回填 #3 #4 的 `doc` 欄 | D2 / C5 / S2 與 A3 的後果 |
+| `service-and-interfaces/design.md` | 新增 `linkGraph` / `aliasIndex`;`SearchHit` 加 `shScore`;操作數 23→25;REST 14/23→15/24;子指令 21→**24**(既有漂移的修正,不只 +1) | S1 / S2 / S3 與 F004 實測 |
+| `entity-graph-core/design.md` | `searchEntities` → `IO [(Meta, Text, Maybe Double)]` 並補說明 | S2 的產出端 |
+| **`system.md`** | **只改 REST 的路徑/operation 數(14/23 → 15/24)**;拓撲敘述**未動** | F004 實測。⚠️ 這是 Level 1,本 skill 原則上不該碰,屬事實同步;不接受可直接回退 |

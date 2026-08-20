@@ -82,13 +82,16 @@ aliasIndex :: EntityFilter -> ServiceM [(Id, [Text])] -- 片段 id → title 與
 
 **REST(供外部 Agent 與 `llm-workshop-mcp` 的 MCP adapter)**
 
-14 條路徑、23 個 operation,覆蓋 `ServiceM` **對外**的每一個操作(`linkGraph` / `aliasIndex` 是 P4 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
+15 條路徑、24 個 operation,覆蓋 `ServiceM` **對外**的每一個操作,外加 `conflict-detection` 掛進來的 `POST /conflict/context`(`linkGraph` / `aliasIndex` 是 P4 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
 parameter。錯誤 body 一律 `{"error":{"code":…,"message":…}}`,`code` 就是 `errorCode`。
 OpenAPI 3 文件由同一份型別推導:`story-flow-serve --openapi > openapi.json`。
 
 **CLI(供作者)**
 
-`story-flow [--vault <名稱>|--remote <url>] [--json] <名詞> <動詞>`,21 個子指令。
+`story-flow [--vault <名稱>|--remote <url>] [--json] <名詞> <動詞>`,24 個子指令(其中 `context` 屬 `conflict-detection`)。
+
+> 2026-08-20 更正:此處原記 21,與程式碼長期不符(`Cli.Options` 的 `Command` 建構子在 `context`
+> 加入前已有 23 個)。沒有任何測試釘住這個數字,所以它一路漂著;現已由 `OptionsSpec` 涵蓋。
 exit code:`0` 成功、`1` 業務或傳輸失敗、`2` 用法錯誤。
 
 ## 資料流管線(Data Flow Pipeline)
@@ -258,7 +261,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
   <動詞>` 與 exit code 約定;消費 `ServiceM` 的 23 個操作,不新增業務介面;
   「模組間公開介面」的 `storyflow-cli` → `storyflow-service`(`Backend` 的 `Embedded` 建構子)
 - **資料流管線段落**:管線兩端——「CLI 參數解碼」與「統一信封渲染」,中段委派 `ServiceM`
-- **驗收標準**:21 個子指令全部支援 `--json` 且輸出統一信封;exit code `0`/`1`/`2` 依成功、
+- **驗收標準**:全部子指令支援 `--json` 且輸出統一信封;exit code `0`/`1`/`2` 依成功、
   業務或傳輸失敗、用法錯誤區分;能純用 CLI 從零建出「教室」場景與琳達的片段
 - **明確不做**:不 import `storyflow-store`、`storyflow-server` 與 `warp`;
   指令層不做任何業務判斷;不定義 REST 形狀
@@ -267,7 +270,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 
 - **階段**:階段二(P3 API 契約、伺服器與遠端 CLI)
 - **負責模組**:`storyflow-api`、`storyflow-server`,以及 `storyflow-cli` 的 `Remote` 分派
-- **實作的 Level 2 介面**:「對外契約」的 REST 那一組——14 條路徑 / 23 個 operation、
+- **實作的 Level 2 介面**:「對外契約」的 REST 那一組——本卡涵蓋 14 條路徑 / 23 個 operation(第 15 條 `POST /conflict/context` 屬 `conflict-detection/F004`)、
   `revision` 必填 query parameter、`{"error":{"code":…,"message":…}}` 錯誤 body、
   `storyFlowOpenApi`;「模組間公開介面」的 server → service、cli → api 兩條
 - **資料流管線段落**:管線兩端的 REST 半邊——「請求解碼 → handler」與「View → JSON」,

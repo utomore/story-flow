@@ -61,8 +61,10 @@ import StoryFlow.Conflict.Types
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, renderId)
 import StoryFlow.Core.Meta (Meta (..))
-import StoryFlow.Llm.Client (LlmClient, Message (..), Role (..), chat)
-import StoryFlow.Llm.Error (LlmError (..), renderLlmError)
+-- 走門面 'StoryFlow.Llm' 而不是內部模組:門面的匯出清單就是設計文檔
+-- llm-workshop-mcp/F001 列的名字,一個不多一個不少,繞過它等於讓本模組依賴
+-- @storyflow-llm@ 內部怎麼切模組(閘門裁定 B-1)。
+import StoryFlow.Llm (LlmClient, LlmError (..), Message (..), Role (..), chat, renderLlmError)
 import StoryFlow.Service (EntityView (..), ServiceM, getEntity)
 
 -- 送出去的那一段 -----------------------------------------------------------------
@@ -277,7 +279,7 @@ data JudgeSkip
   deriving stock (Show, Eq)
 
 -- | 'JudgeSkip' → 'ReportNote'。@rnDetail@ 的內容盡量取用
--- 'StoryFlow.Llm.Error.renderLlmError' 的原文,__不重寫下層訊息__。
+-- 'StoryFlow.Llm.renderLlmError' 的原文,__不重寫下層訊息__。
 skipNote :: JudgeSkip -> ReportNote
 skipNote = \case
   SkipDisabled ->

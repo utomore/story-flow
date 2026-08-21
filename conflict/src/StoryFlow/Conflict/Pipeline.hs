@@ -15,7 +15,7 @@
 --
 -- * __完全沒有模型__是 'gatherContext' 這條路徑的性質,不是整個模組的:它不
 --   import @storyflow-llm@,不發任何外部請求。'checkConflict' 這條路徑則會在
---   第 3 層真的要跑時才建立 'StoryFlow.Llm.Client.LlmClient' 並發出請求
+--   第 3 層真的要跑時才建立 'StoryFlow.Llm.LlmClient' 並發出請求
 -- * __只讀__:兩條路徑合計只呼叫 @linkGraph@ \/ @getEntity@ \/ @aliasIndex@ \/
 --   @searchEntity@ \/ @linksOf@ 五個讀取操作,沒有任何 'ServiceM' 寫入
 -- * __確定性__:同一份草稿加同一份 Vault(與同一個第 3 層 runner)永遠得到逐筆
@@ -45,8 +45,6 @@ module StoryFlow.Conflict.Pipeline
   , checkConflict
 
     -- * 接線層(CLI / REST 共用同一份)
-  , checkConflictFor
-  , checkConflictWith
   , JudgeStage (..)
   , acquireJudge
 
@@ -104,9 +102,10 @@ import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, renderId, renderRef)
 import StoryFlow.Core.Link (renderLinkKind)
 import StoryFlow.Core.Meta (Meta (..))
-import StoryFlow.Llm.Client (LlmClient, newLlmClient)
-import StoryFlow.Llm.Config (llmConfig)
-import StoryFlow.Llm.Error (LlmError (..))
+-- 走門面 'StoryFlow.Llm' 而不是內部模組:門面的匯出清單就是設計文檔
+-- llm-workshop-mcp/F001 列的名字,一個不多一個不少,繞過它等於讓本模組依賴
+-- @storyflow-llm@ 內部怎麼切模組(閘門裁定 B-1)。
+import StoryFlow.Llm (LlmError (..), llmConfig, newLlmClient)
 import StoryFlow.Service (EntityView (..), ServiceM, getEntity, linkGraph)
 
 -- 出口 -------------------------------------------------------------------------
@@ -370,7 +369,7 @@ data JudgeStage
 --    不建 client__。先讀設定的話,@--judge-n 0@ 加上沒設定 @[llm]@ 的 Vault
 --    會回「你還沒設定 @[llm]@」,而使用者要的是「這次不要判斷」——那是錯的
 --    下一步
--- 2. 'StoryFlow.Llm.Config.llmConfig' 回 'Left' → 'SkipNotConfigured'
+-- 2. 'StoryFlow.Llm.llmConfig' 回 'Left' → 'SkipNotConfigured'
 -- 3. 回 'Right' → 'JudgeWith' 套上 'llmRunner'。'newLlmClient' 是全函式,
 --    這裡不包 @try@
 acquireJudge :: Bool -> ConflictOpts -> ServiceM JudgeStage
@@ -409,20 +408,21 @@ runJudge (JudgeWith runner) opts d cs = do
 
 -- 出口 B:門面 ---------------------------------------------------------------------
 
--- | Level 2 的對外契約,簽名逐字相同。@Nothing@ = 呼叫端沒有給 client,一律
--- 當成 @--no-llm@('SkipDisabled')——那是 'Maybe' 唯一說得出口的原因。
-checkConflict :: Maybe LlmClient -> ConflictOpts -> Draft -> ServiceM ConflictReport
-checkConflict = checkConflictWith . maybe (JudgeSkipped SkipDisabled) (JudgeWith . llmRunner)
-
--- | 三層合流的本體:第 1 層 + 第 2 層 + 第 3 層 → 去重 → 排序 → 'ConflictReport'。
+-- | Level 2 的對外契約(閘門裁定 B-2):吃 'JudgeStage' 而不是 @Maybe LlmClient@
+-- ——呼叫端先 'acquireJudge' 決定第 3 層要不要跑、跑的話用哪個 runner,再把
+-- 結果餵進來;本函式因此完全不知道 'StoryFlow.Llm.LlmClient' 存在,也不會自己
+-- 決定「沒給 client 就當成 --no-llm」這種事(那是舊契約 @Maybe@ 唯一說得出口的
+-- 理由,新契約用三個建構子的 'JudgeSkip' 直接講清楚原因,不必再用 @Maybe@ 猜)。
+--
+-- 三層合流的本體:第 1 層 + 第 2 層 + 第 3 層 → 去重 → 排序 → 'ConflictReport'。
 --
 -- 'coTopN' 不在合流之後再截一次(F004 A5 已裁定):它是第 2 層的候選上限,
 -- 'retrieveCandidates' 內部已經套用;第 1 層的命中是零成本的事實,拿它去砍會
 -- 砍掉最有價值的那一批。送進第 3 層的是__第 2 層排序後__的 'rrCandidates'
 -- (見 A5):第 1 層的命中沒有 'Meta',送不進 prompt,而且它們是事實、不需要
 -- 模型複判。
-checkConflictWith :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
-checkConflictWith stage opts d = do
+checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
+checkConflict stage opts d = do
   (gHits, unlinked) <- graphStage opts d
   rr <- retrieveCandidates opts d
   let retrievalHits = map candidateConflictHit (rrCandidates rr)
@@ -445,8 +445,3 @@ checkConflictWith stage opts d = do
       , crLlmUsed = jrJudged jr > 0
       , crNotes = notes
       }
-
--- | 接線層的一行(@Bool@ = @--no-llm@)。CLI 與 server 各呼叫一次同一份,兩邊
--- 因此不可能長歪。
-checkConflictFor :: Bool -> ConflictOpts -> Draft -> ServiceM ConflictReport
-checkConflictFor noLlm opts d = acquireJudge noLlm opts >>= \s -> checkConflictWith s opts d

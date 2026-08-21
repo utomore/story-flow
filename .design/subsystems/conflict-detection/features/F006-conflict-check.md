@@ -82,7 +82,7 @@ F004 交付的出口 A(`gatherContext`)回的是「和這段草稿有關的既�
 
 | 契約來源 | 條文 | 本 feature 的落點 |
 |---|---|---|
-| `design.md`「對外契約」 | `checkConflict :: Maybe LlmClient -> ConflictOpts -> Draft -> ServiceM ConflictReport` | `StoryFlow.Conflict.Pipeline.checkConflict`,**簽名逐字相同** |
+| `design.md`「對外契約」(閘門裁定 B-2 修正後) | `checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport` | `StoryFlow.Conflict.Pipeline.checkConflict`,**簽名逐字相同** |
 | 同上,對外形式表 | `story-flow conflict check --draft <檔案\|-> [--ref …] [--top-n] [--judge-n] [--timeline-window] [--graph-depth] [--expand-body] [--no-llm]` | CLI 新增 `conflict` 名詞與 `check` 動詞 |
 | 同上,對外形式表 | `POST /conflict/check` | `ConflictAPI` 加第二條路由,body 是新的 `CheckReq` |
 | 同上「資料流管線」 | 三層合流、去重、依命中層級與分數排序 → 出口 B | `mergeConflictHits` / `sortConflictHits` |
@@ -96,15 +96,18 @@ F004 交付的出口 A(`gatherContext`)回的是「和這段草稿有關的既�
 它與 F004 的 `ContextReq` 是同一種東西(REST 需要一個有名字的物件來包住兩三個參數),
 放在同一個位置、用同一種寫法。
 
-### 不在契約內、但本 feature 必須做的判斷
+### 不在契約內、但本 feature 必須做的判斷(A1 已裁決,原文保留供歷史對照)
 
-Level 2 的 `checkConflict` 第一個參數是 `Maybe LlmClient`,而 `Nothing` **帶不出三種退化原因
-的差別**——`--no-llm`、`[llm]` 沒設定、端點連不上壓成同一個 `Nothing`,正是同一份 `design.md`
-明令不准發生的事(「別讓它們塌成同一則訊息」)。處理方式見第二節與 **A1**:
-契約簽名**一字不改**地保留並實作,接線層走同一個模組裡多一層的門面。
-這是 F003 的 `retrieveCandidates` / `retrieveCandidatesWith` 與 F005 的 `judgeCandidates` /
-`judgeCandidatesWith` 同一種「門面 + 接縫」形狀,不是契約偏離;但它是否該回寫 Level 2,
-由編排者裁決(見回報)。
+Level 2 的 `checkConflict` 原本第一個參數是 `Maybe LlmClient`,而 `Nothing` **帶不出三種退化
+原因的差別**——`--no-llm`、`[llm]` 沒設定、端點連不上壓成同一個 `Nothing`,正是同一份
+`design.md` 明令不准發生的事(「別讓它們塌成同一則訊息」)。**階段二閘門已裁定 B-2**:
+把 `checkConflict` 的簽名改成直接吃 `JudgeStage`(`checkConflict :: JudgeStage -> ConflictOpts
+-> Draft -> ServiceM ConflictReport`),原本帶不出退化原因的 `Maybe LlmClient` 版本與純接線用
+的 `checkConflictFor` / `checkConflictWith` 一併刪除——`acquireJudge` 決定要不要跑、跑的話用
+哪個 runner,`checkConflict` 只管拿 `JudgeStage` 合流三層,**兩步都在生產路徑上有呼叫端**
+(`server/src/StoryFlow/Server.hs` 的 `conflictH`、`cli/src/StoryFlow/Cli/Backend.hs` 的
+`checkConflictB` 都是 `acquireJudge noLlm opts >>= \stage -> checkConflict stage opts d`)。
+`design.md` 已同步改過,此節與下方「新增的介面」「待確認假設 A1」是本次閘門修正回填的記錄。
 
 ## 實作方式
 
@@ -543,8 +546,6 @@ module StoryFlow.Conflict.Pipeline
   , checkConflict
 
     -- * 接線層(CLI / REST 共用同一份)
-  , checkConflictFor
-  , checkConflictWith
   , JudgeStage (..)
   , acquireJudge
 
@@ -568,15 +569,13 @@ data JudgeStage
   = JudgeSkipped JudgeSkip
   | JudgeWith (JudgeRunner ServiceM)
 
--- | Level 2 的對外契約,簽名逐字相同。
---   @Nothing@ = 呼叫端沒有給 client,一律當成 --no-llm(SkipDisabled)。
-checkConflict :: Maybe LlmClient -> ConflictOpts -> Draft -> ServiceM ConflictReport
-
--- | 三層合流的本體:第 1 層 + 第 2 層 + 第 3 層 → 去重 → 排序 → ConflictReport。
-checkConflictWith :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
-
--- | 接線層的一行(Bool = --no-llm)。CLI 與 server 各呼叫一次同一份。
-checkConflictFor :: Bool -> ConflictOpts -> Draft -> ServiceM ConflictReport
+-- | Level 2 的對外契約(閘門裁定 B-2 改過的形狀):吃 'JudgeStage' 而不是
+--   @Maybe LlmClient@ ——呼叫端先 'acquireJudge' 決定第 3 層要不要跑、用哪個
+--   runner,再把結果餵進來。三層合流的本體:第 1 層 + 第 2 層 + 第 3 層 →
+--   去重 → 排序 → ConflictReport。生產路徑(server 的 conflictH、cli 的
+--   checkConflictB)都是 @acquireJudge noLlm opts >>= \stage -> checkConflict
+--   stage opts d@ 這一句。
+checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
 
 -- | 讀 [llm] 設定並建 client,或決定退化原因。
 --   --no-llm 或 coJudgeN <= 0 時__不讀設定、不建 client__。
@@ -695,16 +694,18 @@ renderReport :: ConflictReport -> Text   -- 命中表格 + 摘要行 + 注意事
 
 ## 待確認假設
 
-- A1: Level 2 的 `checkConflict :: Maybe LlmClient -> …` 用 `Nothing` 表達「不跑第 3 層」,但
-  `Nothing` **帶不出三種退化原因的差別**,而同一份 `design.md` 又明令三者要是三個不同的
-  `rnCode` → 採取:**契約簽名一字不改地保留並實作**(`Nothing` = `--no-llm` = `SkipDisabled`,
-  與「特別注意 5」一致),接線層改走同一個模組裡的 `checkConflictFor` / `checkConflictWith`
-  ——與 F003 的 `retrieveCandidates` / `retrieveCandidatesWith`、F005 的 `judgeCandidates` /
-  `judgeCandidatesWith` 是同一種「門面 + 接縫」形狀 → 影響:代價是 `checkConflict` 這個**契約
-  函式在生產路徑上沒有呼叫端**(只有測試),正是 `unlinkedRefs` 那種味道。若編排者要消除它,
-  合理的修法是把 Level 2 的契約簽名改成帶得出原因的形狀(例如 `Either JudgeSkip LlmClient`,
-  或直接把 `checkConflictFor` 的 `Bool` 版本升格為契約),那是 **Level 2 契約變更,本 feature
-  不擅自做**
+- A1(**已裁決**):Level 2 的 `checkConflict :: Maybe LlmClient -> …` 用 `Nothing` 表達「不跑
+  第 3 層」,但 `Nothing` **帶不出三種退化原因的差別**,而同一份 `design.md` 又明令三者要是
+  三個不同的 `rnCode`。原始實作**契約簽名一字不改地保留**(`Nothing` = `--no-llm` =
+  `SkipDisabled`),接線層改走同一個模組裡的 `checkConflictFor` / `checkConflictWith`,代價是
+  `checkConflict` 這個契約函式在生產路徑上沒有呼叫端(只有測試),正是 `unlinkedRefs` 那種味道
+  → **階段二閘門裁定 B-2**:把 Level 2 的契約簽名直接改成 `checkConflict :: JudgeStage ->
+  ConflictOpts -> Draft -> ServiceM ConflictReport`,吃得出退化原因的正是 `acquireJudge` 已經
+  在算的 `JudgeStage`,不必再繞一層 `Maybe LlmClient` 或發明新的 `Either JudgeSkip LlmClient`。
+  `checkConflictFor` / `checkConflictWith` 一併刪除,`server`/`cli` 的接線層改成
+  `acquireJudge noLlm opts >>= \stage -> checkConflict stage opts d` 兩步,`checkConflict`
+  現在**在生產路徑上有呼叫端**,`design.md` 已同步改過。行為(三種退化原因、`crNotes`、
+  `crLlmUsed`、排序)完全不變,純簽名重構
 - A2: 「端點連不上」要怎麼變成 `judge_unreachable`。F005 的 `judgeLoop` 遇到 `LlmUnavailable`
   只會記 `judge_aborted`,而且**不把 `LlmError` 帶出來**;`newLlmClient` 又是全函式,建 client
   這一步不會失敗 → 採取:用一個**監看用的 runner** 記下 `LlmUnavailable`(`IORef`,在 `base`),
@@ -782,11 +783,21 @@ renderReport :: ConflictReport -> Text   -- 命中表格 + 摘要行 + 注意事
 - 三種退化原因(`judge_disabled` / `judge_not_configured` / `judge_unreachable`)
   與 `judge_budget` / `link_suggested` / `graph_unlinked_refs` 三個新
   `rnCode` 均由 `CheckSpec` / `CheckEnvSpec` 逐條釘住,`rnCode` 兩兩不同。
-- **待編排者裁決**(見「待確認假設」A1、A9):
-  - Level 2 `checkConflict :: Maybe LlmClient -> …` 在生產路徑上沒有呼叫端
-    (只有測試呼叫),接線層一律走 `checkConflictFor` / `checkConflictWith`；
-    是否要把契約簽名改成帶得出退化原因的形狀,由編排者裁決。
+- **待編排者裁決**(見「待確認假設」A9,A1 已在階段二閘門裁決):
   - `system.md`、`service-and-interfaces/design.md`、
     `conflict-detection/design.md` 三處的 REST 路徑數(15→16)、
     operation 數(24→25)與 CLI 子指令數(24→25)尚未回寫,
     委派模式下本次不動架構文檔,由編排者在階段閘門統一回寫。
+- **階段二閘門修正**(2026-08-21,`f780c48` 之後):兩項裁決都是簽名重構,行為逐字不變。
+  - **B-1**:`conflict/src/StoryFlow/Conflict/Judge.hs`、`Pipeline.hs` 與
+    `conflict/test/StoryFlow/Conflict/{CheckEnvSpec,JudgeEnvSpec,JudgeSpec}.hs`
+    全部改從門面 `StoryFlow.Llm` import(先前繞過門面直接 import
+    `StoryFlow.Llm.Client` / `.Config` / `.Error`,門面的消費者數是零)。
+  - **B-2**:`checkConflict` 的簽名從 `Maybe LlmClient -> …` 改成
+    `JudgeStage -> …`(即 A1 裁決的形狀),原 `checkConflictWith` 更名為
+    `checkConflict`,舊的 `Maybe LlmClient` 版本與 `checkConflictFor` 一併刪除;
+    `server/src/StoryFlow/Server.hs` 的 `conflictH`、
+    `cli/src/StoryFlow/Cli/Backend.hs` 的 `checkConflictB` 改成
+    `acquireJudge noLlm opts >>= \stage -> checkConflict stage opts d` 兩步。
+    `cabal build all` 零 warning,`cabal test all` 10/10 suites、1266 examples、
+    0 failures(與修正前逐一相等,純簽名重構未增減測試意義)。

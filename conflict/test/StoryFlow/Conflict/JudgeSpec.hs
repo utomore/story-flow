@@ -17,8 +17,9 @@ import StoryFlow.Conflict.Fixtures (idOf)
 import StoryFlow.Conflict.Judge
 import StoryFlow.Conflict.Types (ConflictHit (..), Draft (..), HitLayer (..), ReportNote (..))
 import StoryFlow.Core.Id (Id, renderId)
-import StoryFlow.Llm.Client (Message (..), Role (..))
-import StoryFlow.Llm.Error (LlmError (..), renderLlmError)
+-- 走門面 'StoryFlow.Llm' 而不是內部模組(閘門裁定 B-1):消費者只 import 一個
+-- 名字,不必知道套件內部分了幾個模組。
+import StoryFlow.Llm (LlmError (..), Message (..), Role (..), renderLlmError)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath (takeExtension, (</>))
 import Test.Hspec

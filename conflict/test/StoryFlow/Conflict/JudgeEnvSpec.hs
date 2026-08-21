@@ -18,8 +18,9 @@ import StoryFlow.Conflict.Retrieval (Candidate (..), CandidateOrigin (FromKeywor
 import StoryFlow.Conflict.Types (ConflictOpts (..), Draft (..), ReportNote (..), defaultConflictOpts)
 import StoryFlow.Core.Id (Id, renderId)
 import StoryFlow.Core.Meta (Meta (..), Source (Human), Status (Canon), emptyTimeline)
-import StoryFlow.Llm.Client (Message)
-import StoryFlow.Llm.Error (LlmError)
+-- 走門面 'StoryFlow.Llm' 而不是內部模組(閘門裁定 B-1):消費者只 import 一個
+-- 名字,不必知道套件內部分了幾個模組。
+import StoryFlow.Llm (LlmError, Message)
 import StoryFlow.Service
 import System.Directory (doesDirectoryExist)
 import System.Environment (lookupEnv, setEnv, unsetEnv)

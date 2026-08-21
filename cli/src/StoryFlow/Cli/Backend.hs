@@ -77,7 +77,7 @@ import Servant.API ((:<|>) (..))
 import Servant.Client
 import StoryFlow.Api (BodyReq (..), CheckReq (..), ContextReq (..), NewVaultReq (..), StoryFlowAPI)
 import StoryFlow.Cli.Error
-import StoryFlow.Conflict.Pipeline (checkConflictFor, gatherContext)
+import StoryFlow.Conflict.Pipeline (acquireJudge, checkConflict, gatherContext)
 import StoryFlow.Conflict.Types (ConflictOpts, ConflictReport, ContextHit, Draft)
 import StoryFlow.Cli.Options (GlobalOpts (..))
 import StoryFlow.Core.Id (Id, Ref)
@@ -361,9 +361,10 @@ gatherContextB (Remote c) o d = rmt c (cContext (ContextReq d o))
 -- 兩路分派的形狀:兩條路徑回的是同一個型別 'ConflictReport',指令層與渲染器因此
 -- 看不出差別。
 --
--- __第 3 層要用的 'StoryFlow.Llm.Client.LlmClient' 不跨 HTTP__:遠端模式送出去
--- 的是 'CheckReq'(草稿、選項、@no_llm@ 三個值),@acquireJudge@ 在伺服器那一端
--- 跑,與 'gatherContextB' 的 @linkGraph@ 不跨 HTTP 是同一個理由。
+-- __第 3 層要用的 'StoryFlow.Llm.LlmClient' 不跨 HTTP__:遠端模式送出去的是
+-- 'CheckReq'(草稿、選項、@no_llm@ 三個值),@acquireJudge@ 在伺服器那一端
+-- 跑,與 'gatherContextB' 的 @linkGraph@ 不跨 HTTP 是同一個理由。嵌入模式這裡
+-- 自己先 'acquireJudge' 再餵給 'checkConflict'(閘門裁定 B-2 的契約形狀)。
 checkConflictB :: Backend -> Bool -> ConflictOpts -> Draft -> M ConflictReport
-checkConflictB (Embedded e) noLlm o d = svc e (checkConflictFor noLlm o d)
+checkConflictB (Embedded e) noLlm o d = svc e (acquireJudge noLlm o >>= \stage -> checkConflict stage o d)
 checkConflictB (Remote c) noLlm o d = rmt c (cCheck (CheckReq d o noLlm))

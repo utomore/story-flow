@@ -23,7 +23,9 @@ import StoryFlow.Core.Id (Id, localRef, parseId)
 import StoryFlow.Core.Link (Link (..), LinkKind (Contradicts))
 import StoryFlow.Core.Meta (Source (Human), emptyTimeline)
 import qualified StoryFlow.Core.Meta as CM
-import StoryFlow.Llm.Error (LlmError (..), renderLlmError)
+-- 走門面 'StoryFlow.Llm' 而不是內部模組(閘門裁定 B-1):消費者只 import 一個
+-- 名字,不必知道套件內部分了幾個模組。
+import StoryFlow.Llm (LlmError (..), renderLlmError)
 import StoryFlow.Service
 import System.Directory (doesDirectoryExist)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
@@ -66,10 +68,10 @@ spec = do
         -- 撈得到候選,才能觀察到第 3 層的退化 note。
         _ <- oneRealCandidate env
         let d = Draft "琳達走進廢墟" []
-        rDisabled <- runS env (checkConflictWith (JudgeSkipped SkipDisabled) opts d)
-        rNotConf <- runS env (checkConflictWith (JudgeSkipped (SkipNotConfigured LlmConfigMissing)) opts d)
+        rDisabled <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts d)
+        rNotConf <- runS env (checkConflict (JudgeSkipped (SkipNotConfigured LlmConfigMissing)) opts d)
         rUnreach <-
-          runS env (checkConflictWith (JudgeSkipped (SkipUnreachable (LlmUnavailable "連線被拒"))) opts d)
+          runS env (checkConflict (JudgeSkipped (SkipUnreachable (LlmUnavailable "連線被拒"))) opts d)
 
         codeOf rDisabled `shouldBe` Just "judge_disabled"
         codeOf rNotConf `shouldBe` Just "judge_not_configured"
@@ -81,10 +83,10 @@ spec = do
     it "候選為空時三種退化都不產生 note" $
       withVault $ \env -> do
         let d = Draft "" []
-        rDisabled <- runS env (checkConflictWith (JudgeSkipped SkipDisabled) opts d)
-        rNotConf <- runS env (checkConflictWith (JudgeSkipped (SkipNotConfigured LlmConfigMissing)) opts d)
+        rDisabled <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts d)
+        rNotConf <- runS env (checkConflict (JudgeSkipped (SkipNotConfigured LlmConfigMissing)) opts d)
         rUnreach <-
-          runS env (checkConflictWith (JudgeSkipped (SkipUnreachable (LlmUnavailable "連線被拒"))) opts d)
+          runS env (checkConflict (JudgeSkipped (SkipUnreachable (LlmUnavailable "連線被拒"))) opts d)
         crNotes rDisabled `shouldBe` []
         crNotes rNotConf `shouldBe` []
         crNotes rUnreach `shouldBe` []
@@ -94,7 +96,7 @@ spec = do
         _ <- oneRealCandidate env
         let runner :: JudgeRunner ServiceM
             runner _ = pure (Left (LlmUnavailable "連不上"))
-        r <- runS env (checkConflictWith (JudgeWith runner) opts (Draft "琳達走進廢墟" []))
+        r <- runS env (checkConflict (JudgeWith runner) opts (Draft "琳達走進廢墟" []))
         map rnCode (crNotes r) `shouldContain` ["judge_unreachable"]
         map rnCode (crNotes r) `shouldSatisfy` notElem "judge_aborted"
         crLlmUsed r `shouldBe` False
@@ -111,7 +113,7 @@ spec = do
                 if n < 2
                   then Right "{\"contradicts\":false,\"confidence\":0.1,\"reason\":\"\"}"
                   else Left (LlmUnavailable "連不上")
-        r <- runS env (checkConflictWith (JudgeWith runner) opts {coJudgeN = 3} (Draft draftText []))
+        r <- runS env (checkConflict (JudgeWith runner) opts {coJudgeN = 3} (Draft draftText []))
         map rnCode (crNotes r) `shouldContain` ["judge_aborted"]
         map rnCode (crNotes r) `shouldSatisfy` notElem "judge_unreachable"
         crLlmUsed r `shouldBe` True
@@ -142,7 +144,7 @@ spec = do
         (a, b) <- seedContradiction env
         let runner :: JudgeRunner ServiceM
             runner _ = pure (Right "{\"contradicts\":true,\"confidence\":0.9,\"reason\":\"理由\"}")
-        r <- runS env (checkConflictWith (JudgeWith runner) opts (Draft "琳達走進廢墟" [a]))
+        r <- runS env (checkConflict (JudgeWith runner) opts (Draft "琳達走進廢墟" [a]))
         let layers = sort (map (layerTag . chLayer) (crHits r))
         layers `shouldContain` ["graph"]
         layers `shouldContain` ["judge"]
@@ -152,7 +154,7 @@ spec = do
       withVault $ \env -> do
         _ <- seedContradiction env
         rr <- runS env (Retrieval.retrieveCandidates opts (Draft "琳達走進廢墟" []))
-        r <- runS env (checkConflictWith (JudgeSkipped SkipDisabled) opts (Draft "琳達走進廢墟" []))
+        r <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts (Draft "琳達走進廢墟" []))
         crScanned r `shouldBe` Retrieval.rrScanned rr
 
     it "crLlmUsed 在至少一對成功時 True,全部解析失敗時 False 且 crNotes 有 judge_parse_failed" $
@@ -160,21 +162,29 @@ spec = do
         _ <- oneRealCandidate env
         let runner :: JudgeRunner ServiceM
             runner _ = pure (Right "不是 JSON")
-        r <- runS env (checkConflictWith (JudgeWith runner) opts (Draft "琳達走進廢墟" []))
+        r <- runS env (checkConflict (JudgeWith runner) opts (Draft "琳達走進廢墟" []))
         crLlmUsed r `shouldBe` False
         map rnCode (crNotes r) `shouldContain` ["judge_parse_failed"]
 
-    it "checkConflict Nothing 等價於 checkConflictWith (JudgeSkipped SkipDisabled)" $
+    it "acquireJudge True opts >>= \\stage -> checkConflict stage 等價於直接餵 JudgeSkipped SkipDisabled" $
       withVault $ \env -> do
+        -- 生產路徑(server / cli)是先 acquireJudge 再 checkConflict 兩步;這裡
+        -- 斷言那兩步接起來的結果,與測試裡常用的「直接餵 JudgeSkipped」捷徑
+        -- 完全等價——閘門裁定 B-2 把 checkConflict 從吃 Maybe LlmClient 改吃
+        -- JudgeStage 之後,原本比較兩種簽名的這條測試改成比較兩種構造
+        -- JudgeStage 的方式,驗收的東西不變:acquireJudge 的退化分支與
+        -- checkConflict 的退化分支接得起來。
         _ <- seedContradiction env
-        a <- runS env (checkConflict Nothing opts (Draft "琳達走進廢墟" []))
-        b <- runS env (checkConflictWith (JudgeSkipped SkipDisabled) opts (Draft "琳達走進廢墟" []))
+        let d = Draft "琳達走進廢墟" []
+        stage <- runS env (acquireJudge True opts)
+        a <- runS env (checkConflict stage opts d)
+        b <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts d)
         a `shouldBe` b
 
     it "空草稿 + 空 drRefs 回 crHits == [] 且不報錯" $
       withVault $ \env -> do
         _ <- seedContradiction env
-        r <- runS env (checkConflict Nothing opts (Draft "" []))
+        r <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts (Draft "" []))
         crHits r `shouldBe` []
 
     it "note 順序:第 1 層 → 第 3 層 → judge_budget → link_suggested" $
@@ -183,7 +193,7 @@ spec = do
         (a, _) <- seedContradiction env
         let runner :: JudgeRunner ServiceM
             runner _ = pure (Right "{\"contradicts\":true,\"confidence\":0.9,\"reason\":\"理由\"}")
-        r <- runS env (checkConflictWith (JudgeWith runner) opts {coJudgeN = 1} (Draft "琳達走進廢墟" [a, e]))
+        r <- runS env (checkConflict (JudgeWith runner) opts {coJudgeN = 1} (Draft "琳達走進廢墟" [a, e]))
         let codes = map rnCode (crNotes r)
             stageOf c
               | c == "graph_unlinked_refs" = 0 :: Int
@@ -197,7 +207,7 @@ spec = do
       withVault $ \env -> do
         (a, _) <- seedContradiction env
         linksBefore <- runS env (linksOf a)
-        _ <- runS env (checkConflict Nothing opts (Draft "琳達走進廢墟" [a]))
+        _ <- runS env (checkConflict (JudgeSkipped SkipDisabled) opts (Draft "琳達走進廢墟" [a]))
         linksAfter <- runS env (linksOf a)
         linksAfter `shouldBe` linksBefore
 

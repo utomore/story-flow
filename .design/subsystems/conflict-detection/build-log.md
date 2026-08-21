@@ -3,7 +3,7 @@ id: conflict-detection-build
 type: build-log
 title: conflict-detection-build
 description: 委派展開衝突偵測階段一的確定性兩層與 context 出口
-status: in-progress
+status: done
 created: 2026-08-20
 updated: 2026-08-20
 parent: conflict-detection
@@ -327,3 +327,48 @@ CLI **25 個葉子子指令**(此數字無測試釘住,編排者逐一數過 `Op
 - 契約卡對帳:六張卡的負責模組與實際落地位置逐一相符
 - 階段一的 A-4(`unlinkedRefs` 死碼)**已解決**:F006 的 `unlinkedNote` 是它的第一個生產
   消費者,真端點驗收的 A/B/C 三個情境都看得到 `graph_unlinked_refs`
+
+### 階段二閘門結論(2026-08-21)
+
+開發者裁決:**接受,四項發現全部處理後收尾**。F006 的九條待確認假設全數裁定,零條懸而未決。
+
+| 發現 | 裁決 | 處理 |
+|---|---|---|
+| **B-1** 全部 `storyflow-llm` 消費者繞過 `StoryFlow.Llm` 門面 | **現在修** | 五個檔案改走門面。複驗:`grep` 全樹,llm 內部模組的 import **零命中**,門面消費者由 0 變 5 |
+| **B-2** `checkConflict` 是沒有生產呼叫端的契約函式 | **改契約簽名** | 見下 |
+| **B-3 / B-4** 模組介面表與職責描述漂移 | **一併回寫** | 已寫入 `design.md`(commit `f780c48`) |
+| **B-5** `Retrieval` 匯出面 | **記成 enhancement** | `E001-retrieval-export-surface.md`(`status: open`,scope 待走 `/enhance-design`) |
+
+**B-2 的契約新形狀**(編排者在執行裁定時發現的新資訊決定了形狀):
+
+```haskell
+data JudgeStage = JudgeSkipped JudgeSkip | JudgeWith JudgeRunner
+acquireJudge  :: Bool -> ConflictOpts -> ServiceM JudgeStage
+checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
+```
+
+**為什麼把 `acquireJudge` 拆成獨立的一步,而不是把 `Bool` 直接塞進 `checkConflict`**:
+執行裁定時查證到 `server` 的 `conflictH` 每個請求呼叫一次 `checkConflictFor` → `acquireJudge`
+→ `newLlmClient`,也就是**每個請求重建一次 TLS Manager**;而 `storyflow-llm` 的 `LlmClient`
+haddock 明文寫著「Manager 建一次、隨 `LlmClient` 一起被消費者持有並重用——每次呼叫都新建一個
+等於每次都重新握手」。原本的 `Maybe LlmClient` 契約雖然表達不出退化原因,但它換得的正是
+「呼叫端自己決定何時取得」。拆成兩步之後**兩個都保得住**:退化原因由 `JudgeStage` 帶,
+重用可能性由 `acquireJudge` 獨立存在保留。
+
+**修正後的複驗**(編排者獨立執行):
+
+- `cabal build all` 零 error、零 warning;`cabal test all` 10/10 suites、**1266 examples、0 failures**
+  ——與修正前**逐一相等**(core 166 / types 29 / md 189 / api 71 / service 97 / conflict 207 /
+  llm 62 / store 167 / server 66 / cli 212),證明這是純簽名重構、行為未變
+- 生產呼叫端複驗:`Server.hs` 與 `Cli/Backend.hs` 都看得到 `acquireJudge` + `checkConflict`
+  兩步,契約函式不再只有測試在呼叫
+- **真端點複驗**:同一份草稿對 `gemma-4-12b` 重跑,`llm_used:true`、`layer:judge`、
+  `confidence:1`、`link_suggested` 一如修正前;`--no-llm` 仍回 `judge_disabled`
+
+### 尚未處理、留給後續的事
+
+1. **`server` 要不要真的快取 `JudgeStage`**:新契約讓它成為可能,但 `[llm]` 設定是 per-Vault 的,
+   多 Vault 下要 per-vault 快取。超出本次閘門範圍,未動
+2. **E001**(`Retrieval` 匯出面)待走 `/enhance-design` 補完 scope
+3. **編排者在驗收時於 `%APPDATA%/story-flow/vaults.toml` 留下一筆 `gatecheck`**,
+   指向 scratchpad 的臨時 Vault;清除動作被沙箱擋下,需要開發者自行刪除該行

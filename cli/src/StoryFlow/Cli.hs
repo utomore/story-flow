@@ -181,6 +181,14 @@ handle io b = \case
     txt <- readBody io bs
     hs <- gatherContextB b copts (Draft txt refs)
     pure (plain (renderContext hs) hs)
+  -- --draft 走既有的 readBody(entity set-body / context --for 同一份);--no-llm
+  -- 決定 acquireJudge 讀不讀 [llm] 設定,不是 ConflictOpts 的欄位(見
+  -- StoryFlow.Cli.Options 的 F006 註解)。exit code 恆為 0:這是一份報告,不是
+  -- 一個判定,命中是不是真的衝突由作者決定。
+  ConflictCheck bs refs copts noLlm -> do
+    txt <- readBody io bs
+    report <- checkConflictB b noLlm copts (Draft txt refs)
+    pure (plain (renderReport report) report)
   where
     vaultCreated v = plain ("已建立 Vault " <> vvName v <> "(" <> T.pack (vvRoot v) <> ")") v
     updated v = "已更新 " <> renderId (evId v) <> "(revision " <> tshow (evRevision v) <> ")"

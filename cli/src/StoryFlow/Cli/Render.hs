@@ -33,6 +33,7 @@ module StoryFlow.Cli.Render
   , renderCreated
   , renderContext
   , renderVia
+  , renderReport
 
     -- * 排版工具
   , displayWidth
@@ -49,9 +50,12 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Numeric (showFFloat)
 import StoryFlow.Conflict.Types
-  ( ContextHit (..)
+  ( ConflictHit (..)
+  , ConflictReport (..)
+  , ContextHit (..)
   , GraphEvidence (..)
   , HitLayer (..)
+  , ReportNote (..)
   , layerTag
   )
 import StoryFlow.Core.Entity (Entity (..))
@@ -294,6 +298,44 @@ renderVia l = layerTag l <> "(" <> detail <> ")"
       ByRetrieval s -> score s
       ByJudge c -> score c
     score d = T.pack (showFFloat (Just 2) d "")
+
+-- 人類可讀:conflict check(conflict-detection/F006) -------------------------------
+
+-- | 三段固定順序:命中表格 → 摘要行 → 注意事項。
+--
+-- __exit code 恆為 0__,即使報告裡有命中:這是一份報告,不是一個判定,命中是不是
+-- 真的衝突由作者決定("StoryFlow.Cli" 的 @handle@ 負責這件事,這裡只管渲染)。
+renderReport :: ConflictReport -> Text
+renderReport r =
+  T.intercalate
+    "\n\n"
+    (filter (not . T.null) [hitsBlock, summaryLine, notesBlock])
+  where
+    hitsBlock
+      | null (crHits r) = "(沒有發現衝突)"
+      | otherwise = table ["target", "via", "reason", "snippet"] (map row (crHits r))
+
+    row h =
+      [ renderId (chTarget h)
+      , renderVia (chLayer h)
+      , oneLine (chReason h)
+      , maybe "(無)" oneLine (chSnippet h)
+      ]
+
+    -- crLlmUsed = False 時「沒有發現衝突」的份量完全不同,而這一行就是要說的事。
+    summaryLine =
+      "掃過 "
+        <> tshow (crScanned r)
+        <> " 個候選;語意判斷:"
+        <> (if crLlmUsed r then "有跑" else "沒有跑")
+
+    -- rnCode 是穩定識別碼,使用者要查、要 grep、要回報 issue 的時候靠它;
+    -- rnDetail 是那一句繁中的下一步。crNotes 為空時整段不印。
+    notesBlock
+      | null (crNotes r) = ""
+      | otherwise = T.intercalate "\n" ("注意:" : map noteLine (crNotes r))
+
+    noteLine n = "  - (" <> rnCode n <> ") " <> rnDetail n
 
 -- 排版工具 ---------------------------------------------------------------------
 

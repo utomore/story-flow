@@ -44,11 +44,14 @@ import qualified Data.Text as T
 import Data.Time (Day)
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
 import StoryFlow.Conflict.Types
-  ( ConflictOpts
+  ( ConflictHit
+  , ConflictOpts
+  , ConflictReport
   , ContextHit
   , Draft
   , GraphEvidence
   , HitLayer
+  , ReportNote
   )
 import StoryFlow.Core.Entity (Entity)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef, renderId, renderRef)
@@ -521,16 +524,17 @@ instance ToSchema Draft where
         [("text", txt), ("refs", ids)]
         ["text"]
 
--- | __四欄全部選配__:'StoryFlow.Conflict.Json' 的 @FromJSON ConflictOpts@ 逐欄退回
--- @defaultConflictOpts@,客戶端只想調 @top_n@ 時不必寫齊四欄。
+-- | __五欄全部選配__:'StoryFlow.Conflict.Json' 的 @FromJSON ConflictOpts@ 逐欄退回
+-- @defaultConflictOpts@,客戶端只想調 @top_n@ 時不必寫齊五欄。
 instance ToSchema ConflictOpts where
   declareNamedSchema _ = do
     int <- declareSchemaRef (Proxy :: Proxy Int)
     bl <- declareSchemaRef (Proxy :: Proxy Bool)
     pure . named "ConflictOpts" $
       objSchema
-        "三層共用的選項。缺席的欄位一律退回保守的預設值(top_n=20 / graph_depth=2)"
+        "三層共用的選項。缺席的欄位一律退回保守的預設值(top_n=20 / judge_n=5 / graph_depth=2)"
         [ ("top_n", int)
+        , ("judge_n", int)
         , ("expand_body", bl)
         , ("timeline_window", int)
         , ("graph_depth", int)
@@ -592,6 +596,44 @@ instance ToSchema ContextHit where
         "撈出來的素材:直接帶 Meta 與命中片段,外部 Agent 不必再往返一次"
         [("meta", mS), ("snippet", txt), ("via", lS)]
         ["meta", "snippet", "via"]
+
+-- ToSchema:conflict check(conflict-detection/F006) -------------------------------
+
+-- | @snippet@ 在 @properties@ 但不在 @required@:第 1 層的命中恆為 'Nothing'
+-- (它命中的是一條關聯,不是某一段文字)。
+instance ToSchema ConflictHit where
+  declareNamedSchema _ = do
+    idS <- declareSchemaRef (Proxy :: Proxy Id)
+    lS <- declareSchemaRef (Proxy :: Proxy HitLayer)
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    pure . named "ConflictHit" $
+      objSchema
+        "判斷結果:這一筆和草稿矛盾。target 的細節(Meta)由呼叫端自己查"
+        [("target", idS), ("layer", lS), ("reason", txt), ("snippet", txt)]
+        ["target", "layer", "reason"]
+
+instance ToSchema ReportNote where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    pure . named "ReportNote" $
+      objSchema
+        "報告附帶的提示:第 3 層的退化或部分失敗、第 1 層的 unlinked refs、關聯建議。\
+        \code 是穩定識別碼,不隨文案改動"
+        [("code", txt), ("detail", txt)]
+        ["code", "detail"]
+
+instance ToSchema ConflictReport where
+  declareNamedSchema _ = do
+    hitsS <- declareSchemaRef (Proxy :: Proxy [ConflictHit])
+    int <- declareSchemaRef (Proxy :: Proxy Int)
+    bl <- declareSchemaRef (Proxy :: Proxy Bool)
+    notesS <- declareSchemaRef (Proxy :: Proxy [ReportNote])
+    pure . named "ConflictReport" $
+      objSchema
+        "三層合流的衝突報告。llm_used 是「第 3 層有沒有真的產出至少一筆判斷」,\
+        \不是「有沒有嘗試」"
+        [("hits", hitsS), ("scanned", int), ("llm_used", bl), ("notes", notesS)]
+        ["hits", "scanned", "llm_used", "notes"]
 
 instance ToSchema EntityPatch where
   declareNamedSchema _ = do

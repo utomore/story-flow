@@ -35,6 +35,7 @@ module StoryFlow.Api
   , NewVaultReq (..)
   , BodyReq (..)
   , ContextReq (..)
+  , CheckReq (..)
 
     -- * OpenAPI
   , storyFlowOpenApi
@@ -68,7 +69,13 @@ import Servant.API hiding (Link)
 import Servant.OpenApi (subOperations, toOpenApi)
 import StoryFlow.Api.Instances ()
 import StoryFlow.Conflict.Json ()
-import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft, defaultConflictOpts)
+import StoryFlow.Conflict.Types
+  ( ConflictOpts
+  , ConflictReport
+  , ContextHit
+  , Draft
+  , defaultConflictOpts
+  )
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Link (Link, LinkKind)
 import StoryFlow.Core.Meta (Meta, Status)
@@ -170,6 +177,41 @@ instance ToSchema ContextReq where
         & type_ ?~ OpenApiObject
         & description ?~ "只跑前兩層的 context 查詢;opts 缺席時退回保守的預設值"
         & properties .~ IOM.fromList [("draft", dS), ("opts", oS)]
+        & required .~ ["draft"]
+
+-- | @POST \/conflict\/check@ 的 body。
+--
+-- @opts@ 與 @no_llm@ __都可以缺席__:與 'ContextReq' 同一個待客之道。@no_llm@
+-- 缺席時退回 'False' ——遠端模式的 @--no-llm@ 靠它過去。
+data CheckReq = CheckReq
+  { ckDraft :: Draft
+  , ckOpts :: ConflictOpts
+  , ckNoLlm :: Bool
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON CheckReq where
+  toJSON CheckReq {..} =
+    object ["draft" .= ckDraft, "opts" .= ckOpts, "no_llm" .= ckNoLlm]
+
+instance FromJSON CheckReq where
+  parseJSON = withObject "CheckReq" $ \o ->
+    CheckReq
+      <$> o .: "draft"
+      <*> o .:? "opts" .!= defaultConflictOpts
+      <*> o .:? "no_llm" .!= False
+
+-- | 與 'ContextReq' 同一處、同一種寫法。
+instance ToSchema CheckReq where
+  declareNamedSchema _ = do
+    dS <- declareSchemaRef (Proxy :: Proxy Draft)
+    oS <- declareSchemaRef (Proxy :: Proxy ConflictOpts)
+    blS <- declareSchemaRef (Proxy :: Proxy Bool)
+    pure . NamedSchema (Just "CheckReq") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "三層合流的衝突報告查詢;opts 與 no_llm 缺席時分別退回保守的預設值與 false"
+        & properties .~ IOM.fromList [("draft", dS), ("opts", oS), ("no_llm", blS)]
         & required .~ ["draft"]
 
 -- 共用的 query parameter --------------------------------------------------------
@@ -325,24 +367,29 @@ type MiscAPI =
       :> QueryParam' '[Required, Strict] "q" Text
       :> Filter (Get '[JSON] [SearchHit])
 
--- | 衝突偵測的 context 出口(conflict-detection/F004)。
+-- | 衝突偵測的兩個出口:@context@(F004)與 @check@(F006)。
 --
--- __唯讀,所以沒有 @revision@__:整條路徑只讀不寫(@linkGraph@ \/ @getEntity@ \/
--- @aliasIndex@ \/ @searchEntity@ \/ @linksOf@ 五個讀取操作),樂觀鎖在這裡沒有
--- 意義,而收一個不參與判斷的必填參數就是說謊(同 @POST
--- \/entities\/{id}\/fragments@ 的理由)。
+-- __兩條都唯讀,所以都沒有 @revision@__:整條路徑只讀不寫(@linkGraph@ \/
+-- @getEntity@ \/ @aliasIndex@ \/ @searchEntity@ \/ @linksOf@ 五個讀取操作),
+-- 樂觀鎖在這裡沒有意義,而收一個不參與判斷的必填參數就是說謊(同 @POST
+-- \/entities\/{id}\/fragments@ 的理由)。方法都是 @POST@,因為草稿是一段長文字,
+-- 塞不進 query parameter。
 --
 -- __整張關聯圖不會被序列化送出去__:@service@ 的 @linkGraph@ 只開內嵌出口,
--- 伺服器端是自己在 'StoryFlow.Service.ServiceM' 裡呼叫它,客戶端拿到的是
--- @[ContextHit]@。
---
--- 階段二的 @POST \/conflict\/check@(F006)之後會加進同一個子 API。
+-- 伺服器端是自己在 'StoryFlow.Service.ServiceM' 裡呼叫它。@check@ 這條路上,
+-- 第 3 層要用的 'StoryFlow.Llm.Client.LlmClient' 同理不跨 HTTP:伺服器自己讀
+-- 它綁定的那個 Vault 的 @[llm]@ 設定並建 client。
 type ConflictAPI =
   "conflict"
     :> "context"
     :> Summary "只跑前兩層,把相關片段連內容一起撈出來(不做矛盾判斷)"
     :> ReqBody '[JSON] ContextReq
     :> Post '[JSON] [ContextHit]
+    :<|> "conflict"
+      :> "check"
+      :> Summary "三層合流的衝突報告(第 3 層拿不到端點時退化成兩層,不讓指令失敗)"
+      :> ReqBody '[JSON] CheckReq
+      :> Post '[JSON] ConflictReport
 
 type StoryFlowAPI =
   VaultAPI

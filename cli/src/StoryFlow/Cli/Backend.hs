@@ -52,6 +52,7 @@ module StoryFlow.Cli.Backend
 
     -- * 衝突偵測
   , gatherContextB
+  , checkConflictB
   ) where
 
 import Control.Exception (finally)
@@ -74,10 +75,10 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hAuthorization, statusCode)
 import Servant.API ((:<|>) (..))
 import Servant.Client
-import StoryFlow.Api (BodyReq (..), ContextReq (..), NewVaultReq (..), StoryFlowAPI)
+import StoryFlow.Api (BodyReq (..), CheckReq (..), ContextReq (..), NewVaultReq (..), StoryFlowAPI)
 import StoryFlow.Cli.Error
-import StoryFlow.Conflict.Pipeline (gatherContext)
-import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft)
+import StoryFlow.Conflict.Pipeline (acquireJudge, checkConflict, gatherContext)
+import StoryFlow.Conflict.Types (ConflictOpts, ConflictReport, ContextHit, Draft)
 import StoryFlow.Cli.Options (GlobalOpts (..))
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Link (Link, LinkKind)
@@ -225,6 +226,7 @@ cRemoveNode :: Id -> Id -> Int -> Maybe Bool -> ClientM LevelView
 cTypes :: ClientM [EntityTypeSpec]
 cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> ClientM [SearchHit]
 cContext :: ContextReq -> ClientM [ContextHit]
+cCheck :: CheckReq -> ClientM ConflictReport
 ( cListVaults
     :<|> cCreateVault
     :<|> cVaultInfo
@@ -243,7 +245,7 @@ cContext :: ContextReq -> ClientM [ContextHit]
   :<|> (cListLevels :<|> cCreateLevel :<|> cGetLevel :<|> cDeleteLevel)
   :<|> (cAddNode :<|> cRemoveNode)
   :<|> (cTypes :<|> cSearch)
-  :<|> cContext = client (Proxy :: Proxy StoryFlowAPI)
+  :<|> (cContext :<|> cCheck) = client (Proxy :: Proxy StoryFlowAPI)
 
 -- 操作:每個三行 -----------------------------------------------------------------
 
@@ -354,3 +356,15 @@ removeNodeB (Remote c) lvl i rev f = rmt c (cRemoveNode i lvl rev (Just f))
 gatherContextB :: Backend -> ConflictOpts -> Draft -> M [ContextHit]
 gatherContextB (Embedded e) o d = svc e (gatherContext o d)
 gatherContextB (Remote c) o d = rmt c (cContext (ContextReq d o))
+
+-- | 三層合流的衝突報告出口(conflict-detection/F006)。與 'gatherContextB' 同一種
+-- 兩路分派的形狀:兩條路徑回的是同一個型別 'ConflictReport',指令層與渲染器因此
+-- 看不出差別。
+--
+-- __第 3 層要用的 'StoryFlow.Llm.LlmClient' 不跨 HTTP__:遠端模式送出去的是
+-- 'CheckReq'(草稿、選項、@no_llm@ 三個值),@acquireJudge@ 在伺服器那一端
+-- 跑,與 'gatherContextB' 的 @linkGraph@ 不跨 HTTP 是同一個理由。嵌入模式這裡
+-- 自己先 'acquireJudge' 再餵給 'checkConflict'(閘門裁定 B-2 的契約形狀)。
+checkConflictB :: Backend -> Bool -> ConflictOpts -> Draft -> M ConflictReport
+checkConflictB (Embedded e) noLlm o d = svc e (acquireJudge noLlm o >>= \stage -> checkConflict stage o d)
+checkConflictB (Remote c) noLlm o d = rmt c (cCheck (CheckReq d o noLlm))

@@ -108,6 +108,12 @@ data Command
     -- 草稿是 'BodySource' 而不是 'Text',理由與 'EntitySetBody' 相同——讀檔與讀
     -- stdin 是 IO,而 'parseCli' 是純的。
     Context BodySource [Id] ConflictOpts
+  | -- | @conflict check --draft \<檔案|-\>@:草稿來源、已引用的片段、五欄選項、
+    -- @--no-llm@(conflict-detection/F006)。
+    --
+    -- @Bool@ 是 @--no-llm@,不是 'ConflictOpts' 的欄位——它是「這一次要不要跑」
+    -- 的執行決定,不是三層共用的選項(見 F006 對應的 Level 2 契約)。
+    ConflictCheck BodySource [Id] ConflictOpts Bool
   deriving stock (Show, Eq)
 
 -- 進入點 -----------------------------------------------------------------------
@@ -158,6 +164,7 @@ commandP =
         <> grp "level" levelP "Level 場景樹"
         <> grp "node" nodeP "Level 裡的 Node"
         <> cmd "context" contextP "撈出與一段草稿相關的既有片段(只跑前兩層,不做矛盾判斷)"
+        <> grp "conflict" conflictP "三層合流的衝突報告"
     )
 
 -- | 名詞層:再包一層動詞的 @hsubparser@。
@@ -338,9 +345,40 @@ nodeAddP =
 
 -- | @context@ 是__頂層名詞__(與 @search@ 同一種形狀),不是
 -- @story-flow conflict context@ ——它是給外部 Agent 用的日常入口,而 @conflict@
--- 那個名詞底下之後放的是「做判斷」的那一組(階段二的 @conflict check@)。
+-- 那個名詞底下放的是「做判斷」的那一組,目前只有 @check@ 一個動詞
+-- (conflict-detection/F006)。
 contextP :: Parser Command
-contextP = Context <$> forP <*> many refOpt <*> conflictOptsP
+contextP = Context <$> forP <*> many refOpt <*> contextOptsP
+
+-- | @conflict@ 名詞群:目前只有 @check@。
+conflictP :: Parser Command
+conflictP = hsubparser (cmd "check" checkP "三層合流的衝突報告(第 3 層拿不到端點時退化成兩層)")
+
+-- | @conflict check --draft \<檔案|-\>@:與 @context@ 同一種形狀,但草稿旗標是
+-- @--draft@ 不是 @--for@(契約卡逐字寫的就是 @--draft@),而且五欄選項全開、
+-- 多一個 @--no-llm@。
+checkP :: Parser Command
+checkP = ConflictCheck <$> draftP <*> many refOpt <*> checkOptsP <*> noLlmP
+
+-- | @--draft@ __必填__,沒有預設:草稿要從哪裡來,猜不得。
+--
+-- @-@ 解成 'BodyStdin',其餘一律當檔案路徑——與 'forP' \/ @entity set-body@ 的
+-- @-@ 同一條規則。
+draftP :: Parser BodySource
+draftP =
+  toSource
+    <$> strOption
+      ( long "draft"
+          <> metavar "<檔案|->"
+          <> help "草稿的來源檔案(UTF-8);寫 - 就從 stdin 讀"
+      )
+  where
+    toSource :: FilePath -> BodySource
+    toSource "-" = BodyStdin
+    toSource p = BodyFile p
+
+noLlmP :: Parser Bool
+noLlmP = switch (long "no-llm" <> help "這一次不跑第 3 層(語意判斷),報告退化成兩層")
 
 -- | @--for@ __必填__,沒有預設:草稿要從哪裡來,猜不得。
 --
@@ -373,26 +411,51 @@ refOpt =
         <> help "草稿已引用的片段 id,可重複;第 1 層由它起步"
     )
 
--- | 三個數值旗標對應 'ConflictOpts' 的三欄。
+-- | @context@ 的三個數值旗標對應 'ConflictOpts' 的三欄,行為與拆分前的
+-- @conflictOptsP@ 一字不變。
 --
--- @coExpandBody@ __不開旗標__:它是第 3 層(LLM)控制 token 成本的手段,而
--- @context@ 根本不跑第 3 層,給它一個沒有作用的旗標只會讓人以為有作用。
-conflictOptsP :: Parser ConflictOpts
-conflictOptsP =
+-- @coExpandBody@ / @coJudgeN@ __不開旗標__:兩者都是第 3 層(LLM)控制 token
+-- 成本的手段,而 @context@ 根本不跑第 3 層,給它們沒有作用的旗標只會讓人以為
+-- 有作用(@--judge-n@ / @--expand-body@ 由 F006 加在 @conflict check@ 上)。
+contextOptsP :: Parser ConflictOpts
+contextOptsP =
   ConflictOpts
-    <$> intOpt "top-n" (coTopN defaultConflictOpts) "第 2 層的候選上限"
+    <$> topNOpt
+    <*> pure (coJudgeN defaultConflictOpts)
     <*> pure (coExpandBody defaultConflictOpts)
-    <*> optional
-      ( option
-          auto
-          ( long "timeline-window"
-              <> metavar "<n>"
-              <> help "只保留 timeline order 與草稿引用片段相距 n 以內的候選;不給就不做時序過濾"
-          )
-      )
-    <*> intOpt "graph-depth" (coGraphDepth defaultConflictOpts) "第 1 層順 supersedes 反向遍歷的深度"
-  where
-    intOpt l d h = option auto (long l <> metavar "<n>" <> value d <> help (h <> ",預設 " <> show d))
+    <*> timelineWindowOpt
+    <*> graphDepthOpt
+
+-- | @conflict check@ 的五欄選項:全部可調
+-- (conflict-detection/F006 契約卡驗收標準 6)。
+checkOptsP :: Parser ConflictOpts
+checkOptsP =
+  ConflictOpts
+    <$> topNOpt
+    <*> intOpt "judge-n" (coJudgeN defaultConflictOpts) "第 3 層的候選預算"
+    <*> switch (long "expand-body" <> help "第 3 層展開 body 而非只送 summary")
+    <*> timelineWindowOpt
+    <*> graphDepthOpt
+
+topNOpt :: Parser Int
+topNOpt = intOpt "top-n" (coTopN defaultConflictOpts) "第 2 層的候選上限"
+
+timelineWindowOpt :: Parser (Maybe Int)
+timelineWindowOpt =
+  optional
+    ( option
+        auto
+        ( long "timeline-window"
+            <> metavar "<n>"
+            <> help "只保留 timeline order 與草稿引用片段相距 n 以內的候選;不給就不做時序過濾"
+        )
+    )
+
+graphDepthOpt :: Parser Int
+graphDepthOpt = intOpt "graph-depth" (coGraphDepth defaultConflictOpts) "第 1 層順 supersedes 反向遍歷的深度"
+
+intOpt :: String -> Int -> String -> Parser Int
+intOpt l d h = option auto (long l <> metavar "<n>" <> value d <> help (h <> ",預設 " <> show d))
 
 -- 共用選項 ---------------------------------------------------------------------
 

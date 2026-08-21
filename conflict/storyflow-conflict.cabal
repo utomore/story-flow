@@ -25,20 +25,23 @@ library
     exposed-modules:
         StoryFlow.Conflict.Graph
         StoryFlow.Conflict.Json
+        StoryFlow.Conflict.Judge
         StoryFlow.Conflict.Pipeline
         StoryFlow.Conflict.Retrieval
         StoryFlow.Conflict.Types
     -- 第 2 層(conflict-detection/F003)起,本套件不再只是型別:@Conflict.Retrieval@
     -- 的存在前提就是 service 已經到位,所以 storyflow-service 在這裡是合法的。
-    -- 放行的同時剩下四項守得更緊 —— storyflow-store / storyflow-md /
-    -- storyflow-llm / sqlite-simple 一個都不准進來:「所有讀取經 ServiceM」這條
-    -- 子系統界線靠的正是這四個名字不出現。
+    -- 第 3 層(conflict-detection/F005)起放行 storyflow-llm:@Conflict.Judge@ 消費
+    -- llm-workshop-mcp 的 LlmClient / chat,不實作端點。放行的同時剩下三項守得
+    -- 更緊 —— storyflow-store / storyflow-md / sqlite-simple 一個都不准進來:
+    -- 「所有讀取經 ServiceM」這條子系統界線靠的正是這三個名字不出現。
     build-depends:
         , aeson
         , base              >=4.14 && <5
         , containers
         , mtl
         , storyflow-core
+        , storyflow-llm
         , storyflow-service
         , text
 
@@ -49,10 +52,14 @@ test-suite storyflow-conflict-test
     main-is:          Spec.hs
     other-modules:
         StoryFlow.Conflict.CabalSpec
+        StoryFlow.Conflict.CheckEnvSpec
+        StoryFlow.Conflict.CheckSpec
         StoryFlow.Conflict.EvidenceSpec
         StoryFlow.Conflict.Fixtures
         StoryFlow.Conflict.GraphSpec
         StoryFlow.Conflict.JsonSpec
+        StoryFlow.Conflict.JudgeEnvSpec
+        StoryFlow.Conflict.JudgeSpec
         StoryFlow.Conflict.MergeSpec
         StoryFlow.Conflict.OptsSpec
         StoryFlow.Conflict.PipelineSpec
@@ -62,6 +69,9 @@ test-suite storyflow-conflict-test
         StoryFlow.Conflict.SortSpec
     -- 整合測試建臨時 Vault __只靠 storyflow-service__:createVault / openEnv /
     -- runService 都在門面上,storyflow-store 一次都不必露臉。
+    -- storyflow-llm 是第 3 層測試的假 runner 需要的 LlmClient / Message / Role /
+    -- LlmError 型別的來源;測試套件本身不呼叫 newLlmClient、不發任何網路請求
+    -- (D6:hermetic)。
     build-depends:
         , aeson
         , base
@@ -71,6 +81,7 @@ test-suite storyflow-conflict-test
         , hspec
         , storyflow-conflict
         , storyflow-core
+        , storyflow-llm
         , storyflow-service
         , temporary
         , text

@@ -30,6 +30,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Servant
 import StoryFlow.Api
   ( BodyReq (..)
+  , CheckReq (..)
   , ConflictAPI
   , ContextReq (..)
   , EntityAPI
@@ -42,7 +43,7 @@ import StoryFlow.Api
   , VaultAPI
   , storyFlowAPI
   )
-import StoryFlow.Conflict.Pipeline (gatherContext)
+import StoryFlow.Conflict.Pipeline (acquireJudge, checkConflict, gatherContext)
 import StoryFlow.Server.Auth
 import StoryFlow.Server.Error
 import StoryFlow.Server.State (AppState, closeAppState, newAppState, run1, runIO)
@@ -183,12 +184,19 @@ miscH st =
   run1 st S.listEntityTypes
     :<|> (\q ty sta tag lim -> run1 st (S.searchEntity q (EntityFilter ty sta tag lim)))
 
--- | 衝突偵測的 context 出口(conflict-detection/F004)。
+-- | 衝突偵測的兩個出口:@context@(conflict-detection/F004)與
+-- @check@(conflict-detection/F006)。
 --
--- 一樣是一行結構:body 拆成兩個參數交給 'gatherContext',handler 本身不含任何
--- 業務判斷。__整張關聯圖不會離開這個行程__ ——@gatherContext@ 在 'ServiceM' 裡
--- 自己呼叫 @linkGraph@,送出去的是 @[ContextHit]@。
+-- 兩個都是一行結構:body 拆成參數交給 'gatherContext' \/ 'acquireJudge' +
+-- 'checkConflict',handler 本身不含任何業務判斷。__整張關聯圖不會離開這個
+-- 行程__ ——它們在 'ServiceM' 裡自己呼叫 @linkGraph@。@check@ 這條路上,第 3
+-- 層要用的 'StoryFlow.Llm.LlmClient' 同理不跨 HTTP:'acquireJudge' 自己在
+-- 'ServiceM' 裡讀這個 Vault 的 @[llm]@ 設定並建 client(或決定退化原因),
+-- 'checkConflict' 只吃它決定好的 'JudgeStage'(閘門裁定 B-2)。
 --
--- 走 'run1'(而不是 'runIO'):它需要目前 Vault 的 'StoryFlow.Service.Monad.Env'。
+-- 走 'run1'(而不是 'runIO'):兩者都需要目前 Vault 的
+-- 'StoryFlow.Service.Monad.Env'。
 conflictH :: AppState -> Server ConflictAPI
-conflictH st = \ContextReq {..} -> run1 st (gatherContext crqOpts crqDraft)
+conflictH st =
+  (\ContextReq {..} -> run1 st (gatherContext crqOpts crqDraft))
+    :<|> (\CheckReq {..} -> run1 st (acquireJudge ckNoLlm ckOpts >>= \stage -> checkConflict stage ckOpts ckDraft))

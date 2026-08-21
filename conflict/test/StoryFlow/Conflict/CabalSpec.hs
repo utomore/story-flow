@@ -15,8 +15,13 @@
 -- 某一層的實作進度上」,而第 2 層本來就是實作,它的存在前提就是 service 已經
 -- 到位(service-and-interfaces 全部 done)。
 --
--- 放行的同時把剩下四項守得__更緊__:斷言從單向的「不含」改成雙向的
--- 「必須含 service、仍然不含其餘四項」,而逐字釘住的相依清單則保證沒有第六個
+-- __conflict-detection/F005 T4:@storyflow-llm@ 這一項也被明確改掉了__——第 3 層
+-- (@Conflict.Judge@)消費 @llm-workshop-mcp@ 的 @LlmClient@ / @chat@,存在前提是
+-- @storyflow-llm@ 已經到位(llm-workshop-mcp/F001 已 done)。forbidden 清單因此從
+-- 四項縮成三項:@storyflow-store@ / @storyflow-md@ / @sqlite-simple@。
+--
+-- 放行的同時把剩下三項守得__更緊__:斷言從單向的「不含」改成雙向的
+-- 「必須含 service、llm,仍然不含其餘三項」,而逐字釘住的相依清單則保證沒有第七個
 -- 名字趁這一次順道混進來。
 module StoryFlow.Conflict.CabalSpec (spec) where
 
@@ -29,14 +34,29 @@ import System.Directory (doesFileExist)
 import Test.Hspec
 
 spec :: Spec
-spec = describe "第 2 層放行 service,其餘四項仍然擋住" $ do
+spec = describe "第 3 層放行 llm,其餘三項仍然擋住" $ do
   it "build-depends 含 storyflow-service(第 2 層的候選來源)" $ do
     deps <- dependencyLines <$> readCabal
     any ("storyflow-service" `isInfixOf`) deps `shouldBe` True
 
-  it "build-depends 不含 store / md / llm / sqlite" $ do
+  -- conflict-detection/F005 T4:library 與 test-suite 各一次(假 runner 的型別
+  -- LlmClient / Message / Role / LlmError 都從 storyflow-llm 來)。
+  it "build-depends 含 storyflow-llm(library 與 test-suite 各一次)" $ do
+    src <- readCabal
+    let deps = dependencyLines src
+    length (filter ("storyflow-llm" `isInfixOf`) deps) `shouldBe` 2
+
+  it "build-depends 不含 store / md / sqlite" $ do
     deps <- dependencyLines <$> readCabal
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
+
+  -- bytestring 只在 test-suite 段(既有的整合測試相依),library 不必為了
+  -- eitherDecodeStrictText 長出它。
+  it "bytestring 不在 library 段" $ do
+    src <- readCabal
+    let (librarySection, testSuiteSection) = break ("test-suite" `isInfixOf`) (lines src)
+    any ("bytestring" `isInfixOf`) librarySection `shouldBe` False
+    any ("bytestring" `isInfixOf`) testSuiteSection `shouldBe` True
 
   it "build-depends 含 storyflow-core" $ do
     deps <- dependencyLines <$> readCabal
@@ -70,12 +90,25 @@ spec = describe "第 2 層放行 service,其餘四項仍然擋住" $ do
     map trim deps `shouldBe` libraryDeps ++ testDeps
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
 
+  -- conflict-detection/F005 T4:第 3 層的模組要註冊得到,否則 F006 import 不到它。
+  it "exposed-modules 含 StoryFlow.Conflict.Judge,且相依清單逐字相符" $ do
+    src <- readCabal
+    ("StoryFlow.Conflict.Judge" `isInfixOf` src) `shouldBe` True
+    let deps = dependencyLines src
+    map trim deps `shouldBe` libraryDeps ++ testDeps
+    mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
+
 -- | 函式庫的相依__逐字__釘住:驗收標準 6 說的是「沒有增長」,而
 -- 「沒有出現在禁用清單裡」擋不住偷偷多一個包。
 --
 -- @mtl@ 是第 2 層唯一需要的新基礎相依:'Control.Monad.Except.catchError' 用來
 -- 吞掉單一 @drRef@ 的 @EntityNotFound@ ——呼叫端給的 id 打錯一個,不該讓整條
 -- @context@ 管線失敗。
+--
+-- @storyflow-llm@ 是第 3 層(conflict-detection/F005)放行的新相依:
+-- @Conflict.Judge@ 消費它的 @LlmClient@ / @chat@,不實作端點。本 feature
+-- __不新增任何其他相依__:@aeson@ 的 @eitherDecodeStrictText@ 讓 @bytestring@
+-- 不必進 library 段,@liftIO@ 在 @base@,@mtl@ 早就在了。
 libraryDeps :: [String]
 libraryDeps =
   [ ", aeson"
@@ -83,6 +116,7 @@ libraryDeps =
   , ", containers"
   , ", mtl"
   , ", storyflow-core"
+  , ", storyflow-llm"
   , ", storyflow-service"
   , ", text"
   ]
@@ -90,6 +124,10 @@ libraryDeps =
 -- | test-suite 的相依。第 1 層的測試靠 core 的 @buildGraph@ 蓋圖;第 2 層的整合
 -- 測試建臨時 Vault,而 @temporary@ \/ @directory@ \/ @filepath@ 加上
 -- @storyflow-service@ 的門面就夠了——@storyflow-store@ 一次都不必露臉。
+-- @storyflow-llm@ 是第 3 層假 runner 的型別來源(@LlmClient@ / @Message@ /
+-- @Role@ / @LlmError@),測試套件不建立任何真正指向網路端點的用戶端,不必新增
+-- @mtl@ 相依
+-- (假 runner 跑在 @IO@ 上,用 @Data.IORef@ 記錄呼叫,@IORef@ 在 @base@)。
 testDeps :: [String]
 testDeps =
   [ ", aeson"
@@ -100,6 +138,7 @@ testDeps =
   , ", hspec"
   , ", storyflow-conflict"
   , ", storyflow-core"
+  , ", storyflow-llm"
   , ", storyflow-service"
   , ", temporary"
   , ", text"
@@ -107,13 +146,14 @@ testDeps =
   ]
 
 -- | 仍然禁用的實作端套件。「所有讀取經 @ServiceM@」這條子系統界線
--- (@conflict-detection/design.md@ 兩處明寫)靠的正是這四個名字不出現:
--- 只要其中一個進來,第 2 層就有可能繞過 service 自己開索引連線。
+-- (@conflict-detection/design.md@ 兩處明寫)靠的正是這三個名字不出現:
+-- 只要其中一個進來,就有可能繞過 service 自己開索引連線。
+-- @storyflow-llm@ 自 conflict-detection/F005 起已放行(見上方 library 段落),
+-- 不再是禁用名單的一員。
 forbidden :: [String]
 forbidden =
   [ "storyflow-store"
   , "storyflow-md"
-  , "storyflow-llm"
   , "sqlite-simple"
   ]
 

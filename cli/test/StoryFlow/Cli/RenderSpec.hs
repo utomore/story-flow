@@ -8,6 +8,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (fromGregorian)
 import StoryFlow.Cli.Render
+import StoryFlow.Conflict.Types
+  ( ConflictHit (..)
+  , ConflictReport (..)
+  , GraphEvidence (..)
+  , HitLayer (..)
+  , ReportNote (..)
+  )
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Link (Link (..), LinkKind (Contradicts, PartOf))
@@ -77,6 +84,88 @@ spec = describe "人類可讀輸出" $ do
       out `shouldSatisfy` T.isInfixOf "反向"
       out `shouldSatisfy` T.isInfixOf "partOf → ent-7f3a"
       out `shouldSatisfy` T.isInfixOf "ent-9000"
+
+  describe "renderReport(conflict-detection/F006)" $ do
+    it "via 欄逐字等於 renderVia 的輸出" $ do
+      let out = renderReport threeLayerReport
+          ls = T.lines out
+      mapM_
+        (\h -> ls `shouldSatisfy` any (T.isInfixOf (renderVia (chLayer h))))
+        (crHits threeLayerReport)
+
+    it "chSnippet == Nothing 印 (無)" $
+      renderReport threeLayerReport `shouldSatisfy` T.isInfixOf "(無)"
+
+    it "crHits 為空印 (沒有發現衝突),摘要行照印" $ do
+      let out = renderReport emptyHitsReport
+      out `shouldSatisfy` T.isInfixOf "(沒有發現衝突)"
+      out `shouldSatisfy` T.isInfixOf "掃過"
+
+    it "摘要行含 crScanned 的數字與「有跑 / 沒有跑」" $ do
+      renderReport threeLayerReport `shouldSatisfy` T.isInfixOf "掃過 12 個候選;語意判斷:有跑"
+      renderReport emptyHitsReport `shouldSatisfy` T.isInfixOf "語意判斷:沒有跑"
+
+    it "crNotes 為空時不印注意段;非空時每則一行且含 rnCode" $ do
+      renderReport emptyHitsReport `shouldSatisfy` (not . T.isInfixOf "注意:")
+      let out = renderReport threeLayerReport
+      out `shouldSatisfy` T.isInfixOf "注意:"
+      out `shouldSatisfy` T.isInfixOf "(judge_budget)"
+      out `shouldSatisfy` T.isInfixOf "(link_suggested)"
+
+    it "snippet 裡的換行被壓成空白(表格不歪)" $ do
+      let out = renderReport reportWithMultilineSnippet
+      out `shouldSatisfy` T.isInfixOf "第一行 第二行 第三行"
+      -- 換行沒有讓那筆命中在表格裡多長出一列
+      length (filter (T.isInfixOf "ent-c41d") (T.lines out)) `shouldBe` 1
+
+-- 底稿:conflict check ------------------------------------------------------------
+
+graphHitR, retrievalHitR, judgeHitR :: ConflictHit
+graphHitR =
+  ConflictHit
+    { chTarget = idOf "ent-91cc"
+    , chLayer = ByGraph (GraphEvidence (idOf "ent-7f3c") Contradicts (refOf "ent-91cc"))
+    , chReason = "你引用的 ent-7f3c 與 ent-91cc 已標記矛盾"
+    , chSnippet = Nothing
+    }
+retrievalHitR =
+  ConflictHit
+    { chTarget = idOf "ent-c41d"
+    , chLayer = ByRetrieval 0.82
+    , chReason = "草稿與 ent-c41d 共同出現「琳達」"
+    , chSnippet = Just "……琳達……"
+    }
+judgeHitR =
+  ConflictHit
+    { chTarget = idOf "ent-8b20"
+    , chLayer = ByJudge 0.91
+    , chReason = "兩段對雙親死因的敘述不一致"
+    , chSnippet = Just "……徵召……"
+    }
+
+threeLayerReport :: ConflictReport
+threeLayerReport =
+  ConflictReport
+    { crHits = [graphHitR, retrievalHitR, judgeHitR]
+    , crScanned = 12
+    , crLlmUsed = True
+    , crNotes =
+        [ ReportNote "judge_budget" "候選 12 個,只有前 5 個送了語意判斷;其餘 7 個沒有第 3 層的結論"
+        , ReportNote "link_suggested" "第 3 層判定 ent-8b20 與草稿矛盾;確認成立後替草稿對應的片段建立 contradicts 關聯"
+        ]
+    }
+
+emptyHitsReport :: ConflictReport
+emptyHitsReport = ConflictReport {crHits = [], crScanned = 0, crLlmUsed = False, crNotes = []}
+
+reportWithMultilineSnippet :: ConflictReport
+reportWithMultilineSnippet =
+  ConflictReport
+    { crHits = [retrievalHitR {chSnippet = Just "第一行\n第二行\n第三行"}]
+    , crScanned = 1
+    , crLlmUsed = False
+    , crNotes = []
+    }
 
 -- 底稿 -------------------------------------------------------------------------
 

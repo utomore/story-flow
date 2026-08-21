@@ -10,8 +10,8 @@ import Data.Either (isLeft)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
-import StoryFlow.Api (ContextReq (..))
-import StoryFlow.Api.Fixtures (idOf, refOf, sampleContextReq, sampleDraft)
+import StoryFlow.Api (CheckReq (..), ContextReq (..))
+import StoryFlow.Api.Fixtures (idOf, refOf, sampleCheckReq, sampleContextReq, sampleDraft)
 import StoryFlow.Conflict.Json ()
 import StoryFlow.Conflict.Types (ConflictOpts (..), defaultConflictOpts)
 import StoryFlow.Core.Id (Id, Ref, renderRef)
@@ -24,6 +24,7 @@ spec :: Spec
 spec = do
   httpApiDataSpec
   contextReqSpec
+  checkReqSpec
 
 httpApiDataSpec :: Spec
 httpApiDataSpec = describe "HttpApiData" $ do
@@ -90,6 +91,24 @@ contextReqSpec = describe "ContextReq" $ do
 
   it "draft 缺席是解析失敗(它是唯一必填的鍵)" $
     case fromJSON (object ["opts" .= defaultConflictOpts]) :: Result ContextReq of
+      Error _ -> pure ()
+      Success r -> expectationFailure ("draft 缺席不該解得開:" <> show r)
+
+-- | conflict-detection/F006 T6:@POST \/conflict\/check@ 的 body 包裝。
+checkReqSpec :: Spec
+checkReqSpec = describe "CheckReq" $ do
+  it "toJSON / parseJSON round-trip 不失真" $
+    case fromJSON (toJSON sampleCheckReq) of
+      Success r -> r `shouldBe` sampleCheckReq
+      Error e -> expectationFailure ("解不回來:" <> e)
+
+  it "opts 與 no_llm 都缺席時分別退回 defaultConflictOpts 與 False" $
+    case fromJSON (object ["draft" .= sampleDraft]) of
+      Success r -> r `shouldBe` CheckReq sampleDraft defaultConflictOpts False
+      Error e -> expectationFailure ("opts / no_llm 缺席時應該退預設,實際:" <> e)
+
+  it "draft 缺席是解析失敗(它是唯一必填的鍵)" $
+    case fromJSON (object ["opts" .= defaultConflictOpts]) :: Result CheckReq of
       Error _ -> pure ()
       Success r -> expectationFailure ("draft 缺席不該解得開:" <> show r)
 

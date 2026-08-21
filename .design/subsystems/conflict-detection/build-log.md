@@ -3,7 +3,7 @@ id: conflict-detection-build
 type: build-log
 title: conflict-detection-build
 description: 委派展開衝突偵測階段一的確定性兩層與 context 出口
-status: in-progress
+status: done
 created: 2026-08-20
 updated: 2026-08-20
 parent: conflict-detection
@@ -21,13 +21,21 @@ parent: conflict-detection
 | 階段一 | W0 | #1 conflict-types (F001) | done(本次展開前已完成) |
 | 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
 | 階段一 | W2 | #4 context-command (F004) | **done** |
-| 階段二 | W3 | #5 conflict-llm (F005) | 本次不跑 |
-| 階段二 | W4 | #6 conflict-check (F006) | 本次不跑 |
+| 階段二 | W3 | #5 conflict-llm (F005) | **done**(1208 examples 全綠,編排者獨立複跑驗證) |
+| 階段二 | W4 | #6 conflict-check (F006) | **done**(1266 examples 全綠,編排者獨立複跑驗證) |
 
 **W1 的不對稱**:#2 已有 Level 3 設計文檔(F002,`status: open`、7 個 Todo 全未勾),只需委派**實作**;
 #3 需要委派**設計 + 實作**。因此 W1 的設計 fan out 只有一個 subagent。
 
 **階段內實作序列**:F002 → F003 → F004(同一個套件、同一批檔案,平行會互蓋)。
+
+### 階段二的排程(2026-08-20 第二次展開)
+
+`#5 → #6` 是一條鏈,**每波只有一個 feature**——#6 的設計要看 #5 的產出,沒有平行空間。
+設計與實作全程序列。跑完子系統即 6/6。
+
+**階段一「等」的排程決定已解除**:`llm-workshop-mcp` 的 F001 llm-endpoint 已 `done`,
+`storyflow-llm` 套件存在,匯出 `LlmClient` / `chat` / `llmConfig` / 五類 `LlmError`。
 
 ### 跨子系統依賴的處理決定
 
@@ -45,6 +53,33 @@ parent: conflict-detection
 | D1 | 本次跑到哪一階段(階段二卡在不存在的 `storyflow-llm` 套件) | 只跑階段一 | F005 / F006 不展開;`build-log` 保持 `in-progress` |
 | D2 | 草稿關鍵詞的抽取策略(契約卡完全沒寫,ADR-007 只說「關鍵詞 + 比對到的 aliases」) | alias/title 反向比對 **與** 切詞**併用**,候選合併去重 | F003 |
 | D3 | 程式碼 commit 到哪 | 新開 `feat/conflict-stage1-0011`,每個 feature 實作完 commit 一次;閘門驗收後走 `/branch-pr` | F002 / F003 / F004 |
+
+### 階段二的批次澄清(2026-08-20)
+
+契約類的五項已回寫 `design.md`(對外形式表、`ConflictReport`/`ReportNote` 型別、
+第 3 層候選預算、退化與部分失敗、`crNotes` 三種來源,以及兩張契約卡),不在此重複。
+
+| # | 問題 | 開發者決定 | 影響範圍 |
+|---|------|-----------|---------|
+| D4 | 本次跑到哪一階段 | **階段二跑完**(F005 + F006)。子系統達 6/6,主架構 P4 完成標準達成 | F005 / F006 |
+| D5 | 模型送回的內容格式(地端小模型 JSON 不穩) | 要求 JSON;解析失敗就算**該對判斷失敗**,記進 `crNotes`,**不捏假信心值**。呼應 F003「不得捏假分數混進 `ByRetrieval`」 | F005 |
+| D6 | 第 3 層怎麼測(`chat` 吃不透明的 `LlmClient`,只能由 `newLlmClient` 造) | **測試套件保持 hermetic**,`cabal test all` 不打網路;公開面照契約卡吃 `LlmClient`,內部注入可替換的 runner。真端點驗收由編排者在閘門另外跑 | F005 / F006 |
+| D7 | 執行模型 | **設計繼承主 session,實作降級 `sonnet`** | F005 / F006 |
+| D8 | 程式碼 commit 到哪 | 新開 `feat/conflict-stage2-0013`,每個 feature 實作完 checkpoint commit;閘門驗收後走 `/branch-pr` | F005 / F006 |
+
+### 真端點的實測結果(2026-08-20,編排者在批次澄清時查證)
+
+開發者已在本機起了 OpenAI 相容端點 `http://127.0.0.1:8080/v1`,模型
+`unsloth/gemma-4-12b-it-GGUF:Q8_0`(llama.cpp,`n_ctx` 32768)。編排者實打了一輪
+`/chat/completions`,三項結果直接寫進 F005 的契約卡:
+
+1. **`system` role 可用**——gemma 的 chat template 在這個 serving 設定下接受它,
+   `Message System` 不必折進 user 訊息
+2. **回覆內容包在 ````json fence 裡,不是裸 JSON**。這是 D5 那條裁定的關鍵前提:
+   若照直覺對 `message.content` 直接 `eitherDecode`,**每一對都會判斷失敗**
+3. **一對約 7 秒 / 343 completion tokens**(多數是 `reasoning_content`,`storyflow-llm` 的
+   `ChatChoice` 只讀 `message.content`,行為正確不必改)。這個數字正是「第 3 層要有自己的
+   候選預算」的依據:`coTopN` 預設 20 全判 ≈ 140 秒
 
 ## 跨子系統契約變更(本次批次澄清的結果)
 
@@ -70,10 +105,14 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-graph | F002 | F002-conflict-graph.md | **impl-done**(7/7 Todo,commit 20a7dcf) |
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
 | context-command | F004 | F004-context-command.md | **impl-done**(14/14 Todo) |
-| conflict-llm | F005 | (保留,階段二) | 未展開 |
-| conflict-check | F006 | (保留,階段二) | 未展開 |
+| conflict-llm | F005 | F005-conflict-llm.md | 設計:繼承 / 實作:sonnet — **impl-done**(11/11 Todo) |
+| conflict-check | F006 | F006-conflict-check.md | 設計:繼承 / 實作:sonnet — **impl-done**(12/12 Todo) |
 
-F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免屆時重新掃描配到別的號。
+F005 / F006 的號碼在階段一就保留了,第二次展開直接沿用(見 D7 的模型分配)。
+
+**為什麼實作降級而設計不降**:兩張卡的契約在批次澄清後都已寫死到「照表操課」的程度
+——F005 的回應格式、fence 剝除、退化語意、預算旋鈕全部在卡上;F006 的 `crNotes` 三種來源、
+CLI 旗標面、client 建立位置也全部在卡上。而 1-to-1 測試接得住實作錯誤,設計錯了則整條鏈重跑。
 
 ## 待確認假設彙總
 
@@ -194,3 +233,143 @@ F005 / F006 先保留號碼:階段二回來跑接續模式時直接沿用,避免
 | `service-and-interfaces/design.md` | 新增 `linkGraph` / `aliasIndex`;`SearchHit` 加 `shScore`;操作數 23→25;REST 14/23→15/24;子指令 21→**24**(既有漂移的修正,不只 +1) | S1 / S2 / S3 與 F004 實測 |
 | `entity-graph-core/design.md` | `searchEntities` → `IO [(Meta, Text, Maybe Double)]` 並補說明 | S2 的產出端 |
 | **`system.md`** | **只改 REST 的路徑/operation 數(14/23 → 15/24)**;拓撲敘述**未動** | F004 實測。⚠️ 這是 Level 1,本 skill 原則上不該碰,屬事實同步;不接受可直接回退 |
+
+### 階段二:語意判斷
+
+**完成的 features**:F005 conflict-llm(11/11 Todo)、F006 conflict-check(12/12)。
+子系統 **6/6 (100%)**,主架構 P4 的完成標準達成。
+
+**測試**:`cabal build all` 零 error、零 warning;`cabal test all` **10/10 suites PASS、
+1266 examples、0 failures**(編排者獨立複跑驗證,非採信回報)。階段二起點 1169 → 收工 1266,
+淨增 97(其中 F005 +39、F006 +58)。
+
+| suite | 階段二起點 | F005 後 | F006 後 |
+|---|---|---|---|
+| types / core / md / store | 29 / 166 / 189 / 167 | 不變 | 不變 |
+| llm | 62 | 62 | 62 |
+| api | 62 | 62 | 71 |
+| conflict | 139 | 178 | 207 |
+| service | 97 | 97 | 97 |
+| server | 63 | 63 | 66 |
+| cli | 195 | 195 | 212 |
+| **合計** | **1169** | **1208** | **1266** |
+
+**實際的對外面**:REST **16 條路徑 / 25 個 operation**(25 由 `ApiSpec` 釘住);
+CLI **25 個葉子子指令**(此數字無測試釘住,編排者逐一數過 `Options.hs` 的 `cmd` 定義)。
+
+**新增的程式碼**:`Conflict.Judge`(第 3 層,含可注入的 `JudgeRunner`);
+`Conflict.Pipeline` 的 `checkConflict` / `checkConflictFor` / `acquireJudge` / `JudgeStage`;
+`ConflictOpts.coJudgeN`;`ConflictReport.crNotes` 與 `ReportNote`;
+`POST /conflict/check`;`story-flow conflict check`。
+
+### 真端點端到端驗收(D6,編排者在閘門執行)
+
+`cabal test all` 全程 hermetic,不打網路。真端點的驗收另外跑,對象是開發者本機的
+`http://127.0.0.1:8080/v1`(`unsloth/gemma-4-12b-it-GGUF:Q8_0`)。在 scratchpad 建了一個
+臨時 Vault,放一則 canon 片段(「埃提亞在崩塌前是一片遼闊草原」,alias `埃提亞`),
+草稿寫「埃提亞自古以來就是一片荒漠,從來沒有過任何綠意」:
+
+| 情境 | 結果 |
+|---|---|
+| A 沒有 `[llm]` 段 | `llm_used:false`;note `judge_not_configured`(`renderLlmError` 原文)+ `graph_unlinked_refs`;第 2 層命中仍在;exit 0 |
+| B `--no-llm` | `llm_used:false`;note `judge_disabled`——與 A **確實是不同的 code** |
+| C 設定 `[llm]` 後 | `llm_used:true`;`layer:judge`、`confidence:1`、理由為模型給的繁中原文;note `link_suggested` 附可複製的 `story-flow link add` 指令;約 14 秒 |
+
+三項一起證明了本階段的核心裁定確實落地:**三種退化原因沒有塌成同一則**、
+**fence 剝除有效**(否則 C 不會有 judge 命中)、**`unlinkedRefs` 終於有生產消費者**、
+**`link_suggested` 只提示不寫入**。
+
+### 階段二 arch-audit 發現(依嚴重度)
+
+**中 / 2 條**
+
+- **B-1 繞過 `StoryFlow.Llm` 門面直接 import 內部模組**:`Conflict.Judge` 與
+  `Conflict.Pipeline`(以及三個測試檔)import 的是 `StoryFlow.Llm.Client` /
+  `.Config` / `.Error`,**沒有任何一處 import 門面 `StoryFlow.Llm`** ——該門面目前
+  消費者數為零。而它的 haddock 明文寫著「消費者只 import 一個名字,不必知道套件內部
+  分了幾個模組」,匯出清單「就等於設計文檔 llm-workshop-mcp/F001 那一章列的名字,
+  一個不多一個不少」,並刻意付了「以後每加一個公開名字要改兩個地方」的代價,
+  好讓公開面**由文檔決定**而不是由「某個名字剛好被哪個內部模組匯出」決定。繞過它,
+  那個設計從第一個消費者起就失效。**風險不是假設性的**:`StoryFlow.Llm.Config` 匯出
+  `chatEndpoint`,而 F001 刻意把它**排除在門面之外**——現在 conflict 伸手就搆得到。
+  用到的名字全部都在門面上,修法是機械的(三個 import 併成一個)
+- **B-2 `checkConflict` 是沒有生產呼叫端的契約函式**(F006 A1):它是 Level 2 對外契約
+  兩個出口之一,但只有 `CheckEnvSpec` 呼叫;cli 與 server 走的是 `checkConflictFor`。
+  原因是 `Maybe LlmClient` 的 `Nothing` 表達不出三種退化原因。這與階段一的
+  `unlinkedRefs` 是同一種味道,而那一個花了兩個階段才接上出口
+
+**低 / 3 條**
+
+- **B-3 模組間介面表漂移三列**(階段一 A-2 的延續且擴大):表上四列,缺
+  `Conflict.Pipeline → service-and-interfaces`(`linkGraph`/`getEntity`,階段一就發現、未修)、
+  `Conflict.Judge → service-and-interfaces`(`coExpandBody` 時的 `getEntity`,F005 新增)、
+  `Conflict.Pipeline → llm-workshop-mcp`(`llmConfig`/`newLlmClient`,F006 新增——表上
+  目前只寫了 `Conflict.Judge → llm-workshop-mcp`)
+- **B-4 `內部模組劃分` 表對 `Conflict.Pipeline` 的職責描述已不完整**:表上寫「三層合流、
+  去重、依命中層級排序」,但它現在還負責取得 `LlmClient`、決定第 3 層跑不跑(`JudgeStage`)、
+  產生三種 `crNotes`。契約卡授權了(負責模組寫的就是 `Conflict.Pipeline`),**不是 SRP 違反**,
+  但描述要跟上
+- **B-5 `Conflict.Retrieval` 匯出面仍大於契約卡承諾**(階段一 A-3,未處理):仍匯出 23 個名字,
+  含 6 個調校常數
+
+**通過的檢查**(逐項查證,非採信回報):
+
+- 資料流管線一致性:`checkConflict` = 第 1 層 → 第 2 層 → 第 3 層 → 合流 → 出口 B,與
+  design.md 的管線逐段相符;`gatherContext` 不受影響
+- SRP:六個模組與「內部模組劃分」表一一對應,無模組長出**未經授權**的第二職責
+- 邊界外洩(本子系統對外):`cli` / `server` / `api` 只 import `Conflict.Pipeline` 的門面
+  + `Conflict.Types` 的 DTO + `Conflict.Json` 的實例,**無人 import `Graph` / `Retrieval` /
+  `Judge` 的內部**
+- 子系統界線:`storyflow-conflict` 的 `build-depends` 為 `aeson / base / containers / mtl /
+  storyflow-core / storyflow-llm / storyflow-service / text` ——`storyflow-store` /
+  `storyflow-md` / `sqlite-simple` 一個都沒有,且 `CabalSpec` 改成雙向斷言後守得比階段一更緊
+- **「永不自動修改資料」**:grep 全部 14 個 service 寫入操作名,`conflict/src` 零呼叫
+  (F005 與 F006 後各複驗一次)
+- 契約卡對帳:六張卡的負責模組與實際落地位置逐一相符
+- 階段一的 A-4(`unlinkedRefs` 死碼)**已解決**:F006 的 `unlinkedNote` 是它的第一個生產
+  消費者,真端點驗收的 A/B/C 三個情境都看得到 `graph_unlinked_refs`
+
+### 階段二閘門結論(2026-08-21)
+
+開發者裁決:**接受,四項發現全部處理後收尾**。F006 的九條待確認假設全數裁定,零條懸而未決。
+
+| 發現 | 裁決 | 處理 |
+|---|---|---|
+| **B-1** 全部 `storyflow-llm` 消費者繞過 `StoryFlow.Llm` 門面 | **現在修** | 五個檔案改走門面。複驗:`grep` 全樹,llm 內部模組的 import **零命中**,門面消費者由 0 變 5 |
+| **B-2** `checkConflict` 是沒有生產呼叫端的契約函式 | **改契約簽名** | 見下 |
+| **B-3 / B-4** 模組介面表與職責描述漂移 | **一併回寫** | 已寫入 `design.md`(commit `f780c48`) |
+| **B-5** `Retrieval` 匯出面 | **記成 enhancement** | `E001-retrieval-export-surface.md`(`status: open`,scope 待走 `/enhance-design`) |
+
+**B-2 的契約新形狀**(編排者在執行裁定時發現的新資訊決定了形狀):
+
+```haskell
+data JudgeStage = JudgeSkipped JudgeSkip | JudgeWith JudgeRunner
+acquireJudge  :: Bool -> ConflictOpts -> ServiceM JudgeStage
+checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport
+```
+
+**為什麼把 `acquireJudge` 拆成獨立的一步,而不是把 `Bool` 直接塞進 `checkConflict`**:
+執行裁定時查證到 `server` 的 `conflictH` 每個請求呼叫一次 `checkConflictFor` → `acquireJudge`
+→ `newLlmClient`,也就是**每個請求重建一次 TLS Manager**;而 `storyflow-llm` 的 `LlmClient`
+haddock 明文寫著「Manager 建一次、隨 `LlmClient` 一起被消費者持有並重用——每次呼叫都新建一個
+等於每次都重新握手」。原本的 `Maybe LlmClient` 契約雖然表達不出退化原因,但它換得的正是
+「呼叫端自己決定何時取得」。拆成兩步之後**兩個都保得住**:退化原因由 `JudgeStage` 帶,
+重用可能性由 `acquireJudge` 獨立存在保留。
+
+**修正後的複驗**(編排者獨立執行):
+
+- `cabal build all` 零 error、零 warning;`cabal test all` 10/10 suites、**1266 examples、0 failures**
+  ——與修正前**逐一相等**(core 166 / types 29 / md 189 / api 71 / service 97 / conflict 207 /
+  llm 62 / store 167 / server 66 / cli 212),證明這是純簽名重構、行為未變
+- 生產呼叫端複驗:`Server.hs` 與 `Cli/Backend.hs` 都看得到 `acquireJudge` + `checkConflict`
+  兩步,契約函式不再只有測試在呼叫
+- **真端點複驗**:同一份草稿對 `gemma-4-12b` 重跑,`llm_used:true`、`layer:judge`、
+  `confidence:1`、`link_suggested` 一如修正前;`--no-llm` 仍回 `judge_disabled`
+
+### 尚未處理、留給後續的事
+
+1. **`server` 要不要真的快取 `JudgeStage`**:新契約讓它成為可能,但 `[llm]` 設定是 per-Vault 的,
+   多 Vault 下要 per-vault 快取。超出本次閘門範圍,未動
+2. **E001**(`Retrieval` 匯出面)待走 `/enhance-design` 補完 scope
+3. **編排者在驗收時於 `%APPDATA%/story-flow/vaults.toml` 留下一筆 `gatecheck`**,
+   指向 scratchpad 的臨時 Vault;清除動作被沙箱擋下,需要開發者自行刪除該行

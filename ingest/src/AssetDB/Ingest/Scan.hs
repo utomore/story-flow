@@ -69,6 +69,9 @@ data ScanEvent
   | EvArchiveStart FilePath Int Int
   | EvArchiveDone FilePath Int
   | EvArchiveSkipped FilePath
+  | EvArchiveFailed FilePath Text
+  -- ^ 整個壓縮檔讀不開(列不出來,或列得出來但取不出內容)。
+  -- 與 'EvProblem' 分開是刻意的:這一包完全沒有可信的內容雜湊。
   | EvLooseStart Int
   | EvLooseDone Int
   | EvProblem Text
@@ -77,6 +80,10 @@ data ScanEvent
 data ScanReport = ScanReport
   { srArchives :: Int
   , srArchivesSkipped :: Int
+  , srArchivesFailed :: Int
+  -- ^ 整個讀不開的壓縮檔。**與 'srEntriesUnread' 是兩件不同的事**:
+  -- 那個是「這一包裡有幾筆項目讀不到」,這個是「這一包完全沒讀到」。
+  -- 非零代表索引不完整,而且不完整的範圍是整包。
   , srEntries :: Int
   , srEntriesUnread :: Int
   -- ^ 列得出來但讀不到內容的項目。沒有 SHA-256 就不能當刪除依據,
@@ -88,7 +95,7 @@ data ScanReport = ScanReport
   deriving stock (Eq, Show)
 
 emptyReport :: ScanReport
-emptyReport = ScanReport 0 0 0 0 0 0 []
+emptyReport = ScanReport 0 0 0 0 0 0 0 []
 
 --------------------------------------------------------------------------------
 
@@ -188,45 +195,74 @@ scanArchive st tools ScanOptions {..} rootId absRoot (idx, total) path acc = do
       pure acc {srArchivesSkipped = srArchivesSkipped acc + 1}
     else
       listEntries tools path >>= \case
-        Left err -> problem (renderArchiveError err)
-        Right entries -> do
-          contents <- fetchContents tools path entries
-          let unread = length [() | (_, Nothing) <- contents]
-          r <- try (writeArchive st rootId absRoot path archiveSha size entries contents)
-          case r of
-            Left (e :: SomeException) ->
-              problem (T.pack (takeFileName path) <> ":寫入失敗 " <> compact e)
-            Right hashedBytes -> do
-              soOnEvent (EvArchiveDone path (length entries))
-              pure
-                acc
-                  { srArchives = srArchives acc + 1
-                  , srEntries = srEntries acc + length entries
-                  , srEntriesUnread = srEntriesUnread acc + unread
-                  , srBytesHashed = srBytesHashed acc + hashedBytes
-                  }
+        Left err -> archiveFailed (renderArchiveError err)
+        Right entries ->
+          fetchContents tools path entries >>= \case
+            -- 整包取不到內容:這一包一筆可信的雜湊都沒有,不能當成索引成功。
+            -- 舊版在這裡回傳「每一筆都是 Nothing」,與「個別項目讀不到」同形,
+            -- 於是照常走成功路徑 —— 失敗被吞成成功(B001)。
+            Left err -> archiveFailed (renderArchiveError err)
+            Right contents -> do
+              let unread = length [() | (_, Nothing) <- contents]
+              r <- try (writeArchive st rootId absRoot path archiveSha size entries contents)
+              case r of
+                Left (e :: SomeException) ->
+                  problem (T.pack (takeFileName path) <> ":寫入失敗 " <> compact e)
+                Right hashedBytes -> do
+                  soOnEvent (EvArchiveDone path (length entries))
+                  pure
+                    acc
+                      { srArchives = srArchives acc + 1
+                      , srEntries = srEntries acc + length entries
+                      , srEntriesUnread = srEntriesUnread acc + unread
+                      , srBytesHashed = srBytesHashed acc + hashedBytes
+                      }
   where
     problem msg = do
       soOnEvent (EvProblem msg)
       pure acc {srProblems = srProblems acc <> [msg]}
+
+    -- 整包讀不開。不寫入任何項目 —— 半包沒有雜湊的資料比沒有資料更糟,
+    -- 因為後續每一個判斷都會把它當成真的。
+    archiveFailed why = do
+      let msg = T.pack (takeFileName path) <> ":整包讀不開 —— " <> why
+      soOnEvent (EvArchiveFailed path why)
+      pure
+        acc
+          { srArchivesFailed = srArchivesFailed acc + 1
+          , srProblems = srProblems acc <> [msg]
+          }
 
 -- | 取得每一筆項目的內容。
 --
 -- ZIP 逐筆讀(每次只是一次 seek);rar 與 7z 整包解到暫存目錄再讀,
 -- 因為它們是 solid 壓縮 —— 逐筆抽取會變成 O(n²) 的解壓量。
 -- 暫存目錄在算完雜湊後立刻消失。
+--
+-- == 回傳型別為什麼是 Either
+--
+-- 有兩種完全不同的失敗:**整包取不到**(解壓失敗、缺 sidecar、暫存空間不足)
+-- 與**個別項目取不到**(項目在檔案裡但讀不出來)。前者代表這一包一筆可信的
+-- 雜湊都沒有,後者只影響那幾筆。
+--
+-- 舊版兩種都回傳 @[(entry, Nothing)]@,呼叫端在型別上分辨不出來,於是把整包
+-- 失敗照常算成索引成功(B001)。把整包失敗放進 'Left' 之後,呼叫端**必須**
+-- 處理它 —— 編譯器會擋下遺漏。
 fetchContents
-  :: ArchiveTools -> FilePath -> [ArchiveEntry] -> IO [(ArchiveEntry, Maybe BS.ByteString)]
+  :: ArchiveTools
+  -> FilePath
+  -> [ArchiveEntry]
+  -> IO (Either ArchiveError [(ArchiveEntry, Maybe BS.ByteString)])
 fetchContents tools path entries
   | maybe False prefersBulkExtraction (detectFormat path) =
       withSystemTempDirectory "assetdb-scan" $ \tmp ->
         extractAllTo tools path tmp >>= \case
-          Left _ -> pure [(e, Nothing) | e <- entries]
-          Right () -> forM entries $ \e -> do
+          Left err -> pure (Left err)
+          Right () -> fmap Right . forM entries $ \e -> do
             let f = tmp </> nativePath (aePath e)
             ok <- doesFileExist f
             if ok then (,) e . Just <$> BS.readFile f else pure (e, Nothing)
-  | otherwise = forM entries $ \e -> do
+  | otherwise = fmap Right . forM entries $ \e -> do
       r <- readEntry tools path (aePath e)
       pure (e, either (const Nothing) Just r)
   where

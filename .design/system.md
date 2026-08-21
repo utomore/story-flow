@@ -5,7 +5,7 @@ title: story-flow
 description: 以 Entity 片段圖譜管理故事設定並偵測劇情衝突的工具
 status: active
 created: 2026-08-16
-updated: 2026-08-21
+updated: 2026-08-22
 subsystems: [entity-graph-core, service-and-interfaces, conflict-detection, llm-workshop-mcp]
 ---
 
@@ -199,8 +199,11 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 ```
 
 - **契約層單向**:`storyflow-service` **不 import 任何比它上層的東西**——不 import
-  `storyflow-conflict`、不 import `storyflow-llm`。這條由 `CabalSpec` 的相依斷言釘住,
-  不是靠自律
+  `storyflow-conflict`、不 import `storyflow-llm`。這條由 `CabalSpec` 釘住,不是靠自律:
+  內部 `storyflow-*` 相依以**完整清單逐字斷言**(library 與 test-suite 各一份),
+  第三方介面套件另以黑名單擋。用逐字清單而非黑名單,是因為黑名單只涵蓋得到「已經想到的
+  名字」,而 `storyflow-workshop` / `storyflow-mcp` 都還不存在——**cabal 只擋得住循環,
+  擋不住「不成環但方向倒轉」的那一種**(service-and-interfaces/B001)
 - **介面包裝層是全面下游**:`api` / `server` / `cli` / `mcp` 的職責就是把各子系統的出口
   暴露出去,所以它們**必然**認識每一個被暴露的子系統。`storyflow-api` 依賴
   `storyflow-conflict`(`POST /conflict/context` 與 `POST /conflict/check`)不是層級倒轉,是包裝層的定義

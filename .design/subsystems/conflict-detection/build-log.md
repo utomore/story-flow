@@ -233,3 +233,97 @@ CLI 旗標面、client 建立位置也全部在卡上。而 1-to-1 測試接得�
 | `service-and-interfaces/design.md` | 新增 `linkGraph` / `aliasIndex`;`SearchHit` 加 `shScore`;操作數 23→25;REST 14/23→15/24;子指令 21→**24**(既有漂移的修正,不只 +1) | S1 / S2 / S3 與 F004 實測 |
 | `entity-graph-core/design.md` | `searchEntities` → `IO [(Meta, Text, Maybe Double)]` 並補說明 | S2 的產出端 |
 | **`system.md`** | **只改 REST 的路徑/operation 數(14/23 → 15/24)**;拓撲敘述**未動** | F004 實測。⚠️ 這是 Level 1,本 skill 原則上不該碰,屬事實同步;不接受可直接回退 |
+
+### 階段二:語意判斷
+
+**完成的 features**:F005 conflict-llm(11/11 Todo)、F006 conflict-check(12/12)。
+子系統 **6/6 (100%)**,主架構 P4 的完成標準達成。
+
+**測試**:`cabal build all` 零 error、零 warning;`cabal test all` **10/10 suites PASS、
+1266 examples、0 failures**(編排者獨立複跑驗證,非採信回報)。起點 1208 → 收工 1266,淨增 58。
+
+| suite | 階段二起點 | F005 後 | F006 後 |
+|---|---|---|---|
+| types / core / md / store | 29 / 166 / 189 / 167 | 不變 | 不變 |
+| llm | 62 | 62 | 62 |
+| api | 62 | 62 | 71 |
+| conflict | 139 | 178 | 207 |
+| service | 97 | 97 | 97 |
+| server | 63 | 63 | 66 |
+| cli | 195 | 195 | 212 |
+| **合計** | **1169** | **1208** | **1266** |
+
+**實際的對外面**:REST **16 條路徑 / 25 個 operation**(25 由 `ApiSpec` 釘住);
+CLI **25 個葉子子指令**(此數字無測試釘住,編排者逐一數過 `Options.hs` 的 `cmd` 定義)。
+
+**新增的程式碼**:`Conflict.Judge`(第 3 層,含可注入的 `JudgeRunner`);
+`Conflict.Pipeline` 的 `checkConflict` / `checkConflictFor` / `acquireJudge` / `JudgeStage`;
+`ConflictOpts.coJudgeN`;`ConflictReport.crNotes` 與 `ReportNote`;
+`POST /conflict/check`;`story-flow conflict check`。
+
+### 真端點端到端驗收(D6,編排者在閘門執行)
+
+`cabal test all` 全程 hermetic,不打網路。真端點的驗收另外跑,對象是開發者本機的
+`http://127.0.0.1:8080/v1`(`unsloth/gemma-4-12b-it-GGUF:Q8_0`)。在 scratchpad 建了一個
+臨時 Vault,放一則 canon 片段(「埃提亞在崩塌前是一片遼闊草原」,alias `埃提亞`),
+草稿寫「埃提亞自古以來就是一片荒漠,從來沒有過任何綠意」:
+
+| 情境 | 結果 |
+|---|---|
+| A 沒有 `[llm]` 段 | `llm_used:false`;note `judge_not_configured`(`renderLlmError` 原文)+ `graph_unlinked_refs`;第 2 層命中仍在;exit 0 |
+| B `--no-llm` | `llm_used:false`;note `judge_disabled`——與 A **確實是不同的 code** |
+| C 設定 `[llm]` 後 | `llm_used:true`;`layer:judge`、`confidence:1`、理由為模型給的繁中原文;note `link_suggested` 附可複製的 `story-flow link add` 指令;約 14 秒 |
+
+三項一起證明了本階段的核心裁定確實落地:**三種退化原因沒有塌成同一則**、
+**fence 剝除有效**(否則 C 不會有 judge 命中)、**`unlinkedRefs` 終於有生產消費者**、
+**`link_suggested` 只提示不寫入**。
+
+### 階段二 arch-audit 發現(依嚴重度)
+
+**中 / 2 條**
+
+- **B-1 繞過 `StoryFlow.Llm` 門面直接 import 內部模組**:`Conflict.Judge` 與
+  `Conflict.Pipeline`(以及三個測試檔)import 的是 `StoryFlow.Llm.Client` /
+  `.Config` / `.Error`,**沒有任何一處 import 門面 `StoryFlow.Llm`** ——該門面目前
+  消費者數為零。而它的 haddock 明文寫著「消費者只 import 一個名字,不必知道套件內部
+  分了幾個模組」,匯出清單「就等於設計文檔 llm-workshop-mcp/F001 那一章列的名字,
+  一個不多一個不少」,並刻意付了「以後每加一個公開名字要改兩個地方」的代價,
+  好讓公開面**由文檔決定**而不是由「某個名字剛好被哪個內部模組匯出」決定。繞過它,
+  那個設計從第一個消費者起就失效。**風險不是假設性的**:`StoryFlow.Llm.Config` 匯出
+  `chatEndpoint`,而 F001 刻意把它**排除在門面之外**——現在 conflict 伸手就搆得到。
+  用到的名字全部都在門面上,修法是機械的(三個 import 併成一個)
+- **B-2 `checkConflict` 是沒有生產呼叫端的契約函式**(F006 A1):它是 Level 2 對外契約
+  兩個出口之一,但只有 `CheckEnvSpec` 呼叫;cli 與 server 走的是 `checkConflictFor`。
+  原因是 `Maybe LlmClient` 的 `Nothing` 表達不出三種退化原因。這與階段一的
+  `unlinkedRefs` 是同一種味道,而那一個花了兩個階段才接上出口
+
+**低 / 3 條**
+
+- **B-3 模組間介面表漂移三列**(階段一 A-2 的延續且擴大):表上四列,缺
+  `Conflict.Pipeline → service-and-interfaces`(`linkGraph`/`getEntity`,階段一就發現、未修)、
+  `Conflict.Judge → service-and-interfaces`(`coExpandBody` 時的 `getEntity`,F005 新增)、
+  `Conflict.Pipeline → llm-workshop-mcp`(`llmConfig`/`newLlmClient`,F006 新增——表上
+  目前只寫了 `Conflict.Judge → llm-workshop-mcp`)
+- **B-4 `內部模組劃分` 表對 `Conflict.Pipeline` 的職責描述已不完整**:表上寫「三層合流、
+  去重、依命中層級排序」,但它現在還負責取得 `LlmClient`、決定第 3 層跑不跑(`JudgeStage`)、
+  產生三種 `crNotes`。契約卡授權了(負責模組寫的就是 `Conflict.Pipeline`),**不是 SRP 違反**,
+  但描述要跟上
+- **B-5 `Conflict.Retrieval` 匯出面仍大於契約卡承諾**(階段一 A-3,未處理):仍匯出 23 個名字,
+  含 6 個調校常數
+
+**通過的檢查**(逐項查證,非採信回報):
+
+- 資料流管線一致性:`checkConflict` = 第 1 層 → 第 2 層 → 第 3 層 → 合流 → 出口 B,與
+  design.md 的管線逐段相符;`gatherContext` 不受影響
+- SRP:六個模組與「內部模組劃分」表一一對應,無模組長出**未經授權**的第二職責
+- 邊界外洩(本子系統對外):`cli` / `server` / `api` 只 import `Conflict.Pipeline` 的門面
+  + `Conflict.Types` 的 DTO + `Conflict.Json` 的實例,**無人 import `Graph` / `Retrieval` /
+  `Judge` 的內部**
+- 子系統界線:`storyflow-conflict` 的 `build-depends` 為 `aeson / base / containers / mtl /
+  storyflow-core / storyflow-llm / storyflow-service / text` ——`storyflow-store` /
+  `storyflow-md` / `sqlite-simple` 一個都沒有,且 `CabalSpec` 改成雙向斷言後守得比階段一更緊
+- **「永不自動修改資料」**:grep 全部 14 個 service 寫入操作名,`conflict/src` 零呼叫
+  (F005 與 F006 後各複驗一次)
+- 契約卡對帳:六張卡的負責模組與實際落地位置逐一相符
+- 階段一的 A-4(`unlinkedRefs` 死碼)**已解決**:F006 的 `unlinkedNote` 是它的第一個生產
+  消費者,真端點驗收的 A/B/C 三個情境都看得到 `graph_unlinked_refs`

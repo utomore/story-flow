@@ -3,7 +3,7 @@ id: F006
 type: feature
 title: conflict-check
 description: "三層合流的衝突報告出口:story-flow conflict check 與 POST /conflict/check"
-status: open
+status: done
 created: 2026-08-21
 updated: 2026-08-21
 depends-on: [F001, F002, F003, F004, F005, llm-workshop-mcp/F001, entity-graph-core/F002, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003]
@@ -663,18 +663,18 @@ renderReport :: ConflictReport -> Text   -- 命中表格 + 摘要行 + 注意事
 
 ## TodoList
 
-- [ ] T1: `Conflict.Pipeline` 加 `graphStage`:`linkGraph` **取一次**,同時餵 `graphHits` 與 `unlinkedRefs`;第 1 層命中**不補 `Meta`**(出口 B 的 `ConflictHit` 只要 `Id`) `dep: F002, F004`
-- [ ] T2: `mergeConflictHits` / `sortConflictHits` 兩個純函式:去重槽(`ByGraph` 帶整條證據、`ByRetrieval`/`ByJudge` 共用一槽且 judge 勝出)、排序疊在 F001 的 `sortHits` 上補成全序 `dep: T1`
-- [ ] T3: `unlinkedNote` / `budgetNote` / `suggestionNote` 三個純函式與三個新 `rnCode`;`suggestionNote` 只看 `ByJudge` 且扣掉已有 `ByGraph` 命中的 target `dep: T1`
-- [ ] T4: `JudgeStage` 型別、`acquireJudge`(三條分支,`--no-llm` 或 `coJudgeN <= 0` 時不讀設定)、`runJudge`(監看 `LlmUnavailable`,`jrJudged == 0` 時把 `judge_aborted` 換成 `judge_unreachable`) `dep: F005`
-- [ ] T5: 門面 `checkConflictWith` / `checkConflict` / `checkConflictFor`:合流三層、`crScanned = rrScanned`、`crLlmUsed = jrJudged > 0`、`crNotes` 依固定順序組裝;更新 `Conflict.Pipeline` 的模組 haddock(「完全沒有模型」現在是 `gatherContext` 這條路徑的性質,不是整個模組的) `dep: T2, T3, T4`
-- [ ] T6: `storyflow-api`:`CheckReq`(`ToJSON`/`FromJSON`/`ToSchema` 都在 `Api.hs`)、`ConflictAPI` 加第二條路由;`Api.Instances` 加 `ConflictHit` / `ReportNote` / `ConflictReport` 三個 `ToSchema`;`Api.Fixtures` 補對應樣本(`chSnippet` 用 `Just`,`aligns` 要鍵集合相等) `dep: T5`
-- [ ] T7: `Api.ApiSpec`:`conflictRoutes` 加 `("/conflict/check", "post")`、`readOnlyRoutes` 加同一條、operation 數 24 → 25(既有 23 條業務路由一字不動);`Api.OpenApiSpec`:paths 15 → 16、ops 24 → 25、`expectedSchemas` 補四個新型別 `dep: T6`
-- [ ] T8: `storyflow-server`:`conflictH` 拆成 `context` 與 `check` 兩個一行 handler;`server/test/.../Fixtures.hs` 的 client record 24 → 25 個呼叫函式 `dep: T6`
-- [ ] T9: CLI `Options`:`Command` 加 `ConflictCheck`;`conflict` 子指令群 + `check` 動詞;`--draft`(必填)/ `--ref`(共用 `refOpt`)/ `--no-llm`;`conflictOptsP` 拆成 `contextOptsP`(行為不變)與 `checkOptsP`(五欄全開) `dep: -`
-- [ ] T10: CLI `Backend`:`cCheck` client 函式(解構鏈最後一項變成 `cContext :<|> cCheck`)與 `checkConflictB` 兩路分派 `dep: T6, T9`
-- [ ] T11: CLI `Render.renderReport`(命中表格重用 `renderVia` / `table` / `oneLine`、摘要行、注意事項段)+ `StoryFlow.Cli.handle` 接線(`--draft` 走既有 `readBody`,`--json` 走既有信封,exit code 恆為 0) `dep: T10`
-- [ ] T12: 測試模組註冊與 hermetic 驗證:`conflict/test/Spec.hs` 與 `.cabal` 的 `other-modules` 加 `CheckSpec` / `CheckEnvSpec`;`build-depends` 一字不動;整個測試套件不呼叫 `chat`、不發任何請求 `dep: T5, T11`
+- [x] T1: `Conflict.Pipeline` 加 `graphStage`:`linkGraph` **取一次**,同時餵 `graphHits` 與 `unlinkedRefs`;第 1 層命中**不補 `Meta`**(出口 B 的 `ConflictHit` 只要 `Id`) `dep: F002, F004`
+- [x] T2: `mergeConflictHits` / `sortConflictHits` 兩個純函式:去重槽(`ByGraph` 帶整條證據、`ByRetrieval`/`ByJudge` 共用一槽且 judge 勝出)、排序疊在 F001 的 `sortHits` 上補成全序 `dep: T1`
+- [x] T3: `unlinkedNote` / `budgetNote` / `suggestionNote` 三個純函式與三個新 `rnCode`;`suggestionNote` 只看 `ByJudge` 且扣掉已有 `ByGraph` 命中的 target `dep: T1`
+- [x] T4: `JudgeStage` 型別、`acquireJudge`(三條分支,`--no-llm` 或 `coJudgeN <= 0` 時不讀設定)、`runJudge`(監看 `LlmUnavailable`,`jrJudged == 0` 時把 `judge_aborted` 換成 `judge_unreachable`) `dep: F005`
+- [x] T5: 門面 `checkConflictWith` / `checkConflict` / `checkConflictFor`:合流三層、`crScanned = rrScanned`、`crLlmUsed = jrJudged > 0`、`crNotes` 依固定順序組裝;更新 `Conflict.Pipeline` 的模組 haddock(「完全沒有模型」現在是 `gatherContext` 這條路徑的性質,不是整個模組的) `dep: T2, T3, T4`
+- [x] T6: `storyflow-api`:`CheckReq`(`ToJSON`/`FromJSON`/`ToSchema` 都在 `Api.hs`)、`ConflictAPI` 加第二條路由;`Api.Instances` 加 `ConflictHit` / `ReportNote` / `ConflictReport` 三個 `ToSchema`;`Api.Fixtures` 補對應樣本(`chSnippet` 用 `Just`,`aligns` 要鍵集合相等) `dep: T5`
+- [x] T7: `Api.ApiSpec`:`conflictRoutes` 加 `("/conflict/check", "post")`、`readOnlyRoutes` 加同一條、operation 數 24 → 25(既有 23 條業務路由一字不動);`Api.OpenApiSpec`:paths 15 → 16、ops 24 → 25、`expectedSchemas` 補四個新型別 `dep: T6`
+- [x] T8: `storyflow-server`:`conflictH` 拆成 `context` 與 `check` 兩個一行 handler;`server/test/.../Fixtures.hs` 的 client record 24 → 25 個呼叫函式 `dep: T6`
+- [x] T9: CLI `Options`:`Command` 加 `ConflictCheck`;`conflict` 子指令群 + `check` 動詞;`--draft`(必填)/ `--ref`(共用 `refOpt`)/ `--no-llm`;`conflictOptsP` 拆成 `contextOptsP`(行為不變)與 `checkOptsP`(五欄全開) `dep: -`
+- [x] T10: CLI `Backend`:`cCheck` client 函式(解構鏈最後一項變成 `cContext :<|> cCheck`)與 `checkConflictB` 兩路分派 `dep: T6, T9`
+- [x] T11: CLI `Render.renderReport`(命中表格重用 `renderVia` / `table` / `oneLine`、摘要行、注意事項段)+ `StoryFlow.Cli.handle` 接線(`--draft` 走既有 `readBody`,`--json` 走既有信封,exit code 恆為 0) `dep: T10`
+- [x] T12: 測試模組註冊與 hermetic 驗證:`conflict/test/Spec.hs` 與 `.cabal` 的 `other-modules` 加 `CheckSpec` / `CheckEnvSpec`;`build-depends` 一字不動;整個測試套件不呼叫 `chat`、不發任何請求 `dep: T5, T11`
 
 ## 1-to-1 測試對照表
 
@@ -760,4 +760,33 @@ renderReport :: ConflictReport -> Text   -- 命中表格 + 摘要行 + 注意事
 
 ## 實作備註
 
-(實作階段填寫)
+- `cabal build all`:零 error、零 warning(`-Wall -Wcompat`)。
+- `cabal test all`:**10/10 suites PASS、1266 examples、0 failures**
+  (起點基準是 10/10、1208 examples;本 feature 淨增 58 個 examples)。
+  各 suite:core 166 / md 189 / types 29 / api 71 / service 97 /
+  conflict 207 / llm 62 / store 167 / server 66 / cli 212。
+  `conflict` 套件從 178 → 207(+29,對應 T1–T5、T12 新增的
+  `CheckSpec` / `CheckEnvSpec`);`api` 從 62 → 71(+9,T6/T7);
+  `server` 從 63 → 66(+3,T8);`cli` 從 195 → 212(+17,T9–T11)。
+- 實測數字(非推算):
+  - REST 路徑數 **16**、REST operation 數 **25**
+    (`Api.OpenApiSpec`、`Api.ApiSpec` 兩條測試釘住)。
+  - CLI 葉子子指令數 **25**(`vault` 3 + `index` 2 + `type` 1 +
+    `entity` 7 + 頂層 `search` 1 + `link` 3 + `level` 4 + `node` 2 +
+    頂層 `context` 1 + `conflict check` 1 = 25;逐一數過
+    `StoryFlow.Cli.Options` 的 `cmd` 定義得出,**沒有測試釘住這個數字**,
+    後續若再加子指令容易在文檔裡漂而不會有紅燈提醒,見 A9)。
+- hermetic(D6):`conflict/test` 全程用假 `JudgeRunner` 或直接餵 `JudgeStage`,
+  未 import 任何 `Network.*` 模組、未呼叫 `newLlmClient` / `chat`;
+  `cabal test all` 在沒有任何端點在跑的機器上全綠。
+- 三種退化原因(`judge_disabled` / `judge_not_configured` / `judge_unreachable`)
+  與 `judge_budget` / `link_suggested` / `graph_unlinked_refs` 三個新
+  `rnCode` 均由 `CheckSpec` / `CheckEnvSpec` 逐條釘住,`rnCode` 兩兩不同。
+- **待編排者裁決**(見「待確認假設」A1、A9):
+  - Level 2 `checkConflict :: Maybe LlmClient -> …` 在生產路徑上沒有呼叫端
+    (只有測試呼叫),接線層一律走 `checkConflictFor` / `checkConflictWith`；
+    是否要把契約簽名改成帶得出退化原因的形狀,由編排者裁決。
+  - `system.md`、`service-and-interfaces/design.md`、
+    `conflict-detection/design.md` 三處的 REST 路徑數(15→16)、
+    operation 數(24→25)與 CLI 子指令數(24→25)尚未回寫,
+    委派模式下本次不動架構文檔,由編排者在階段閘門統一回寫。

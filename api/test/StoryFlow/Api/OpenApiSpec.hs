@@ -34,10 +34,11 @@ import Test.Hspec
 spec :: Spec
 spec = describe "OpenAPI 文件" $ do
   -- conflict-detection/F004 加了 POST /conflict/context:14 → 15 條路徑、
-  -- 23 → 24 個 operation。
-  it "paths 數等於實際的路徑數(15 條路徑、24 個 operation)" $ do
-    IOM.size (doc ^. paths) `shouldBe` 15
-    length operations `shouldBe` 24
+  -- 23 → 24 個 operation。conflict-detection/F006 再加 POST /conflict/check:
+  -- 15 → 16 條路徑、24 → 25 個 operation。
+  it "paths 數等於實際的路徑數(16 條路徑、25 個 operation)" $ do
+    IOM.size (doc ^. paths) `shouldBe` 16
+    length operations `shouldBe` 25
 
   it "每個 operation 都有非空 summary" $
     mapM_ (\(k, op) -> (k, fmap T.null (op ^. summary)) `shouldBe` (k, Just False)) labelled
@@ -53,6 +54,13 @@ spec = describe "OpenAPI 文件" $ do
   it "components.schemas 含全部具名型別,NodeTree 的遞迴以 $ref 收斂" $ do
     let names = IOM.keys (doc ^. components . schemas)
     mapM_ (\n -> (n, n `elem` names) `shouldBe` (n, True)) expectedSchemas
+
+  -- F004 A9 的裁定不變:GraphEvidence 的 ToSchema 實例只給 SchemaSpec 對帳用,
+  -- HitLayer 的 wire 形狀是攤平的,沒有任何 $ref 指向它。不為了讓型別出現在
+  -- components 就強制登記它。
+  it "components.schemas 仍然不含 GraphEvidence(F004 A9)" $ do
+    let names = IOM.keys (doc ^. components . schemas)
+    ("GraphEvidence" `elem` names) `shouldBe` False
 
   it "編碼出來的 JSON 是有限的(遞迴 schema 沒有爆炸)" $
     length (show (encode doc)) `shouldSatisfy` (> 0)
@@ -90,6 +98,11 @@ expectedSchemas =
   , "HitLayer"
   , "Draft"
   , "ConflictOpts"
+  , -- conflict-detection/F006(GraphEvidence 仍然不進 components,見 A9)
+    "CheckReq"
+  , "ConflictHit"
+  , "ReportNote"
+  , "ConflictReport"
   ]
 
 doc :: OpenApi

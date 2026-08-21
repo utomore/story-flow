@@ -7,10 +7,13 @@ module StoryFlow.Server.HandlerSpec (spec) where
 
 import Data.List (sort)
 import qualified Data.Text as T
-import StoryFlow.Api (BodyReq (..), ContextReq (..), NewVaultReq (..))
+import StoryFlow.Api (BodyReq (..), CheckReq (..), ContextReq (..), NewVaultReq (..))
 import StoryFlow.Conflict.Types
-  ( ContextHit (..)
+  ( ConflictHit (..)
+  , ConflictReport (..)
+  , ContextHit (..)
   , Draft (..)
+  , ReportNote (..)
   , defaultConflictOpts
   , layerTag
   )
@@ -169,6 +172,42 @@ spec = describe "每條路由" $ do
       hits `shouldSatisfy` not . null
       map (T.null . metaTitle . xhMeta) hits `shouldNotContain` [True]
       map (T.null . xhSnippet) hits `shouldNotContain` [True]
+
+  describe "conflict(conflict-detection/F006)" $ do
+    it "POST /conflict/check:沒有 [llm] 段時退化成兩層,notes 含 judge_not_configured,指令不失敗" $
+      withServer $ \env -> do
+        b <- evId <$> runC env (cCreateEntity api (newEntity "character" "被推翻的設定" "舊的說法"))
+        a <-
+          evId
+            <$> runC
+              env
+              ( cCreateEntity api $
+                  (newEntity "character" "琳達" "埃提亞的第七織手")
+                    {nerLinks = [Link Contradicts (localRef b) Nothing]}
+              )
+        report <- runC env (cCheck api (CheckReq (Draft "琳達走進廢墟" [a]) defaultConflictOpts False))
+        crLlmUsed report `shouldBe` False
+        map rnCode (crNotes report) `shouldContain` ["judge_not_configured"]
+        -- 報告裡有第 1、2 層的命中,而且 layer 標籤正確
+        let byId = [(renderId (chTarget h), layerTag (chLayer h)) | h <- crHits report]
+        lookup (renderId b) byId `shouldBe` Just "graph"
+        lookup (renderId a) byId `shouldBe` Just "retrieval"
+
+    it "no_llm = True 時 notes 含 judge_disabled 而不是 judge_not_configured" $ withServer $ \env -> do
+      _ <- runC env (cCreateEntity api (newEntity "character" "琳達" "埃提亞的第七織手"))
+      report <- runC env (cCheck api (CheckReq (Draft "琳達走進廢墟" []) defaultConflictOpts True))
+      map rnCode (crNotes report) `shouldContain` ["judge_disabled"]
+
+    -- opts 鍵缺席時退回 defaultConflictOpts 的解析行為由 StoryFlow.Api.HttpDataSpec
+    -- 的 CheckReq 測試釘住(純 aeson 層級);這裡釘住的是同一份請求跑兩次端到端
+    -- 行為一致(確定性,同 gatherContext 的既有紀律)。
+    it "同一個請求連跑兩次,回同一份報告" $ withServer $ \env -> do
+      _ <- runC env (cCreateEntity api (newEntity "character" "琳達" "埃提亞的第七織手"))
+      let req = CheckReq (Draft "琳達走進廢墟" []) defaultConflictOpts True
+      first_ <- runC env (cCheck api req)
+      again <- runC env (cCheck api req)
+      crHits first_ `shouldBe` crHits again
+      crScanned first_ `shouldBe` crScanned again
 
   describe "狀態碼" $ do
     it "不存在的 id → 404" $ withServer $ \env -> do

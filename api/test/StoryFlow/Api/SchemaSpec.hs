@@ -15,14 +15,23 @@ import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.HashMap.Strict.InsOrd as IOM
 import Data.List (sort)
-import Data.OpenApi (ToSchema, properties, toSchema)
+import Data.OpenApi (ToSchema, properties, required, toSchema)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
-import StoryFlow.Api (ContextReq)
+import StoryFlow.Api (CheckReq, ContextReq)
 import StoryFlow.Api.Fixtures
 import StoryFlow.Conflict.Json ()
-import StoryFlow.Conflict.Types (ConflictOpts, ContextHit, Draft, GraphEvidence, HitLayer)
+import StoryFlow.Conflict.Types
+  ( ConflictHit
+  , ConflictOpts
+  , ConflictReport
+  , ContextHit
+  , Draft
+  , GraphEvidence
+  , HitLayer
+  , ReportNote
+  )
 import StoryFlow.Core.Entity (Entity)
 import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Level (Level, Node)
@@ -82,6 +91,14 @@ spec = describe "ToSchema 與 ToJSON 逐欄對齊" $ do
       schemaKeys (Proxy :: Proxy HitLayer)
         `shouldBe` sort ["layer", "from", "kind", "to", "score", "confidence"]
 
+  describe "衝突偵測的型別(conflict-detection/F006)" $ do
+    it "ConflictHit" $ aligns (Proxy :: Proxy ConflictHit) sampleConflictHit
+    it "ReportNote" $ aligns (Proxy :: Proxy ReportNote) sampleReportNote
+    it "ConflictReport" $ aligns (Proxy :: Proxy ConflictReport) sampleConflictReport
+    it "CheckReq" $ aligns (Proxy :: Proxy CheckReq) sampleCheckReq
+    it "CheckReq 的 required 只有 draft" $
+      schemaRequired (Proxy :: Proxy CheckReq) `shouldBe` ["draft"]
+
   describe "純量型別是字串,不是物件" $
     it "Id / Ref 的 schema 沒有 properties" $ do
       schemaKeys (Proxy :: Proxy Id) `shouldBe` []
@@ -138,3 +155,6 @@ alignsSubset p x = case toJSON x of
 
 schemaKeys :: (ToSchema a) => Proxy a -> [Text]
 schemaKeys p = sort (IOM.keys (toSchema p ^. properties))
+
+schemaRequired :: (ToSchema a) => Proxy a -> [Text]
+schemaRequired p = sort (toSchema p ^. required)

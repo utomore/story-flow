@@ -22,7 +22,7 @@ parent: conflict-detection
 | 階段一 | W1 | #2 conflict-graph (F002)、#3 conflict-retrieval (F003) | **done**(1030 examples 全綠,編排者獨立複跑驗證) |
 | 階段一 | W2 | #4 context-command (F004) | **done** |
 | 階段二 | W3 | #5 conflict-llm (F005) | **done**(1208 examples 全綠,編排者獨立複跑驗證) |
-| 階段二 | W4 | #6 conflict-check (F006) | **進行中** |
+| 階段二 | W4 | #6 conflict-check (F006) | **done**(1266 examples 全綠,編排者獨立複跑驗證) |
 
 **W1 的不對稱**:#2 已有 Level 3 設計文檔(F002,`status: open`、7 個 Todo 全未勾),只需委派**實作**;
 #3 需要委派**設計 + 實作**。因此 W1 的設計 fan out 只有一個 subagent。
@@ -106,7 +106,7 @@ fan out 前預先分配,subagent 不得自行掃描配號。
 | conflict-retrieval | F003 | F003-conflict-retrieval.md | **impl-done**(11/11 Todo,commit 12a5d7f + 7b101b9) |
 | context-command | F004 | F004-context-command.md | **impl-done**(14/14 Todo) |
 | conflict-llm | F005 | F005-conflict-llm.md | 設計:繼承 / 實作:sonnet — **impl-done**(11/11 Todo) |
-| conflict-check | F006 | F006-conflict-check.md | 設計:繼承 / 實作:sonnet — **設計 done**(12 Todo) |
+| conflict-check | F006 | F006-conflict-check.md | 設計:繼承 / 實作:sonnet — **impl-done**(12/12 Todo) |
 
 F005 / F006 的號碼在階段一就保留了,第二次展開直接沿用(見 D7 的模型分配)。
 

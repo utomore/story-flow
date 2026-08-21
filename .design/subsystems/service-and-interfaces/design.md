@@ -88,13 +88,13 @@ vaultConfig :: ServiceM VaultConfig                   -- 本 Vault 的 .storyflo
 
 **REST(供外部 Agent 與 `llm-workshop-mcp` 的 MCP adapter)**
 
-15 條路徑、24 個 operation,覆蓋 `ServiceM` **對外**的每一個操作,外加 `conflict-detection` 掛進來的 `POST /conflict/context`(`linkGraph` / `aliasIndex` / `vaultConfig` 是 P4/P5 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
+16 條路徑、25 個 operation,覆蓋 `ServiceM` **對外**的每一個操作,外加 `conflict-detection` 掛進來的 `POST /conflict/context` 與 `POST /conflict/check`(`linkGraph` / `aliasIndex` / `vaultConfig` 是 P4/P5 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
 parameter。錯誤 body 一律 `{"error":{"code":…,"message":…}}`,`code` 就是 `errorCode`。
 OpenAPI 3 文件由同一份型別推導:`story-flow-serve --openapi > openapi.json`。
 
 **CLI(供作者)**
 
-`story-flow [--vault <名稱>|--remote <url>] [--json] <名詞> <動詞>`,24 個子指令(其中 `context` 屬 `conflict-detection`)。
+`story-flow [--vault <名稱>|--remote <url>] [--json] <名詞> <動詞>`,25 個葉子子指令(其中 `context` 與 `conflict check` 屬 `conflict-detection`)。
 
 > 2026-08-20 更正:此處原記 21,與程式碼長期不符(`Cli.Options` 的 `Command` 建構子在 `context`
 > 加入前已有 23 個)。沒有任何測試釘住這個數字,所以它一路漂著;現已由 `OptionsSpec` 涵蓋。
@@ -276,7 +276,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 
 - **階段**:階段二(P3 API 契約、伺服器與遠端 CLI)
 - **負責模組**:`storyflow-api`、`storyflow-server`,以及 `storyflow-cli` 的 `Remote` 分派
-- **實作的 Level 2 介面**:「對外契約」的 REST 那一組——本卡涵蓋 14 條路徑 / 23 個 operation(第 15 條 `POST /conflict/context` 屬 `conflict-detection/F004`)、
+- **實作的 Level 2 介面**:「對外契約」的 REST 那一組——本卡涵蓋 14 條路徑 / 23 個 operation(第 15 條 `POST /conflict/context` 屬 `conflict-detection/F004`,第 16 條 `POST /conflict/check` 屬 `conflict-detection/F006`)、
   `revision` 必填 query parameter、`{"error":{"code":…,"message":…}}` 錯誤 body、
   `storyFlowOpenApi`;「模組間公開介面」的 server → service、cli → api 兩條
 - **資料流管線段落**:管線兩端的 REST 半邊——「請求解碼 → handler」與「View → JSON」,

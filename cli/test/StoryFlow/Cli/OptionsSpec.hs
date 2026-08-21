@@ -200,6 +200,67 @@ spec = describe "引數解析" $ do
       -- 草稿要從哪裡來猜不得,所以它沒有預設值。
       failureMessage ["context"] `shouldSatisfy` isInfixOf "for"
 
+    it "--judge-n 讓 context 解析失敗(那兩欄是 conflict check 才開的旗標)" $
+      case parseCli ["context", "--for", "d.md", "--judge-n", "3"] of
+        Failure _ -> pure ()
+        r -> expectationFailure ("預期解析失敗,實際:" <> show r)
+
+  describe "conflict check(conflict-detection/F006)" $ do
+    it "--draft 必填,其餘給預設時 refs 為空、opts 是 defaultConflictOpts、--no-llm 是 False" $
+      snd (parseOk ["conflict", "check", "--draft", "draft.md"])
+        `shouldBe` ConflictCheck (BodyFile "draft.md") [] defaultConflictOpts False
+
+    it "--draft - 解成 BodyStdin" $
+      snd (parseOk ["conflict", "check", "--draft", "-"])
+        `shouldBe` ConflictCheck BodyStdin [] defaultConflictOpts False
+
+    it "--ref 可重複,順序保留(與 context 共用同一個解析器)" $
+      snd (parseOk ["conflict", "check", "--draft", "d.md", "--ref", "ent-7f3a", "--ref", "ent-91cc"])
+        `shouldBe` ConflictCheck (BodyFile "d.md") [idOf "ent-7f3a", idOf "ent-91cc"] defaultConflictOpts False
+
+    it "--ref 給不合法的 id 時是用法錯誤,訊息說得出正確格式" $
+      failureMessage ["conflict", "check", "--draft", "d.md", "--ref", "這不是一個 id"]
+        `shouldSatisfy` isInfixOf "ent-7f3a"
+
+    it "五個旗標各給一次時五欄都對得上" $ do
+      let (_, c) =
+            parseOk
+              [ "conflict"
+              , "check"
+              , "--draft"
+              , "d.md"
+              , "--top-n"
+              , "7"
+              , "--judge-n"
+              , "9"
+              , "--expand-body"
+              , "--timeline-window"
+              , "3"
+              , "--graph-depth"
+              , "4"
+              ]
+      case c of
+        ConflictCheck bs refs o noLlm -> do
+          bs `shouldBe` BodyFile "d.md"
+          refs `shouldBe` []
+          coTopN o `shouldBe` 7
+          coJudgeN o `shouldBe` 9
+          coExpandBody o `shouldBe` True
+          coTimelineWindow o `shouldBe` Just 3
+          coGraphDepth o `shouldBe` 4
+          noLlm `shouldBe` False
+        _ -> expectationFailure ("解析成 " <> show c)
+
+    it "--expand-body 與 --no-llm 是 switch:不給就是 False,給了就是 True" $ do
+      snd (parseOk ["conflict", "check", "--draft", "d.md", "--no-llm"])
+        `shouldBe` ConflictCheck (BodyFile "d.md") [] defaultConflictOpts True
+      case snd (parseOk ["conflict", "check", "--draft", "d.md", "--expand-body"]) of
+        ConflictCheck _ _ o _ -> coExpandBody o `shouldBe` True
+        c -> expectationFailure ("解析成 " <> show c)
+
+    it "缺 --draft 時解析失敗,訊息含 draft" $
+      failureMessage ["conflict", "check"] `shouldSatisfy` isInfixOf "draft"
+
 -- 小工具 -----------------------------------------------------------------------
 
 parseOk :: [String] -> (GlobalOpts, Command)

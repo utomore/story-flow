@@ -52,6 +52,8 @@ test-suite storyflow-conflict-test
     main-is:          Spec.hs
     other-modules:
         StoryFlow.Conflict.CabalSpec
+        StoryFlow.Conflict.CheckEnvSpec
+        StoryFlow.Conflict.CheckSpec
         StoryFlow.Conflict.EvidenceSpec
         StoryFlow.Conflict.Fixtures
         StoryFlow.Conflict.GraphSpec

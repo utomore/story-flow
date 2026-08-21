@@ -35,12 +35,13 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "API 契約" $ do
-  -- conflict-detection/F004:23 → 24。多的那一個是 POST /conflict/context,
-  -- 它對應的不是 service-and-interfaces/F001 的業務操作,而是
-  -- conflict-detection 的對外契約 gatherContext ——所以下面 expectedRoutes 那張
-  -- 表分成兩段,兩份來源清單各自對得上帳。
-  it "operation 數等於 service 的 23 個業務操作 + conflict 的 1 個出口" $
-    length allOperations `shouldBe` 24
+  -- conflict-detection/F004:23 → 24(POST /conflict/context)。
+  -- conflict-detection/F006:24 → 25(POST /conflict/check)。兩者對應的都不是
+  -- service-and-interfaces/F001 的業務操作,而是 conflict-detection 的對外契約
+  -- (gatherContext / checkConflict)——所以下面 expectedRoutes 那張表分成兩段,
+  -- 兩份來源清單各自對得上帳。
+  it "operation 數等於 service 的 23 個業務操作 + conflict 的 2 個出口" $
+    length allOperations `shouldBe` 25
 
   it "service-and-interfaces/F001 的每個操作都有對應的路由" $
     sort (map fst expectedRoutes) `shouldBe` sort (map fst actualRoutes)
@@ -89,14 +90,15 @@ expectedRoutes =
   ]
     ++ conflictRoutes
 
--- | conflict-detection 的對外契約。
---
--- 目前只有 @gatherContext@ 這一個出口(F004);階段二的 @checkConflict@(F006)
--- 會加上 @POST \/conflict\/check@。分成獨立的一張表而不是併進上面那張:那一張的
+-- | conflict-detection 的對外契約:@gatherContext@(F004)與
+-- @checkConflict@(F006)。分成獨立的一張表而不是併進上面那張:那一張的
 -- 註解說得很清楚,它是 service-and-interfaces/F001 業務操作清單的獨立副本,把
 -- 別的子系統的出口混進去會讓「兩邊對不上時有東西可比」這件事失效。
 conflictRoutes :: [(Text, Text)]
-conflictRoutes = [("/conflict/context", "post")] -- gatherContext
+conflictRoutes =
+  [ ("/conflict/context", "post") -- gatherContext
+  , ("/conflict/check", "post") -- checkConflict
+  ]
 
 -- | 全部會__覆蓋既有內容__的端點:樂觀鎖在遠端模式一樣生效,沒有逃生口。
 --
@@ -117,8 +119,9 @@ revisionRoutes =
 
 -- | 讀取端點不該有 revision ——它是樂觀鎖的東西,出現在 GET 上只會讓人以為
 -- 讀取也要帶版本。
--- | @POST \/conflict\/context@ 在這張表裡:它的方法是 @POST@(草稿是一段長文字,
--- 塞不進 query parameter),但整條路徑__只讀不寫__ ——樂觀鎖在它身上沒有意義。
+-- | @POST \/conflict\/context@ 與 @POST \/conflict\/check@ 都在這張表裡:方法是
+-- @POST@(草稿是一段長文字,塞不進 query parameter),但整條路徑__只讀不寫__
+-- ——樂觀鎖在它們身上沒有意義。
 readOnlyRoutes :: [(Text, Text)]
 readOnlyRoutes =
   [ ("/entities", "get")
@@ -126,6 +129,7 @@ readOnlyRoutes =
   , ("/levels/{id}", "get")
   , ("/search", "get")
   , ("/conflict/context", "post")
+  , ("/conflict/check", "post")
   ]
 
 -- 從 OpenAPI 文件取出實際的路由 ---------------------------------------------------

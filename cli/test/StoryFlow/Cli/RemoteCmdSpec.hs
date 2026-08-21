@@ -4,11 +4,15 @@
 -- 這是「沒有只有內嵌模式做得到的事」的可測形式。
 module StoryFlow.Cli.RemoteCmdSpec (spec) where
 
-import Data.Aeson (Value (Bool, Object), decodeStrict)
+import Data.Aeson (Value (Array, Bool, Object, String), decodeStrict)
+import Data.Foldable (toList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.IO as TIO
 import StoryFlow.Cli.Fixtures
 import System.Exit (ExitCode (..))
+import System.FilePath ((</>))
+import System.IO (IOMode (WriteMode), hClose, hSetEncoding, openFile, utf8)
 import Test.Hspec
 
 spec :: Spec
@@ -75,6 +79,61 @@ spec = describe "遠端模式的每個子指令" $ do
     r <- sfRemote url ["vault", "init", dir <> "/second", "--name", "second"]
     -- 不論成功與否,它都不該是「解析不出指令」或崩潰
     crExit r `shouldNotBe` ExitFailure 2
+
+  -- conflict-detection/F006 T10:conflict check 的遠端路徑。伺服器沒有設定
+  -- [llm] 段,所以第 3 層一律退化——這正是 D6 hermetic 的作法:不需要真端點,
+  -- --no-llm 真的傳到伺服器就足以觀察退化原因的差別。
+  describe "conflict check 的遠端路徑" $ do
+    it "exit 0,而且 --json 的 data 是合法的 ConflictReport" $ withCliServer $ \dir url -> do
+      f <- draftFile dir "琳達走進廢墟"
+      r <- sfRemote url ["conflict", "check", "--draft", f]
+      crExit r `shouldBe` ExitSuccess
+      env <- sfRemoteJson url ["conflict", "check", "--draft", f]
+      jsonPath ["data", "hits"] env `shouldSatisfy` isJustV
+      jsonPath ["data", "scanned"] env `shouldSatisfy` isJustV
+      jsonPath ["data", "llm_used"] env `shouldSatisfy` isJustV
+      jsonPath ["data", "notes"] env `shouldSatisfy` isJustV
+
+    it "--no-llm 真的傳到伺服器:notes 是 judge_disabled 而不是 judge_not_configured" $
+      withCliServer $ \dir url -> do
+        -- 退化 note 只在候選非空時才產生,所以要先讓第 2 層真的撈到東西。
+        okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "第七織手", "--status", "canon"]
+        f <- draftFile dir "琳達走進廢墟"
+        env <- sfRemoteJson url ["conflict", "check", "--draft", f, "--no-llm"]
+        firstNoteCode env `shouldBe` Just "judge_disabled"
+
+    it "沒有 --no-llm、伺服器也沒設定 [llm] 時退化成 judge_not_configured,指令仍然 exit 0" $
+      withCliServer $ \dir url -> do
+        okJson url ["entity", "new", "--type", "character", "--title", "琳達", "--summary", "第七織手", "--status", "canon"]
+        f <- draftFile dir "琳達走進廢墟"
+        r <- sfRemote url ["conflict", "check", "--draft", f]
+        crExit r `shouldBe` ExitSuccess
+        env <- sfRemoteJson url ["conflict", "check", "--draft", f]
+        firstNoteCode env `shouldBe` Just "judge_not_configured"
+
+-- | @data.notes@ 的第一筆 @code@。'jsonPath' 只往 'Object' 裡鑽,不索引
+-- 'Array',所以陣列這一段自己拆。
+firstNoteCode :: Value -> Maybe T.Text
+firstNoteCode env = case jsonPath ["data", "notes"] env of
+  Just (Array xs) -> case toList xs of
+    (note : _) -> case jsonPath ["code"] note of
+      Just (String t) -> Just t
+      _ -> Nothing
+    [] -> Nothing
+  _ -> Nothing
+
+-- | 把草稿寫成 UTF-8 檔案,回它的路徑(與 "StoryFlow.Cli.ContextCmdSpec" 同一份寫法)。
+draftFile :: FilePath -> T.Text -> IO FilePath
+draftFile dir txt = do
+  let p = dir </> "draft.md"
+  h <- openFile p WriteMode
+  hSetEncoding h utf8
+  TIO.hPutStr h txt
+  hClose h
+  pure p
+
+isJustV :: Maybe Value -> Bool
+isJustV = maybe False (const True)
 
 -- | 跑__一次__遠端指令,從那一次的結果同時斷言 exit code 與信封。
 --

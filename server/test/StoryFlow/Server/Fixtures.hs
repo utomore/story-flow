@@ -49,7 +49,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Servant.API ((:<|>) (..))
 import Servant.Client
 import StoryFlow.Api
-import StoryFlow.Conflict.Types (ContextHit)
+import StoryFlow.Conflict.Types (ConflictReport, ContextHit)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Level (NodeKind (KCast, KScene))
 import StoryFlow.Core.Link (Link, LinkKind)
@@ -132,7 +132,8 @@ orDie = either (fail . T.unpack . renderServiceError) pure
 
 -- 呼叫 -------------------------------------------------------------------------
 
--- | 由 API 型別產生的 24 個呼叫函式(conflict-detection/F004 起 23 → 24)。
+-- | 由 API 型別產生的 25 個呼叫函式(conflict-detection/F004 起 23 → 24,
+-- conflict-detection/F006 起 24 → 25)。
 --
 -- 少一個、多一個、或參數順序錯了都是編譯錯誤——這就是「同一份型別產生 server
 -- 與 client」的實際保障。
@@ -161,6 +162,7 @@ data Api = Api
   , cTypes :: ClientM [EntityTypeSpec]
   , cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> ClientM [SearchHit]
   , cContext :: ContextReq -> ClientM [ContextHit]
+  , cCheck :: CheckReq -> ClientM ConflictReport
   }
 
 api :: Api
@@ -184,7 +186,7 @@ api = Api {..}
       :<|> (cListLevels :<|> cCreateLevel :<|> cGetLevel :<|> cDeleteLevel)
       :<|> (cAddNode :<|> cRemoveNode)
       :<|> (cTypes :<|> cSearch)
-      :<|> cContext = client (Proxy :: Proxy StoryFlowAPI)
+      :<|> (cContext :<|> cCheck) = client (Proxy :: Proxy StoryFlowAPI)
 
 runC :: ClientEnv -> ClientM a -> IO a
 runC env m =

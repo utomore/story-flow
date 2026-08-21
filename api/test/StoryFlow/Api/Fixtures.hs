@@ -36,19 +36,28 @@ module StoryFlow.Api.Fixtures
   , sampleJudgeLayer
   , sampleContextHit
   , sampleContextReq
+
+    -- * 衝突偵測(conflict-detection/F006)
+  , sampleConflictHit
+  , sampleReportNote
+  , sampleConflictReport
+  , sampleCheckReq
   , idOf
   , refOf
   ) where
 
 import Data.Text (Text)
 import Data.Time (fromGregorian)
-import StoryFlow.Api (ContextReq (..))
+import StoryFlow.Api (CheckReq (..), ContextReq (..))
 import StoryFlow.Conflict.Types
-  ( ConflictOpts (..)
+  ( ConflictHit (..)
+  , ConflictOpts (..)
+  , ConflictReport (..)
   , ContextHit (..)
   , Draft (..)
   , GraphEvidence (..)
   , HitLayer (..)
+  , ReportNote (..)
   )
 import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
@@ -229,6 +238,34 @@ sampleContextHit = ContextHit sampleMeta "……埃提亞的第七織手……" 
 
 sampleContextReq :: ContextReq
 sampleContextReq = ContextReq sampleDraft sampleConflictOpts
+
+-- 衝突偵測(conflict-detection/F006) -----------------------------------------------
+
+-- | @snippet@ 刻意給 'Just':選配欄位沒值時整個鍵不出現,樣本留空的話鍵集合比對
+-- 會假性不一致。
+sampleConflictHit :: ConflictHit
+sampleConflictHit =
+  ConflictHit
+    { chTarget = idOf "ent-8b20"
+    , chLayer = sampleJudgeLayer
+    , chReason = "兩段對雙親死因的敘述不一致"
+    , chSnippet = Just "……徵召……"
+    }
+
+sampleReportNote :: ReportNote
+sampleReportNote = ReportNote "judge_budget" "候選 12 個,只有前 5 個送了語意判斷……"
+
+sampleConflictReport :: ConflictReport
+sampleConflictReport =
+  ConflictReport
+    { crHits = [sampleConflictHit]
+    , crScanned = 12
+    , crLlmUsed = True
+    , crNotes = [sampleReportNote]
+    }
+
+sampleCheckReq :: CheckReq
+sampleCheckReq = CheckReq sampleDraft sampleConflictOpts True
 
 idOf :: Text -> Id
 idOf t = case parseId t of

@@ -50,7 +50,7 @@ claude code 自己有很強的判斷能力。所以前兩層要能單獨出口�
 | `Conflict.Graph`(第 1 層) | 順著草稿已引用片段的 `contradicts` / `supersedes` 遍歷,找已知矛盾與已被取代的設定 | 完全確定性、可重現 | 零 |
 | `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 每個關鍵詞一次 SQL(上限可調) |
 | `Conflict.Judge`(第 3 層) | 草稿 × 候選逐對送 LLM 問「是否矛盾、矛盾在哪」 | 非確定性 | 每對一次呼叫 |
-| `Conflict.Pipeline` | 三層合流、去重、依命中層級排序 | — | — |
+| `Conflict.Pipeline` | 三層合流、去重、依命中層級排序;取得第 3 層的執行階段(`acquireJudge`)並產生 `crNotes` | — | — |
 
 **第 2 層的候選撈取策略刻意設計成可替換**。ADR-007 決定先不做 embedding 語意檢索
 (多一個模型相依、多一套索引、換模型要重算),但把介面留成「策略」——未來要加只是多一個
@@ -61,10 +61,24 @@ claude code 自己有很強的判斷能力。所以前兩層要能單獨出口�
 兩個出口,對應兩種使用者。
 
 ```haskell
--- 完整三層。judge 為 Nothing 時退化成只跑前兩層。
+-- 第 3 層的執行階段:要嘛拿到 runner,要嘛帶著「為什麼不跑」。
+-- 三種退化原因(--no-llm / 沒設定 [llm] / 端點連不上)是本子系統的核心裁定,
+-- 一個 Maybe 的 Nothing 表達不出它們。
+data JudgeStage
+  = JudgeSkipped JudgeSkip   -- 不跑,原因是這個
+  | JudgeWith JudgeRunner    -- 跑,用這個 runner
+
+-- 取得第 3 層的執行階段。讀 [llm] 設定、建 client、決定退化原因都在這裡。
+-- 分成獨立的一步而不是併進 checkConflict:長命的呼叫端(server)因此
+-- 取得一次就能重用,而 storyflow-llm 明說 Manager 要建一次並隨 LlmClient 重用
+-- ——每次請求新建一個等於每次都重新握手。
+acquireJudge :: Bool -> ConflictOpts -> ServiceM JudgeStage
+
+-- 完整三層。JudgeStage 為 JudgeSkipped 時退化成只跑前兩層,
+-- 而退化的原因會出現在 ConflictReport 的 crNotes。
 checkConflict
-  :: Maybe LlmClient        -- llm-workshop-mcp 的端點;Nothing = 不跑第 3 層
-  -> ConflictOpts           -- topN、是否展開 body、timeline 容忍範圍
+  :: JudgeStage             -- 第 3 層跑不跑,以及跑不動時是為什麼
+  -> ConflictOpts           -- topN、judgeN、是否展開 body、timeline 容忍範圍
   -> Draft                  -- 草稿文字 + 已引用的片段 id
   -> ServiceM ConflictReport
 
@@ -88,6 +102,14 @@ gatherContext :: ConflictOpts -> Draft -> ServiceM [ContextHit]
 跨層合流後的總清單**不**受它截斷——第 1 層的命中是事實,不該因為第 2 層撈滿了 top-N 就被擠掉。
 一跳擴充帶進來的候選沒有自己的檢索分數,取**母候選分數乘上一個衰減係數**,與關鍵詞候選一起競爭
 第 2 層的名額。
+
+**`checkConflict` 為什麼不吃 `Maybe LlmClient`**(2026-08-21 階段二閘門裁定):原本的契約是
+`Maybe LlmClient`,但 `Nothing` 只說得出「不跑第 3 層」,說不出**為什麼**不跑——而
+「`--no-llm`」「沒設定 `[llm]`」「端點連不上」對使用者是三個完全不同的下一步,正是本階段
+要保住的區分。改成 `JudgeStage` 之後,「跑不跑」與「為什麼不跑」由同一個值帶著,
+契約函式也才真的有生產呼叫端(先前的 `Maybe LlmClient` 版本只有測試在呼叫)。
+`acquireJudge` 獨立成一步則保住了原本 `Maybe LlmClient` 想要的那件事:呼叫端可以**自己決定
+什麼時候取得**,長命的伺服器不必每個請求重建一次 `LlmClient`。
 
 **第 3 層的候選預算**(2026-08-20 階段二裁定):第 3 層**不**把第 2 層的候選全部逐對送模型。
 `ConflictOpts` 因此有一欄獨立於 `coTopN` 的 **`coJudgeN`**(預設保守),取合流排序後的前 N 個
@@ -200,6 +222,9 @@ Draft(草稿文字 + 已引用的片段 id)
 | `Conflict.Pipeline` → 三層 | 依 `ConflictOpts` 決定跑到哪一層,合流時只看 `HitLayer` 排序 |
 | `Conflict.Retrieval` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `searchEntity`,不自己開索引連線 |
 | `Conflict.Judge` → `llm-workshop-mcp` | 消費 `LlmClient` 的 `chat`,不實作端點 |
+| `Conflict.Pipeline` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `linkGraph` 與 `getEntity`(第 1 層補 `Meta`) |
+| `Conflict.Judge` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `getEntity`(僅 `coExpandBody` 展開 `body` 時) |
+| `Conflict.Pipeline` → `llm-workshop-mcp` | `acquireJudge` 讀設定並建 client(`llmConfig` / `newLlmClient`),把 `LlmError` 翻成 `crNotes` |
 
 型別定義:
 
@@ -396,8 +421,9 @@ data ReportNote = ReportNote
 
 - **階段**:階段二(語意判斷)
 - **負責模組**:`Conflict.Pipeline`,以及 `service-and-interfaces` 的 CLI / REST 接線
-- **實作的 Level 2 介面**:「對外契約」的 `checkConflict :: Maybe LlmClient -> ConflictOpts ->
-  Draft -> ServiceM ConflictReport`,對應
+- **實作的 Level 2 介面**:「對外契約」的 `acquireJudge` 與
+  `checkConflict :: JudgeStage -> ConflictOpts -> Draft -> ServiceM ConflictReport`
+  (2026-08-21 閘門改過簽名,理由見對外契約那一節),對應
   `story-flow conflict check --draft <檔案|-> [--top-n] [--no-llm]` 與 `POST /conflict/check`
 - **資料流管線段落**:三層合流、去重、排序 → 出口 B
 - **驗收標準**:report 每一筆都標示命中層級(第 1 層是事實、第 3 層是判斷,使用者看得出差別);

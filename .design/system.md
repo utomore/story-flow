@@ -5,7 +5,7 @@ title: story-flow
 description: 以 Entity 片段圖譜管理故事設定並偵測劇情衝突的工具
 status: active
 created: 2026-08-16
-updated: 2026-08-20
+updated: 2026-08-21
 subsystems: [entity-graph-core, service-and-interfaces, conflict-detection, llm-workshop-mcp]
 ---
 
@@ -62,8 +62,8 @@ story-flow 管「故事設定與敘事結構」。兩者無程式化相依。
 | 解析 | `storyflow-md` | Markdown 分節格式 ↔ 核心型別的雙向轉換(解析與寫回)。純函式,吃 `Text` 吐型別 |
 | 落地 | `storyflow-store` | 檔案讀寫(原子寫入)、SQLite 索引建立與重建、FTS5 trigram 檢索、樂觀鎖 |
 | 業務契約 | `storyflow-service` | **所有業務操作的唯一定義處**。CLI 與 server 都只是它的包裝 |
-| 衝突偵測 | `storyflow-conflict` | 三層偵測:圖遍歷 → FTS5 候選撈取 → LLM 判斷 |
 | LLM 存取 | `storyflow-llm` | OpenAI 相容端點抽象(地端/雲端),與 design-studio 的 `llm.py` 同一個思路 |
+| 衝突偵測 | `storyflow-conflict` | 三層偵測:圖遍歷 → FTS5 候選撈取 → LLM 判斷。第 3 層用上一列的端點抽象,因此排在它之後 |
 | 工作坊 | `storyflow-workshop` | 階段式引導對話的狀態機,產出的東西寫進圖譜。**Entity 的產生器之一,核心不依賴它** |
 | API 契約 | `storyflow-api` | **只有** servant API 型別與 `ToSchema` 實例的薄套件,不含 server 也不含 client。`server` 與 `cli --remote` 各自依賴它,因此 CLI 不會被拖進 `warp`,而兩者共用的仍是同一份型別 |
 | 介面 1 | `storyflow-server` | servant REST API,綁 loopback |
@@ -104,7 +104,7 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 |---|---|---|
 | REST API | `story-flow-serve` 綁 loopback;16 條路徑 / 25 個 operation(含 `conflict-detection` 的 `POST /conflict/context` 與 `POST /conflict/check`);OpenAPI 3 由 servant 型別推導(`story-flow-serve --openapi`);錯誤 body 一律 `{"error":{"code":…,"message":…}}` | `service-and-interfaces`(`storyflow-api`) |
 | CLI | `story-flow [--vault <名稱>\|--remote <url>] [--json] <名詞> <動詞>`;`--json` 輸出統一信封 `{"ok":true,"data":…}` / `{"ok":false,"error":{…}}`;exit code `0` 成功、`1` 業務或傳輸失敗、`2` 用法錯誤 | `service-and-interfaces`(`storyflow-cli`) |
-| MCP | stdio adapter,tools 由 REST 的 25 個 operation 映射;供 claude code / codex 接入 | `llm-workshop-mcp`(`storyflow-mcp`) |
+| MCP(**規劃中,P5**) | stdio adapter,tools 與 REST 契約**同源**(依同一份 servant API 型別映射,不另立一套);供 claude code / codex 接入。`storyflow-mcp` 套件尚未建立 | `llm-workshop-mcp`(`storyflow-mcp`) |
 | Vault 檔案 | 一主題一 `.md`、檔內分節為片段;檔案層 frontmatter + 節層 ` ```meta ` 區塊;Level 檔以標題階層表達樹;`.storyflow/config.toml` 與全域 `~/.config/story-flow/vaults.toml` | `entity-graph-core`,格式細節見下方「資料結構的框架格式」 |
 
 **AI Agent 只需要 parse 一種形狀**:CLI 的統一信封與 REST 的錯誤 body 用的是同一組
@@ -203,10 +203,13 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
   不是靠自律
 - **介面包裝層是全面下游**:`api` / `server` / `cli` / `mcp` 的職責就是把各子系統的出口
   暴露出去,所以它們**必然**認識每一個被暴露的子系統。`storyflow-api` 依賴
-  `storyflow-conflict`(`POST /conflict/context`)不是層級倒轉,是包裝層的定義
+  `storyflow-conflict`(`POST /conflict/context` 與 `POST /conflict/check`)不是層級倒轉,是包裝層的定義
 - **`entity-graph-core`** 的唯一消費者是 `service-and-interfaces` 的契約層;它不知道有 API 與 CLI
 - **唯一的橫向相依**是 `conflict-detection` 第 3 層用 `llm-workshop-mcp` 的 LLM 端點抽象。
-  那是**介面相依**(只用 `chat` 的簽名),不是層級倒轉
+  它消費的是 `storyflow-llm` 的**門面** `StoryFlow.Llm`(`chat` / `newLlmClient` / `llmConfig` /
+  `LlmError` 與訊息型別),不碰該套件的內部模組切分——這條由
+  `conflict-detection/F005` 起釘住。仍是**介面相依**而非層級倒轉:
+  `storyflow-llm` 反過來不認識 `storyflow-conflict`
 
 為什麼不把 `api` / `server` / `cli` 拆成獨立子系統:它們存在的唯一目的是暴露 `storyflow-service`
 的契約,而 ADR-006 的「業務邏輯只有一份」靠的正是包裝與它所包的契約住在同一個子系統裡。
@@ -232,7 +235,7 @@ Entity 都被判成未知型別,把設定錯誤偽裝成資料錯誤。
 - **API**:`servant` + `servant-server` + `warp`,API 型別即契約;`servant-client` 供 CLI 遠端模式;
   `servant-openapi3` 由同一份型別推導出 OpenAPI 3 文件(`story-flow-serve --openapi`)。
   伺服器是**獨立執行檔** `story-flow-serve` 而不是 `story-flow` 的子指令——那正是本表
-  「介面 2」那一列所要求的:`storyflow-cli` 不能被拖進 `warp`(service-and-interfaces/F003 實作備註 1)
+  「介面 2」那一列所要求的:`storyflow-cli` 不能被拖進 `warp`(service-and-interfaces/F003)
 - **業務層**:`mtl` 的 `ReaderT` + `ExceptT` 疊成 `ServiceM`,讓多步驟的業務組合不必手工串 `Either`
 - **CLI**:`optparse-applicative`,所有指令支援 `--json`,輸出為統一信封
   `{"ok":true,"data":…}` / `{"ok":false,"error":{"code":…,"message":…}}`——AI Agent 只需 parse 一種形狀
@@ -606,43 +609,22 @@ summary: 自窗外緩推至講台,焦段 35mm
 限制:Markdown 只有六級標題,根用 `##` 時最深五層。真的不夠時把子樹拆成另一個 Level
 以關聯串接(見 ADR-009 的影響)。
 
-### SQLite 索引結構(可重建,不是真相來源)
+### SQLite 索引(可重建,不是真相來源)
 
-```text
-meta_info(key PK, value)                                -- schema_version、vault_root、vault_name
-files(path PK, mtime, size)                             -- 外部改動的過時偵測
-entities(id PK, vault, type, title, summary, status, timeline, timeline_order,
-         source, revision, created, updated, file_path, section_anchor)
-entity_aliases(entity_id, alias)
-entity_tags(entity_id, tag)                             -- efTag 過濾;與 aliases 對稱
-links(src, dst_vault, dst, kind, note, file_path)       -- 有方向,src → dst
-levels(id PK, vault, title, summary, root, ...)
-nodes(id PK, level_id, parent_id, order_idx, kind, title, summary, ...)
-node_entities(node_id, entity_id)
-entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram
-fts_map(rowid PK, entity_id)                             -- FTS5 的整數 rowid ↔ 字串 id
-```
+檔案是真相來源(ADR-002),SQLite 只是**可丟棄的索引**:`schema_version` 不符即自動全量重建,
+不寫遷移程式。作者用編輯器直接改檔之後,查詢前比對 mtime/size 即可偵測過時並重讀,
+不必手動 `index rebuild`。
 
-`entities_fts` **不是 contentless**:contentless 的 FTS5 表既不支援 `snippet()`(檢索要回傳
-命中片段),也不支援刪除單列(單檔重新索引要能整批換掉舊記錄)。代價是 body 在索引裡多存
-一份副本——索引本來就是可丟棄的,這個代價划算(entity-graph-core/F004 實作備註 1)。
+**索引的表結構屬 `entity-graph-core`**,定義與實作都在
+[`subsystems/entity-graph-core/design.md`](./subsystems/entity-graph-core/design.md)
+——它是內部落地細節,不是對外契約(對外契約是上面那幾節的 Markdown 格式與目錄結構)。
 
-`links` 的 `file_path` 讓單檔重新索引變成一次外鍵級聯:關聯的來源可能是 Entity / Level /
-Node 任一種,靠 `src` 反查要三個子查詢。`meta_info` 記著 Vault 根目錄,讓「只拿到一個索引
-連線」的查詢函式也能回讀檔案取得 body。
+這裡只留一件會**外溢到其他子系統**的事實:
 
-中文檢索的 trigram 以三字元為索引單位,**二字詞(角色名、道具名)`MATCH` 一定不命中**;
-`searchEntities` 對兩字元以下的查詢改走 `LIKE` 掃描(entity-graph-core/F004 實作備註 4)。
-
-`file_path` + `section_anchor` 讓索引能回指原始檔案的哪一節,CLI/API 回傳結果時可直接給出
-「去改哪個檔案的哪一段」。
-
-`files` 表存 mtime 與 size:作者用編輯器直接改檔案後,查詢前比對即可偵測過時並重讀該檔,
-不必手動 `index rebuild`(ADR-002 要求 P1 就處理)。它同時讓「這個檔案的所有記錄」
-以外鍵級聯刪除,單檔重新索引就是整檔替換而非逐筆 diff。
-
-`body` 進 FTS 但**不進 `entities` 表**——正文只有檔案有,索引只需要能搜到它。
-schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建。
+- **中文檢索的 FTS5 以 trigram 為單位,二字詞(角色名、道具名)`MATCH` 一定不命中**,
+  因此兩字元以下的查詢改走 `LIKE` 掃描。這條之所以必須出現在主架構,是因為
+  **`LIKE` 那條路徑給不出相關度分數**——`conflict-detection` 第 2 層的
+  `ByRetrieval` 因此只能吃 `Maybe Double`,而那是跨子系統的契約形狀,不是 store 的內部選擇
 
 ## 使用到的套件
 

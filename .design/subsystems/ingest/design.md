@@ -5,16 +5,16 @@ title: ingest
 description: 把磁碟上的壓縮檔與散檔轉成內容定址的索引資料
 status: active
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-21
 parent: system
-related-adr: [ADR-002, ADR-004, ADR-005]
+related-adr: [ADR-002, ADR-004, ADR-005, ADR-009]
 ---
 
 # Ingest 子系統架構
 
 ## 定位與範圍
 
-ingest 是 AssetDB 唯一**碰素材庫檔案系統**的子系統。它把磁碟上的現況(壓縮檔、散檔、Markdown 筆記)轉換成 catalog 定義的資料表內容:每一筆內容都有 SHA-256、每一個檔案都有 kind 與 kind 專屬中繼資料、每一個素材包都有可從磁碟重建的 `pack.toml`。
+ingest 是 AssetDB 唯一**碰素材庫檔案系統**的子系統。它把磁碟上的現況(壓縮檔、散檔、Markdown 筆記)轉換成 catalog 定義的資料表內容:每一筆內容都有 SHA-256、每一個檔案都有 kind 與 kind 專屬中繼資料、每一個素材包都有一份自述的 `pack.toml` 中繼資料快照。
 
 由三個 cabal 套件構成:
 
@@ -33,6 +33,9 @@ ingest 是 AssetDB 唯一**碰素材庫檔案系統**的子系統。它把磁碟
 - **不保留解壓副本。** 唯一會落地的解壓是掃描 solid 壓縮檔時的暫存目錄,算完雜湊即刪除。
 - **不再自動搬移或刪除散檔。** 2026-08-09 的一次性搬遷已執行完畢,其路徑規則已退役(enhance-0009);現行規劃器對散檔一律產生 `OpKeep`。`OpDelete` 型別與其執行器保留為通用機制,但規劃器不會產生它。
 - **不做增量檔案監看。** 沒有 file watcher,重掃是使用者觸發的動作;冪等性由壓縮檔雜湊比對提供。
+- **不做每包 `pack.toml` 的讀取端。** 寫出的是資料庫快照(給人與 git 讀),讀入的是集中式的
+  `data/packs.toml`(人手填寫的授權與作者)——**兩者是不同格式的不同檔案**。「從磁碟上的
+  `pack.toml` 反向重建資料庫」需要格式對齊與一個真正的讀取端,目前未實作,見管線 B。
 
 ## 對外契約(Public Interface & DTOs)
 
@@ -89,16 +92,24 @@ defaultScanOptions :: FilePath -> ScanOptions
 
 data ScanEvent
   = EvDiscovered Int Int | EvArchiveStart FilePath Int Int | EvArchiveDone FilePath Int
-  | EvArchiveSkipped FilePath | EvLooseStart Int | EvLooseDone Int | EvProblem Text
+  | EvArchiveSkipped FilePath | EvArchiveFailed FilePath Text
+  | EvLooseStart Int | EvLooseDone Int | EvProblem Text | EvAborted Text
 
 data ScanReport = ScanReport
-  { srArchives :: Int, srArchivesSkipped :: Int, srEntries :: Int
-  , srEntriesUnread :: Int, srLooseFiles :: Int, srBytesHashed :: Integer
-  , srProblems :: [Text] }
+  { srArchives :: Int, srArchivesSkipped :: Int, srArchivesFailed :: Int
+  , srEntries :: Int, srEntriesUnread :: Int, srLooseFiles :: Int
+  , srBytesHashed :: Integer, srProblems :: [Text]
+  , srAborted :: Maybe Text }
 emptyReport :: ScanReport
 
 scanRoot :: Store -> ArchiveTools -> ScanOptions -> IO ScanReport
 ```
+
+`srAborted` 是橫向約束第 3 條的出口:`Nothing` 代表跑完(可能帶著單筆失敗),
+`Just 原因` 代表**中止**,此時計數反映的是「中止前完成了多少」而不是全部。
+`srArchivesFailed` 與 `EvArchiveFailed` 是第 2 條的出口:**整個壓縮檔讀不開**與
+「壓縮檔讀得開、但其中某些項目讀不到內容」(`srEntriesUnread`)是**兩件不同的事**,
+不可合併也不可省略 —— 前者代表這一包完全沒有可信的內容雜湊。
 
 ```haskell
 -- 內容雜湊
@@ -126,6 +137,16 @@ humanBytes   :: Integer -> Text
 ```
 
 ### 素材包中繼資料 — `AssetDB.Ingest.Catalogue`
+
+**這裡處理的是集中式的素材包目錄檔(`data/packs.toml`),不是每包自己的 `pack.toml`。**
+兩者是不同的檔案、不同的格式、不同的方向:
+
+| | 集中式目錄檔 | 每包的 `pack.toml` |
+|---|---|---|
+| 位置 | 專案版控的 `data/packs.toml` | `library/packs/<vendor>/<slug>/pack.toml` |
+| 形狀 | `[[pack]]` 陣列,一份檔案描述多個包 | 扁平單包 |
+| 方向 | **讀入**:人手填寫授權與作者 → 套用到資料庫 | **寫出**:資料庫 → 磁碟的中繼資料快照 |
+| 負責模組 | `Ingest.Catalogue` | `Reorg.PackToml` |
 
 ```haskell
 newtype Catalogue = Catalogue { catPacks :: [PackEntry] }
@@ -282,10 +303,26 @@ listBatches  :: Store -> IO [(Text, Int, Text)]     -- (批次, 筆數, 最早�
 
 ### 契約的橫向約束
 
-1. **錯誤是值,不是例外。** 對外介面回傳 `Either`、`Maybe`、或帶 `srProblems` / `arErrors` 的報告。唯一允許拋例外的是不可能發生的資料庫不一致。
-2. **進度是回呼,不是輸出。** `soOnEvent` / `aoOnEvent` / `toOnProgress` 由呼叫端提供,預設是無操作。
-3. **對外識別一律 ULID 或 SHA-256**,內部整數 id 不出模組邊界(`PackRef`、`applyNames` 的 pack id 例外:那是同子系統內的 handle,由 `listPacks` 產生後立即消耗)。
-4. **路徑一律 `/` 分隔的 `Text`**,平台原生分隔符只出現在真正呼叫檔案系統或外部程式的那一刻。
+1. **錯誤是值,不是例外。** 對外介面回傳 `Either`、`Maybe`、或帶 `srProblems` / `arErrors` 的報告。
+   這條**涵蓋別人定義的失敗**:`sqlite-simple` 的資料庫錯誤與 `base` 的檔案系統例外同樣不得
+   穿越邊界 —— 它們是最容易被遺漏的一類,因為型別簽名上看不出來,而 ingest 是全系統唯一
+   同時碰檔案系統與資料庫的子系統,兩種都會遇上。唯一允許拋例外的是不可能發生的資料庫不一致。
+   > **現況尚未完全符合本條**(掃描的目錄走訪、素材包套用、命名套用、筆記匯入都有裸奔路徑),
+   > 收斂由全域的錯誤邊界優化負責;本條是那份優化的契約依據。
+2. **每一種失敗都必須有出口,不得靜默丟棄。** 讀不到、解不開、寫不進去都要在報告或事件裡
+   留下痕跡並帶得出原因。**把失敗吞成成功比把失敗誤判成另一種失敗更糟** —— 前者讓後續所有
+   判斷建立在假的成功上(例如整包項目以 `sha256` 為 NULL 入庫卻回報索引完成,內容定址就
+   失效了,而沒有人會知道)。
+3. **批次作業的失敗分兩層。** **單筆失敗**(這一個壓縮檔 / 這一份內容有問題):記錄後繼續跑。
+   **整批中止**(環境失效——磁碟寫滿、資料庫損毀、外部工具消失):停下來,把已完成的部分
+   留在原地,並在報告裡明確標示是中止而非跑完。兩者不可混為一談:把環境失效當成逐筆失敗,
+   會產生數千則同樣的錯誤然後宣稱「掃描完成」。
+4. **寫交易的持有時間以毫秒計**(ADR-009)。雜湊計算、影像解碼、檔案讀取、子程序呼叫一律
+   在交易之外完成,交易內只剩已經算好的值的寫入。這條的理由不在 ingest 內部 —— 而是
+   `assetdb-server` 可能正在同一個資料庫上服務查詢,寫鎖持有超過 `busy_timeout` 會讓它寫入失敗。
+5. **進度是回呼,不是輸出。** `soOnEvent` / `aoOnEvent` / `toOnProgress` 由呼叫端提供,預設是無操作。
+6. **對外識別一律 ULID 或 SHA-256**,內部整數 id 不出模組邊界(`PackRef`、`applyNames` 的 pack id 例外:那是同子系統內的 handle,由 `listPacks` 產生後立即消耗)。
+7. **路徑一律 `/` 分隔的 `Text`**,平台原生分隔符只出現在真正呼叫檔案系統或外部程式的那一刻。
 
 ## 內部模組劃分(Internal Modules)
 
@@ -308,7 +345,7 @@ listBatches  :: Store -> IO [(Text, Int, Text)]     -- (批次, 筆數, 最早�
 | `AssetDB.Ingest.Handler` | 格式處理器註冊表:副檔名 → `AssetKind` + kind 專屬中繼資料抽取 |
 | `AssetDB.Ingest.Scan` | 目錄走訪、壓縮檔與散檔的索引寫入、冪等判斷 |
 | `AssetDB.Ingest.Report` | 掃描事件與報告的人類可讀渲染 |
-| `AssetDB.Ingest.Catalogue` | `pack.toml` 格式的解析與套用到資料庫 |
+| `AssetDB.Ingest.Catalogue` | 集中式素材包目錄檔(`data/packs.toml`)的解析與套用到資料庫 |
 | `AssetDB.Ingest.Cluster` | 檔名形狀抽象、目錄角色、分群、命名規則套用(**純函數**) |
 | `AssetDB.Ingest.ClusterDb` | 叢集規則的持久化、預覽與批次套用 |
 | `AssetDB.Ingest.Thumb` | 單張縮圖的縮放與編碼(**純函數**);定址規則 re-export 自 catalog |
@@ -325,7 +362,7 @@ listBatches  :: Store -> IO [(Text, Int, Text)]     -- (批次, 筆數, 最早�
 | `AssetDB.Reorg.Snapshot` | 規劃所需資料的**唯一** IO 邊界:一次撈出素材包、散檔、內容覆蓋表 |
 | `AssetDB.Reorg.Plan` | 由快照推導計畫(**純函數**):目標路徑、動作清單、警告 |
 | `AssetDB.Reorg.Render` | 計畫的報告渲染,分摘要與完整兩種詳盡度 |
-| `AssetDB.Reorg.PackToml` | 由素材包列產生 `pack.toml` 文字(**純函數**) |
+| `AssetDB.Reorg.PackToml` | 由素材包列產生每包的 `pack.toml` 快照文字(**純函數**,單向匯出) |
 | `AssetDB.Reorg.Execute` | 前置檢查、兩階段執行、雜湊對帳、批次稽核與回退 |
 
 `reorg` 對 `ingest` 的依賴是刻意且最小的:雜湊入口(對帳)與壓縮副檔名清單(判斷哪些搬移需要對帳)。它不使用掃描器,也不使用格式處理器的探測能力。
@@ -351,27 +388,43 @@ listBatches  :: Store -> IO [(Text, Int, Text)]     -- (批次, 筆數, 最早�
   │       └─ rar/7z:整包解到暫存目錄再逐筆讀(solid 壓縮,逐筆抽取為 O(n²));
   │                  算完雜湊即刪除暫存目錄
   │       │
+  │       │
+  │       │  ※ 整包取內容失敗(損毀 / 有密碼 / 暫存空間不足 / sidecar 中途死掉):
+  │       │    **這一包判定為失敗**,計入 srArchivesFailed + EvArchiveFailed 並帶出原因,
+  │       │    不得以「每一筆都讀不到」的形狀混進成功路徑
+  │       │
   │     每筆項目:kind 判定 ──► kind 專屬中繼資料抽取 ──► 內容 SHA-256
   │       │                                                │
-  │       │   讀不到內容的項目仍入庫(sha256 為 NULL),計入 srEntriesUnread
+  │       │   個別讀不到內容的項目仍入庫(sha256 為 NULL),計入 srEntriesUnread
   │       ▼
-  │     單一交易內:刪除該壓縮檔既有項目 → 寫 archives → 寫 blobs(內容去重)
-  │                → 寫 assets
+  │     【交易外】上面全部算完 ──►【交易內】刪除該壓縮檔既有項目 → 寫 archives
+  │                                → 寫 blobs(內容去重)→ 寫 assets
+  │       ※ 提交邊界 = 一個壓縮檔。一包要麼完整進去要麼沒進去,不會有半包;
+  │         包與包之間各自提交,不共用一個橫跨整次掃描的交易
   │
-  └─ ②B 散檔路徑(單一交易)
+  └─ ②B 散檔路徑
         kind 判定
           ├─ 圖片/音效:整檔讀一次,同一份位元組同時供探測與雜湊
           └─ 其餘 kind:串流雜湊 + 檔案大小查詢(不整檔進記憶體)
-        寫 blobs → 依 (root, 相對路徑) 覆寫 assets
+        【交易外】算雜湊與探測 ──►【交易內】寫 blobs → 依 (root, 相對路徑) 覆寫 assets
+        ※ 分批提交,每批的交易內只有寫入
                   │
                   ▼
               ScanReport ──► renderReport / renderEvent ──► delivery
 ```
 
+**掃描不是原子操作,而且刻意不是。** 中斷(Ctrl-C、當機、`srAborted`)會留下已完成部分的
+索引,這是可接受的:重跑是冪等的 —— 壓縮檔雜湊未變就整包跳過,散檔依 `(root, 相對路徑)`
+覆寫。用「一次掃描 = 一個交易」換取原子性,代價是寫鎖被持有數分鐘到數小時,而那會讓同時
+運行的伺服器完全無法寫入(ADR-009)。**跑到一半的索引遠比一小時不能寫入好。**
+
+中斷後的狀態一律靠重跑收斂,不提供回退 —— 掃描沒有 `reorg` 那種批次回退機制,因為它
+不搬移也不刪除任何檔案,重跑的成本遠低於維護一套回退路徑。
+
 ### 管線 B:素材包中繼資料(F003)
 
 ```text
-pack.toml 文字 ──parseCatalogue──► Catalogue
+data/packs.toml 文字 ──parseCatalogue──► Catalogue
                                      │
                         每個 PackEntry:以壓縮檔**基本檔名**比對 archives
                                      │
@@ -386,7 +439,17 @@ pack.toml 文字 ──parseCatalogue──► Catalogue
                                                   arMatched
 ```
 
-反向:`PackRow` ──`renderPackToml`──► `pack.toml` 文字(含註解),由管線 D 的階段 A 寫入磁碟。這兩個方向構成「資料庫 ↔ 磁碟」的雙向可重建。
+另一個方向:`PackRow` ──`renderPackToml`──► 每包的 `pack.toml` 文字(含註解),由管線 D 的
+階段 A 寫入磁碟。
+
+> **兩個方向不構成往返,目前也不打算構成。** 讀進來的是集中式的 `data/packs.toml`
+> (`[[pack]]` 陣列,人手填寫授權與作者);寫出去的是每包的 `pack.toml`(扁平單包,
+> 資料庫的快照)。**兩者格式不同,沒有讀取端會去讀寫出來的那一份**。
+>
+> `pack.toml` 的用途是**讓一個素材包目錄離開資料庫也自述得清楚**:git 追蹤得到、人看得懂、
+> 備份還原後知道這包是什麼。「從每包的 `pack.toml` 反向重建整個資料庫」是另一個功能,
+> 需要格式對齊與一個真正的讀取端,**目前未實作**。在它存在之前,重建索引的路徑是
+> 「重新掃描壓縮檔 + 套用 `data/packs.toml`」。
 
 ### 管線 C:命名(F005)
 
@@ -494,7 +557,7 @@ entityLinks ──► 雙向查詢,對端識別轉回 ULID
 | `Ingest.Handler` | `Handler` / `handlerFor` / `hProbe` / `hKind` | `Ingest.Scan` | 新增格式只需擴充註冊表;不認得的副檔名歸 `KSource`,**不丟棄** |
 | `Ingest.Handler` | `kindForPath` / `probeContent` | `Ingest.Scan` | kind 判定與探測都只吃路徑與位元組,不碰資料庫 |
 | `Ingest.Handler` | `archiveExtensions` | `Reorg.Execute` | 判斷哪些搬移需要雜湊對帳 |
-| `Ingest.Scan` | `ScanEvent` / `ScanReport` | `Ingest.Report`、delivery | 渲染與統計分離;`srEntriesUnread` 非零代表刪除閘門的依據不完整 |
+| `Ingest.Scan` | `ScanEvent` / `ScanReport` | `Ingest.Report`、delivery | 渲染與統計分離;`srEntriesUnread` 非零代表刪除閘門的依據不完整;`srArchivesFailed` 非零代表**有整包沒有可信雜湊**(比前者嚴重);`srAborted` 為 `Just` 時所有計數都只是中止前的進度,呼叫端不得當成完整結果 |
 | `Ingest.Cluster` | `ClusterKey` / `clusterKeyOf` / `clusterKeyText` / `Cluster` / `clusterBy` | `Ingest.ClusterDb`、delivery 的 `cli`(含 AI 輔助流程) | 分群與反查共用同一個鍵函式;`clusterKeyText` 是資料庫裡的形狀鍵格式 |
 | `Ingest.Cluster` | `NameRule`(含手寫 JSON codec)/ `applyRule` | `Ingest.ClusterDb` | JSON 欄位名是**跨版本持久化格式**,不由 Haskell 欄位名間接決定 |
 | `Ingest.ClusterDb` | `PackRef` / `listPacks` / `packPaths` / `packClusters` | delivery 的 `cli` | pack 的內部整數 id 只在同一次操作內流通 |
@@ -502,7 +565,7 @@ entityLinks ──► 雙向查詢,對端識別轉回 ULID
 | `AssetDB.PathText`(catalog) | `ThumbSize` / `thumbSizes` / `thumbPath` / `leafOf` / `extensionOf` / `slugify` | `Ingest.Thumb`(re-export)、`Ingest.Scan`、`Ingest.Handler`(re-export)、`Ingest.Cluster`、`Reorg.Plan`(re-export)、`Reorg.PackToml`、`Reorg.Execute` | **產生端與讀取端必須是同一套定址規則**;`slugify` 對純非 ASCII 輸入會回空字串,呼叫端必須有退路 |
 | `Reorg.Snapshot` | `Snapshot` / `PackRow` / `LooseRow` / `loadSnapshot` | `Reorg.Plan`、`Reorg.PackToml`、`Reorg.Execute` | 規劃器的**唯一** IO 邊界;`snArchivedBy` 的值是刪除證據而非布林 |
 | `Reorg.Plan` | `Op` / `Plan` / `PlanStats` / `buildPlan` / `targetDirFor` | `Reorg.Render`、`Reorg.Execute`、delivery | 計畫是**資料**;`targetDirFor` 同時決定規劃與執行時的 `pack.toml` 歸屬 |
-| `Reorg.PackToml` | `renderPackToml` | `Reorg.Execute` | 產出必須能被 `Ingest.Catalogue` 的解析器讀回 |
+| `Reorg.PackToml` | `renderPackToml` | `Reorg.Execute` | 產出是給**人與 git** 讀的中繼資料快照,不是給機器讀回的序列化格式——目前沒有讀取端,**不得假設它能被 `Ingest.Catalogue` 解析**(兩者格式不同);因此可讀性與註解優先於可解析性 |
 | `Reorg.Execute` | `ApplyEvent` / `ApplyReport` / `applyPlan` / `undoBatch` / `listBatches` | delivery | 階段 A 完全可回退;階段 B 需獨立旗標;對帳失敗**不執行任何刪除** |
 
 ### 依賴方向
@@ -601,13 +664,24 @@ archive ◄──── ingest ◄──── reorg
 
 階段編號沿用系統主架構的全域編號,缺號的階段屬於其他子系統。功能面全部完成並通過測試;後續變更走 `/enhance-design` 或 `/bugfix`。
 
+> **2026-08-21 的契約修訂目前領先實作。** `/arch-audit system` 的全域檢測發現三處與本文件
+> 新增條款不符的實作,契約已先改(橫向約束第 1–4 條、管線 A 的交易邊界與失敗出口、
+> `ScanReport` / `ScanEvent` 的新欄位),程式碼待後續收斂:
+>
+> | 缺口 | 對應的新契約 | 路線 |
+> |---|---|---|
+> | 整包取內容失敗被吞成成功,項目以 `sha256` NULL 入庫 | 橫向約束第 2 條、管線 A 的 `EvArchiveFailed` | `/bugfix` |
+> | 散檔掃描與壓縮檔寫入把長時間 IO 包在單一交易內 | 橫向約束第 4 條、管線 A 的交易邊界 | `/enhance-design` |
+> | 掃描沒有「整批中止」這一層,且裸 `try` 會吞掉 Ctrl-C | 橫向約束第 3 條、`srAborted` | `/enhance-design` |
+> | 資料庫錯誤與檔案系統例外穿越邊界 | 橫向約束第 1 條 | 全域 `/enhance-design` |
+
 ## 功能規劃
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---|---|---|---|---|
 | 1 | archive-access | ZIP 原生列表與串流讀取,rar/7z 交給 7-Zip sidecar | `AssetDB.Archive`、`Archive.Types`、`Archive.Zip`、`Archive.Sidecar` | - | F001 |
 | 2 | content-addressed-scan | 目錄走訪、SHA-256 內容定址、格式處理器與中繼資料抽取 | `Ingest.Scan`、`Ingest.Hash`、`Ingest.Handler`、`Ingest.Report` | #1 | F002 |
-| 3 | pack-metadata | pack.toml 的產生與讀取,讓資料庫可從磁碟重建 | `Ingest.Catalogue`、`Reorg.PackToml` | #2 | F003 |
+| 3 | pack-metadata | 集中式目錄檔的讀入套用,與每包 pack.toml 快照的寫出 | `Ingest.Catalogue`、`Reorg.PackToml` | #2 | F003 |
 | 4 | library-reorganize | 快照→計畫→執行→對帳→回退的安全搬遷機制 | `Reorg.Snapshot`、`Reorg.Plan`、`Reorg.Render`、`Reorg.Execute` | #3 | F004 |
 | 5 | name-clustering | 檔名形狀抽象、叢集推論與命名規則套用 | `Ingest.Cluster`、`Ingest.ClusterDb` | #2 | F005 |
 | 6 | thumbnail-pipeline | 縮圖產生與內容定址快取 | `Ingest.Thumb`、`Ingest.ThumbRun` | #2 | F006 |
@@ -635,8 +709,8 @@ archive ◄──── ingest ◄──── reorg
 
 - **階段**:階段 2(掃描與索引)
 - **負責模組**:`AssetDB.Ingest.Scan`、`AssetDB.Ingest.Hash`、`AssetDB.Ingest.Handler`、`AssetDB.Ingest.Report`
-- **實作的 Level 2 介面**:`ScanOptions` / `defaultScanOptions` / `ScanEvent` / `ScanReport` / `emptyReport` / `scanRoot`;`Sha256` / `unSha256` / `sha256Bytes` / `sha256File` / `crc32Hex`;`Handler` / `handlers` / `handlerFor` / `kindForPath` / `probeContent` / `archiveExtensions`;`renderEvent` / `renderReport` / `humanBytes`
-- **資料流管線段落**:管線 A 全段(①、②A、②B 與報告輸出)
+- **實作的 Level 2 介面**:`ScanOptions` / `defaultScanOptions` / `ScanEvent`(含 `EvArchiveFailed` / `EvAborted`)/ `ScanReport`(含 `srArchivesFailed` / `srAborted`)/ `emptyReport` / `scanRoot`;`Sha256` / `unSha256` / `sha256Bytes` / `sha256File` / `crc32Hex`;`Handler` / `handlers` / `handlerFor` / `kindForPath` / `probeContent` / `archiveExtensions`;`renderEvent` / `renderReport` / `humanBytes`
+- **資料流管線段落**:管線 A 全段(①、②A、②B 與報告輸出),含其中的交易邊界與中斷語意
 - **驗收標準**:
   - 壓縮檔內項目與散檔都進資料庫,每一筆都有 SHA-256(讀不到內容的項目除外,且計入 `srEntriesUnread`)
   - 相同內容跨來源只產生一筆 blob
@@ -648,14 +722,21 @@ archive ◄──── ingest ◄──── reorg
   - 含自我指涉符號連結/junction 的目錄樹不無窮遞迴,且產生警告
   - 不認得的副檔名歸 `KSource` 而不是丟棄;`archiveExtensions` 與 `formatExtensions` 一致
   - PNG 取出尺寸/alpha/色數;WAV 取出取樣率/聲道數/長度,chunk 間夾雜其他 chunk 或奇數長度 padding 都不影響;壞掉的輸入回 `Nothing` 而不是爆炸
-- **明確不做**:不做查詢與統計;不做語意標記;不刪除或搬移任何檔案;不做增量檔案監看;不對 kind 為非圖片/音效的散檔做內容探測;不猜授權與作者(那是 F003)
+  - **整包取不到內容時判定為失敗**:計入 `srArchivesFailed`、發出 `EvArchiveFailed` 並帶得出原因;
+    **不會**出現「整包項目的 `sha256` 全是 NULL 但回報索引完成」這種形狀
+  - **環境失效時中止而非逐筆記錯**:`srAborted` 帶得出原因,計數反映中止前的進度,
+    報告明確標示為中止;已完成的部分留在資料庫裡
+  - **交易內沒有 IO**:雜湊、解碼、檔案讀取都在交易外完成;提交邊界是單一壓縮檔(散檔分批),
+    不存在橫跨整次掃描的交易
+  - **中斷後重跑收斂**:掃描中途中斷再重跑,最終索引與一次跑完相同,且不產生重複資源
+- **明確不做**:不做查詢與統計;不做語意標記;不刪除或搬移任何檔案;不做增量檔案監看;不對 kind 為非圖片/音效的散檔做內容探測;不猜授權與作者(那是 F003);**不提供掃描的回退機制**(中斷靠重跑冪等收斂,不做批次回退)
 
 ### pack-metadata
 
 - **階段**:階段 2b(素材包中繼資料)
 - **負責模組**:`AssetDB.Ingest.Catalogue`、`AssetDB.Reorg.PackToml`
 - **實作的 Level 2 介面**:`Catalogue` / `PackEntry` / `parseCatalogue` / `ApplyResult` / `applyCatalogue`;`renderPackToml`
-- **資料流管線段落**:管線 B 全段(解析 → 比對 → 作者/授權解析 → status 判定;以及反向的 `pack.toml` 產生)
+- **資料流管線段落**:管線 B 全段(集中式目錄檔的解析 → 比對 → 作者/授權解析 → status 判定;以及另一個方向的每包 `pack.toml` 快照產生)
 - **驗收標準**:
   - 讀出所有欄位;可選欄位缺席不影響解析;缺必填欄位或語法錯誤回 `Left`
   - 以壓縮檔**基本檔名**比對,不是完整路徑
@@ -666,7 +747,8 @@ archive ◄──── ingest ◄──── reorg
   - 重複套用不產生變化(冪等)
   - 產出的 `pack.toml` 含識別欄位、壓縮檔雜湊/大小/項目數;只寫檔名不寫路徑;缺欄位不產生空白 key;雙引號與反斜線跳脫;中文原樣保留
   - 沒有授權時不產生 `[license]` 區塊,而是留下顯眼說明且 status 為 `draft`
-- **明確不做**:不刪除目錄裡沒提到的素材包;不定義授權條款本身(那是 catalog 的種子資料);不從檔名或資料夾名推測 vendor / kind / 授權;不做授權閘門的執行(那是 delivery 的 `project`)
+  - 產出的內容不宣稱任何目前不成立的能力 —— 註解不得指向不存在的欄位,也不得聲稱可用於反向重建
+- **明確不做**:不刪除目錄裡沒提到的素材包;不定義授權條款本身(那是 catalog 的種子資料);不從檔名或資料夾名推測 vendor / kind / 授權;不做授權閘門的執行(那是 delivery 的 `project`);**不做每包 `pack.toml` 的讀取端**(寫出與讀入是兩種不同格式的檔,反向重建是未實作的獨立功能,見管線 B)
 
 ### library-reorganize
 

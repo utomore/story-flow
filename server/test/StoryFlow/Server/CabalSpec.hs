@@ -33,12 +33,18 @@ forbidden = ["storyflow-store", "storyflow-md", "sqlite-simple", "direct-sqlite"
 -- 是必然的。它__不是落地層__ ——那個套件的 @build-depends@ 逐字擋著
 -- @storyflow-store@ \/ @sqlite-simple@,所以「server 不 import 落地層」這條約束
 -- 不會因為它而被繞過。
+--
+-- llm-workshop-mcp/F004:@storyflow-workshop@ \/ @storyflow-llm@ 同一個理由——
+-- @workshopH@ 呼叫 @startWorkshop@\/@loadSession@\/@stepWorkshop@\/@commitStage@,
+-- @acquireLlmClient@ 讀 @[llm]@ 設定並建 @LlmClient@,兩者都不是落地層。
 required :: [String]
 required =
   [ "storyflow-api"
   , "storyflow-conflict"
   , "storyflow-core"
+  , "storyflow-llm"
   , "storyflow-service"
+  , "storyflow-workshop"
   , "warp"
   , "servant-server"
   ]

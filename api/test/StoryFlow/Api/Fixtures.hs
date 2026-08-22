@@ -42,13 +42,29 @@ module StoryFlow.Api.Fixtures
   , sampleReportNote
   , sampleConflictReport
   , sampleCheckReq
+
+    -- * 工作坊(llm-workshop-mcp/F004)
+  , sampleMessage
+  , sampleStageDraft
+  , sampleSession
+  , sampleWorkshopStartReq
+  , sampleWorkshopStepReq
+  , sampleWorkshopStepResp
+  , sampleWorkshopCommitResp
   , idOf
   , refOf
   ) where
 
 import Data.Text (Text)
 import Data.Time (fromGregorian)
-import StoryFlow.Api (CheckReq (..), ContextReq (..))
+import StoryFlow.Api
+  ( CheckReq (..)
+  , ContextReq (..)
+  , WorkshopCommitResp (..)
+  , WorkshopStartReq (..)
+  , WorkshopStepReq (..)
+  , WorkshopStepResp (..)
+  )
 import StoryFlow.Conflict.Types
   ( ConflictHit (..)
   , ConflictOpts (..)
@@ -66,7 +82,9 @@ import StoryFlow.Core.Link (Link (..), LinkKind (Contradicts, PartOf))
 import StoryFlow.Core.Meta (Meta (..), Source (Human), Status (Canon), Timeline (..))
 import StoryFlow.Core.Registry (EntityTypeSpec (..), FieldSpec (..))
 import StoryFlow.Core.Tree (NodeTree (..))
+import StoryFlow.Llm (Message (..), Role (..))
 import StoryFlow.Service
+import StoryFlow.Workshop (Session (..), StageDraft (..))
 
 sampleTimeline :: Timeline
 sampleTimeline = Timeline (Just "埃提亞崩塌前") (Just 3)
@@ -266,6 +284,51 @@ sampleConflictReport =
 
 sampleCheckReq :: CheckReq
 sampleCheckReq = CheckReq sampleDraft sampleConflictOpts True
+
+-- 工作坊(llm-workshop-mcp/F004) ---------------------------------------------------
+
+sampleMessage :: Message
+sampleMessage = Message User "琳達走進廢墟"
+
+-- | @timeline@ 刻意給 'Just':選配欄位沒值時整個鍵不出現,樣本留空的話鍵集合
+-- 比對會假性不一致(與其餘樣本同一個理由)。
+sampleStageDraft :: StageDraft
+sampleStageDraft =
+  StageDraft
+    { sdTitle = "外貌"
+    , sdSummary = "銀灰短髮"
+    , sdBody = "銀灰短髮剪到耳際……"
+    , sdTags = ["外觀"]
+    , sdTimeline = Just sampleTimeline
+    }
+
+-- | @owner@ 刻意給 'Just':首次 @commitStage@ 之前它是 'Nothing'(鍵不出現),
+-- 但樣本要能覆蓋到那一欄才能驗到 schema 裡 @owner@ 的存在。
+sampleSession :: Session
+sampleSession =
+  Session
+    { wsId = "wksp-00000001"
+    , wsType = "character-fragment"
+    , wsConstraints = [idOf "ent-7f3a"]
+    , wsStages = ["定位", "外貌與舉止"]
+    , wsCurrent = 1
+    , wsHistory = [Message System "你正在引導使用者……", sampleMessage]
+    , wsOwner = Just (idOf "ent-7f3c")
+    , wsPending = [sampleStageDraft]
+    , wsCommitted = [idOf "ent-7f3b"]
+    }
+
+sampleWorkshopStartReq :: WorkshopStartReq
+sampleWorkshopStartReq = WorkshopStartReq "character-fragment" [idOf "ent-7f3a"]
+
+sampleWorkshopStepReq :: WorkshopStepReq
+sampleWorkshopStepReq = WorkshopStepReq "琳達走進廢墟"
+
+sampleWorkshopStepResp :: WorkshopStepResp
+sampleWorkshopStepResp = WorkshopStepResp sampleSession "以下是這個階段的草稿。"
+
+sampleWorkshopCommitResp :: WorkshopCommitResp
+sampleWorkshopCommitResp = WorkshopCommitResp sampleSession [sampleEntityView]
 
 idOf :: Text -> Id
 idOf t = case parseId t of

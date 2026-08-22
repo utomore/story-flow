@@ -114,6 +114,15 @@ data Command
     -- @Bool@ 是 @--no-llm@,不是 'ConflictOpts' 的欄位——它是「這一次要不要跑」
     -- 的執行決定,不是三層共用的選項(見 F006 對應的 Level 2 契約)。
     ConflictCheck BodySource [Id] ConflictOpts Bool
+  | -- | @workshop start --type \<型別\> [--constraint \<id\>]…@(llm-workshop-mcp/F004)。
+    WorkshopStart Text [Id]
+  | -- | @workshop step \<session-id\> (--input \<文字\>|--input-file \<檔案\>|-)@。
+    --
+    -- 輸入是 'BodySource' 而不是 'Text',理由與 'EntitySetBody' 相同——讀檔與讀
+    -- stdin 是 IO,而 'parseCli' 是純的。
+    WorkshopStep Text BodySource
+  | -- | @workshop commit \<session-id\>@。
+    WorkshopCommit Text
   deriving stock (Show, Eq)
 
 -- 進入點 -----------------------------------------------------------------------
@@ -165,6 +174,7 @@ commandP =
         <> grp "node" nodeP "Level 裡的 Node"
         <> cmd "context" contextP "撈出與一段草稿相關的既有片段(只跑前兩層,不做矛盾判斷)"
         <> grp "conflict" conflictP "三層合流的衝突報告"
+        <> grp "workshop" workshopP "階段式引導工作坊"
     )
 
 -- | 名詞層:再包一層動詞的 @hsubparser@。
@@ -379,6 +389,53 @@ draftP =
 
 noLlmP :: Parser Bool
 noLlmP = switch (long "no-llm" <> help "這一次不跑第 3 層(語意判斷),報告退化成兩層")
+
+-- | @workshop@ 名詞群(llm-workshop-mcp/F004):三個動詞。
+workshopP :: Parser Command
+workshopP =
+  hsubparser
+    ( cmd "start" workshopStartP "開一個新工作坊,依型別的階段清單逐階段對話"
+        <> cmd "step" workshopStepP "把這一輪的輸入送進目前階段,模型的回覆存回 session"
+        <> cmd "commit" workshopCommitP "把目前階段最後一次成功解析的草稿定案,寫進圖譜"
+    )
+
+workshopStartP :: Parser Command
+workshopStartP = WorkshopStart <$> typeOptReq <*> many constraintOpt
+
+-- | 硬約束的既有片段 id,可重複。
+constraintOpt :: Parser Id
+constraintOpt =
+  option
+    (eitherReader (readWith (fmap snd . parseId) "id 的格式應為 <prefix>-<十六進位>,如 ent-7f3a"))
+    ( long "constraint"
+        <> metavar "<id>"
+        <> help "硬約束的既有片段 id,可重複"
+    )
+
+workshopStepP :: Parser Command
+workshopStepP = WorkshopStep <$> sessionIdArg <*> workshopInputP
+
+workshopCommitP :: Parser Command
+workshopCommitP = WorkshopCommit <$> sessionIdArg
+
+sessionIdArg :: Parser Text
+sessionIdArg =
+  argument str (metavar "<session-id>" <> help "workshop start 印出的 session id")
+
+-- | 這一輪要對模型說的話:字面 \/ 檔案 \/ stdin 三選一,必填。
+--
+-- 旗標名用 @--input@ \/ @--input-file@ 而不是沿用 @--body@:語意是「對話輸入」
+-- 不是「正文」。@-@ 走既有的 'bodyStdinArg'。
+workshopInputP :: Parser BodySource
+workshopInputP = inputLiteralOpt <|> inputFileOpt <|> bodyStdinArg
+
+inputLiteralOpt :: Parser BodySource
+inputLiteralOpt =
+  BodyLiteral <$> txtOption (long "input" <> metavar "<文字>" <> help "這一輪要對模型說的話")
+
+inputFileOpt :: Parser BodySource
+inputFileOpt =
+  BodyFile <$> strOption (long "input-file" <> metavar "<檔案>" <> help "從檔案讀取這一輪的輸入(UTF-8)")
 
 -- | @--for@ __必填__,沒有預設:草稿要從哪裡來,猜不得。
 --

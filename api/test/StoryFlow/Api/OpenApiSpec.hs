@@ -35,10 +35,12 @@ spec :: Spec
 spec = describe "OpenAPI 文件" $ do
   -- conflict-detection/F004 加了 POST /conflict/context:14 → 15 條路徑、
   -- 23 → 24 個 operation。conflict-detection/F006 再加 POST /conflict/check:
-  -- 15 → 16 條路徑、24 → 25 個 operation。
-  it "paths 數等於實際的路徑數(16 條路徑、25 個 operation)" $ do
-    IOM.size (doc ^. paths) `shouldBe` 16
-    length operations `shouldBe` 25
+  -- 15 → 16 條路徑、24 → 25 個 operation。llm-workshop-mcp/F004 加了
+  -- POST /workshop、POST /workshop/:id/step、POST /workshop/:id/commit:
+  -- 16 → 19 條路徑、25 → 28 個 operation。
+  it "paths 數等於實際的路徑數(19 條路徑、28 個 operation)" $ do
+    IOM.size (doc ^. paths) `shouldBe` 19
+    length operations `shouldBe` 28
 
   it "每個 operation 都有非空 summary" $
     mapM_ (\(k, op) -> (k, fmap T.null (op ^. summary)) `shouldBe` (k, Just False)) labelled
@@ -103,6 +105,15 @@ expectedSchemas =
   , "ConflictHit"
   , "ReportNote"
   , "ConflictReport"
+  , -- llm-workshop-mcp/F004
+    "WorkshopStartReq"
+  , "WorkshopStepReq"
+  , "WorkshopStepResp"
+  , "WorkshopCommitResp"
+  , "Session"
+  , "StageDraft"
+  , "Message"
+  , "Role"
   ]
 
 doc :: OpenApi

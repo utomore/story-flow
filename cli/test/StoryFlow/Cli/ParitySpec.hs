@@ -8,10 +8,18 @@
 -- 得到」與「同一個失敗在兩邊的信封相同」。
 module StoryFlow.Cli.ParitySpec (spec) where
 
+import Data.Aeson (Value (String), encode, object, (.=))
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Network.HTTP.Types.Status (status200)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
 import StoryFlow.Cli.Fixtures
 import System.Exit (ExitCode (..))
+import System.FilePath ((</>))
 import Test.Hspec
 
 spec :: Spec
@@ -56,6 +64,28 @@ spec = describe "內嵌與遠端的輸出" $ do
       seedVault
       _ <- sfRemote url ["entity", "set", "琳達", "--summary", "改過一次"]
       mapM_ (sameHuman url) readCommands
+
+  -- llm-workshop-mcp/F004 T21:session id 在兩種介面裡是同一個東西——同一份
+  -- .storyflow/workshops/<id>.json,CLI 開的 session 用 REST 接得下去,反之亦然。
+  describe "workshop(llm-workshop-mcp/F004)" $ do
+    it "CLI 開的 session,REST 用同一個 id 接得到 step" $ withCliServerLlm draftReply $ \_ url -> do
+      startOut <- sfOk ["workshop", "start", "--type", "character-fragment"]
+      let sid = sessionIdFromStartOut startOut
+      r <- sfRemote url ["workshop", "step", sid, "--input", "使用者輸入"]
+      crExit r `shouldBe` ExitSuccess
+
+    it "REST 開的 session,CLI 接得到 commit" $ withCliServerLlm draftReply $ \_ url -> do
+      startEnv <- sfRemoteJson url ["workshop", "start", "--type", "character-fragment"]
+      let sid = T.unpack (sessionIdOf startEnv)
+      _ <- sfRemote url ["workshop", "step", sid, "--input", "使用者輸入"]
+      r <- sf ["workshop", "commit", sid]
+      crExit r `shouldBe` ExitSuccess
+
+    it "workshop step 不存在的 id,錯誤 code/message 兩邊相同" $ withCliServer $ \_ url -> do
+      emb <- sfJson ["workshop", "step", "wksp-00000000", "--input", "x"]
+      rem' <- sfRemoteJson url ["workshop", "step", "wksp-00000000", "--input", "x"]
+      jsonPath ["error", "code"] emb `shouldBe` jsonPath ["error", "code"] rem'
+      jsonPath ["error", "message"] emb `shouldBe` jsonPath ["error", "message"] rem'
 
 -- | 兩種模式都要看得到的內容:主體 + 片段 + 關聯 + 一個 Level。
 seedVault :: IO ()
@@ -142,3 +172,77 @@ labelled args a b
           <> a
           <> "\n遠端:\n"
           <> b
+
+-- 工作坊的底稿(llm-workshop-mcp/F004) ---------------------------------------------
+
+draftReply :: Text
+draftReply =
+  T.unlines
+    [ "以下是這個階段可以定案的草稿。"
+    , "```json"
+    , "[{\"title\":\"外貌\",\"summary\":\"銀灰短髮\",\"body\":\"銀灰短髮剪到耳際……\",\"tags\":[\"外觀\"]}]"
+    , "```"
+    ]
+
+-- | 從 @renderWorkshopStarted@ 的人類輸出「已建立工作坊 wksp-xxxx(…)」擷取 id。
+sessionIdFromStartOut :: Text -> String
+sessionIdFromStartOut =
+  T.unpack . T.takeWhile (/= '(') . T.strip . T.drop (T.length prefix)
+  where
+    prefix = "已建立工作坊 "
+
+sessionIdOf :: Value -> Text
+sessionIdOf env = case jsonPath ["data", "id"] env of
+  Just (String sid) -> sid
+  other -> error ("data.id 取不到:" <> show other)
+
+-- | 與 'withCliServer' 相同,但多起一個本機 stub 端點並把伺服器綁定的那個
+-- Vault 的 @[llm]@ 段指過去。
+withCliServerLlm :: Text -> (FilePath -> String -> IO a) -> IO a
+withCliServerLlm reply act =
+  withLlmStub reply $ \port ->
+    withCliServer $ \dir url -> do
+      appendLlmConfig dir port
+      act dir url
+
+withLlmStub :: Text -> (Int -> IO a) -> IO a
+withLlmStub reply act = Warp.testWithApplication (pure (stubApp reply)) act
+
+stubApp :: Text -> Wai.Application
+stubApp reply _req respond =
+  respond $
+    Wai.responseLBS status200 [("Content-Type", "application/json")] (chatCompletion reply)
+
+chatCompletion :: Text -> LBS.ByteString
+chatCompletion content =
+  encode $
+    object
+      [ "id" .= ("chatcmpl-stub" :: Text)
+      , "object" .= ("chat.completion" :: Text)
+      , "created" .= (1755648000 :: Int)
+      , "model" .= ("qwen2.5-14b-instruct" :: Text)
+      , "choices"
+          .= [ object
+                 [ "index" .= (0 :: Int)
+                 , "finish_reason" .= ("stop" :: Text)
+                 , "message" .= object ["role" .= ("assistant" :: Text), "content" .= content]
+                 ]
+             ]
+      ]
+
+appendLlmConfig :: FilePath -> Int -> IO ()
+appendLlmConfig dir port = do
+  let fp = dir </> ".storyflow" </> "config.toml"
+  old <- TE.decodeUtf8 <$> BS.readFile fp
+  BS.writeFile
+    fp
+    ( TE.encodeUtf8
+        ( old
+            <> T.unlines
+              [ ""
+              , "[llm]"
+              , "base_url = \"http://127.0.0.1:" <> T.pack (show port) <> "/v1\""
+              , "model = \"qwen2.5-14b-instruct\""
+              ]
+        )
+    )

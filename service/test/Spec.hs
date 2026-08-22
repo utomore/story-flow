@@ -17,6 +17,7 @@ import qualified StoryFlow.Service.TypeListSpec
 import qualified StoryFlow.Service.TypesSpec
 import qualified StoryFlow.Service.ValidateSpec
 import qualified StoryFlow.Service.VaultConfigSpec
+import qualified StoryFlow.Service.VaultRootSpec
 import qualified StoryFlow.Service.VaultSpec
 import System.IO
 import Test.Hspec
@@ -35,6 +36,7 @@ main = do
     StoryFlow.Service.ValidateSpec.spec
     StoryFlow.Service.VaultSpec.spec
     describe "llm-workshop-mcp/F001 T4 vaultConfig" StoryFlow.Service.VaultConfigSpec.spec
+    describe "llm-workshop-mcp/F002 T2 vaultRoot" StoryFlow.Service.VaultRootSpec.spec
     StoryFlow.Service.TypeListSpec.spec
     StoryFlow.Service.EntityReadSpec.spec
     StoryFlow.Service.AliasIndexSpec.spec

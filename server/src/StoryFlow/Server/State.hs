@@ -22,13 +22,14 @@ module StoryFlow.Server.State
   , closeAppState
   , run1
   , runIO
+  , runEither
   ) where
 
 import Control.Concurrent.MVar (MVar, modifyMVar, newMVar, readMVar)
 import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
-import Servant (Handler)
+import Servant (Handler, ServerError)
 import StoryFlow.Server.Error (toServerError)
 import StoryFlow.Service (Env, ServiceError, ServiceM, closeEnv, openEnv, runService)
 
@@ -60,6 +61,18 @@ run1 st op = do
 -- 'StoryFlow.Service.createVault')走這條。
 runIO :: IO (Either ServiceError a) -> Handler a
 runIO act = liftIO act >>= either (throwError . toServerError) pure
+
+-- | 'run1' 的泛型化版本(llm-workshop-mcp/F004):操作本身可能再短路成一個
+-- __第二種__錯誤 @e@(例如工作坊的 'StoryFlow.Workshop.WorkshopError'),由呼叫端
+-- 給一個 @e -> ServerError@ 決定怎麼呈現。'run1' 的行為不變——它就是
+-- @op@ 不會再短路的特例,兩者不必合併成一個函式。
+runEither :: AppState -> (e -> ServerError) -> ServiceM (Either e a) -> Handler a
+runEither st toErr op = do
+  r <- liftIO (withEnvLocked st (\env -> runService env op))
+  case r of
+    Left se -> throwError (toServerError se)
+    Right (Left e) -> throwError (toErr e)
+    Right (Right a) -> pure a
 
 -- | 取鎖 → 必要時開 'Env' → 跑動作。
 --

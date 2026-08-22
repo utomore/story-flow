@@ -261,6 +261,48 @@ spec = describe "引數解析" $ do
     it "缺 --draft 時解析失敗,訊息含 draft" $
       failureMessage ["conflict", "check"] `shouldSatisfy` isInfixOf "draft"
 
+  describe "workshop(llm-workshop-mcp/F004)" $ do
+    it "start 帶 --type 與可重複的 --constraint" $
+      snd
+        ( parseOk
+            [ "workshop"
+            , "start"
+            , "--type"
+            , "character-fragment"
+            , "--constraint"
+            , "ent-7f3a"
+            , "--constraint"
+            , "ent-91cc"
+            ]
+        )
+        `shouldBe` WorkshopStart "character-fragment" [idOf "ent-7f3a", idOf "ent-91cc"]
+
+    it "start 沒給 --constraint 時是空清單" $
+      snd (parseOk ["workshop", "start", "--type", "character-fragment"])
+        `shouldBe` WorkshopStart "character-fragment" []
+
+    it "缺 --type 時是用法錯誤" $
+      failureMessage ["workshop", "start"] `shouldSatisfy` isInfixOf "type"
+
+    it "step 的 --input 是字面文字" $
+      snd (parseOk ["workshop", "step", "wksp-00000001", "--input", "使用者輸入"])
+        `shouldBe` WorkshopStep "wksp-00000001" (BodyLiteral "使用者輸入")
+
+    it "step 的 --input-file 是檔案來源" $
+      snd (parseOk ["workshop", "step", "wksp-00000001", "--input-file", "input.md"])
+        `shouldBe` WorkshopStep "wksp-00000001" (BodyFile "input.md")
+
+    it "step 的 - 解成 BodyStdin" $
+      snd (parseOk ["workshop", "step", "wksp-00000001", "-"])
+        `shouldBe` WorkshopStep "wksp-00000001" BodyStdin
+
+    it "step 三個輸入來源一個都沒給時解析失敗" $
+      failureMessage ["workshop", "step", "wksp-00000001"] `shouldSatisfy` isInfixOf "input"
+
+    it "commit 只吃 session id" $
+      snd (parseOk ["workshop", "commit", "wksp-00000001"])
+        `shouldBe` WorkshopCommit "wksp-00000001"
+
 -- 小工具 -----------------------------------------------------------------------
 
 parseOk :: [String] -> (GlobalOpts, Command)

@@ -20,6 +20,7 @@ import qualified StoryFlow.Cli.ResolveSpec
 import qualified StoryFlow.Cli.RunCliSpec
 import qualified StoryFlow.Cli.TreeSpec
 import qualified StoryFlow.Cli.VaultCmdSpec
+import qualified StoryFlow.Cli.WorkshopCmdSpec
 import System.IO
 import Test.Hspec
 
@@ -51,3 +52,6 @@ main = do
     StoryFlow.Cli.ParitySpec.spec
     -- conflict-detection/F004:context 出口(內嵌與遠端兩條路徑都在這一檔)
     StoryFlow.Cli.ContextCmdSpec.spec
+    -- llm-workshop-mcp/F004:workshop 三指令(內嵌路徑;遠端與對照分別併進
+    -- RemoteCmdSpec / ParitySpec)
+    StoryFlow.Cli.WorkshopCmdSpec.spec

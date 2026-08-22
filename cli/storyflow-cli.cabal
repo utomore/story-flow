@@ -32,6 +32,10 @@ library
     -- service-and-interfaces/F002 驗收標準 3:CLI 碰不到落地層,只認得 service。
     -- storyflow-store / storyflow-md / sqlite-simple / direct-sqlite 出現在這裡
     -- 即為架構違規(service-and-interfaces/F002 T1 的測試會擋下來)。
+    --
+    -- llm-workshop-mcp/F004:storyflow-workshop 供 workshop 三指令呼叫
+    -- startWorkshop / loadSession / stepWorkshop / commitStage;storyflow-llm
+    -- 供 acquireLlmClient 讀 [llm] 設定並建 LlmClient(接線層,不跨 HTTP)。
     build-depends:
         , aeson
         , base                  >=4.14 && <5
@@ -47,7 +51,9 @@ library
         , storyflow-api
         , storyflow-conflict
         , storyflow-core
+        , storyflow-llm
         , storyflow-service
+        , storyflow-workshop
         , text
         , transformers
 
@@ -86,6 +92,7 @@ test-suite storyflow-cli-test
         StoryFlow.Cli.RunCliSpec
         StoryFlow.Cli.TreeSpec
         StoryFlow.Cli.VaultCmdSpec
+        StoryFlow.Cli.WorkshopCmdSpec
     build-depends:
         , aeson
         , base
@@ -93,6 +100,7 @@ test-suite storyflow-cli-test
         , directory
         , filepath
         , hspec
+        , http-types
         , optparse-applicative
         , storyflow-cli
         , storyflow-server
@@ -102,7 +110,10 @@ test-suite storyflow-cli-test
         , storyflow-api
         , storyflow-conflict
         , storyflow-core
+        , storyflow-llm
         , storyflow-service
+        , storyflow-workshop
         , temporary
         , text
         , time
+        , wai

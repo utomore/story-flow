@@ -37,6 +37,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Options.Applicative (ParserResult (..), execCompletion, renderFailure)
+import StoryFlow.Api (WorkshopStepResp (wssReply))
 import StoryFlow.Cli.Backend
 import StoryFlow.Cli.Error
 import StoryFlow.Cli.Options
@@ -189,6 +190,22 @@ handle io b = \case
     txt <- readBody io bs
     report <- checkConflictB b noLlm copts (Draft txt refs)
     pure (plain (renderReport report) report)
+  -- workshop start 把 session id 印出來(人類模式的一行文字裡含 wsId,--json
+  -- 模式下 data 就是完整的 Session,data.id 自然帶著它)——否則使用者沒東西
+  -- 餵給 workshop step。
+  WorkshopStart ty cs -> do
+    s <- startWorkshopB b ty cs
+    pure (plain (renderWorkshopStarted s) s)
+  -- step 的人類輸出就是 wssReply 本身(給人看的那段模型回覆),不另外包裝;
+  -- --json 的 data 需要 session 與 reply 一起交出去,所以整個 WorkshopStepResp
+  -- 進 outJson。
+  WorkshopStep sid bs -> do
+    input <- readBody io bs
+    r <- stepWorkshopB b sid input
+    pure (Out (wssReply r) [] (toJSON r))
+  WorkshopCommit sid -> do
+    r <- commitStageB b sid
+    pure (plain (renderWorkshopCommit r) r)
   where
     vaultCreated v = plain ("已建立 Vault " <> vvName v <> "(" <> T.pack (vvRoot v) <> ")") v
     updated v = "已更新 " <> renderId (evId v) <> "(revision " <> tshow (evRevision v) <> ")"

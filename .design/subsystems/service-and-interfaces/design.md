@@ -5,7 +5,7 @@ title: service-and-interfaces
 description: 業務契約層與它的三種薄包裝:CLI、REST API 與伺服器
 status: active
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-006, ADR-008, ADR-009]
 ---
@@ -43,7 +43,7 @@ CLI、REST server 與未來的 MCP adapter 全部是同一份契約的薄包裝�
 
 | 元件 | 職責 | 關鍵約束 |
 |---|---|---|
-| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;26 個業務操作(其中 `linkGraph` / `aliasIndex` / `vaultConfig` 只有內嵌出口);`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
+| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;27 個業務操作(其中 `linkGraph` / `aliasIndex` / `vaultConfig` / `vaultRoot` 只有內嵌出口);`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
 | `storyflow-api` | **只有** servant API 型別、`FromHttpApiData` / `ToHttpApiData`、`ToSchema`、`storyFlowOpenApi` | 不含 `servant-server` / `servant-client` / `warp` ——它是兩個消費端共用的契約 |
 | `storyflow-server` | servant handler(每個一行)、`MVar Env` 序列化、Bearer token middleware、warp 啟動;執行檔 `story-flow-serve` | 不 import `storyflow-store`;handler 內無業務判斷 |
 | `storyflow-cli` | optparse 指令樹、`Backend` 抽象(內嵌 / 遠端)、渲染器、統一信封;執行檔 `story-flow` | 不 import `storyflow-store`、`storyflow-server` 與 `warp` |
@@ -65,7 +65,7 @@ newtype ServiceM a
 openEnv    :: Maybe Text -> FilePath -> IO (Either ServiceError (Env, [IndexIssue]))
 runService :: Env -> ServiceM a -> IO (Either ServiceError a)
 
--- 26 個業務操作,例如:
+-- 27 個業務操作,例如:
 createEntity :: NewEntityReq -> ServiceM EntityView
 updateEntity :: Id -> Int -> EntityPatch -> ServiceM EntityView   -- expected revision 必填
 addNode      :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView
@@ -84,11 +84,18 @@ aliasIndex :: EntityFilter -> ServiceM [(Id, [Text])] -- 片段 id → title 與
 -- VaultConfig / 它的 [llm] 段一併在「沿用 store 的定義(不重造)」那一組 re-export
 -- ——storyflow-llm 讀得到設定,才不必繞過本層直接依賴 storyflow-store。
 vaultConfig :: ServiceM VaultConfig                   -- 本 Vault 的 .storyflow/config.toml
+
+-- 2026-08-22 由 /subsys-build 的批次澄清加入(llm-workshop-mcp/F002)。
+-- 工作坊的 session 快照要寫 <root>/.storyflow/workshops/,而 storyflow-workshop
+-- 與 storyflow-llm 同樣不准依賴 storyflow-store,拿不到 vaultRoot。
+-- 不沿用 vaultInfo:它為了 vvEntityCount 會 listEntities 全表掃描,而快照每一
+-- step 寫一次——付一次全表掃描去換一個馬上被丟掉的數字。
+vaultRoot :: ServiceM FilePath                        -- 含 .storyflow/ 的那一層
 ```
 
 **REST(供外部 Agent 與 `llm-workshop-mcp` 的 MCP adapter)**
 
-16 條路徑、25 個 operation,覆蓋 `ServiceM` **對外**的每一個操作,外加 `conflict-detection` 掛進來的 `POST /conflict/context` 與 `POST /conflict/check`(`linkGraph` / `aliasIndex` / `vaultConfig` 是 P4/P5 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
+16 條路徑、25 個 operation,覆蓋 `ServiceM` **對外**的每一個操作,外加 `conflict-detection` 掛進來的 `POST /conflict/context` 與 `POST /conflict/check`(`linkGraph` / `aliasIndex` / `vaultConfig` / `vaultRoot` 是 P4/P5 子系統之間的唯讀查詢,只走內嵌,不上 REST)。`revision` 是必填的 query
 parameter。錯誤 body 一律 `{"error":{"code":…,"message":…}}`,`code` 就是 `errorCode`。
 OpenAPI 3 文件由同一份型別推導:`story-flow-serve --openapi > openapi.json`。
 
@@ -142,7 +149,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
                          │                              │
                          │  ServiceM = ReaderT Env      │  Env = Vault+Conn+Registry
                          │             (ExceptT Err IO) │
-                         │  26 個業務操作                │  型別驗證在這裡被呼叫
+                         │  27 個業務操作                │  型別驗證在這裡被呼叫
                          │  ServiceError / errorCode    │  錯誤語彙的唯一來源
                          └───┬──────────────────────┬───┘
                              │                      │
@@ -249,7 +256,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 - **階段**:階段一(P2 業務契約與內嵌 CLI)
 - **負責模組**:`storyflow-service`
 - **實作的 Level 2 介面**:「對外契約」的內嵌那一組——`Env`、`ServiceM`、`openEnv`、
-  `runService`、26 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
+  `runService`、27 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
   `errorCode` / `renderServiceError`,以及 View 與請求型別
 - **資料流管線段落**:管線中段——「自 Env 取出相依 → 業務驗證 → 委派 store 落地 → 組 View」,
   兩端的解碼與渲染不屬於本項

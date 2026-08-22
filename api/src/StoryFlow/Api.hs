@@ -30,12 +30,17 @@ module StoryFlow.Api
   , NodeAPI
   , MiscAPI
   , ConflictAPI
+  , WorkshopAPI
 
     -- * 請求 body 的小包裝
   , NewVaultReq (..)
   , BodyReq (..)
   , ContextReq (..)
   , CheckReq (..)
+  , WorkshopStartReq (..)
+  , WorkshopStepReq (..)
+  , WorkshopStepResp (..)
+  , WorkshopCommitResp (..)
 
     -- * OpenAPI
   , storyFlowOpenApi
@@ -94,6 +99,7 @@ import StoryFlow.Service
   , SearchHit
   , VaultView
   )
+import StoryFlow.Workshop (Session)
 
 -- 請求 body 的小包裝 -------------------------------------------------------------
 
@@ -213,6 +219,110 @@ instance ToSchema CheckReq where
         & description ?~ "三層合流的衝突報告查詢;opts 與 no_llm 缺席時分別退回保守的預設值與 false"
         & properties .~ IOM.fromList [("draft", dS), ("opts", oS), ("no_llm", blS)]
         & required .~ ["draft"]
+
+-- | @POST \/workshop@ 的 body(llm-workshop-mcp/F004)。
+--
+-- @constraints@ __缺席時退回 @[]@__ ——與 'ContextReq' \/ 'CheckReq' 同一個待客
+-- 之道:硬約束是選配的,不必為了不用它而寫一個空陣列。
+data WorkshopStartReq = WorkshopStartReq
+  { wsrType :: Text
+  , wsrConstraints :: [Id]
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON WorkshopStartReq where
+  toJSON WorkshopStartReq {..} = object ["type" .= wsrType, "constraints" .= wsrConstraints]
+
+instance FromJSON WorkshopStartReq where
+  parseJSON = withObject "WorkshopStartReq" $ \o ->
+    WorkshopStartReq <$> o .: "type" <*> o .:? "constraints" .!= []
+
+-- | schema 與 'ContextReq' \/ 'CheckReq' 同一處、同一種寫法——見它們上面那則
+-- 註解:這幾個 wrapper 型別定義在這裡,實例只能寫在這裡,不能挪去
+-- "StoryFlow.Api.Instances"(那個模組是這裡的上游)。
+instance ToSchema WorkshopStartReq where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    ids <- declareSchemaRef (Proxy :: Proxy [Id])
+    pure . NamedSchema (Just "WorkshopStartReq") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "開一個新工作坊,依型別的階段清單逐階段對話;constraints 缺席時退回 []"
+        & properties .~ IOM.fromList [("type", txt), ("constraints", ids)]
+        & required .~ ["type"]
+
+-- | @POST \/workshop\/:id\/step@ 的 body。
+newtype WorkshopStepReq = WorkshopStepReq {wsiInput :: Text}
+  deriving stock (Show, Eq)
+
+instance ToJSON WorkshopStepReq where
+  toJSON (WorkshopStepReq i) = object ["input" .= i]
+
+instance FromJSON WorkshopStepReq where
+  parseJSON = withObject "WorkshopStepReq" $ \o -> WorkshopStepReq <$> o .: "input"
+
+instance ToSchema WorkshopStepReq where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    pure . NamedSchema (Just "WorkshopStepReq") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "這一輪要對模型說的話"
+        & properties .~ IOM.fromList [("input", txt)]
+        & required .~ ["input"]
+
+-- | @POST \/workshop\/:id\/step@ 的回應。
+--
+-- 'wssReply' 是給人看的那段模型回覆,不進 'Session' 本體(見 @design.md@「階段
+-- 定案的來源」段)——REST \/ CLI 的 @--json@ 都需要把兩者一起交出去。
+data WorkshopStepResp = WorkshopStepResp
+  { wssSession :: Session
+  , wssReply :: Text
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON WorkshopStepResp where
+  toJSON WorkshopStepResp {..} = object ["session" .= wssSession, "reply" .= wssReply]
+
+instance FromJSON WorkshopStepResp where
+  parseJSON = withObject "WorkshopStepResp" $ \o ->
+    WorkshopStepResp <$> o .: "session" <*> o .: "reply"
+
+instance ToSchema WorkshopStepResp where
+  declareNamedSchema _ = do
+    sS <- declareSchemaRef (Proxy :: Proxy Session)
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    pure . NamedSchema (Just "WorkshopStepResp") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "這一輪的 session 快照與模型給人看的回覆"
+        & properties .~ IOM.fromList [("session", sS), ("reply", txt)]
+        & required .~ ["session", "reply"]
+
+-- | @POST \/workshop\/:id\/commit@ 的回應。
+data WorkshopCommitResp = WorkshopCommitResp
+  { wcrSession :: Session
+  , wcrEntities :: [EntityView]
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON WorkshopCommitResp where
+  toJSON WorkshopCommitResp {..} = object ["session" .= wcrSession, "entities" .= wcrEntities]
+
+instance FromJSON WorkshopCommitResp where
+  parseJSON = withObject "WorkshopCommitResp" $ \o ->
+    WorkshopCommitResp <$> o .: "session" <*> o .: "entities"
+
+instance ToSchema WorkshopCommitResp where
+  declareNamedSchema _ = do
+    sS <- declareSchemaRef (Proxy :: Proxy Session)
+    esS <- declareSchemaRef (Proxy :: Proxy [EntityView])
+    pure . NamedSchema (Just "WorkshopCommitResp") $
+      mempty
+        & type_ ?~ OpenApiObject
+        & description ?~ "定案後的 session 快照與這次寫進圖譜的片段"
+        & properties .~ IOM.fromList [("session", sS), ("entities", esS)]
+        & required .~ ["session", "entities"]
 
 -- 共用的 query parameter --------------------------------------------------------
 
@@ -391,6 +501,33 @@ type ConflictAPI =
       :> ReqBody '[JSON] CheckReq
       :> Post '[JSON] ConflictReport
 
+-- | 工作坊的三個出口(llm-workshop-mcp/F004)。
+--
+-- __沒有一條帶 @revision@__:session 不是走樂觀鎖的資源(@design.md@「LlmConfig
+-- 與 storyflow-store 的佔位型別」段沒有提到樂觀鎖,'commitStage' 內部寫圖譜時的
+-- 樂觀鎖屬於 @entity@\/@level@\/@node@ 那些既有端點的職責,不是 workshop 端點
+-- 自己的)。
+--
+-- @Capture "id" Text@ 而不是 @Capture "id" Id@:session id(@Session@ 的
+-- @wsId@)是 @design.md@ 明寫的 'Text',不是 core 的 @\<prefix\>-\<hex\>@ 格式,
+-- 沿用 'Id' 的 'FromHttpApiData' 會擋掉合法的 session id。
+type WorkshopAPI =
+  "workshop"
+    :> Summary "開一個新工作坊,依型別的階段清單逐階段對話"
+    :> ReqBody '[JSON] WorkshopStartReq
+    :> Post '[JSON] Session
+    :<|> "workshop"
+      :> Capture "id" Text
+      :> "step"
+      :> Summary "把這一輪的輸入送進目前階段,模型的回覆存回 session"
+      :> ReqBody '[JSON] WorkshopStepReq
+      :> Post '[JSON] WorkshopStepResp
+    :<|> "workshop"
+      :> Capture "id" Text
+      :> "commit"
+      :> Summary "把目前階段最後一次成功解析的草稿定案,寫進圖譜"
+      :> Post '[JSON] WorkshopCommitResp
+
 type StoryFlowAPI =
   VaultAPI
     :<|> EntityAPI
@@ -399,6 +536,7 @@ type StoryFlowAPI =
     :<|> NodeAPI
     :<|> MiscAPI
     :<|> ConflictAPI
+    :<|> WorkshopAPI
 
 storyFlowAPI :: Proxy StoryFlowAPI
 storyFlowAPI = Proxy
@@ -425,3 +563,4 @@ storyFlowOpenApi =
         . applyTagsFor (subOperations (Proxy :: Proxy NodeAPI) storyFlowAPI) ["node"]
         . applyTagsFor (subOperations (Proxy :: Proxy MiscAPI) storyFlowAPI) ["misc"]
         . applyTagsFor (subOperations (Proxy :: Proxy ConflictAPI) storyFlowAPI) ["conflict"]
+        . applyTagsFor (subOperations (Proxy :: Proxy WorkshopAPI) storyFlowAPI) ["workshop"]

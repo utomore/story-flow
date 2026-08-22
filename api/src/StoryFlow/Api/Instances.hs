@@ -69,6 +69,7 @@ import StoryFlow.Core.Meta
   )
 import StoryFlow.Core.Registry (EntityTypeSpec, FieldSpec)
 import StoryFlow.Core.Tree (NodeTree)
+import StoryFlow.Llm (Message, Role)
 import StoryFlow.Service
   ( DeleteReport
   , EntityPatch
@@ -83,6 +84,7 @@ import StoryFlow.Service
   , SearchHit
   , VaultView
   )
+import StoryFlow.Workshop (Session, StageDraft)
 
 -- HttpApiData ------------------------------------------------------------------
 
@@ -654,3 +656,63 @@ instance ToSchema EntityPatch where
         , ("source", srS)
         ]
         []
+
+-- ToSchema:工作坊(llm-workshop-mcp/F004) ---------------------------------------
+
+-- | 訊息的角色。'StoryFlow.Workshop.Session' 的 @messageJson@\/@roleWire@ 把它編
+-- 成 @"system"@\/@"user"@\/@"assistant"@ 三個字串之一,這裡逐字對齊。
+instance ToSchema Role where
+  declareNamedSchema _ =
+    pure (named "Role" (enumSchema "訊息的角色" ["system", "user", "assistant"]))
+
+-- | 對話歷程的一則訊息。'Message' 沒有 'Data.Aeson.ToJSON' 實例
+-- ("StoryFlow.Llm.Client" 刻意不定義它——門面之外的內部細節),wire 形狀由
+-- 'StoryFlow.Workshop.Session' 的 @ToJSON Session@ 手動編碼;這裡的 schema
+-- 逐欄對齊那份手工編碼,而不是對齊一個不存在的 @ToJSON Message@。
+instance ToSchema Message where
+  declareNamedSchema _ = do
+    rS <- declareSchemaRef (Proxy :: Proxy Role)
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    pure . named "Message" $
+      objSchema "對話歷程的一則訊息" [("role", rS), ("content", txt)] ["role", "content"]
+
+-- | 一個還沒寫進圖譜的片段草稿。@timeline@ 缺席時整個鍵不出現,所以不在
+-- required 裡(與 'StoryFlow.Workshop.Session' 的 @ToJSON StageDraft@ 同一個
+-- @Maybe@ 約定)。
+instance ToSchema StageDraft where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    txts <- declareSchemaRef (Proxy :: Proxy [Text])
+    tlS <- declareSchemaRef (Proxy :: Proxy Timeline)
+    pure . named "StageDraft" $
+      objSchema
+        "還沒寫進圖譜的片段草稿。status / links / source 由 commitStage 依契約自己填,不讓模型決定"
+        [("title", txt), ("summary", txt), ("body", txt), ("tags", txts), ("timeline", tlS)]
+        ["title", "summary", "body", "tags"]
+
+-- | 一次工作坊。九個欄位逐字對齊 'StoryFlow.Workshop.Session' 的 @ToJSON
+-- Session@:@owner@ 缺席時(首次 @commitStage@ 之前)整個鍵不出現,所以不在
+-- required 裡。
+instance ToSchema Session where
+  declareNamedSchema _ = do
+    txt <- declareSchemaRef (Proxy :: Proxy Text)
+    txts <- declareSchemaRef (Proxy :: Proxy [Text])
+    int <- declareSchemaRef (Proxy :: Proxy Int)
+    ids <- declareSchemaRef (Proxy :: Proxy [Id])
+    idS <- declareSchemaRef (Proxy :: Proxy Id)
+    histS <- declareSchemaRef (Proxy :: Proxy [Message])
+    pendS <- declareSchemaRef (Proxy :: Proxy [StageDraft])
+    pure . named "Session" $
+      objSchema
+        "一次工作坊。可序列化成快照,中斷後接得回來。owner 首次 commitStage 之後才有值"
+        [ ("id", txt)
+        , ("type", txt)
+        , ("constraints", ids)
+        , ("stages", txts)
+        , ("current", int)
+        , ("history", histS)
+        , ("owner", idS)
+        , ("pending", pendS)
+        , ("committed", ids)
+        ]
+        ["id", "type", "constraints", "stages", "current", "history", "pending", "committed"]

@@ -8,7 +8,7 @@ module StoryFlow.Conflict.RetrievalSpec (spec) where
 import Data.Text (Text)
 import qualified Data.Text as T
 import StoryFlow.Conflict.Fixtures
-import StoryFlow.Conflict.Retrieval
+import StoryFlow.Conflict.Retrieval.Internal
 import StoryFlow.Conflict.Types
 import StoryFlow.Core.Id (Id, renderId)
 import StoryFlow.Core.Link (LinkKind (OccursIn, PartOf))

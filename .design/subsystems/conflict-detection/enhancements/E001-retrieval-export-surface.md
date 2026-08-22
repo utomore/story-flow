@@ -3,7 +3,7 @@ id: E001
 type: enhance
 title: retrieval-export-surface
 description: 收斂 Conflict.Retrieval 的匯出面,讓「換一種候選策略」真的不必動其他兩層
-status: open
+status: done
 created: 2026-08-21
 updated: 2026-08-22
 depends-on: [F003, F005, F006]
@@ -250,14 +250,14 @@ Level 3,但因為它承載了「哪些名字是契約」這個 Level 2 的區分
 
 ## TodoList
 
-- [ ] T1: 建 `conflict/src/StoryFlow/Conflict/Retrieval/Internal.hs`,461 行實作整份搬入並匯出全部部件;模組 haddock 寫明「這是實作不是契約」與 `src/` 的 import 禁令  `dep: -`
-- [ ] T2: `Retrieval.hs` 縮成逐項列舉的 re-export 門面,只匯出契約面 10 個名字  `dep: T1`
-- [ ] T3: `storyflow-conflict.cabal` 的 `exposed-modules` 加 `StoryFlow.Conflict.Retrieval.Internal`  `dep: T1`
-- [ ] T4: `RetrievalSpec.hs` 與 `RetrievalEnvSpec.hs` 改 import `Internal`,**斷言一條不改**  `dep: T2, T3`
-- [ ] T5: `CabalSpec.hs` 加斷言:`exposed-modules` 含 `Retrieval.Internal`  `dep: T3`
-- [ ] T6: `CabalSpec.hs` 加斷言:`conflict/src/` 底下除 `Retrieval.hs` 外無任何檔案出現 `Retrieval.Internal`,並附變造重現  `dep: T3`
-- [ ] T7: `design.md` 的「內部模組劃分」表補 `Conflict.Retrieval.Internal`  `dep: T2`(「模組間公開介面與資料結構」表的 `Candidate` / `metaSnippet` 那一列**已於設計階段補上**——它描述的是今天就成立的現況,不必等實作)
-- [ ] T8: 全套驗收:`cabal build all` 零 warning、`cabal test all` 12 suites 全綠且 examples 不減,且四個不動檔案的 `git diff` 為空  `dep: T4, T5, T6`
+- [x] T1: 建 `conflict/src/StoryFlow/Conflict/Retrieval/Internal.hs`,461 行實作整份搬入並匯出全部部件;模組 haddock 寫明「這是實作不是契約」與 `src/` 的 import 禁令  `dep: -`
+- [x] T2: `Retrieval.hs` 縮成逐項列舉的 re-export 門面,只匯出契約面 10 個名字  `dep: T1`
+- [x] T3: `storyflow-conflict.cabal` 的 `exposed-modules` 加 `StoryFlow.Conflict.Retrieval.Internal`  `dep: T1`
+- [x] T4: `RetrievalSpec.hs` 與 `RetrievalEnvSpec.hs` 改 import `Internal`,**斷言一條不改**  `dep: T2, T3`
+- [x] T5: `CabalSpec.hs` 加斷言:`exposed-modules` 含 `Retrieval.Internal`  `dep: T3`
+- [x] T6: `CabalSpec.hs` 加斷言:`conflict/src/` 底下除 `Retrieval.hs` 外無任何檔案出現 `Retrieval.Internal`,並附變造重現  `dep: T3`
+- [x] T7: `design.md` 的「內部模組劃分」表補 `Conflict.Retrieval.Internal`  `dep: T2`(「模組間公開介面與資料結構」表的 `Candidate` / `metaSnippet` 那一列**已於設計階段補上**——它描述的是今天就成立的現況,不必等實作)
+- [x] T8: 全套驗收:`cabal build all` 零 warning、`cabal test all` 12 suites 全綠且 examples 不減,且四個不動檔案的 `git diff` 為空  `dep: T4, T5, T6`
 
 ## 1-to-1 測試對照表
 
@@ -276,4 +276,39 @@ Level 3,但因為它承載了「哪些名字是契約」這個 Level 2 的區分
 
 ## 實作備註
 
-(實作時填寫:與設計的偏差、量化結果)
+### 量化結果(對照「改善目標」)
+
+| 指標 | 現況 | 目標 | 實測 |
+|---|---|---|---|
+| `Conflict.Retrieval` 的匯出名字數 | 23 | 10 | **10** ✅ |
+| 匯出面中無 production 消費者的名字 | 17 | 4 | **4**(3 策略接縫加 `CandidateOrigin`) ✅ |
+| `src/` 中 import `Retrieval.Internal` 的檔案 | — | 0 | **0**(只有門面 `Retrieval.hs`) ✅ |
+| `conflict-test` examples 數 | 207 | 不少於 207 | **210**(+3 條新守衛,舊的 207 條一條沒掉) ✅ |
+| 全套測試 | 12 suites / 1432 / 0 failures | 不變 | **12 suites / 1435 / 0 failures** ✅ |
+| 建置 warning | 0 | 0 | **0** ✅ |
+| `Pipeline` / `Judge` / `Graph` / `Types` 的 `git diff` | — | 空 | **空** ✅ |
+
+### 與設計的偏差
+
+**無介面偏差**,契約面就是設計定的 10 個名字。三處實作層面的調整,都不影響契約:
+
+1. **`notFacade` 的白名單要兩個檔案,不是一個**。設計寫「`src/` 底下除 `Retrieval.hs` 外
+   沒有任何檔案出現 `Retrieval.Internal` 字串」,但 `Internal.hs` 自己的 `module` 宣告就是
+   那個字串。**這是守衛第一次跑就抓到的**——它紅了,而紅得有道理。白名單改為
+   `["Retrieval.hs", "Internal.hs"]`,理由寫在函式的 haddock 裡
+2. **變造重現測試需要顯式型別註記**。`mutated` 的元素型別在 `OverloadedStrings`
+   (本套件的 `default-extensions`)下會觸發 `-Wtype-defaults`,而零 warning 是驗收標準。
+   加了 `:: [(String, String)]`
+3. **`Internal.hs` 的模組 haddock 是兩段合併的**。原本想在既有說明前另起一個 `-- |` 區塊,
+   但兩個 `-- |` 中間夾空行會讓前一個變成孤兒 haddock。改成單一區塊,新的定位說明在前、
+   原有的第 2 層說明在後
+
+### 實作順序上值得記的一件事
+
+T2(收門面)做完、T4(改測試 import)還沒做的那個中間狀態,`RetrievalSpec` **編譯失敗**
+——這正是 1-to-1 對照表 T2 那一列預期的結果,也是「門面收斂真的生效」唯一的直接證據。
+如果那一步沒有紅,就代表收斂沒收到東西。
+
+同一時刻 `src/` 底下**一個錯都沒有**:`Pipeline` / `Judge` / `Graph` / `Types` 用到的 6 個
+名字全在契約面內,這是「不動那四個檔案」這條 scope 紀律在編譯期的證明,比事後看 `git diff`
+更早也更硬。

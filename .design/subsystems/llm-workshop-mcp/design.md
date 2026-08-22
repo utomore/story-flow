@@ -57,7 +57,12 @@ related-adr: [ADR-003, ADR-005, ADR-006]
 | | `Workshop.Stages` | 依註冊表的 `stages` 驅動的狀態機:進入 / 對話 / 定案 / 下一階段 |
 | | `Workshop.Emit` | 定案 → 多個 `NewEntityReq` / `NewFragmentReq`,經 service 寫進圖譜 |
 | | `Workshop.Error` | `WorkshopError` 的八個建構子與它的兩個輸出。與 `Llm.Error` 同一個切法、同一個理由(2026-08-22 補列) |
-| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器,把 REST 的 24 個操作暴露成 MCP tools |
+| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器:JSON-RPC 2.0 的 `initialize` / `tools/list` / `tools/call` |
+| | `Mcp.Tools` | 從 `storyFlowOpenApi` 反推 tool 清單與 `inputSchema`,**不連線** |
+| | `Mcp.Client` | 依 path template + method 組 `http-client` 請求打 `story-flow-serve` |
+| | `Mcp.Config` | 連線設定(`--url` > `STORYFLOW_URL`;`STORYFLOW_TOKEN`) |
+| | `Mcp.Protocol` | JSON-RPC 2.0 的信封編解碼 |
+| | `Mcp` | 門面 |
 
 **工作坊的狀態存在哪裡**:記憶體 + 一份可序列化的 session 快照。工作坊是**互動流程**,
 中途的對話不是「故事設定」,不該寫進 Vault 汙染圖譜;只有**定案的片段**才寫進去。
@@ -310,7 +315,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
                                 │ REST
                    ┌────────────┴─────────────┐
                    │     storyflow-mcp        │  薄層:無業務邏輯
-                   │  MCP tools ← 24 個操作    │
+                   │  MCP tools ← 全部 operation│
                    └────────────┬─────────────┘
                                 │ stdio
                         claude code / codex
@@ -325,7 +330,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
 | `Workshop.Stages` → `Llm.Client` | 只用 `chat :: LlmClient -> [Message] -> IO (Either LlmError Text)`,不知道後端是地端還是雲端 |
 | `Workshop.Stages` → `Workshop.Session` | 讀寫 `Session`(型別、硬約束、目前階段、各階段定案),狀態只在這裡變動 |
 | `Workshop.Emit` → `service-and-interfaces` | 經 `ServiceM` 以 `NewEntityReq` 寫入,與 CLI 用同一組操作 |
-| `Mcp.Server` → `service-and-interfaces` | 打 REST 的 24 個 operation,不 import `storyflow-service` |
+| `Mcp.Server` → `service-and-interfaces` | 打 REST 的**全部** operation(數量隨路由增減,不寫死),不 import `storyflow-service` |
 
 資料結構:
 
@@ -491,7 +496,7 @@ data Role = System | User | Assistant
 ### mcp-adapter
 
 - **階段**:階段三(MCP)
-- **負責模組**:`Mcp.Server`
+- **負責模組**:`Mcp.Server`、`Mcp.Tools`、`Mcp.Client`、`Mcp.Config`、`Mcp.Protocol`
 - **實作的 Level 2 介面**:「對外契約」對外形式表的 MCP 那一列——stdio 傳輸,tools 由
   `service-and-interfaces` REST 的**全部** operation 映射(**數量不寫死**,由 API 型別決定);
   「模組間公開介面」的 `Mcp.Server` → `service-and-interfaces`;以及本文件的

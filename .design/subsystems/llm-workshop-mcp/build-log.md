@@ -3,7 +3,7 @@ id: llm-workshop-mcp-build
 type: build-log
 title: llm-workshop-mcp-build
 description: 委派展開 LLM 端點、階段式工作坊與 MCP adapter
-status: in-progress
+status: done
 created: 2026-08-20
 updated: 2026-08-22
 parent: llm-workshop-mcp
@@ -90,7 +90,7 @@ fan out 前預先分配,subagent 不得自行配號。
 | workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | **impl-done**(12/12 Todo,commit 3313d72;設計跑三版) |
 | workshop-emit | F003 | F003-workshop-emit.md | sonnet | sonnet | **impl-done**(8/8 Todo,commit 3236561;設計跑兩版) |
 | workshop-interface | F004 | F004-workshop-interface.md | sonnet | sonnet | **impl-done**(22/22 Todo,commit dac2f7f) |
-| mcp-adapter | F005 | F005-mcp-adapter.md | sonnet | sonnet | 待展開 |
+| mcp-adapter | F005 | F005-mcp-adapter.md | sonnet | sonnet | **impl-done**(16/16 Todo,commit 35b0d5f) |
 
 **F001 的兩個模型欄寫「繼承」是 0.7.x 的舊寫法**,如實留著。0.8.x 起委派模型固定
 `sonnet`,F002–F005 一律照填——模型固定下來,閘門看到品質問題時就歸因得回契約卡寫得夠不夠,
@@ -211,6 +211,86 @@ checkpoint 獨立複跑驗證)。1169 →(階段一)→ 1318 → 1327 → 1378�
   `fsRequired`,沒有寫死欄位名當業務規則
 - **測試品質**:`Warp.testWithApplication` 動態配埠、無寫死埠號、無固定長 sleep;
   `ErrorSpec` 對八個建構子逐一斷言 code 與 message,不是空殼
+
+### 階段三:MCP
+
+**完成的 feature**:F005 mcp-adapter(16/16 Todo,設計與實作模型皆 `sonnet`)。
+**子系統進度 5/5 (100%)**,達成主架構 P5 的完成標準。
+
+**測試**:`cabal test all` **12 suites PASS,1432 examples,0 failures**(編排者獨立複跑驗證)。
+1378 → 1432,淨增 54:新增 `storyflow-mcp-test` 53 條、`api` 79 → 80(operationId 斷言)。
+`cabal build all` 零 error、零 warning。
+
+**關鍵查證(F005 設計階段)**:**servant-openapi3 不產生 `operationId`**。subagent 沒有猜——
+它從 `dist-newstyle/cache/plan.json` 取出實際解析的版本(`openapi3-3.2.5` /
+`servant-openapi3-2.0.2.0`),拉本機 cabal 快取的 tarball 讀原始碼,確認
+`_operationOperationId` 預設 `Nothing` 且 servant-openapi3 全無引用。而契約寫著「tool 名字由
+`operationId` 推導」,所以要先讓它存在(S7)。
+
+**驗收標準的可測形式比預期更強**:tool 清單是從 `storyFlowOpenApi` **機械生成**而非手動註冊,
+所以「新增 REST 路由卻忘了補 tool」在這個設計下**結構性地不可能發生**——比一條動態斷言更強一層。
+`ToolsSpec` 另外比對 tool 名字集合 == `operationId` 集合,`OpenApiSpec` 檢查 28 個 id 非空且
+互不重複(撞名會讓兩個 MCP tool 撞在一起,claude code 分不出是哪一個)。
+
+**編排者更正的一處錯字**:批次澄清時把 `initialize` 失敗訊息寫成「先跑 `story-flow serve`」,
+但**那個子指令不存在**——`service-and-interfaces/F003` 當初就把它做成獨立執行檔
+`story-flow-serve`(`server/app/Main.hs:3` 有一整段解釋為什麼)。`design.md` 已更正,並順手修掉
+`api/src/StoryFlow/Api.hs:548` 同一處的舊指令名(F005 正好要改那個檔案)。
+
+### 階段三 arch-audit 發現(依嚴重度)
+
+**低 2 條,無中無高**,兩條都是 `design.md` 的文檔漂移,編排者已複核屬實並當場修掉
+(與階段二的 F2 同一類、同一個修法,開發者在階段二已裁決過這一類要修):
+
+- **L1**:三處殘留階段一訂正後的舊計數「24 個操作」(模組表、架構圖、模組間公開介面表),
+  實際已是 28。F004 併入工作坊三條路由時漏更新。**已改為「全部 operation(數量隨路由增減,
+  不寫死)」**,與「對外契約」章節的措辭一致
+- **L2**:「內部模組劃分」表與契約卡的「負責模組」欄只列 `Mcp.Server`,實際落地六個模組。
+  **這是同一張表第三次漏列**(階段一 `Llm.Error`、階段二 `Workshop.Error`、本次 `Mcp.*` 五個)。
+  已補列
+
+**通過的檢查**(arch-audit 逐項查證,非採信回報):
+
+- **硬性邊界雙向守住**:逐一打開 `mcp/src/**` 與 `mcp/app/Main.hs` 全部 7 個檔案的 import 清單,
+  只有 `StoryFlow.Api (storyFlowOpenApi)` 一條;`build-depends` 三段只有 `storyflow-api`。
+  反方向的 `service/test/.../CabalSpec.hs` 的 mutation test 早就把 `storyflow-mcp` 列進黑名單
+- **stdio 純淨(本 feature 最容易踩、測試不一定抓得到的坑)**:`putStrLn` / `print` /
+  `hPutStrLn` / `Debug.Trace` 在 `mcp/src` 與 `mcp/app` **零命中**;唯一寫 stdout 的是
+  `Server.hs` 的 `emit`。**arch-audit 另外把執行檔建出來實測**:餵 `initialize`(未設定 `--url`)
+  與 `tools/list` 兩則請求,stdout 剛好兩行合法 JSON、回 28 個 tool、**stderr 0 bytes**
+- **不自己拉背景 server**:`createProcess` / `spawnProcess` / `Warp` / `runSettings` 在
+  `mcp/src` 與 `mcp/app` 零命中;`warp` / `wai` 只在 test-suite 段,且 `CabalSpec` 有斷言釘住
+- **不含業務邏輯**:`inputSchemaFor` 完全機械化地從 `op ^. parameters` / `requestBody` 反推;
+  `Client.invoke` 只做路徑代入、query 組裝、HTTP 收發,不認得任何 DTO 型別;錯誤碼
+  `remote_unavailable` / `remote_bad_response` 逐字沿用 `cli/src/StoryFlow/Cli/Error.hs`,
+  REST 業務錯誤的 `code` / `message` 原樣透傳
+- **`deriveOperationId` 是純函式**,只看 method 與路徑片段結構,無業務判斷;28 條逐條列出
+  未見撞名,而且撞名會讓 `nub` 斷言紅,不是靜默通過
+- **F005 的 A1–A7 七條假設逐條核對**,全部與程式碼一致,無一與 Level 2 契約牴觸
+- **既有測試零放寬**:本階段只動 `api/Api.hs`(純新增函式;唯一刪除是註解裡的指令名)與
+  `OpenApiSpec.hs`(新增一條斷言,既有斷言逐字未動)。commit `35b0d5f` 的改動範圍沒有波及
+  `cli/` / `server/` / `service/` / `workshop/` / `llm/`
+- **1-to-1 測試對照 16 列逐一核對**,全部真實存在且非空殼(逐一讀過內容,非只認檔名);
+  `Warp.testWithApplication` 動態配埠,無固定長 sleep、無寫死埠號
+
+### 階段三閘門結論(2026-08-22)——子系統收尾
+
+開發者裁決:**接受**。子系統 **5/5 全數完成**,`status` 改 `done`。
+
+- **L1 / L2(低)→ 已修**:兩條都是 `design.md` 的文檔漂移,與階段二的 F2 同一類、同一個修法
+  (開發者在階段二已裁決過這一類要修),編排者複核屬實後當場補掉。程式碼一行未動
+- **F005 的 A1–A7 → 全部接受**:arch-audit 逐條核對到程式碼行號,無一與 Level 2 契約牴觸
+- **契約有無變更**:階段三**一個字都沒改**。整個 `/subsys-build` 過程中 `system.md` 也一個字
+  都沒改
+
+**後續處理**:兩條分支分開發 PR(`feat/workshop-0014` → main,再 rebase
+`feat/mcp-adapter-0015`),與批次澄清 D7「一階段一條」一致。
+
+**一條往後要注意的事(開發者裁決:記著就好,本次不另開文檔)**:同一張「內部模組劃分」表
+**漏列模組三次**——階段一 `Llm.Error`、階段二 `Workshop.Error`、階段三 `Mcp` 的五個模組,
+每次都是 arch-audit 才拈到。根因是「實作得到模組切分自主權(conventions 的實作自主權原則),
+但 Level 2 的摘要表沒有人負責同步」。三次同一個地方不像巧合,是結構性缺口;真要根治得讓它變成
+可測的(例如比對 `exposed-modules` 與 design.md 模組表的斷言),而不是靠每次 arch-audit 人工抓。
 
 ### 階段二閘門結論(2026-08-22)
 

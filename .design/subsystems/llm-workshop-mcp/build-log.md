@@ -2,10 +2,10 @@
 id: llm-workshop-mcp-build
 type: build-log
 title: llm-workshop-mcp-build
-description: 委派展開階段一的 OpenAI 相容 LLM 端點抽象
+description: 委派展開 LLM 端點、階段式工作坊與 MCP adapter
 status: in-progress
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-22
 parent: llm-workshop-mcp
 ---
 
@@ -14,31 +14,35 @@ parent: llm-workshop-mcp
 ## 排程
 
 依「功能規劃」的依賴欄建圖:`#1 → #2 → #3 → #4`,`#5` 只依賴 `service-and-interfaces`(已全數 done),
-無環。階段是硬邊界,本次**只跑階段一**。
+無環。階段是硬邊界。
 
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
-| 階段一 | W1 | #1 llm-endpoint (F001) | **done** |
-| 階段二 | W2 | #2 workshop-stages (F002) | 本次不跑 |
-| 階段二 | W3 | #3 workshop-emit (F003) | 本次不跑 |
-| 階段二 | W4 | #4 workshop-interface (F004) | 本次不跑 |
-| 階段三 | W5 | #5 mcp-adapter (F005) | 本次不跑 |
+| 階段一 | W1 | #1 llm-endpoint (F001) | **done**(2026-08-20) |
+| 階段二 | W2 | #2 workshop-stages (F002) | 本次執行 |
+| 階段二 | W3 | #3 workshop-emit (F003) | 本次執行 |
+| 階段二 | W4 | #4 workshop-interface (F004) | 本次執行 |
+| 階段三 | W5 | #5 mcp-adapter (F005) | 本次執行 |
 
 階段二的三項是一條依賴鏈,**每波只有一個 feature**——#3 的設計要看 #2 的產出,無平行空間。
+階段三的 #5 不依賴階段二的產出,但它要映射的 REST operation 面會被 #4 的三條 workshop 路由改變,
+所以排在階段二驗收之後跑,映射不會做到一半又變。
 
 ### 跨子系統依賴的處理決定
 
-本子系統的依賴端(`service-and-interfaces` 的 F001–F003)全數 `done`,無等待。
+本子系統的依賴端(`service-and-interfaces` 的 F001–F003)全數 `done`,無等待。階段一做完後
+`conflict-detection` 的鎖已解開並收尾(該子系統 6/6),本次沒有任何跨子系統的等待項。
 
-反過來,**本子系統的 `#1 llm-endpoint` 是別人的前置**:`conflict-detection #5 conflict-llm`
-(第 3 層語意判斷)要 import `storyflow-llm` 的 `LlmClient` / `chat`,而該套件目前不存在
-——`conflict-detection` 的階段二因此停在 4/6。開發者決定:**本次只跑階段一**,做完就回頭把
-`conflict-detection` 收尾,之後再回來跑工作坊與 MCP。這與 `design.md`「跨子系統的排程提醒」
-寫的順序一致。
+本次會讓 `service-and-interfaces` 的介面面**長大**:#4 往 CLI 指令樹與 servant API 加三個工作坊
+出口。那是介面包裝層,依 ADR-011 本來就是全面下游,不構成反向依賴——但 `storyflow-service` 的
+`build-depends` 逐字守衛(B001)**不放行 `storyflow-workshop`**,所以工作坊的業務邏輯只能住在
+`storyflow-workshop`,由 CLI / server 各自 import,不得往契約層塞。
 
 ## 委派決策記錄
 
-批次澄清的「執行取向 / 排程類」結論。契約類的四項已回寫 `design.md`,不在此重複。
+批次澄清的「執行取向 / 排程類」結論。契約類的已回寫 `design.md`,不在此重複。
+
+### 階段一(2026-08-20)
 
 | # | 問題 | 開發者決定 | 影響範圍 |
 |---|------|-----------|---------|
@@ -46,12 +50,33 @@ parent: llm-workshop-mcp
 | D2 | 沒有真的 LLM 端點時怎麼測(`chat` 是真的 HTTP 呼叫) | **測試裡用 warp 起一個本機 stub 的 OpenAI 相容端點,打真的 HTTP**。理由:逾時、重試、連線拒絕、回了但格式不對這四種正是 `LlmError` 要區分的,注入假 runner 測不到真正的 `http-client` 行為;`warp` 在 `server` 套件已經在用,不是新相依 | F001 |
 | D3 | 程式碼 commit 到哪 | 新開 `feat/llm-endpoint-0012`,編排者在波次與實作完成時做 checkpoint commit;閘門後走 `/branch-pr` | F001 |
 
-## 跨子系統契約變更(本次批次澄清的結果)
+### 階段二 + 階段三(2026-08-22)
+
+| # | 問題 | 開發者決定 | 影響範圍 |
+|---|------|-----------|---------|
+| D4 | 本次跑到哪一階段 | **階段二 + 階段三,一次做完**。子系統 5/5 收完,達成主架構 P5 的完成標準。兩個閘門各自驗收 | F002–F005 |
+| D5 | MCP 的 Haskell 實作(`design.md` 原本列「待評估」) | **自己實作 stdio + JSON-RPC 2.0**(`initialize` / `tools/list` / `tools/call`),`aeson` 已在手上。Haskell 的 MCP 套件生態薄,引一個不穩定的外部相依換三百行程式碼不划算。已回寫 `design.md` 的「使用的技術」與套件表 | F005 |
+| D6 | Session 快照的生命週期 | `.storyflow/.gitignore` 加 `workshops/`(與 `index.db` 同一個理由);**走完所有階段後快照保留,不自動刪**;本次**不做** `workshop rm` 子指令——對外形式表只有 start / step / commit 三個出口 | F002, F004 |
+| D7 | 程式碼 commit 到哪 | **兩條分支,一階段一條**:`feat/workshop-0014`(階段二)、`feat/mcp-adapter-0015`(階段三)。兩個閘門各自驗收、各自發 PR,某一階段被退不會拖到另一個 | F002–F005 |
+| D8 | 工作坊怎麼測 LLM 路徑 | **沿用階段一 D2 的先例**:warp 起本機 stub 的 OpenAI 相容端點打真 HTTP。`storyflow-llm` 的測試已經有這套 fixture,工作坊測的是「約定 JSON 解析成 `wsPending`」與「`LlmError` 原樣浮上來」,兩者都要真的走過 `chat` | F002 |
+| D9 | 兩個新套件的邊界守衛 | 各自加一份 `CabalSpec`,照 `storyflow-llm` / `storyflow-conflict` 的先例逐字釘住內部相依。`storyflow-workshop` 不准有 `storyflow-store` / `storyflow-md` / `sqlite-simple`;`storyflow-mcp` **不准有 `storyflow-service`**(契約卡的「明確不做」只是文字,守衛才擋得住) | F002, F005 |
+
+## 跨子系統契約變更
+
+### 階段一(2026-08-20)
 
 | # | 變更 | 決策理由 | 誰來實作 |
 |---|---|---|---|
 | S1 | `storyflow-store` 的佔位 `newtype LlmConfig = LlmConfig {llmTable :: TOML.Table}` **改名**為 `LlmSection`(或同義名),職責明確為「原樣捧著 `[llm]` 那張表」 | Level 2 契約的 `LlmConfig` 是四欄結構,與 store 的佔位撞名。store 那行註解本來就寫著「現在替它定義欄位,等於在 P1 就凍結 P5 還沒想清楚的設定形狀」——現在正是 P5,形狀由 `storyflow-llm` 定,store 維持不解讀。**改名屬 Level 3**:`LlmConfig` / `VaultConfig` 不出現在任何 design 文檔,是契約線以下的實作細節 | F001 |
 | S2 | `StoryFlow.Service` 新增內嵌出口,讓消費者取得 Vault 的 `[llm]` 設定(建議 `vaultConfig :: ServiceM VaultConfig`,並在既有的「沿用 `store` 的定義(不重造)」那一組 re-export `VaultConfig (..)` / `LlmSection (..)`) | `Service.Monad` 目前只 re-export 不透明的 `Vault`,`vaultCfg` 存取子拿不到,`storyflow-llm` 讀不到設定。走 service 的內嵌出口而非直接依賴 `storyflow-store`,與 `conflict-detection`「所有讀取經 `ServiceM`」同一條紀律。**只開內嵌出口,不接 CLI 與 REST** | F001 |
+
+### 階段二 + 階段三(2026-08-22)
+
+| # | 變更 | 決策理由 | 誰來實作 |
+|---|---|---|---|
+| S3 | `service-and-interfaces` 的 CLI 指令樹新增 `workshop start / step / commit`,servant API 新增 `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit` | 對外形式表本來就寫著這三個出口;它們是介面包裝層(ADR-011 的全面下游),不是新業務操作。`ApiSpec` 的 operation 計數斷言與 `ParitySpec` 的 CLI/REST 對照要跟著更新 | F004 |
+| S4 | `storyflow-api` / `storyflow-cli` / `storyflow-server` 的 `build-depends` 加 `storyflow-workshop`;三份 `CabalSpec` 的逐字清單同步 | 工作坊的 DTO(`Session` / `StageDraft`)要進 API 型別,與 `storyflow-conflict` 進 `storyflow-api` 完全同一種性質。**`storyflow-service` 的清單一個字都不准動**(B001) | F004 |
+| S5 | `.storyflow/.gitignore` 加一行 `workshops/` | 快照是本機互動狀態,不是故事設定。`store` 的 `initVault` 已經在寫那份 `.gitignore`,加一行即可 | F002 |
 
 ## 配號表
 
@@ -60,14 +85,16 @@ fan out 前預先分配,subagent 不得自行配號。
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
 | llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | **impl-done**(10/10 Todo,commit f2fec1e) |
-| workshop-stages | F002 | (保留,階段二) | — | — | 未展開 |
-| workshop-emit | F003 | (保留,階段二) | — | — | 未展開 |
-| workshop-interface | F004 | (保留,階段二) | — | — | 未展開 |
-| mcp-adapter | F005 | (保留,階段三) | — | — | 未展開 |
+| workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | 待展開 |
+| workshop-emit | F003 | F003-workshop-emit.md | sonnet | sonnet | 待展開 |
+| workshop-interface | F004 | F004-workshop-interface.md | sonnet | sonnet | 待展開 |
+| mcp-adapter | F005 | F005-mcp-adapter.md | sonnet | sonnet | 待展開 |
 
-**F001 兩者都不降級**:它是新套件、帶新的外部相依(`http-client`),而且是
-`conflict-detection` 階段二與整個工作坊的共同上游——契約卡的樣子正是「依賴鏈長、後面還有
-feature 疊在上面」那一列。F002–F005 先保留號碼,回來跑接續模式時沿用。
+**F001 的兩個模型欄寫「繼承」是 0.7.x 的舊寫法**,如實留著。0.8.x 起委派模型固定
+`sonnet`,F002–F005 一律照填——模型固定下來,閘門看到品質問題時就歸因得回契約卡寫得夠不夠,
+不會混進模型差異。
+
+F002–F005 的號碼在階段一就預先保留,本次接續模式沿用,不重配。
 
 ## 待確認假設彙總
 

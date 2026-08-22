@@ -5,7 +5,7 @@ title: llm-workshop-mcp
 description: 地端 LLM 端點、階段式引導工作坊與 MCP adapter
 status: active
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-003, ADR-005, ADR-006]
 ---
@@ -78,8 +78,9 @@ newLlmClient :: LlmConfig -> IO LlmClient
 chat :: LlmClient -> [Message] -> IO (Either LlmError Text)
 
 -- storyflow-workshop
-startWorkshop  :: Text -> [Id] -> ServiceM Session   -- 型別 + 硬約束片段
-stepWorkshop   :: LlmClient -> Session -> Text -> ServiceM (Session, Text)
+startWorkshop  :: Text -> [Id] -> ServiceM Session   -- 型別 + 硬約束片段;建立並寫出快照
+loadSession    :: Text -> ServiceM Session           -- 依 session id 讀回快照
+stepWorkshop   :: LlmClient -> Session -> Text -> ServiceM (Either LlmError (Session, Text))
 commitStage    :: Session -> ServiceM (Session, [EntityView])   -- 定案該階段,寫進圖譜
 ```
 
@@ -88,7 +89,7 @@ commitStage    :: Session -> ServiceM (Session, [EntityView])   -- 定案該階�
 | 出口 | CLI | REST |
 |---|---|---|
 | 工作坊 | `story-flow workshop start --type <型別> [--constraint <id>]…` / `step` / `commit` | `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit` |
-| MCP | — | stdio(`storyflow-mcp`),tools 由 REST 的 24 個操作映射 |
+| MCP | — | stdio(`storyflow-mcp`),tools 由 REST 的**全部** operation 映射(數量由 API 型別決定,不寫死) |
 
 **`LlmConfig` 與 `storyflow-store` 的佔位型別**(2026-08-20 批次澄清):`store` 早在 P1 就有一個
 `newtype LlmConfig`,包著**未解讀的** `[llm]` TOML 表——它那行註解寫著「現在替它定義欄位,等於在
@@ -132,6 +133,57 @@ retries    = 1                           # 選填,預設 1。只作用於 LlmUna
 **未知鍵視為錯誤**(`LlmConfigInvalid`),與型別註冊表載入器同一立場:設定檔裡拼錯的鍵被默默
 忽略,使用者會以為自己設定好了。
 
+**Session 快照的落地位置**(2026-08-22 批次澄清):快照寫 Vault 的
+`.storyflow/workshops/<session-id>.json`。**這不違反「中途對話不寫進 Vault」**——那句話講的是
+「不進圖譜」,而 `.storyflow/` 底下的東西本來就不進圖譜:`store` 的索引掃描略過所有以 `.` 開頭
+的名字,所以快照不會被索引、不會出現在 `list` / `search`、也不會被衝突偵測撈到。
+
+放 Vault 內而不是家目錄,是因為 `wsConstraints` 指的是**這個 Vault 裡的 Entity id**——快照跟著
+Vault 走,換 Vault 就換一組工作坊;放家目錄則會出現「跨 Vault 拿到壞參照」。`.storyflow/.gitignore`
+加一行 `workshops/`(與 `index.db` 同一個理由:未定案的對話是本機互動狀態,不是故事設定)。
+**走完所有階段後快照保留,不自動刪除**;對外形式表只有 `start` / `step` / `commit` 三個出口,
+清理由使用者自己刪檔。
+
+**誰負責寫快照**:`startWorkshop`、`stepWorkshop`、`commitStage` 三者在**成功之後各自寫出**新的
+快照,介面層只需要 `loadSession`。把存檔時機交給介面層,CLI 與 REST 兩邊就會各有一份判斷,
+而那正是「session id 在兩種介面裡是同一個東西」最容易破的地方。
+
+**`stepWorkshop` 的錯誤通道**(2026-08-22 批次澄清):簽名回
+`ServiceM (Either LlmError (Session, Text))`,與 F001 已定的
+`llmConfig :: ServiceM (Either LlmError LlmConfig)` 同一個形狀——**不讓下層的錯誤型別認識上層的
+`ServiceError`**,呈現交給介面層。工作坊沒有 `conflict-detection` 第 3 層那種「退化成前兩層」的
+逃生口:模型連不上,這一步就是做不下去,所以錯誤要原樣浮到使用者面前,而不是被折成一個泛用的
+失敗。`LlmError` 的五類分類(見上)在這裡直接可用:「你還沒設定」與「地端服務沒起來」的下一步
+不同。
+
+**階段定案的來源:結構化草稿**(2026-08-22 批次澄清):`commitStage` 的簽名**沒有** `LlmClient`,
+所以定案時不再問一次模型。「把一段對話切成多個片段」發生在 `stepWorkshop`:它的 system prompt
+要求模型在回覆裡附上約定的 JSON,解析成功就存進 `wsPending`。這與 `conflict-detection` 第 3 層
+`Conflict.Judge` 是同一套做法(剝 code fence → decode,失敗**不捏假資料**)。
+
+`stepWorkshop` 回傳的 `Text` 仍是**給人看的那段回覆**;結構化結果另存在 `Session` 裡。解析失敗時
+`wsPending` 維持上一次成功的值,回覆照樣給人看——使用者可以再講一輪,不必重開工作坊。
+`wsPending` 是空的時候 `commitStage` 回錯誤,**不寫出空片段**。
+
+**一次工作坊 = 一份主題檔**(2026-08-22 批次澄清):
+
+- 首次 `commitStage` 用 `createEntity` 建**主題檔**,`type` 取該型別在註冊表宣告的 `owner_type`
+  (沒宣告就用型別鍵本身)。這對應既有的資料模型:檔案層主體寫 `type: character`、節層片段寫
+  `type: character-fragment`,而 `owner_type` 這一欄存在的理由正是讓兩個鍵命中同一筆宣告
+- 之後每個階段用 `addFragment` 往**同一份**主題檔加節
+- 每個片段建 `partOf` 指向主體;`source` 一律 `workshop:<型別>`
+- 主體 id 記在 `wsOwner`,快照帶著它,所以中斷後接回去仍寫進同一份檔案
+
+**MCP adapter 的連線與 tool 命名**(2026-08-22 批次澄清):
+
+- **連線**:`story-flow-mcp --url <base>`,或 `STORYFLOW_URL` / `STORYFLOW_TOKEN` 兩個環境變數
+  (旗標優先)。**沒設定或連不上就在 `initialize` 回錯誤並說出下一步**(「先跑 `story-flow serve`」)
+  ——與 F001「沒有 `[llm]` 段就說你還沒設定,不猜預設值」同一個立場。adapter **不自己拉背景
+  server**:ADR-006 已經為了孤兒行程、port 衝突、多 Vault 對應哪個 daemon 這三件事否決過那條路
+- **tool 命名**:由 OpenAPI 的 `operationId` 推導,**不手維護對照表**。「claude code 掛上後不必再讀
+  API 文件」的可測形式是 **MCP tools 數 == OpenAPI operation 數**,而那條斷言只有在名字同源時才
+  守得住。手寫對照表漏一列不會紅——契約卡上 `24` 這個過期的計數就是這樣來的
+
 ## 資料流管線(Data Flow Pipeline)
 
 兩條互不相干的管線,共用 `service-and-interfaces` 的業務契約當出口——這是「兩條路徑寫進同一個
@@ -164,7 +216,8 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
 - **`http-client` + `aeson` 直接打 OpenAI 相容端點**,不引入重量級 SDK(主架構的技術選型)。
   地端 llama.cpp / Ollama 與雲端 OpenAI 共用同一組 JSON 形狀,抽象成本很低
 - **MCP 走 stdio**:claude code / codex 的標準接法,而且不必再開一個 port。它打的是
-  `service-and-interfaces` 的 REST API,所以 MCP adapter 本身**沒有業務邏輯**
+  `service-and-interfaces` 的 REST API,所以 MCP adapter 本身**沒有業務邏輯**。協定層自己實作
+  (JSON-RPC 2.0 over stdio),不引 MCP 套件
 - **工作坊不引入額外的狀態儲存**:session 是記憶體物件 + 可序列化快照。中途對話不進 Vault
 
 ## 架構圖
@@ -230,8 +283,23 @@ data Session = Session
   , wsConstraints :: [Id]          -- 勾選為硬約束的既有片段
   , wsStages      :: [Text]        -- 從註冊表讀來的階段清單
   , wsCurrent     :: Int           -- 目前在第幾階段
-  , wsHistory     :: [Message]     -- 對話歷程(不寫進 Vault)
+  , wsHistory     :: [Message]     -- 對話歷程(不進圖譜,隨快照落在 .storyflow/)
+  , wsOwner       :: Maybe Id      -- 這次工作坊的主題檔;首次 commitStage 之後才有值
+  , wsPending     :: [StageDraft]  -- 目前階段最後一次解析成功的片段草稿
   , wsCommitted   :: [Id]          -- 已定案寫出去的片段
+  }
+
+-- 一個還沒寫進圖譜的片段草稿。commitStage 的輸入形狀,由 stepWorkshop 從模型
+-- 回覆的約定 JSON 解析而來。
+--
+-- 刻意比 NewFragmentReq 小:status / timeline / links / source 由 commitStage
+-- 依契約自己填(source 一律 workshop:<型別>、partOf 指向 wsOwner),不讓模型決定
+-- ——那幾欄的值錯了會直接汙染衝突偵測的比對基準(ADR-003:只有 canon 參與比對)。
+data StageDraft = StageDraft
+  { sdTitle   :: Text
+  , sdSummary :: Text
+  , sdBody    :: Text
+  , sdTags    :: [Text]
   }
 
 data Message = Message { msgRole :: Role, msgContent :: Text }
@@ -250,7 +318,7 @@ data Role = System | User | Assistant
 | `text` / `bytestring` / `containers` | 基礎 |
 | `toml-reader` | 讀 Vault 的 LLM 後端設定 |
 | `storyflow-core` / `storyflow-service` | 型別與業務操作 |
-| MCP 的 Haskell 實作 | **待評估** —— 生態不成熟時以 stdio + JSON-RPC 自己實作,那不複雜 |
+| MCP 的 Haskell 實作 | **自己實作**(2026-08-22 批次澄清)—— stdio 上的 JSON-RPC 2.0 加 `initialize` / `tools/list` / `tools/call` 三個方法,`aeson` 已在手上。Haskell 的 MCP 套件生態薄,引一個不穩定的外部相依換三百行程式碼不划算 |
 
 ## 開發階段
 
@@ -288,7 +356,7 @@ data Role = System | User | Assistant
 
 ## Feature 契約卡
 
-五張卡,全部尚未展開。卡上寫的就是執行者能拿到的全部前提——`llm-endpoint` 是
+五張卡。`llm-endpoint` 已展開(F001),其餘四張待展開。卡上寫的就是執行者能拿到的全部前提——`llm-endpoint` 是
 `conflict-detection` 階段二的前置,它的介面一旦動到就要回頭改本文件的「對外契約」。
 
 ### llm-endpoint
@@ -309,13 +377,17 @@ data Role = System | User | Assistant
 
 - **階段**:階段二(工作坊)
 - **負責模組**:`Workshop.Session`、`Workshop.Stages`
-- **實作的 Level 2 介面**:「對外契約」的 `startWorkshop :: Text -> [Id] -> ServiceM Session`
-  與 `stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Session, Text)`;
-  「模組間公開介面」的 `Workshop.Stages` → `Llm.Client`、→ `Workshop.Session` 兩條
+- **實作的 Level 2 介面**:「對外契約」的 `startWorkshop :: Text -> [Id] -> ServiceM Session`、
+  `loadSession :: Text -> ServiceM Session` 與
+  `stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Either LlmError (Session, Text))`;
+  「模組間公開介面與資料結構」的 `Session` / `StageDraft`,以及
+  `Workshop.Stages` → `Llm.Client`、→ `Workshop.Session` 兩條
 - **資料流管線段落**:工作坊管線的 `startWorkshop` → `stepWorkshop` 段(定案之前)
 - **驗收標準**:階段清單完全來自型別註冊表的 `stages`——**新增一個型別不改工作坊的程式**;
-  硬約束片段以 `summary` 進 prompt;`Session` 是可序列化的快照,中斷後接得回去;
-  中途對話不寫進 Vault
+  硬約束片段以 `summary` 進 prompt;`Session` 是可序列化的快照,落在
+  `.storyflow/workshops/<id>.json`,中斷後 `loadSession` 接得回去(三個寫入操作各自在成功後
+  寫出快照);對話歷程不進圖譜;`stepWorkshop` 從模型回覆解析約定 JSON 存進 `wsPending`,
+  解析失敗時保留上一次成功的值、回覆照樣給人看;`LlmError` 原樣浮上來,不折成泛用失敗
 - **明確不做**:不寫圖譜(那是 `workshop-emit`);不定義 CLI 與 REST 形狀;不自己實作端點
 
 ### workshop-emit
@@ -327,8 +399,11 @@ data Role = System | User | Assistant
   「模組間公開介面」的 `Workshop.Emit` → `service-and-interfaces`
 - **資料流管線段落**:工作坊管線的「定案 → `NewEntityReq` → service 寫入 → `[EntityView]`」
 - **驗收標準**:一次定案產出**多個片段 Entity**,不是一份文件(這是相對 design-studio 的
-  關鍵差異);寫入的 `source` 標成 `workshop:<型別>`;片段之間該有的 `partOf` 關聯一併建立;
-  寫入走與 CLI 相同的 `ServiceM` 操作
+  關鍵差異);**一次工作坊 = 一份主題檔**——首次 `commitStage` 用 `createEntity` 建主體
+  (`type` 取註冊表的 `owner_type`,沒宣告就用型別鍵本身)並記進 `wsOwner`,之後每階段用
+  `addFragment` 往同一份檔案加節;每個片段建 `partOf` 指向 `wsOwner`;寫入的 `source` 一律
+  `workshop:<型別>`;`wsPending` 是空的時候回錯誤,**不寫出空片段**;寫入走與 CLI 相同的
+  `ServiceM` 操作
 - **明確不做**:不直接碰 `storyflow-store`;不決定階段流程(那是 `workshop-stages`);
   不在寫入失敗時自行重試改寫
 
@@ -338,10 +413,13 @@ data Role = System | User | Assistant
 - **負責模組**:`service-and-interfaces` 的 CLI 指令樹與 REST 路由(工作坊的三個出口)
 - **實作的 Level 2 介面**:「對外契約」對外形式表的工作坊那一列——
   `story-flow workshop start --type <型別> [--constraint <id>]…` / `step` / `commit`,
-  以及 `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit`
+  以及 `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit`;
+  兩種介面都以 `loadSession` 取回 session,**不自己管存檔時機**
 - **資料流管線段落**:工作坊管線的外部入口(參數/請求 → Session 操作 → 渲染回應)
 - **驗收標準**:CLI 與 REST 行為一致;`--json` 走統一信封;錯誤沿用 `errorCode` 與
-  `renderServiceError`;session id 在兩種介面裡是同一個東西
+  `renderServiceError`;`LlmError` 在這一層才被折成使用者看得懂的訊息(沿用
+  `renderLlmError` 的原文,不重寫下層訊息);session id 在兩種介面裡是同一個東西
+  ——同一份 `.storyflow/workshops/<id>.json`,CLI 開的 session 用 REST 接得下去
 - **明確不做**:不含工作坊邏輯(薄包裝);不新增業務操作;不為工作坊另立一套錯誤語彙
 
 ### mcp-adapter
@@ -349,10 +427,14 @@ data Role = System | User | Assistant
 - **階段**:階段三(MCP)
 - **負責模組**:`Mcp.Server`
 - **實作的 Level 2 介面**:「對外契約」對外形式表的 MCP 那一列——stdio 傳輸,tools 由
-  `service-and-interfaces` REST 的 24 個 operation 映射;「模組間公開介面」的
-  `Mcp.Server` → `service-and-interfaces`
+  `service-and-interfaces` REST 的**全部** operation 映射(**數量不寫死**,由 API 型別決定);
+  「模組間公開介面」的 `Mcp.Server` → `service-and-interfaces`;以及本文件的
+  「MCP adapter 的連線與 tool 命名」一節
 - **資料流管線段落**:MCP 管線全段(tool call → REST → tool result)
-- **驗收標準**:24 個操作都有對應的 MCP tool 且參數形狀來自同一份 API 型別;錯誤沿用 REST 的
-  `code` 與訊息;claude code 掛上後不必再讀 API 文件就能建/查片段與關聯
+- **驗收標準**:**每一個** REST operation 都有對應的 MCP tool 且參數形狀來自同一份 API 型別
+  ——可測形式是 **tools 數 == OpenAPI operation 數**,tool 名字由 `operationId` 推導,不手維護
+  對照表;連線走 `--url` 或 `STORYFLOW_URL` / `STORYFLOW_TOKEN`(旗標優先),沒設定或連不上
+  就在 `initialize` 回錯誤並指出「先跑 `story-flow serve`」;錯誤沿用 REST 的 `code` 與訊息;
+  claude code 掛上後不必再讀 API 文件就能建/查片段與關聯
 - **明確不做**:不含任何業務邏輯;不 import `storyflow-service`(只打 HTTP);
-  不自行擴充 REST 沒有的操作
+  不自行擴充 REST 沒有的操作;**不自己拉背景 server**(ADR-006 已否決那條路)

@@ -9,6 +9,7 @@ packages:
   service/
   conflict/
   llm/
+  workshop/
   cli/
   api/
   server/
@@ -41,6 +42,9 @@ package storyflow-conflict
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
 package storyflow-llm
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package storyflow-workshop
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
 package storyflow-cli

@@ -262,8 +262,10 @@ initVault root name = do
         Left e -> pure (Left e)
         Right () ->
           -- .storyflow/.gitignore 讓 index.db 就算 Vault 根目錄沒有 .gitignore
-          -- 也不會被 commit;根目錄那份是給人看的
-          atomicWriteText (storyflowDir root </> ".gitignore") "index.db\n" >>= \case
+          -- 也不會被 commit;根目錄那份是給人看的。workshops/ 是工作坊的 session
+          -- 快照(llm-workshop-mcp/F002):未定案的對話是本機互動狀態,不是故事
+          -- 設定,同一個理由不進 git
+          atomicWriteText (storyflowDir root </> ".gitignore") "index.db\nworkshops/\n" >>= \case
             Left e -> pure (Left e)
             Right () ->
               appendMissingLines (root </> ".gitignore") [".storyflow/index.db"] >>= \case

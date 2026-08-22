@@ -21,11 +21,12 @@ spec = describe "T2 initVault" $ do
       doesFileExist (configPath dir) `shouldReturn` True
       mapM_ (\d -> doesDirectoryExist (dir </> d) `shouldReturn` True) vaultSubdirs
 
-  it ".storyflow/.gitignore 含 index.db,根目錄 .gitignore 含 .storyflow/index.db" $
+  it ".storyflow/.gitignore 含 index.db 與 workshops/,根目錄 .gitignore 含 .storyflow/index.db" $
     withTempVault $ \dir -> do
       _ <- initVault dir "liftgame"
       inner <- readText (storyflowDir dir </> ".gitignore")
       T.lines inner `shouldContain` ["index.db"]
+      T.lines inner `shouldContain` ["workshops/"]
       outer <- readText (dir </> ".gitignore")
       T.lines outer `shouldContain` [".storyflow/index.db"]
 

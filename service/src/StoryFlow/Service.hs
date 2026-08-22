@@ -42,6 +42,7 @@ module StoryFlow.Service
   , listVaults
   , vaultInfo
   , vaultConfig
+  , vaultRoot
   , reindex
   , refreshIndex
 
@@ -111,6 +112,7 @@ import StoryFlow.Store hiding
   , listEntities
   , listLevels
   , removeNode
+  , vaultRoot
   )
 import qualified StoryFlow.Store as S
 import StoryFlow.Store.Edit (Located (..), locate, locateNode)
@@ -128,9 +130,9 @@ createVault root name = do
   initVault root name >>= \case
     Left e -> pure (Left (StoreFailed e))
     Right v ->
-      registerVaultIn regFile (vaultName v) (vaultRoot v) >>= \case
+      registerVaultIn regFile (vaultName v) (S.vaultRoot v) >>= \case
         Left e -> pure (Left (StoreFailed e))
-        Right () -> pure (Right (VaultView (vaultName v) (vaultRoot v) (Just 0)))
+        Right () -> pure (Right (VaultView (vaultName v) (S.vaultRoot v) (Just 0)))
 
 -- | 全域註冊表裡的全部 Vault。
 --
@@ -147,7 +149,7 @@ vaultInfo :: ServiceM VaultView
 vaultInfo = do
   Env v conn _ <- ask
   metas <- liftIO (S.listEntities conn emptyFilter)
-  pure (VaultView (vaultName v) (vaultRoot v) (Just (length metas)))
+  pure (VaultView (vaultName v) (S.vaultRoot v) (Just (length metas)))
 
 -- | 這個 Vault 的 @.storyflow\/config.toml@ 內容。
 --
@@ -166,6 +168,17 @@ vaultInfo = do
 -- 認得的只有「有沒有那張表」。
 vaultConfig :: ServiceM VaultConfig
 vaultConfig = asks (vaultCfg . envVault)
+
+-- | 這個 Vault 的根目錄(含 @.storyflow\/@ 的那一層)。
+--
+-- __只開內嵌出口__:與 'vaultConfig' 同一條理由。存在的理由是硬性的:
+-- @storyflow-workshop@ 的 session 快照要寫 @\<root\>\/.storyflow\/workshops\/@,
+-- 而它與 @storyflow-llm@ 同樣不准依賴 @storyflow-store@,拿不到 'S.vaultRoot'。
+--
+-- __不沿用 'vaultInfo'__:它為了 'vvEntityCount' 會 'S.listEntities' 全表掃描,
+-- 而快照每一 step 就要寫一次,不值得每次都付一次全表掃描的代價。
+vaultRoot :: ServiceM FilePath
+vaultRoot = asks (S.vaultRoot . envVault)
 
 -- | 全量重建索引。ADR-002 的「刪掉 index.db 也回得來」就是這一條。
 reindex :: ServiceM IndexReport

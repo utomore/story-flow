@@ -3,7 +3,7 @@ id: F002
 type: feature
 title: workshop-stages
 description: 依型別註冊表 stages 驅動的工作坊狀態機與 session 快照
-status: open
+status: done
 created: 2026-08-22
 updated: 2026-08-22
 depends-on: [F001, entity-graph-core/F002, entity-graph-core/F004, service-and-interfaces/F001]
@@ -660,18 +660,18 @@ vaultRoot :: ServiceM FilePath
 
 ## TodoList
 
-- [ ] T1: 建 `workshop/storyflow-workshop.cabal`(common 段照抄 conflict)、`cabal.project` 加 `workshop/` 與 ghc-options 段、三個模組骨架(`Workshop.Error` / `Workshop.Session` / `Workshop.Stages`)  `dep: -`
-- [ ] T2: `storyflow-service` 新增內嵌出口 `vaultRoot :: ServiceM FilePath`(處理與 `StoryFlow.Store.Vault` 的 `vaultRoot` 存取子的命名衝突:`hiding` 清單加它、既有三個呼叫點改 `S.vaultRoot`、匯出清單加入)  `dep: -`
-- [ ] T3: `store` 的 `initVault`:`.storyflow/.gitignore` 內容加一行 `workshops/`(D6/S5)  `dep: -`
-- [ ] T4: `Workshop.Error`:`WorkshopError` **八個**建構子(含 `WsMissingRequiredField`)、`renderWorkshopError`、`workshopErrorCode`(對 `WsLlmFailed` 往內取 `renderLlmError` / `llmErrorCode`)  `dep: T1`
-- [ ] T5: `Workshop.Session`:`Session` / `StageDraft`(含 `sdTimeline :: Maybe Timeline`)型別與 JSON 編碼(含 `Message`/`Role` 的私有 JSON 轉換,不對 `storyflow-llm` 的型別加孤兒實例;`sdTimeline` 沿用 `storyflow-core` 既有的 `Timeline` JSON 實例)  `dep: T1`
-- [ ] T6: `Workshop.Session`:快照路徑(經新增的 `vaultRoot` 取 root)、目錄建立、`saveSession :: Session -> ServiceM (Either WorkshopError ())`(暫存檔 + rename 的原子寫入)、`loadSession :: Text -> ServiceM (Either WorkshopError Session)`(缺檔 → `WsSessionNotFound`;JSON 壞掉 → `WsSnapshotCorrupt`)  `dep: T4, T5, T2`
-- [ ] T7: `Workshop.Session`:session id 產生(`fnv1a64` 雜湊 + 以快照檔是否已存在做碰撞重試)  `dep: T5`
-- [ ] T8: `Workshop.Stages`:`startWorkshop`(型別不存在 → `throwError (UnknownType _)`;空 `stages` → `pure (Left (WsNoStages _))`;硬約束 id 不存在 → 走 `getEntity` 原生的 `StoreFailed (EntityNotFound _)`;建初始 `Session` → `saveSession`,失敗原樣浮上去)  `dep: T6, T7, T4`
-- [ ] T9: `Workshop.Stages`:system prompt 組裝(階段說明 + 硬約束 summary + **依 `etsFields` 逐條組出的欄位要求區塊** + JSON 陣列格式指示,格式指示含 `timeline` 選填鍵)  `dep: T8`
-- [ ] T10: `Workshop.Stages`:`stepWorkshop`(越界 → `pure (Left (WsStagesExhausted _))`;**重新 `listEntityTypes` 找 `wsType` 對應的 spec 取 `etsFields`,找不到 → `throwError (UnknownType _)`**;`chat` 的 `Left e` → `pure (Left (WsLlmFailed e))` 且不寫快照;`Right` 時更新 `wsHistory`、解析回覆的 JSON 陣列成功則整批替換 `wsPending`(含 `sdTimeline`)、失敗則保留舊值、`saveSession` 失敗原樣浮上去)  `dep: T9`
-- [ ] T11: 測試底稿 `StoryFlow.Workshop.Fixtures`(warp stub 端點、`withDeadPort`、臨時 Vault:`createVault`/`openEnv`/`runService`)  `dep: T1`
-- [ ] T12: 套件邊界測試 `StoryFlow.Workshop.CabalSpec`(build-depends 逐字釘住、禁用清單、`cabal.project` 已登錄、三個模組都在 `exposed-modules`)  `dep: T1`
+- [x] T1: 建 `workshop/storyflow-workshop.cabal`(common 段照抄 conflict)、`cabal.project` 加 `workshop/` 與 ghc-options 段、三個模組骨架(`Workshop.Error` / `Workshop.Session` / `Workshop.Stages`)  `dep: -`
+- [x] T2: `storyflow-service` 新增內嵌出口 `vaultRoot :: ServiceM FilePath`(處理與 `StoryFlow.Store.Vault` 的 `vaultRoot` 存取子的命名衝突:`hiding` 清單加它、既有三個呼叫點改 `S.vaultRoot`、匯出清單加入)  `dep: -`
+- [x] T3: `store` 的 `initVault`:`.storyflow/.gitignore` 內容加一行 `workshops/`(D6/S5)  `dep: -`
+- [x] T4: `Workshop.Error`:`WorkshopError` **八個**建構子(含 `WsMissingRequiredField`)、`renderWorkshopError`、`workshopErrorCode`(對 `WsLlmFailed` 往內取 `renderLlmError` / `llmErrorCode`)  `dep: T1`
+- [x] T5: `Workshop.Session`:`Session` / `StageDraft`(含 `sdTimeline :: Maybe Timeline`)型別與 JSON 編碼(含 `Message`/`Role` 的私有 JSON 轉換,不對 `storyflow-llm` 的型別加孤兒實例;`sdTimeline` 沿用 `storyflow-core` 既有的 `Timeline` JSON 實例)  `dep: T1`
+- [x] T6: `Workshop.Session`:快照路徑(經新增的 `vaultRoot` 取 root)、目錄建立、`saveSession :: Session -> ServiceM (Either WorkshopError ())`(暫存檔 + rename 的原子寫入)、`loadSession :: Text -> ServiceM (Either WorkshopError Session)`(缺檔 → `WsSessionNotFound`;JSON 壞掉 → `WsSnapshotCorrupt`)  `dep: T4, T5, T2`
+- [x] T7: `Workshop.Session`:session id 產生(`fnv1a64` 雜湊 + 以快照檔是否已存在做碰撞重試)  `dep: T5`
+- [x] T8: `Workshop.Stages`:`startWorkshop`(型別不存在 → `throwError (UnknownType _)`;空 `stages` → `pure (Left (WsNoStages _))`;硬約束 id 不存在 → 走 `getEntity` 原生的 `StoreFailed (EntityNotFound _)`;建初始 `Session` → `saveSession`,失敗原樣浮上去)  `dep: T6, T7, T4`
+- [x] T9: `Workshop.Stages`:system prompt 組裝(階段說明 + 硬約束 summary + **依 `etsFields` 逐條組出的欄位要求區塊** + JSON 陣列格式指示,格式指示含 `timeline` 選填鍵)  `dep: T8`
+- [x] T10: `Workshop.Stages`:`stepWorkshop`(越界 → `pure (Left (WsStagesExhausted _))`;**重新 `listEntityTypes` 找 `wsType` 對應的 spec 取 `etsFields`,找不到 → `throwError (UnknownType _)`**;`chat` 的 `Left e` → `pure (Left (WsLlmFailed e))` 且不寫快照;`Right` 時更新 `wsHistory`、解析回覆的 JSON 陣列成功則整批替換 `wsPending`(含 `sdTimeline`)、失敗則保留舊值、`saveSession` 失敗原樣浮上去)  `dep: T9`
+- [x] T11: 測試底稿 `StoryFlow.Workshop.Fixtures`(warp stub 端點、`withDeadPort`、臨時 Vault:`createVault`/`openEnv`/`runService`)  `dep: T1`
+- [x] T12: 套件邊界測試 `StoryFlow.Workshop.CabalSpec`(build-depends 逐字釘住、禁用清單、`cabal.project` 已登錄、三個模組都在 `exposed-modules`)  `dep: T1`
 
 ## 1-to-1 測試對照表
 
@@ -734,7 +734,38 @@ stdout utf8` + 手動 `describe "Tn …"`,不用 `hspec-discover`)。T2 的測�
   或標點。→ 影響:若之後想換更精緻的呈現(例如表格、依 `fsRequired` 分兩段列),只要三個
   子字串仍然找得到,T9 的斷言不必改;若字串斷言本身也要調整(例如把「必填」換成別的措辭),
   才需要回頭改測試。
+- A6(實作階段新增):`workshop/storyflow-workshop.cabal` 的 test-suite `build-depends`
+  比文檔「實作方式」第一節逐字列出的清單多兩項:`http-types`(stub 端點組 `wai` 的
+  `Response` 需要 `Network.HTTP.Types.Status` / `.Header`,`llm/test` 同一份 stub 底稿
+  也依賴它,文檔漏列)、`time`(T7 的碰撞重試測試需要對 `newSessionIdAt` 傳入固定的
+  `UTCTime` 才能決定性地構造碰撞,見下一條實作備註)。→ 採取:兩者都補進
+  `storyflow-workshop.cabal` 與 `StoryFlow.Workshop.CabalSpec` 的逐字清單(`cabal build`
+  沒有這兩項編不過)。→ 影響:純粹是遺漏補正,不影響任何公開介面;若判斷錯誤(例如
+  其實有辦法不靠這兩個套件做同樣的測試),頂多是精簡兩行 `build-depends`,不涉及契約。
 
 ## 實作備註
 
-(開發過程中與設計的偏差記錄於此,撰寫時留空)
+- `StoryFlow.Workshop.Session` 在文檔的 `newSessionId :: Text -> [Id] -> ServiceM Text`
+  之外,多加了一個 `newSessionIdAt :: UTCTime -> Text -> [Id] -> ServiceM Text`(前者只是
+  `liftIO getCurrentTime >>= \now -> newSessionIdAt now ty cs` 的薄包裝)並把兩者與純函式
+  `sessionIdCandidate` 一起放進模組匯出清單。理由是可測試性:`newSessionId` 內部呼叫真正的
+  `getCurrentTime`,T7「候選 id 已存在時會跳過」那條測試需要能預測某個
+  `(型別, 硬約束, 時間, salt)` 組合會產生哪個候選 id、預先造出同名檔案來構造碰撞,若時間
+  是函式內部才知道的就做不到這件事。這與 `saveSession` / `newSessionId` 本身一樣,都是
+  「新增的介面」章節裡刻意不列出的套件內部名字(A3 已經討論過同一個決定),不是 Level 2
+  契約的一部分,`workshop-emit`(F003)之後若也需要決定性地控制時間,可以直接沿用
+  `newSessionIdAt`。
+- T8(`StartSpec`)「硬約束 id 不存在」那一條,測試斷言從文檔描述的
+  `Left (StoreFailed (EntityNotFound _))` 改成 `Left e@(StoreFailed _) -> errorCode e \`shouldBe\`
+  "entity_not_found"`:`EntityNotFound` 是 `storyflow-store` 的 `StoreError` 建構子,
+  `StoryFlow.Service` 的匯出面沒有重新匯出 `StoreError` 本身(只匯出 `ServiceError(..)`,
+  其中 `StoreFailed` 包住的內容維持不透明),而 `storyflow-workshop` 的測試套件不能依賴
+  `storyflow-store`(T12 逐字釘住的禁用清單)。改用 `errorCode` 字串斷言,驗證力等價
+  (`entity_not_found` 這個 code 只有 `EntityNotFound` 對應得到),且沒有越界依賴。
+- T7 的第一條測試(「連續產生 50 個 id 全部不重複」)沒有單純迴圈呼叫 `newSessionId` 50
+  次:碰撞判斷靠的是「快照檔是否已存在」,而 `newSessionId` 本身不寫檔(寫檔是呼叫端
+  `startWorkshop` / `stepWorkshop` 在拿到 id 之後才做的事)。在 Windows 上
+  `getCurrentTime` 的時脈解析度不夠細,快速連續呼叫 50 次若不比照 `startWorkshop` 的真實
+  用法「產生後立刻登記」,會在同一個時間刻度內重複命中 salt = 0 的候選、產生重複 id
+  (第一次實測只拿到 4 個不重複值)。測試因此在迴圈裡每產生一個 id 就寫出一份佔位快照,
+  這正是生產路徑（`startWorkshop`）的真實時序,不是放寬驗收標準。

@@ -5,7 +5,7 @@ title: conflict-detection
 description: 三層衝突偵測:圖遍歷、FTS5 候選撈取與 LLM 判斷
 status: active
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-002, ADR-003, ADR-005, ADR-007]
 ---
@@ -222,6 +222,7 @@ Draft(草稿文字 + 已引用的片段 id)
 | `Conflict.Pipeline` → 三層 | 依 `ConflictOpts` 決定跑到哪一層,合流時只看 `HitLayer` 排序 |
 | `Conflict.Retrieval` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `searchEntity`,不自己開索引連線 |
 | `Conflict.Judge` → `llm-workshop-mcp` | 消費 `LlmClient` 的 `chat`,不實作端點 |
+| `Conflict.Judge` / `Conflict.Pipeline` → `Conflict.Retrieval` | 共用 `Candidate (..)` 與 `metaSnippet`。2026-08-22(E001)補列:第 2 層的候選型別**是三層之間的資料介面,不是內部細節**——在此之前它是一條沒人承認的隱形相依,而 E001 的匯出面收斂正是靠承認它才知道哪些名字不能收 |
 | `Conflict.Pipeline` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `linkGraph` 與 `getEntity`(第 1 層補 `Meta`) |
 | `Conflict.Judge` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `getEntity`(僅 `coExpandBody` 展開 `body` 時) |
 | `Conflict.Pipeline` → `llm-workshop-mcp` | `acquireJudge` 讀設定並建 client(`llmConfig` / `newLlmClient`),把 `LlmError` 翻成 `crNotes` |

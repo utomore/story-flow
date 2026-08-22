@@ -18,6 +18,7 @@ module AssetDB.Ingest.ClusterDb
 import AssetDB.Ingest.Cluster
 import AssetDB.Naming
 import AssetDB.Store
+import Control.Monad (when)
 import Data.Aeson (ToJSON, decodeStrict, encode)
 import Data.ByteString.Lazy qualified as BL
 import Data.List (sortOn)
@@ -120,6 +121,10 @@ data ApplyNames = ApplyNames
   -- ^ (路徑, 錯誤)
   , anCollisions :: [(Text, [Text])]
   -- ^ (邏輯名稱, 撞名的路徑)
+  , anNames :: [(Text, Text)]
+  -- ^ (項目路徑, 邏輯名稱) —— 通過驗證且不撞名的那些,也就是**會被寫入或
+  -- 已被寫入**的完整對應。預覽模式靠它讓人看見「這個檔案會變成這個名字」;
+  -- 有撞名或失敗時是空的(那種情況一筆都不寫)。
   }
   deriving stock (Eq, Show)
 
@@ -128,8 +133,8 @@ data ApplyNames = ApplyNames
 -- **撞名在寫入之前就攔下來。** @logical_name@ 有 UNIQUE 約束,
 -- 邊算邊寫的話第一個撞到的會讓整批交易失敗,而且不知道還有多少個。
 -- 先全部算完、找出所有撞名、一次回報,人才能一次修完規則。
-applyNames :: Store -> NamingVocab -> Int -> IO ApplyNames
-applyNames st vocab pid = do
+applyNames :: Store -> NamingVocab -> Int -> Bool -> IO ApplyNames
+applyNames st vocab pid confirm = do
   rules <- loadRules st pid
   paths <- packPaths st pid
 
@@ -154,21 +159,24 @@ applyNames st vocab pid = do
 
   if null collisions && null failures
     then do
-      now <- T.pack . iso8601Show <$> getCurrentTime
-      withTransaction (storeConn st) $
-        mapM_
-          ( \(p, n) ->
-              execute
-                (storeConn st)
-                "UPDATE assets SET logical_name = ?, updated_at = ? WHERE pack_id = ? AND entry_path = ?"
-                (n, now, pid, p)
-          )
-          safe
-      pure (ApplyNames (length safe) skipped [] [])
+      -- 未確認時到此為止:計算全部做完(所以預覽的數字與名字就是實際會發生的),
+      -- 但不進交易。預覽與套用共用這一整段,兩者不可能漂移(G-B001)。
+      when confirm $ do
+        now <- T.pack . iso8601Show <$> getCurrentTime
+        withTransaction (storeConn st) $
+          mapM_
+            ( \(p, n) ->
+                execute
+                  (storeConn st)
+                  "UPDATE assets SET logical_name = ?, updated_at = ? WHERE pack_id = ? AND entry_path = ?"
+                  (n, now, pid, p)
+            )
+            safe
+      pure (ApplyNames (length safe) skipped [] [] safe)
     else
       -- 有問題就**什麼都不寫**。半套用的命名比沒有命名更難收拾:
       -- 你不知道哪些是舊的、哪些是新的。
-      pure (ApplyNames 0 skipped failures (sortOn fst collisions))
+      pure (ApplyNames 0 skipped failures (sortOn fst collisions) [])
 
 shapeKeyOf :: Text -> Text
 shapeKeyOf = clusterKeyText . clusterKeyOf

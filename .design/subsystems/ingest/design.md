@@ -103,7 +103,22 @@ data ScanReport = ScanReport
 emptyReport :: ScanReport
 
 scanRoot :: Store -> ArchiveTools -> ScanOptions -> IO ScanReport
+
+-- 兩階段化的兩半(匯出供測試,E006)
+data PreparedLoose                       -- 一筆已經算完的散檔:沒有 FilePath、沒有內容
+prepareLoose   :: FilePath -> FilePath -> IO PreparedLoose   -- 交易外:讀檔、雜湊、探測
+writeLoose     :: Connection -> Int -> Text -> PreparedLoose -> IO ()  -- 交易內:只有寫入
+looseBatchSize :: Int
+guardedTry     :: IO a -> IO (Either SomeException a)        -- 接住例外但重拋 AsyncException
 ```
+
+後五項匯出是為了讓**「交易內不做任何計算」這條性質被測到**(ADR-009)。它是最容易被
+下一個人默默改壞的性質:把一行雜湊或探測搬回交易裡,行為完全正確、測試全綠,只有寫鎖
+會被多持有幾分鐘——而那要在有人同時開著伺服器時才看得出來。同樣的理由已經用過兩次
+(`Archive.Sidecar` 的 `parseListing`、`Project.Create` 的 `nonCommercialPacks`)。
+
+**`prepareLoose` 與 `writeLoose` 的型別分工是契約的一部分**:`writeLoose` 的參數裡沒有
+`FilePath`、沒有內容 `ByteString`,所以交易內想讀檔或重新解碼,型別上就辦不到。
 
 `srAborted` 是橫向約束第 3 條的出口:`Nothing` 代表跑完(可能帶著單筆失敗),
 `Just 原因` 代表**中止**,此時計數反映的是「中止前完成了多少」而不是全部。
@@ -207,9 +222,17 @@ previewCluster :: NamingVocab -> NameRule -> [Text] -> [NamePreview]
 
 data ApplyNames = ApplyNames
   { anNamed :: Int, anSkipped :: Int
-  , anFailed :: [(Text, Text)], anCollisions :: [(Text, [Text])] }
-applyNames :: Store -> NamingVocab -> Int -> IO ApplyNames
+  , anFailed :: [(Text, Text)], anCollisions :: [(Text, [Text])]
+  , anNames :: [(Text, Text)] }        -- (項目路徑, 邏輯名稱):會寫入 / 已寫入的完整對應
+applyNames :: Store -> NamingVocab -> Int -> Bool -> IO ApplyNames
 ```
+
+`applyNames` 的最後一個參數是**確認**:`False` 時做完全部計算但**不進交易**。
+`logical_name` 是全域唯一的對外命名契約且沒有 undo 路徑,所以套用必須能先預覽
+(見 `system.md` 錯誤處理策略第 3 條)。預覽與實際套用**走同一條計算路徑**,
+因此 `anNamed` 與 `anNames` 在兩種模式下逐筆相同——兩份各自計算的預覽與實作
+遲早會漂移,那是 `delivery/B007` 的教訓。`anNames` 讓呼叫端能給人看「這個檔案會變成
+這個名字」,而規則對不對只有看名字才判斷得出來,數字看不出來。
 
 ### 縮圖 — `AssetDB.Ingest.Thumb` / `AssetDB.Ingest.ThumbRun`
 
@@ -313,10 +336,14 @@ listBatches  :: Store -> IO [(Text, Int, Text)]     -- (批次, 筆數, 最早�
    留下痕跡並帶得出原因。**把失敗吞成成功比把失敗誤判成另一種失敗更糟** —— 前者讓後續所有
    判斷建立在假的成功上(例如整包項目以 `sha256` 為 NULL 入庫卻回報索引完成,內容定址就
    失效了,而沒有人會知道)。
-3. **批次作業的失敗分兩層。** **單筆失敗**(這一個壓縮檔 / 這一份內容有問題):記錄後繼續跑。
-   **整批中止**(環境失效——磁碟寫滿、資料庫損毀、外部工具消失):停下來,把已完成的部分
-   留在原地,並在報告裡明確標示是中止而非跑完。兩者不可混為一談:把環境失效當成逐筆失敗,
-   會產生數千則同樣的錯誤然後宣稱「掃描完成」。
+3. **批次作業的失敗分兩層,界線劃在「寫入端 vs 讀取端」。**
+   **整批中止**限於**寫入端失效**——磁碟寫滿、資料庫損毀、寫鎖搶不到:停下來,把已完成
+   的部分留在原地,並在報告裡明確標示是中止而非跑完。
+   **讀取端的失敗一律是單筆失敗**,記錄後繼續跑:壓縮檔讀不開、sidecar 缺席
+   (`archive-access` 契約已定義為**能力縮減而非錯誤**)、單一檔案權限不足或掃描期間被移走。
+   兩者不可混為一談:把寫入端失效當成逐筆失敗,會產生數千則同樣的錯誤然後宣稱「完成」;
+   反過來把讀取端失敗當成中止,一個沒裝 7-Zip 的合法環境會在第一個 rar 就停住。
+   **`AsyncException`(Ctrl-C)兩者皆非**,一律重新拋出——那是使用者要求停止,不是錯誤。
 4. **寫交易的持有時間以毫秒計**(ADR-009)。雜湊計算、影像解碼、檔案讀取、子程序呼叫一律
    在交易之外完成,交易內只剩已經算好的值的寫入。這條的理由不在 ingest 內部 —— 而是
    `assetdb-server` 可能正在同一個資料庫上服務查詢,寫鎖持有超過 `busy_timeout` 會讓它寫入失敗。
@@ -470,8 +497,15 @@ data/packs.toml 文字 ──parseCatalogue──► Catalogue
           ┌─────┴──────────────────────┐
       有失敗或撞名                  全部乾淨
           │                             │
-   一筆都不寫,回報所有問題      單一交易寫入 logical_name
+   一筆都不寫,回報所有問題      ┌──────┴───────┐
+                            未確認          已確認
+                              │                │
+                     只回報會產生什麼   單一交易寫入 logical_name
+                     (anNames),不寫入
 ```
+
+**計算與寫入是同一條路徑上的兩段,不是兩份程式碼。** 未確認時停在第一段結束處,
+所以預覽報告的數字與名字就是確認後實際會發生的事。
 
 分群與反查用**同一段程式碼**產生形狀鍵,否則規則會套到錯的檔案上。
 
@@ -558,6 +592,7 @@ entityLinks ──► 雙向查詢,對端識別轉回 ULID
 | `Ingest.Handler` | `kindForPath` / `probeContent` | `Ingest.Scan` | kind 判定與探測都只吃路徑與位元組,不碰資料庫 |
 | `Ingest.Handler` | `archiveExtensions` | `Reorg.Execute` | 判斷哪些搬移需要雜湊對帳 |
 | `Ingest.Scan` | `ScanEvent` / `ScanReport` | `Ingest.Report`、delivery | 渲染與統計分離;`srEntriesUnread` 非零代表刪除閘門的依據不完整;`srArchivesFailed` 非零代表**有整包沒有可信雜湊**(比前者嚴重);`srAborted` 為 `Just` 時所有計數都只是中止前的進度,呼叫端不得當成完整結果 |
+| `Ingest.Scan` | `PreparedLoose` / `prepareLoose` / `writeLoose` / `looseBatchSize` / `guardedTry` | 測試 | 匯出供測試(E006)。`writeLoose` 的參數型別裡不含 `FilePath` 或內容位元組——**交易內不做計算這條性質由型別保證**,不是靠人記得 |
 | `Ingest.Cluster` | `ClusterKey` / `clusterKeyOf` / `clusterKeyText` / `Cluster` / `clusterBy` | `Ingest.ClusterDb`、delivery 的 `cli`(含 AI 輔助流程) | 分群與反查共用同一個鍵函式;`clusterKeyText` 是資料庫裡的形狀鍵格式 |
 | `Ingest.Cluster` | `NameRule`(含手寫 JSON codec)/ `applyRule` | `Ingest.ClusterDb` | JSON 欄位名是**跨版本持久化格式**,不由 Haskell 欄位名間接決定 |
 | `Ingest.ClusterDb` | `PackRef` / `listPacks` / `packPaths` / `packClusters` | delivery 的 `cli` | pack 的內部整數 id 只在同一次操作內流通 |
@@ -668,12 +703,14 @@ archive ◄──── ingest ◄──── reorg
 > 新增條款不符的實作,契約已先改(橫向約束第 1–4 條、管線 A 的交易邊界與失敗出口、
 > `ScanReport` / `ScanEvent` 的新欄位),程式碼待後續收斂:
 >
-> | 缺口 | 對應的新契約 | 路線 |
-> |---|---|---|
-> | 整包取內容失敗被吞成成功,項目以 `sha256` NULL 入庫 | 橫向約束第 2 條、管線 A 的 `EvArchiveFailed` | `/bugfix` |
-> | 散檔掃描與壓縮檔寫入把長時間 IO 包在單一交易內 | 橫向約束第 4 條、管線 A 的交易邊界 | `/enhance-design` |
-> | 掃描沒有「整批中止」這一層,且裸 `try` 會吞掉 Ctrl-C | 橫向約束第 3 條、`srAborted` | `/enhance-design` |
-> | 資料庫錯誤與檔案系統例外穿越邊界 | 橫向約束第 1 條 | 全域 `/enhance-design` |
+> | 缺口 | 對應的新契約 | 路線 | 狀態 |
+> |---|---|---|---|
+> | 整包取內容失敗被吞成成功,項目以 `sha256` NULL 入庫 | 橫向約束第 2 條、管線 A 的 `EvArchiveFailed` | `/bugfix` | ✅ `B001` |
+> | 散檔掃描與壓縮檔寫入把長時間 IO 包在單一交易內 | 橫向約束第 4 條、管線 A 的交易邊界 | `/enhance-design` | ✅ `E006`(單批交易實測 6.0ms) |
+> | 掃描沒有「整批中止」這一層,且裸 `try` 會吞掉 Ctrl-C | 橫向約束第 3 條、`srAborted` | `/enhance-design` | ✅ `E006` |
+> | 散檔的逐檔 IO 失敗會讓整次掃描崩掉(完全沒有 `try`) | 橫向約束第 1、2 條 | `/enhance-design` | ✅ `E006` |
+> | 資料庫錯誤與檔案系統例外穿越邊界(`Scan.hs` 以外的 11 處,含本檔的 `ensureRoot`) | 橫向約束第 1 條 | 全域 `/enhance-design` | 待展開 |
+> | `ThumbRun` 的裸 `try` 同樣會吞掉 Ctrl-C(`readEntry` 對 solid 壓縮檔會叫起子程序,不只毫秒) | 橫向約束第 3 條 | `/enhance-design` | 待展開(`E006` 的排除項) |
 
 ## 功能規劃
 
@@ -781,7 +818,8 @@ archive ◄──── ingest ◄──── reorg
   - 規則存進去讀得回來;同一叢集重複確認是覆寫而非新增
   - 只套用已確認叢集,其餘計入 `anSkipped`;沒有任何規則時什麼都不做
   - 撞名在寫入之前攔下,回報**所有**撞名而不是第一個,且一筆都不寫
-  - 預覽不寫入任何東西
+  - 預覽不寫入任何東西;`applyNames` 未確認時同樣一個字都不寫,但算得出會命名幾筆
+    與實際會產生的名字(`anNames`),且與確認後的結果逐筆相同
   - 產生的名稱一律通過 catalog 的命名文法驗證;純中文檔名回報錯誤而不是產生垃圾
   - 非末尾權杖的數字保留(否則同一系列的變體會撞名);三位數以上自動判為格號而非變體
 - **明確不做**:不自動決定尾端數字是變體還是格號(`NumAuto` 只在形狀明確時下結論,其餘由人指定);不猜檔名裡缺失的主體;不做語意分類;不改檔案名稱(只寫資料庫的 `logical_name`);不做跨素材包的叢集合併

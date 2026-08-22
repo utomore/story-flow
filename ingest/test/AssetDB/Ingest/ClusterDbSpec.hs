@@ -34,13 +34,13 @@ spec = around withPack $ do
   describe "套用" $ do
     it "只套用已確認叢集,其餘跳過" $ \st -> do
       saveCluster st (rule PUi "gui") {nrDropTokens = [0]} "sprites|U_W_WNa|.png"
-      r <- applyNames st defaultVocab 1
+      r <- applyNames st defaultVocab 1 True
       anNamed r `shouldBe` 2
       anSkipped r `shouldBe` 2
       names st `shouldReturn` ["ui_gui_travel-book-alert_01a", "ui_gui_wizard-book-alert_01a"]
 
     it "沒有任何規則時什麼都不做" $ \st -> do
-      r <- applyNames st defaultVocab 1
+      r <- applyNames st defaultVocab 1 True
       anNamed r `shouldBe` 0
       anSkipped r `shouldBe` 4
       names st `shouldReturn` []
@@ -50,16 +50,40 @@ spec = around withPack $ do
       -- 丟掉 0 與 1 兩個權杖之後,TravelBook 與 WizardBook 的區別消失,
       -- Alert01a 與 Alert01a 撞在一起。
       saveCluster st (rule PUi "gui") {nrDropTokens = [0, 1]} "sprites|U_W_WNa|.png"
-      r <- applyNames st defaultVocab 1
+      r <- applyNames st defaultVocab 1 True
       map fst (anCollisions r) `shouldBe` ["ui_gui_alert_01a"]
       length (snd (head (anCollisions r))) `shouldBe` 2
 
     it "有撞名就一筆都不寫" $ \st -> do
       -- 半套用比沒套用更難收拾。
       saveCluster st (rule PUi "gui") {nrDropTokens = [0, 1]} "sprites|U_W_WNa|.png"
-      _ <- applyNames st defaultVocab 1
-      anNamed <$> applyNames st defaultVocab 1 `shouldReturn` 0
+      _ <- applyNames st defaultVocab 1 True
+      anNamed <$> applyNames st defaultVocab 1 True `shouldReturn` 0
       names st `shouldReturn` []
+
+  -- G-B001:logical_name 是 ADR-004 的對外命名契約,全域唯一、遊戲的
+  -- Assets.hs 常數由它產生,而且寫入後沒有 undo 路徑。套用必須先預覽。
+  describe "預覽閘門(G-B001)" $ do
+    it "未確認時算得出會命名幾筆,但一個字都不寫進資料庫" $ \st -> do
+      saveCluster st (rule PUi "gui") {nrDropTokens = [0]} "sprites|U_W_WNa|.png"
+      r <- applyNames st defaultVocab 1 False
+      anNamed r `shouldBe` 2
+      names st `shouldReturn` []
+
+    it "預覽帶得出實際會產生的名字,不只是數字" $ \st -> do
+      saveCluster st (rule PUi "gui") {nrDropTokens = [0]} "sprites|U_W_WNa|.png"
+      r <- applyNames st defaultVocab 1 False
+      map snd (anNames r)
+        `shouldMatchList` ["ui_gui_travel-book-alert_01a", "ui_gui_wizard-book-alert_01a"]
+
+    it "確認後才真的寫入,且結果與預覽完全一致" $ \st -> do
+      saveCluster st (rule PUi "gui") {nrDropTokens = [0]} "sprites|U_W_WNa|.png"
+      preview <- applyNames st defaultVocab 1 False
+      applied <- applyNames st defaultVocab 1 True
+      -- 預覽與套用共用同一條計算路徑,所以連名字對應都必須逐筆相同。
+      anNames applied `shouldBe` anNames preview
+      anNamed applied `shouldBe` anNamed preview
+      names st `shouldReturn` ["ui_gui_travel-book-alert_01a", "ui_gui_wizard-book-alert_01a"]
 
   describe "預覽" $
     it "不寫入任何東西" $ \st -> do

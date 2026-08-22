@@ -238,8 +238,14 @@ assetdb cluster rule … --kind ui --domain gui --drop 0
 ```bash
 assetdb cluster rule --pack complete-ui-book-styles --shape "sprites|U_W_WNa|.png" \
   --kind ui --domain gui --drop 0 --confirm
-assetdb cluster apply --pack complete-ui-book-styles
+assetdb cluster apply --pack complete-ui-book-styles            # 預設只預覽
+assetdb cluster apply --pack complete-ui-book-styles --confirm  # 真的寫入
 ```
+
+**兩道 `--confirm` 確認的不是同一件事。** `cluster rule` 的確認是「這條規則存起來」,
+`cluster apply` 的確認是「把規則套成名字寫進資料庫」。後者一次可能改動數千筆
+`logical_name`,而那是全域唯一、遊戲 `Assets.hs` 常數的來源,**寫錯沒有 undo**——
+所以預覽會列出幾筆抽樣的 `原檔名 → 邏輯名稱`,確認名字對了再加 `--confirm`。
 
 **資料庫存的是「確認過的規則」而不是結果**,所以廠商出更新版時自動重套。
 

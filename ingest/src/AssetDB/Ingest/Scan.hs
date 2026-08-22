@@ -15,6 +15,15 @@ module AssetDB.Ingest.Scan
   , ScanReport (..)
   , emptyReport
   , scanRoot
+
+    -- * 兩階段化的兩半(匯出供測試)
+    --
+    -- $twoPhase
+  , PreparedLoose (..)
+  , prepareLoose
+  , writeLoose
+  , looseBatchSize
+  , guardedTry
   ) where
 
 import AssetDB.Archive
@@ -24,7 +33,7 @@ import AssetDB.Ingest.Hash
 import AssetDB.PathText (leafOf, slugify)
 import AssetDB.Store
 import AssetDB.Types
-import Control.Exception (SomeException, try)
+import Control.Exception (AsyncException, SomeException, fromException, throwIO, try)
 import Control.Monad (foldM, forM)
 import Data.Aeson (Value, encode)
 import Data.ByteString qualified as BS
@@ -41,6 +50,18 @@ import Database.SQLite.Simple
 import System.Directory
 import System.FilePath
 import System.IO.Temp (withSystemTempDirectory)
+
+-- $twoPhase
+--
+-- 這四項匯出是為了讓「交易內不做任何計算」這條性質**被測到**(E006 / ADR-009)。
+--
+-- 它是本次優化最核心、也最容易被下一個人默默改壞的性質:把一行雜湊或探測搬回
+-- 交易裡,行為完全正確、測試全綠,只有寫鎖會被多持有幾分鐘 —— 而那要在有人
+-- 同時開著伺服器時才看得出來。從 'scanRoot' 外面走到交易邊界需要一整組真實素材庫
+-- 與可控的失敗注入,那樣的測試貴到不會有人寫。
+--
+-- 同樣的理由已經用過兩次:@Archive.Sidecar@ 的 @parseListing@、
+-- @Project.Create@ 的 @nonCommercialPacks@。
 
 --------------------------------------------------------------------------------
 
@@ -75,6 +96,10 @@ data ScanEvent
   | EvLooseStart Int
   | EvLooseDone Int
   | EvProblem Text
+  | EvAborted Text
+  -- ^ **整批中止**:寫入端失效(磁碟寫滿、資料庫損毀、搶不到寫鎖)。
+  -- 與 'EvProblem' 和 'EvArchiveFailed' 都不同——那兩個是「這一筆」的問題,
+  -- 這個是「環境壞了,再跑下去只會累積數千則同樣的錯誤」。
   deriving stock (Eq, Show)
 
 data ScanReport = ScanReport
@@ -91,11 +116,45 @@ data ScanReport = ScanReport
   , srLooseFiles :: Int
   , srBytesHashed :: Integer
   , srProblems :: [Text]
+  , srAborted :: Maybe Text
+  -- ^ 'Nothing' = 跑完(可能帶著單筆失敗);@Just 原因@ = **中止**。
+  -- 中止時上面每一個計數都只是「中止前完成了多少」,呼叫端不得當成完整結果。
   }
   deriving stock (Eq, Show)
 
 emptyReport :: ScanReport
-emptyReport = ScanReport 0 0 0 0 0 0 0 []
+emptyReport = ScanReport 0 0 0 0 0 0 0 [] Nothing
+
+--------------------------------------------------------------------------------
+
+-- | 逐項的 try,但**不吞掉 Ctrl-C**。
+--
+-- 判準來自 @ai\/Run.hs@ 的同名函式:裸的 @try \@SomeException@ 只有在
+-- 「每筆只花毫秒」時才安全,因為中斷訊號幾乎不可能落在工作內部。掃描不符合
+-- 那個條件 —— 一個素材包的寫入是數千次 insert,散檔的準備是實際的檔案讀取,
+-- 中斷訊號落在裡面的機率很高。被 'SomeException' 接住之後迴圈會繼續跑下一項,
+-- 使用者按幾次 Ctrl-C 都停不下來。
+--
+-- 兩份實作刻意分開:ai-tagging 與 ingest 互不相依,方向上 ingest 也不該依賴 ai。
+guardedTry :: IO a -> IO (Either SomeException a)
+guardedTry act =
+  try act >>= \case
+    Left e | Just (ae :: AsyncException) <- fromException e -> throwIO ae
+    r -> pure r
+
+-- | 這個例外算不算「寫入端失效」。
+--
+-- **中止的界線劃在寫入端**:資料庫寫不進去(磁碟滿、db 損毀、搶不到寫鎖)不是
+-- 「這一筆」的問題,繼續跑只會把剩下的每一項都標成同樣的失敗。
+--
+-- 讀取端的失敗一律是單筆失敗:壓縮檔讀不開(B001)、sidecar 缺席
+-- (@archive-access@ 契約定義為**能力縮減而非錯誤**)、單一檔案權限不足或
+-- 掃描期間被移走。把讀取端當成中止的話,一個沒裝 7-Zip 的合法環境會在第一個
+-- rar 就停住。
+writeFailure :: SomeException -> Maybe Text
+writeFailure e = case fromException e :: Maybe SQLError of
+  Just se -> Just (compact se)
+  Nothing -> Nothing
 
 --------------------------------------------------------------------------------
 
@@ -110,14 +169,22 @@ scanRoot st tools opts@ScanOptions {..} = do
 
   r1 <-
     foldM
-      (\acc (i, p) -> scanArchive st tools opts rootId absRoot (i, length archivePaths) p acc)
+      ( \acc (i, p) -> case srAborted acc of
+          -- 已中止就不再碰剩下的壓縮檔。
+          Just _ -> pure acc
+          Nothing -> scanArchive st tools opts rootId absRoot (i, length archivePaths) p acc
+      )
       emptyReport {srProblems = loopWarnings}
       (zip [1 ..] archivePaths)
 
-  soOnEvent (EvLooseStart (length loosePaths))
-  r2 <- scanLoose st rootId absRoot loosePaths r1
-  soOnEvent (EvLooseDone (length loosePaths))
-  pure r2
+  case srAborted r1 of
+    -- 中止不進散檔階段:寫入端已經失效,再試只會再失敗一次。
+    Just _ -> pure r1
+    Nothing -> do
+      soOnEvent (EvLooseStart (length loosePaths))
+      r2 <- scanLoose st soOnEvent rootId absRoot loosePaths r1
+      soOnEvent (EvLooseDone (length loosePaths))
+      pure r2
 
 -- | 把根目錄底下的檔案分成壓縮檔與散檔,並回報偵測到的目錄迴圈。
 --
@@ -204,10 +271,15 @@ scanArchive st tools ScanOptions {..} rootId absRoot (idx, total) path acc = do
             Left err -> archiveFailed (renderArchiveError err)
             Right contents -> do
               let unread = length [() | (_, Nothing) <- contents]
-              r <- try (writeArchive st rootId absRoot path archiveSha size entries contents)
+                  -- 交易外算完。之後 contents 就可以被回收 —— 舊版整包內容
+                  -- 留在記憶體裡直到交易結束。
+                  prepared = map prepareEntry contents
+              r <- guardedTry (writeArchive st rootId absRoot path archiveSha size entries prepared)
               case r of
-                Left (e :: SomeException) ->
-                  problem (T.pack (takeFileName path) <> ":寫入失敗 " <> compact e)
+                Left e
+                  | Just why <- writeFailure e -> aborted why
+                  | otherwise ->
+                      problem (T.pack (takeFileName path) <> ":寫入失敗 " <> compact e)
                 Right hashedBytes -> do
                   soOnEvent (EvArchiveDone path (length entries))
                   pure
@@ -221,6 +293,16 @@ scanArchive st tools ScanOptions {..} rootId absRoot (idx, total) path acc = do
     problem msg = do
       soOnEvent (EvProblem msg)
       pure acc {srProblems = srProblems acc <> [msg]}
+
+    -- 寫入端失效:不是「這一包」的問題,再跑下去只會把剩下的每一包都
+    -- 標成同樣的失敗。停下來,已完成的部分留在資料庫,重跑會補齊。
+    aborted why = do
+      soOnEvent (EvAborted why)
+      pure
+        acc
+          { srAborted = Just why
+          , srProblems = srProblems acc <> ["中止:" <> why]
+          }
 
     -- 整包讀不開。不寫入任何項目 —— 半包沒有雜湊的資料比沒有資料更糟,
     -- 因為後續每一個判斷都會把它當成真的。
@@ -268,6 +350,59 @@ fetchContents tools path entries
   where
     nativePath = joinPath . map T.unpack . T.splitOn "/"
 
+-- | 一筆**已經算完**的項目。
+--
+-- 交易內只會看到這個型別,而它裡面沒有 @FilePath@、沒有內容 @ByteString@ ——
+-- 想在交易裡讀檔或重新解碼,型別上就辦不到。這是 ADR-009「寫交易內只剩已經
+-- 算好的值的寫入」在 Haskell 裡的具體形式:規則由型別保證,不是靠人記得。
+--
+-- 欄位刻意都是已序列化的形式(@Text@ / @Integer@),不留 'Sha256' 或 'Value':
+-- 那兩者的計算在惰性下會變成 thunk 飄進交易內,型別分離就白做了(見 'prepareEntry')。
+data PreparedEntry = PreparedEntry
+  { prpPath :: !Text
+  , prpLeaf :: !Text
+  , prpExt :: !Text
+  , prpKind :: !AssetKind
+  , prpSha :: !(Maybe Text)
+  , prpMeta :: !(Maybe Text)
+  , prpBytes :: !Integer
+  }
+
+-- | 交易**外**把一筆項目算完:SHA-256、kind 專屬中繼資料、序列化。
+--
+-- == 為什麼要顯式強制求值
+--
+-- 光把型別換成 @Text@ 不夠。嚴格欄位只強制到 WHNF,而 @Maybe Text@ 的 WHNF
+-- 是 @Just \<thunk\>@ —— 雜湊與 PNG 解碼會安安靜靜地跟著 thunk 飄進交易內,
+-- 執行時機完全沒變,只是看起來變乾淨了。'forceMaybeText' 是那道保險。
+prepareEntry :: (ArchiveEntry, Maybe BS.ByteString) -> PreparedEntry
+prepareEntry (e, mContent) =
+  let entryPath = aePath e
+      kind = kindForPath entryPath
+   in case mContent of
+        -- 讀不到內容的項目仍然入庫。丟棄會讓「這包有幾個檔案」對不上,
+        -- 之後查帳時無從解釋差額 —— 缺少 sha256 是一個看得見的缺口,
+        -- 而 srEntriesUnread 會把它算出來。
+        Nothing ->
+          PreparedEntry entryPath (leafOf entryPath) (extensionOf entryPath) kind Nothing Nothing 0
+        Just content ->
+          PreparedEntry
+            entryPath
+            (leafOf entryPath)
+            (extensionOf entryPath)
+            kind
+            (forceMaybeText (Just (unSha256 (sha256Bytes content))))
+            (forceMaybeText (encodeMeta (probeContent entryPath content)))
+            (fromIntegral (BS.length content))
+
+-- | 把 @Maybe Text@ 強制到「字串真的算出來了」的程度。
+--
+-- @Data.Text.Text@ 的 WHNF 就是完整的位元組陣列,所以碰到裡面那個 'Text'
+-- 一次就夠 —— 雜湊與探測會在**這裡**發生,而這裡在交易外。
+forceMaybeText :: Maybe Text -> Maybe Text
+forceMaybeText Nothing = Nothing
+forceMaybeText (Just t) = T.length t `seq` Just t
+
 writeArchive
   :: Store
   -> Int
@@ -276,9 +411,9 @@ writeArchive
   -> Sha256
   -> Integer
   -> [ArchiveEntry]
-  -> [(ArchiveEntry, Maybe BS.ByteString)]
+  -> [PreparedEntry]
   -> IO Integer
-writeArchive st rootId absRoot path archiveSha size entries contents = do
+writeArchive st rootId absRoot path archiveSha size entries prepared = do
   let conn = storeConn st
       relPath = T.pack (makeRelativeTo absRoot path)
   now <- nowText
@@ -308,46 +443,16 @@ writeArchive st rootId absRoot path archiveSha size entries contents = do
       , now
       )
     archiveId <- lastInsertRowId conn
-    foldM (insertEntry conn archiveId packId now) 0 contents
+    foldM (insertEntry conn archiveId packId now) 0 prepared
 
-insertEntry
-  :: Connection
-  -> Int64
-  -> Int
-  -> Text
-  -> Integer
-  -> (ArchiveEntry, Maybe BS.ByteString)
-  -> IO Integer
-insertEntry conn archiveId packId now acc (e, mContent) = do
-  let entryPath = aePath e
-      leaf = leafOf entryPath
-      kind = kindForPath entryPath
-  case mContent of
-    -- 讀不到內容的項目仍然入庫。丟棄會讓「這包有幾個檔案」對不上,
-    -- 之後查帳時無從解釋差額 —— 缺少 sha256 是一個看得見的缺口,
-    -- 而 srEntriesUnread 會把它算出來。
-    Nothing -> do
-      insertAsset conn archiveId packId now entryPath leaf kind Nothing Nothing
-      pure acc
-    Just content -> do
-      let sha = sha256Bytes content
-          meta = probeContent entryPath content
-      upsertBlob conn sha (BS.length content) kind meta now
-      insertAsset conn archiveId packId now entryPath leaf kind (Just sha) meta
-      pure (acc + fromIntegral (BS.length content))
-
-insertAsset
-  :: Connection
-  -> Int64
-  -> Int
-  -> Text
-  -> Text
-  -> Text
-  -> AssetKind
-  -> Maybe Sha256
-  -> Maybe Value
-  -> IO ()
-insertAsset conn archiveId packId now entryPath leaf kind mSha meta = do
+-- | 交易**內**的唯一動作:把已經算好的值寫進去。
+--
+-- 參數型別裡沒有任何需要讀檔或重新運算的東西 —— 這是刻意的,見 'PreparedEntry'。
+insertEntry :: Connection -> Int64 -> Int -> Text -> Integer -> PreparedEntry -> IO Integer
+insertEntry conn archiveId packId now acc PreparedEntry {..} = do
+  case prpSha of
+    Nothing -> pure ()
+    Just sha -> upsertBlobText conn sha prpBytes prpKind prpMeta now
   u <- unULID <$> newULID
   execute
     conn
@@ -357,80 +462,160 @@ insertAsset conn archiveId packId now entryPath leaf kind mSha meta = do
     -- 11 個佔位符。sqlite-simple 的 ToRow 對 tuple 只到 10 個元素,
     -- 所以用 [SQLData];這也讓 NULL 與型別一目了然。
     [ SQLText u
-    , SQLText (toTextEnum kind)
+    , SQLText (toTextEnum prpKind)
     , SQLInteger archiveId
-    , SQLText entryPath
-    , SQLText leaf
-    , SQLText (extensionOf entryPath)
-    , maybe SQLNull (SQLText . unSha256) mSha
+    , SQLText prpPath
+    , SQLText prpLeaf
+    , SQLText prpExt
+    , maybe SQLNull SQLText prpSha
     , SQLInteger (fromIntegral packId)
-    , maybe SQLNull SQLText (encodeMeta meta)
+    , maybe SQLNull SQLText prpMeta
+    , SQLText now
+    , SQLText now
+    ]
+  pure (acc + prpBytes)
+
+--------------------------------------------------------------------------------
+-- 散檔
+
+-- | 一筆**已經算完**的散檔。與 'PreparedEntry' 同樣的道理:交易內看不到
+-- @FilePath@,也就讀不了檔。
+data PreparedLoose = PreparedLoose
+  { plRel :: !Text
+  , plLeaf :: !Text
+  , plExt :: !Text
+  , plKind :: !AssetKind
+  , plSha :: !Text
+  , plMeta :: !(Maybe Text)
+  , plBytes :: !Integer
+  }
+
+-- | 每批多少筆。
+--
+-- 每批交易內約 400 次 @execute@(毫秒級),而準備階段同時在記憶體裡的只有
+-- 一批的中繼資料。數字可以調,但**不得回到「一個交易包住整個根目錄」** ——
+-- 那會讓寫鎖被持有數分鐘到數小時,遠超 @busy_timeout@(ADR-009)。
+looseBatchSize :: Int
+looseBatchSize = 200
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n xs = let (h, t) = splitAt n xs in h : chunksOf n t
+
+scanLoose :: Store -> (ScanEvent -> IO ()) -> Int -> FilePath -> [FilePath] -> ScanReport -> IO ScanReport
+scanLoose st onEvent rootId absRoot paths acc0 = do
+  now <- nowText
+  go now acc0 (chunksOf looseBatchSize paths)
+  where
+    conn = storeConn st
+
+    go _ acc [] = pure acc
+    go now acc (batch : rest) = do
+      -- ① 準備:交易外。每一檔各自有出口 —— 權限不足或掃到一半被移走
+      --    不該讓整次掃描崩掉(這是掃描期間的常態,不是環境失效)。
+      (prepared, acc') <- foldM prepareOne ([], acc) batch
+
+      -- ② 寫入:交易內只有 execute。
+      w <- guardedTry (withTransaction conn (mapM_ (writeLoose conn rootId now) (reverse prepared)))
+      case w of
+        Left e
+          | Just why <- writeFailure e -> aborted acc' why
+          | otherwise -> do
+              let msg = "散檔批次寫入失敗:" <> compact e
+              onEvent (EvProblem msg)
+              pure acc' {srProblems = srProblems acc' <> [msg]}
+        Right () -> do
+          let written = length prepared
+              bytes = sum (map plBytes prepared)
+          go
+            now
+            acc'
+              { srLooseFiles = srLooseFiles acc' + written
+              , srBytesHashed = srBytesHashed acc' + bytes
+              }
+            rest
+
+    aborted acc why = do
+      onEvent (EvAborted why)
+      pure acc {srAborted = Just why, srProblems = srProblems acc <> ["中止:" <> why]}
+
+    prepareOne (done, acc) p = do
+      r <- guardedTry (prepareLoose absRoot p)
+      case r of
+        Right pl -> pure (pl : done, acc)
+        Left e -> do
+          -- 掃描期間檔案被移走、權限不足 —— 是常態,不是環境失效。
+          -- 記下來繼續跑;舊版這裡沒有任何 try,一個檔案就能讓整次掃描崩掉。
+          let msg = T.pack (takeFileName p) <> ":讀取失敗 " <> compact e
+          onEvent (EvProblem msg)
+          pure (done, acc {srProblems = srProblems acc <> [msg]})
+
+-- | 交易**外**把一筆散檔算完。
+--
+-- 記憶體策略分兩路(ingest/E004):圖片與音效的探測本來就需要整份內容
+-- (PNG 解碼數色、WAV 走 chunk),既然要讀,雜湊就用同一份位元組,不讀第二次。
+-- 其餘 kind 的 hProbe 都是 const Nothing,雜湊改走與 'sha256File' 相同的串流
+-- 路徑 —— reference/ 底下的大型相片或原始檔不再整檔進記憶體。
+prepareLoose :: FilePath -> FilePath -> IO PreparedLoose
+prepareLoose absRoot p = do
+  let relPath = T.pack (makeRelativeTo absRoot p)
+      leaf = T.pack (takeFileName p)
+      kind = kindForPath relPath
+  (sha, size, meta) <- case handlerFor (extensionOf relPath) of
+    Just h
+      | hKind h `elem` [KImage, KAudio] -> do
+          content <- BS.readFile p
+          pure (sha256Bytes content, fromIntegral (BS.length content), hProbe h content)
+    _ -> do
+      sha <- sha256File p
+      size <- getFileSize p
+      pure (sha, size, Nothing)
+  -- 與 'prepareEntry' 同樣的理由:強制到「真的算完了」,否則計算會跟著
+  -- thunk 飄進下一步的交易裡。
+  let shaText = unSha256 sha
+      metaText = forceMaybeText (encodeMeta meta)
+  shaText `seq` T.length shaText `seq` pure ()
+  pure (PreparedLoose relPath leaf (extensionOf relPath) kind shaText metaText size)
+
+-- | 交易**內**的唯一動作。參數型別裡沒有 @FilePath@,讀不了檔。
+writeLoose :: Connection -> Int -> Text -> PreparedLoose -> IO ()
+writeLoose conn rootId now PreparedLoose {..} = do
+  upsertBlobText conn plSha plBytes plKind plMeta now
+  execute conn "DELETE FROM assets WHERE root_id = ? AND rel_path = ?" (rootId, plRel)
+  u <- unULID <$> newULID
+  execute
+    conn
+    "INSERT INTO assets \
+    \ (ulid,kind,root_id,rel_path,original_name,ext,sha256,meta_json,created_at,updated_at) \
+    \VALUES (?,?,?,?,?,?,?,?,?,?)"
+    [ SQLText u
+    , SQLText (toTextEnum plKind)
+    , SQLInteger (fromIntegral rootId)
+    , SQLText plRel
+    , SQLText plLeaf
+    , SQLText plExt
+    , SQLText plSha
+    , maybe SQLNull SQLText plMeta
     , SQLText now
     , SQLText now
     ]
 
 --------------------------------------------------------------------------------
--- 散檔
-
-scanLoose :: Store -> Int -> FilePath -> [FilePath] -> ScanReport -> IO ScanReport
-scanLoose st rootId absRoot paths acc = do
-  let conn = storeConn st
-  now <- nowText
-  total <- withTransaction conn (foldM (one conn now) 0 paths)
-  pure acc {srLooseFiles = length paths, srBytesHashed = srBytesHashed acc + total}
-  where
-    one conn now bytes p = do
-      let relPath = T.pack (makeRelativeTo absRoot p)
-          leaf = T.pack (takeFileName p)
-          kind = kindForPath relPath
-      -- 記憶體策略分兩路(ingest/E004):圖片與音效的探測本來就需要
-      -- 整份內容(PNG 解碼數色、WAV 走 chunk),既然要讀,雜湊就用同
-      -- 一份位元組,不讀第二次。其餘 kind 的 hProbe 都是 const Nothing,
-      -- 雜湊改走與 'sha256File' 相同的串流路徑 —— reference/ 底下的
-      -- 大型相片或原始檔不再整檔進記憶體。
-      (sha, size, meta) <- case handlerFor (extensionOf relPath) of
-        Just h
-          | hKind h `elem` [KImage, KAudio] -> do
-              content <- BS.readFile p
-              pure (sha256Bytes content, fromIntegral (BS.length content), hProbe h content)
-        _ -> do
-          sha <- sha256File p
-          size <- getFileSize p
-          pure (sha, size, Nothing)
-      upsertBlob conn sha (fromIntegral size) kind meta now
-      execute conn "DELETE FROM assets WHERE root_id = ? AND rel_path = ?" (rootId, relPath)
-      u <- unULID <$> newULID
-      execute
-        conn
-        "INSERT INTO assets \
-        \ (ulid,kind,root_id,rel_path,original_name,ext,sha256,meta_json,created_at,updated_at) \
-        \VALUES (?,?,?,?,?,?,?,?,?,?)"
-        [ SQLText u
-        , SQLText (toTextEnum kind)
-        , SQLInteger (fromIntegral rootId)
-        , SQLText relPath
-        , SQLText leaf
-        , SQLText (extensionOf relPath)
-        , SQLText (unSha256 sha)
-        , maybe SQLNull SQLText (encodeMeta meta)
-        , SQLText now
-        , SQLText now
-        ]
-      pure (bytes + size)
-
---------------------------------------------------------------------------------
 -- 資料庫小工具
 
 -- | 同一份內容跨素材包只算一次。多家廠商常常附上同一份免費字型或授權文字。
-upsertBlob :: Connection -> Sha256 -> Int -> AssetKind -> Maybe Value -> Text -> IO ()
-upsertBlob conn sha bytes kind meta now =
+--
+-- 收的是**已序列化**的雜湊與中繼資料:這個函式只在交易內被呼叫,而交易內
+-- 不做任何計算(ADR-009)。
+upsertBlobText :: Connection -> Text -> Integer -> AssetKind -> Maybe Text -> Text -> IO ()
+upsertBlobText conn sha bytes kind meta now =
   execute
     conn
     "INSERT OR IGNORE INTO blobs (sha256,bytes,kind,meta_json,first_seen) VALUES (?,?,?,?,?)"
-    [ SQLText (unSha256 sha)
+    [ SQLText sha
     , SQLInteger (fromIntegral bytes)
     , SQLText (toTextEnum kind)
-    , maybe SQLNull SQLText (encodeMeta meta)
+    , maybe SQLNull SQLText meta
     , SQLText now
     ]
 
@@ -500,5 +685,5 @@ makeRelativeTo root p = map toSlash (makeRelative root p)
   where
     toSlash c = if c == '\\' then '/' else c
 
-compact :: SomeException -> Text
+compact :: Show a => a -> Text
 compact = T.unwords . T.words . T.pack . show

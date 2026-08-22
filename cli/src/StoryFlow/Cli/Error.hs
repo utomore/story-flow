@@ -36,6 +36,7 @@ import qualified Data.Text as T
 import StoryFlow.Core.Id (renderId)
 import StoryFlow.Core.Meta (Meta (..), renderStatus)
 import StoryFlow.Service (ServiceError, errorCode, renderServiceError)
+import StoryFlow.Workshop (WorkshopError, renderWorkshopError, workshopErrorCode)
 
 -- 定址 -------------------------------------------------------------------------
 
@@ -135,6 +136,10 @@ data CliError
     CliInput Text
   | -- | 引數組合不合法。這一種以 exit 2 收場,與其他的 exit 1 分開
     CliUsage Text
+  | -- | 工作坊自己的失敗(llm-workshop-mcp/F004)。'workshopErrorCode' \/
+    -- 'renderWorkshopError' 原樣沿用,這一層不重寫下層的訊息(對 'WsLlmFailed'
+    -- 又是沿用 'StoryFlow.Llm.renderLlmError' 的原文,一路不重寫)。
+    CliWorkshop WorkshopError
   deriving stock (Show, Eq)
 
 cliErrorCode :: CliError -> Text
@@ -144,6 +149,7 @@ cliErrorCode = \case
   CliResolve e -> resolveErrorCode e
   CliInput _ -> "input_unreadable"
   CliUsage _ -> "usage_error"
+  CliWorkshop e -> workshopErrorCode e
 
 cliErrorMessage :: CliError -> Text
 cliErrorMessage = \case
@@ -152,6 +158,7 @@ cliErrorMessage = \case
   CliResolve e -> renderResolveError e
   CliInput t -> t
   CliUsage t -> t
+  CliWorkshop e -> renderWorkshopError e
 
 -- | 用法錯誤走 exit 2,與業務錯誤的 exit 1 分開:腳本要能區分「我指令打錯了」
 -- 與「工具告訴我這件事做不到」。

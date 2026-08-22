@@ -53,6 +53,11 @@ module StoryFlow.Cli.Backend
     -- * 衝突偵測
   , gatherContextB
   , checkConflictB
+
+    -- * 工作坊(llm-workshop-mcp/F004)
+  , startWorkshopB
+  , stepWorkshopB
+  , commitStageB
   ) where
 
 import Control.Exception (finally)
@@ -75,7 +80,17 @@ import Network.HTTP.Client
 import Network.HTTP.Types (hAuthorization, statusCode)
 import Servant.API ((:<|>) (..))
 import Servant.Client
-import StoryFlow.Api (BodyReq (..), CheckReq (..), ContextReq (..), NewVaultReq (..), StoryFlowAPI)
+import StoryFlow.Api
+  ( BodyReq (..)
+  , CheckReq (..)
+  , ContextReq (..)
+  , NewVaultReq (..)
+  , StoryFlowAPI
+  , WorkshopCommitResp (..)
+  , WorkshopStartReq (..)
+  , WorkshopStepReq (..)
+  , WorkshopStepResp (..)
+  )
 import StoryFlow.Cli.Error
 import StoryFlow.Conflict.Pipeline (acquireJudge, checkConflict, gatherContext)
 import StoryFlow.Conflict.Types (ConflictOpts, ConflictReport, ContextHit, Draft)
@@ -84,6 +99,7 @@ import StoryFlow.Core.Id (Id, Ref)
 import StoryFlow.Core.Link (Link, LinkKind)
 import StoryFlow.Core.Meta (Meta, Status)
 import StoryFlow.Core.Registry (EntityTypeSpec)
+import StoryFlow.Llm (LlmClient, llmConfig, newLlmClient)
 import qualified StoryFlow.Service as S
 import StoryFlow.Service
   ( DeleteReport
@@ -101,6 +117,14 @@ import StoryFlow.Service
   , SearchHit
   , ServiceM
   , VaultView
+  )
+import StoryFlow.Workshop
+  ( Session
+  , WorkshopError (..)
+  , commitStage
+  , loadSession
+  , startWorkshop
+  , stepWorkshop
   )
 import System.Directory (getCurrentDirectory)
 import System.Environment (lookupEnv)
@@ -227,6 +251,9 @@ cTypes :: ClientM [EntityTypeSpec]
 cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> ClientM [SearchHit]
 cContext :: ContextReq -> ClientM [ContextHit]
 cCheck :: CheckReq -> ClientM ConflictReport
+cWorkshopStart :: WorkshopStartReq -> ClientM Session
+cWorkshopStep :: Text -> WorkshopStepReq -> ClientM WorkshopStepResp
+cWorkshopCommit :: Text -> ClientM WorkshopCommitResp
 ( cListVaults
     :<|> cCreateVault
     :<|> cVaultInfo
@@ -245,7 +272,8 @@ cCheck :: CheckReq -> ClientM ConflictReport
   :<|> (cListLevels :<|> cCreateLevel :<|> cGetLevel :<|> cDeleteLevel)
   :<|> (cAddNode :<|> cRemoveNode)
   :<|> (cTypes :<|> cSearch)
-  :<|> (cContext :<|> cCheck) = client (Proxy :: Proxy StoryFlowAPI)
+  :<|> (cContext :<|> cCheck)
+  :<|> (cWorkshopStart :<|> cWorkshopStep :<|> cWorkshopCommit) = client (Proxy :: Proxy StoryFlowAPI)
 
 -- 操作:每個三行 -----------------------------------------------------------------
 
@@ -368,3 +396,67 @@ gatherContextB (Remote c) o d = rmt c (cContext (ContextReq d o))
 checkConflictB :: Backend -> Bool -> ConflictOpts -> Draft -> M ConflictReport
 checkConflictB (Embedded e) noLlm o d = svc e (acquireJudge noLlm o >>= \stage -> checkConflict stage o d)
 checkConflictB (Remote c) noLlm o d = rmt c (cCheck (CheckReq d o noLlm))
+
+-- 工作坊(llm-workshop-mcp/F004) --------------------------------------------------
+
+-- | @workshop start@。內嵌路徑直接呼叫 'startWorkshop';遠端路徑打
+-- @POST \/workshop@,伺服器端回到同一條路。
+startWorkshopB :: Backend -> Text -> [Id] -> M Session
+startWorkshopB (Embedded e) ty cs = svcWs e (startWorkshop ty cs)
+startWorkshopB (Remote c) ty cs = rmt c (cWorkshopStart (WorkshopStartReq ty cs))
+
+-- | @workshop step@。內嵌路徑走 'stepFlow'(loadSession → acquireLlmClient →
+-- stepWorkshop,三步都可能短路成 'Left WorkshopError');遠端路徑打
+-- @POST \/workshop\/:id\/step@,伺服器端跑同一條 'stepFlow'。
+stepWorkshopB :: Backend -> Text -> Text -> M WorkshopStepResp
+stepWorkshopB (Embedded e) sid input = svcWs e (stepFlow sid input)
+stepWorkshopB (Remote c) sid input = rmt c (cWorkshopStep sid (WorkshopStepReq input))
+
+-- | @workshop commit@。內嵌路徑走 'commitFlow'(loadSession → commitStage);
+-- 遠端路徑打 @POST \/workshop\/:id\/commit@。
+commitStageB :: Backend -> Text -> M WorkshopCommitResp
+commitStageB (Embedded e) sid = svcWs e (commitFlow sid)
+commitStageB (Remote c) sid = rmt c (cWorkshopCommit sid)
+
+-- | 私有:內嵌路徑的接線,'loadSession' → 'acquireLlmClient' → 'stepWorkshop'。
+-- 三步都可能短路成 @Left WorkshopError@,不繼續往下呼叫。
+stepFlow :: Text -> Text -> ServiceM (Either WorkshopError WorkshopStepResp)
+stepFlow sid input =
+  loadSession sid >>= \case
+    Left e -> pure (Left e)
+    Right session ->
+      acquireLlmClient >>= \case
+        Left e -> pure (Left e)
+        Right llm ->
+          stepWorkshop llm session input >>= \case
+            Left e -> pure (Left e)
+            Right (session', reply) -> pure (Right (WorkshopStepResp session' reply))
+
+-- | 私有:內嵌路徑的接線,'loadSession' → 'commitStage'。
+commitFlow :: Text -> ServiceM (Either WorkshopError WorkshopCommitResp)
+commitFlow sid =
+  loadSession sid >>= \case
+    Left e -> pure (Left e)
+    Right session ->
+      commitStage session >>= \case
+        Left e -> pure (Left e)
+        Right (session', views) -> pure (Right (WorkshopCommitResp session' views))
+
+-- | 讀這個 Vault 綁定的 @[llm]@ 設定並建 'LlmClient',或短路成 'WsLlmFailed'。
+-- 比照 @conflict\/src\/StoryFlow\/Conflict\/Pipeline.hs@ 的 @acquireJudge@,但更
+-- 簡單——工作坊沒有「不跑第 3 層」的退化選項。
+acquireLlmClient :: ServiceM (Either WorkshopError LlmClient)
+acquireLlmClient =
+  llmConfig >>= \case
+    Left e -> pure (Left (WsLlmFailed e))
+    Right cfg -> Right <$> liftIO (newLlmClient cfg)
+
+-- | 私有:把 @Either WorkshopError a@ 攤平成 'M' 'a'。'ServiceError' 走既有的
+-- 'CliService',@WorkshopError@ 走新的 'CliWorkshop' ——與既有 'svc' 的差別只有
+-- 多攤一層。
+svcWs :: Env -> ServiceM (Either WorkshopError a) -> M a
+svcWs env op =
+  liftIO (S.runService env op) >>= \case
+    Left se -> throw (CliService se)
+    Right (Left we) -> throw (CliWorkshop we)
+    Right (Right a) -> pure a

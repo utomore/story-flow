@@ -32,6 +32,10 @@ library
     -- service-and-interfaces/F003 驗收標準 3:handler 內沒有業務判斷,server 不 import
     -- storyflow-store。狀態碼的分派走 service 的 errorCode 字串,不是落地層的
     -- 建構子——storyflow-store / sqlite-simple 出現在這裡即為架構違規(T6)。
+    --
+    -- llm-workshop-mcp/F004:storyflow-workshop 供 workshopH 呼叫 startWorkshop /
+    -- loadSession / stepWorkshop / commitStage;storyflow-llm 供 acquireLlmClient
+    -- 讀這個 Vault 綁定的 [llm] 設定並建 LlmClient(接線層,不跨 HTTP)。
     build-depends:
         , aeson
         , base             >=4.14 && <5
@@ -44,7 +48,9 @@ library
         , storyflow-api
         , storyflow-conflict
         , storyflow-core
+        , storyflow-llm
         , storyflow-service
+        , storyflow-workshop
         , text
         , wai
         , warp
@@ -75,6 +81,8 @@ test-suite storyflow-server-test
         StoryFlow.Server.Fixtures
         StoryFlow.Server.HandlerSpec
         StoryFlow.Server.ServeOptsSpec
+        StoryFlow.Server.WorkshopErrorMapSpec
+        StoryFlow.Server.WorkshopHandlerSpec
     build-depends:
         , aeson
         , async
@@ -91,8 +99,11 @@ test-suite storyflow-server-test
         , storyflow-api
         , storyflow-conflict
         , storyflow-core
+        , storyflow-llm
         , storyflow-server
         , storyflow-service
+        , storyflow-workshop
         , temporary
         , text
+        , wai
         , warp

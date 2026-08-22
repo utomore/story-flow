@@ -52,12 +52,18 @@ forbidden =
 -- 渲染器要認得 @ContextHit@、內嵌路徑要呼叫 @gatherContext@ ——三處都在 library。
 -- 它__不在 forbidden 裡__而且不該在:它的 @build-depends@ 自己就逐字擋著落地層,
 -- 所以「CLI 碰不到落地層」這條保護不會因為它而被繞過。
+--
+-- llm-workshop-mcp/F004:@storyflow-workshop@ \/ @storyflow-llm@ 同一個理由加進
+-- 這張表——兩者的 @build-depends@ 各自擋著落地層,「往介面層加一個內部套件」
+-- 這件事被這條測試看見,而不是被它擋下。
 required :: [String]
 required =
   [ "storyflow-service"
   , "storyflow-core"
   , "storyflow-api"
   , "storyflow-conflict"
+  , "storyflow-workshop"
+  , "storyflow-llm"
   , "optparse-applicative"
   , "servant-client"
   ]

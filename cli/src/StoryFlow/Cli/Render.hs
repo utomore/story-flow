@@ -35,6 +35,10 @@ module StoryFlow.Cli.Render
   , renderVia
   , renderReport
 
+    -- * 工作坊(llm-workshop-mcp/F004)
+  , renderWorkshopStarted
+  , renderWorkshopCommit
+
     -- * 排版工具
   , displayWidth
   , padTo
@@ -64,8 +68,10 @@ import StoryFlow.Core.Level (Level (..), Node (..), renderNodeKind)
 import StoryFlow.Core.Link (Link (..), renderLinkKind)
 import StoryFlow.Core.Meta (Meta (..), Timeline (..), renderSource, renderStatus)
 import StoryFlow.Core.Registry (EntityTypeSpec (..), FieldSpec (..))
+import StoryFlow.Api (WorkshopCommitResp (..))
 import StoryFlow.Core.Tree (NodeTree (..))
 import StoryFlow.Service
+import StoryFlow.Workshop (Session (..))
 
 -- 信封 -------------------------------------------------------------------------
 
@@ -336,6 +342,35 @@ renderReport r =
       | otherwise = T.intercalate "\n" ("注意:" : map noteLine (crNotes r))
 
     noteLine n = "  - (" <> rnCode n <> ") " <> rnDetail n
+
+-- 人類可讀:工作坊(llm-workshop-mcp/F004) ---------------------------------------
+
+-- | @workshop start@ 的一行結果。__把 session id 印出來__ ——否則使用者沒東西
+-- 餵給 @workshop step@。
+renderWorkshopStarted :: Session -> Text
+renderWorkshopStarted Session {..} =
+  "已建立工作坊 "
+    <> wsId
+    <> "(型別 "
+    <> wsType
+    <> ",目前第 "
+    <> tshow (wsCurrent + 1)
+    <> "/"
+    <> tshow (length wsStages)
+    <> " 階段)"
+
+-- | @workshop commit@ 的一行結果。依 'wsCurrent' 是否已經走完 'wsStages' 分成
+-- 兩種收尾。
+renderWorkshopCommit :: WorkshopCommitResp -> Text
+renderWorkshopCommit r =
+  "已定案 "
+    <> tshow (length (wcrEntities r))
+    <> " 個片段;"
+    <> if wsCurrent session >= length (wsStages session)
+         then "工作坊已完成全部階段"
+         else "進入第 " <> tshow (wsCurrent session + 1) <> " 階段"
+  where
+    session = wcrSession r
 
 -- 排版工具 ---------------------------------------------------------------------
 

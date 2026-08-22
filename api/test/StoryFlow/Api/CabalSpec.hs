@@ -41,8 +41,22 @@ forbidden =
 -- @ContextHit@)住在那個套件裡,契約套件當然要認得它。它不進 'forbidden' 的理由是
 -- 它__不是實作端__:它沒有 servant handler、沒有 client、沒有落地層,與
 -- @storyflow-service@ 同一種性質。
+--
+-- llm-workshop-mcp/F004:@storyflow-workshop@ 同一個理由加進來——@WorkshopAPI@
+-- 的 @Session@ 型別住在那裡。@storyflow-llm@ 是實作時才發現的必要補充:
+-- @Session@ 的 @wsHistory@ 元素型別 @Message@ \/ @Role@ 的 @ToSchema@ 定義在
+-- "StoryFlow.Api.Instances",那兩個型別本身住在 @storyflow-llm@。兩者都不是
+-- 實作端,與 @storyflow-conflict@ 同一種性質。
 required :: [String]
-required = ["servant", "openapi3", "storyflow-core", "storyflow-service", "storyflow-conflict"]
+required =
+  [ "servant"
+  , "openapi3"
+  , "storyflow-core"
+  , "storyflow-service"
+  , "storyflow-conflict"
+  , "storyflow-workshop"
+  , "storyflow-llm"
+  ]
 
 readCabal :: IO String
 readCabal = go ["storyflow-api.cabal", "api/storyflow-api.cabal"]

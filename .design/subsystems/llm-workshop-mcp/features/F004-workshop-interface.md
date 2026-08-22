@@ -3,7 +3,7 @@ id: F004
 type: feature
 title: workshop-interface
 description: 工作坊的 CLI 子指令與 REST 路由(薄包裝,不含工作坊邏輯)
-status: open
+status: done
 created: 2026-08-22
 updated: 2026-08-22
 depends-on: [F001, F002, F003, service-and-interfaces/F002, service-and-interfaces/F003]
@@ -406,60 +406,60 @@ WorkshopCommit sid -> do
 
 ## TodoList
 
-- [ ] T1: `StoryFlow.Cli.Options` 加 `workshop` 名詞群(`start`/`step`/`commit` 三個子指令、
+- [x] T1: `StoryFlow.Cli.Options` 加 `workshop` 名詞群(`start`/`step`/`commit` 三個子指令、
       三個 `Command` 建構子、`workshopInputP`/`sessionIdArg` 等解析小工具) `dep: -`
-- [ ] T2: `StoryFlow.Cli.Error` 加 `CliWorkshop WorkshopError` 建構子與三個總和函式的分支
+- [x] T2: `StoryFlow.Cli.Error` 加 `CliWorkshop WorkshopError` 建構子與三個總和函式的分支
       `dep: -`
-- [ ] T3: `StoryFlow.Api` 加 `WorkshopStartReq`/`WorkshopStepReq`/`WorkshopStepResp`/
+- [x] T3: `StoryFlow.Api` 加 `WorkshopStartReq`/`WorkshopStepReq`/`WorkshopStepResp`/
       `WorkshopCommitResp` 四個型別(含 `ToJSON`/`FromJSON`/`ToSchema`)與 `WorkshopAPI`、
       併入 `StoryFlowAPI`、`storyFlowOpenApi` 的 tag 鏈 `dep: -`
-- [ ] T4: `StoryFlow.Api.Instances` 加 `Session`/`StageDraft`/`Message`/`Role` 的 `ToSchema`
+- [x] T4: `StoryFlow.Api.Instances` 加 `Session`/`StageDraft`/`Message`/`Role` 的 `ToSchema`
       `dep: T3`
-- [ ] T5: `StoryFlow.Server.Error` 加 `toWorkshopServerError`/`statusForWorkshopCode`/
+- [x] T5: `StoryFlow.Server.Error` 加 `toWorkshopServerError`/`statusForWorkshopCode`/
       `knownWorkshopCodes` `dep: -`
-- [ ] T6: `StoryFlow.Server.State` 加 `runEither`(泛型化 `run1` 的邏輯) `dep: -`
-- [ ] T7: `StoryFlow.Cli.Backend` 加 `startWorkshopB`/`stepWorkshopB`/`commitStageB`、私有的
+- [x] T6: `StoryFlow.Server.State` 加 `runEither`(泛型化 `run1` 的邏輯) `dep: -`
+- [x] T7: `StoryFlow.Cli.Backend` 加 `startWorkshopB`/`stepWorkshopB`/`commitStageB`、私有的
       `stepFlow`/`commitFlow`/`acquireLlmClient`/`svcWs`,`client` 衍生區塊加三個 `cWorkshop*`
       函式 `dep: T1, T2, T3`
-- [ ] T8: `StoryFlow.Server` 加 `workshopH`(含私有 `stepFlow`/`commitFlow`/`acquireLlmClient`
+- [x] T8: `StoryFlow.Server` 加 `workshopH`(含私有 `stepFlow`/`commitFlow`/`acquireLlmClient`
       的伺服器端版本),`handlers` 串上它 `dep: T3, T5, T6`
-- [ ] T9: `StoryFlow.Cli.Render` 加 `renderWorkshopStarted`/`renderWorkshopCommit` `dep: -`
-- [ ] T10: `StoryFlow.Cli`(`Cli.hs`)的 `handle` 加三個 `Command` 分支,接上 T7/T9 的產物
+- [x] T9: `StoryFlow.Cli.Render` 加 `renderWorkshopStarted`/`renderWorkshopCommit` `dep: -`
+- [x] T10: `StoryFlow.Cli`(`Cli.hs`)的 `handle` 加三個 `Command` 分支,接上 T7/T9 的產物
       `dep: T7, T9`
-- [ ] T11: `cli/storyflow-cli.cabal`(library)加 `storyflow-workshop`、`storyflow-llm`;
+- [x] T11: `cli/storyflow-cli.cabal`(library)加 `storyflow-workshop`、`storyflow-llm`;
       `api/storyflow-api.cabal` 加 `storyflow-workshop`;`server/storyflow-server.cabal`
       (library)加 `storyflow-workshop`、`storyflow-llm`;三份對應 test-suite 的
       `build-depends` 同步加 `storyflow-workshop`(cli/server 另加 `storyflow-llm`,供測試
       直接建 `LlmConfig`/`LlmClient` 測試替身) `dep: -`
-- [ ] T12: 三份 `CabalSpec.hs`(`cli`/`api`/`server`)的 `required` 清單加
+- [x] T12: 三份 `CabalSpec.hs`(`cli`/`api`/`server`)的 `required` 清單加
       `"storyflow-workshop"`(cli/server 另加 `"storyflow-llm"`) `dep: T11`
-- [ ] T13: `api/test/StoryFlow/Api/ApiSpec.hs`:`expectedRoutes` 加 `workshopRoutes`
+- [x] T13: `api/test/StoryFlow/Api/ApiSpec.hs`:`expectedRoutes` 加 `workshopRoutes`
       (3 條),operation 數斷言 25 → 28,`readOnlyRoutes`/`revisionRoutes` 不含 workshop
       三條(三條都不帶 `revision`) `dep: T3`
-- [ ] T14: `api/test/StoryFlow/Api/SchemaSpec.hs` 加 `Session`/`StageDraft`/`Message`/`Role`/
+- [x] T14: `api/test/StoryFlow/Api/SchemaSpec.hs` 加 `Session`/`StageDraft`/`Message`/`Role`/
       `WorkshopStartReq`/`WorkshopStepReq`/`WorkshopStepResp`/`WorkshopCommitResp` 的
       `aligns` 案例(`Role` 是列舉字串,不對齊 `aligns`,改驗 schema 的 `enum_`) `dep: T4`
-- [ ] T15: 新建 `server/test/StoryFlow/Server/WorkshopErrorMapSpec.hs`(仿
+- [x] T15: 新建 `server/test/StoryFlow/Server/WorkshopErrorMapSpec.hs`(仿
       `ErrorMapSpec.hs` 的表格式斷言:12 個 code 對狀態碼、錯誤 body 形狀、
       `knownWorkshopCodes` 無重複且涵蓋 `sampleWorkshopErrors` 產出的全部 code) `dep: T5`
-- [ ] T16: 新建 `server/test/StoryFlow/Server/WorkshopHandlerSpec.hs`(仿 `HandlerSpec.hs`
+- [x] T16: 新建 `server/test/StoryFlow/Server/WorkshopHandlerSpec.hs`(仿 `HandlerSpec.hs`
       T9:三條路由各跑一次成功案例 + `workshop_session_not_found` 的錯誤案例;成功案例的
       `step`/`commit` 需要一個本機的假 OpenAI 相容端點,測試自建 warp 假伺服器並把臨時
       Vault 的 `.storyflow/config.toml` 指過去) `dep: T8`
-- [ ] T17: 新建 `cli/test/StoryFlow/Cli/WorkshopCmdSpec.hs`(仿 `ContextCmdSpec.hs`:內嵌模式
+- [x] T17: 新建 `cli/test/StoryFlow/Cli/WorkshopCmdSpec.hs`(仿 `ContextCmdSpec.hs`:內嵌模式
       三個指令的成功案例、`--json` 信封、`start` 印出 id、`WsSessionNotFound` 的錯誤 code/
       message、exit code 1) `dep: T10`
-- [ ] T18: `cli/test/StoryFlow/Cli/OptionsSpec.hs` 加 `workshop start`/`step`/`commit` 的
+- [x] T18: `cli/test/StoryFlow/Cli/OptionsSpec.hs` 加 `workshop start`/`step`/`commit` 的
       解析案例(`--constraint` 可重複、`--input`/`--input-file`/`-` 三選一、缺 `--type` 是
       用法錯誤) `dep: T1`
-- [ ] T19: `cli/test/StoryFlow/Cli/RemoteCmdSpec.hs` 加 workshop 三指令的遠端路徑案例
+- [x] T19: `cli/test/StoryFlow/Cli/RemoteCmdSpec.hs` 加 workshop 三指令的遠端路徑案例
       (exit 0、`--json` 的 `data` 解得開) `dep: T7`
-- [ ] T20: `cli/test/StoryFlow/Cli/RenderSpec.hs` 加 `renderWorkshopStarted`/
+- [x] T20: `cli/test/StoryFlow/Cli/RenderSpec.hs` 加 `renderWorkshopStarted`/
       `renderWorkshopCommit` 的案例 `dep: T9`
-- [ ] T21: `cli/test/StoryFlow/Cli/ParitySpec.hs` 加「CLI 開的 session,REST 用同一個 id
+- [x] T21: `cli/test/StoryFlow/Cli/ParitySpec.hs` 加「CLI 開的 session,REST 用同一個 id
       接得到 step」與「REST 開的,CLI 接得到 commit」兩個跨介面案例,以及
       `workshop step 不存在的 id` 的錯誤 code/message 兩邊相同 `dep: T10, T8`
-- [ ] T22: `cli/test/Spec.hs` 加 import 與 `spec` 呼叫(`WorkshopCmdSpec`);
+- [x] T22: `cli/test/Spec.hs` 加 import 與 `spec` 呼叫(`WorkshopCmdSpec`);
       `server/test/Spec.hs` 加 `WorkshopErrorMapSpec`/`WorkshopHandlerSpec`;三份
       `.cabal` 的 test-suite `other-modules` 同步 `dep: T15, T16, T17`
 
@@ -520,5 +520,39 @@ WorkshopCommit sid -> do
   `context`/`conflict check` 既有的「三選一必填正文來源」慣例設計,`--constraint` 沿用
   `context` 的 `--ref` 同一種 `Id` 讀取邏輯只是換旗標名 → 影響:若開發者對旗標命名有不同偏好,
   純粹是 `Options.hs` 內部改字串,不影響其餘介面表的設計
+- A6:`StoryFlow.Api.Instances` 需要對 `Session`/`StageDraft`/`Message`/`Role` 四個型別加
+  `ToSchema`(T4),但 `Message` 落地時**沒有** `Data.Aeson.ToJSON` 實例——`StoryFlow.Llm.Client`
+  刻意不定義它(門面之外的內部細節),`Session` 的 `wsHistory` 是靠
+  `StoryFlow.Workshop.Session` 內部未匯出的 `messageJson`/`roleWire` 手動編碼,不是走
+  `ToJSON Message` → 採取:`SchemaSpec` 對 `Message` 的驗證改成拿 `sampleSession` 實際
+  `toJSON` 出來的 `history` 陣列第一筆物件的鍵集合,與 `Message` 的 `schemaKeys` 比對(不是
+  標準的 `aligns`,因為沒有 `ToJSON Message` 可比);`Role` 則依 T14 原定的作法驗 `enum_`
+  → 影響:低,`Api.Instances` 的 `ToSchema Message`/`ToSchema Role` 本身逐欄對齊落地的
+  wire 格式,只是驗證手法換了一種,不影響 REST 契約本身
+- A7:F004 文檔原本沒列出 `storyflow-api` 需要 `storyflow-llm`(T11 只寫了
+  `api/storyflow-api.cabal` 加 `storyflow-workshop`)→ 採取:實作時發現
+  `StoryFlow.Api.Instances` 對 `Message`/`Role` 寫 `ToSchema` 一定要 import
+  `StoryFlow.Llm` 的型別本身,`storyflow-api` 因此補上 `storyflow-llm`(library 與
+  test-suite 都補),並同步把它加進 `StoryFlow.Api.CabalSpec` 的 `required` 清單
+  → 影響:純粹是 build-depends 的必要補充,不是新的公開介面,`storyflow-llm` 與
+  `storyflow-conflict` 同一種「上游型別套件、不是實作端」的性質,沒有把 `servant-server`/
+  `servant-client`/`warp` 帶進 `storyflow-api`
 
 ## 實作備註
+
+- T13 之外還有一處既有測試因為新增路由而必須同步更新,但 F004 文檔與任務指示都沒有點名它:
+  `api/test/StoryFlow/Api/OpenApiSpec.hs` 的「paths 數等於實際的路徑數」斷言原本釘死
+  `16` 條路徑、`25` 個 operation,新增三條 workshop 路由後改成 `19`/`28`;
+  `expectedSchemas` 清單也補上 `WorkshopStartReq`/`WorkshopStepReq`/`WorkshopStepResp`/
+  `WorkshopCommitResp`/`Session`/`StageDraft`/`Message`/`Role` 八個新具名 schema。這條斷言
+  與 `ApiSpec.hs` 的 operation 數斷言是同一件事的兩個獨立副本(刻意不共用來源,兩邊對不上
+  時才有東西可比),因此兩邊都要動,不只 T13 點名的那一個
+- T16 的「本機的假 OpenAI 相容端點」需要能在請求送出**之前**把臨時 Vault 的
+  `.storyflow/config.toml` 寫入 `[llm]` 段,而既有的 `StoryFlow.Server.Fixtures.withServer`
+  不會把 Vault 根目錄交出去(只給 `ClientEnv`)。新增了 `withServerDir`(與 `withServer` 同一份
+  邏輯,多回傳 `FilePath`)並把它加進 Fixtures 的匯出清單;同時把 `Api` 記錄型別與 `client`
+  的模式比對延伸三個工作坊欄位(`cWorkshopStart`/`cWorkshopStep`/`cWorkshopCommit`),供
+  `WorkshopHandlerSpec` 直接用 `api` 呼叫——與既有 25 個欄位同一種寫法
+- `cli/storyflow-cli.cabal` 的 test-suite 原本沒有 `http-types`,但 `WorkshopCmdSpec`/
+  `RemoteCmdSpec`/`ParitySpec` 都需要起本機的 warp stub(`Network.HTTP.Types.Status`),因此
+  補上這一項套件相依(純測試相依,不影響 library 的邊界)

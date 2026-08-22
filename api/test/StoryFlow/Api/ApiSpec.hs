@@ -36,12 +36,13 @@ import Test.Hspec
 spec :: Spec
 spec = describe "API 契約" $ do
   -- conflict-detection/F004:23 → 24(POST /conflict/context)。
-  -- conflict-detection/F006:24 → 25(POST /conflict/check)。兩者對應的都不是
-  -- service-and-interfaces/F001 的業務操作,而是 conflict-detection 的對外契約
-  -- (gatherContext / checkConflict)——所以下面 expectedRoutes 那張表分成兩段,
-  -- 兩份來源清單各自對得上帳。
-  it "operation 數等於 service 的 23 個業務操作 + conflict 的 2 個出口" $
-    length allOperations `shouldBe` 25
+  -- conflict-detection/F006:24 → 25(POST /conflict/check)。
+  -- llm-workshop-mcp/F004:25 → 28(POST /workshop、POST /workshop/:id/step、
+  -- POST /workshop/:id/commit)。三者對應的都不是 service-and-interfaces/F001
+  -- 的業務操作,而是別的子系統的對外契約——所以下面 expectedRoutes 那張表分成
+  -- 三段,各自來源清單對得上帳。
+  it "operation 數等於 service 的 23 個業務操作 + conflict 的 2 個出口 + workshop 的 3 個出口" $
+    length allOperations `shouldBe` 28
 
   it "service-and-interfaces/F001 的每個操作都有對應的路由" $
     sort (map fst expectedRoutes) `shouldBe` sort (map fst actualRoutes)
@@ -89,6 +90,7 @@ expectedRoutes =
   , ("/nodes/{id}", "delete") -- removeNode
   ]
     ++ conflictRoutes
+    ++ workshopRoutes
 
 -- | conflict-detection 的對外契約:@gatherContext@(F004)與
 -- @checkConflict@(F006)。分成獨立的一張表而不是併進上面那張:那一張的
@@ -98,6 +100,15 @@ conflictRoutes :: [(Text, Text)]
 conflictRoutes =
   [ ("/conflict/context", "post") -- gatherContext
   , ("/conflict/check", "post") -- checkConflict
+  ]
+
+-- | llm-workshop-mcp 的對外契約:工作坊的三個出口(F004)。同樣獨立成一張表,
+-- 理由與 'conflictRoutes' 相同。
+workshopRoutes :: [(Text, Text)]
+workshopRoutes =
+  [ ("/workshop", "post") -- startWorkshop
+  , ("/workshop/{id}/step", "post") -- stepWorkshop
+  , ("/workshop/{id}/commit", "post") -- commitStage
   ]
 
 -- | 全部會__覆蓋既有內容__的端點:樂觀鎖在遠端模式一樣生效,沒有逃生口。

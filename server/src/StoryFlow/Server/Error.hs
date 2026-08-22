@@ -19,12 +19,28 @@ module StoryFlow.Server.Error
   , statusForCode
   , errorBody
   , knownCodes
+
+    -- * 工作坊(llm-workshop-mcp/F004)
+  , toWorkshopServerError
+  , statusForWorkshopCode
+  , knownWorkshopCodes
   ) where
 
 import Data.Aeson (Value, encode, object, (.=))
 import Data.Text (Text)
-import Servant (ServerError (..), err400, err404, err409, err422, err500, err501)
+import Servant
+  ( ServerError (..)
+  , err400
+  , err404
+  , err409
+  , err422
+  , err500
+  , err501
+  , err502
+  , err503
+  )
 import StoryFlow.Service (ServiceError, errorCode, renderServiceError)
+import StoryFlow.Workshop (WorkshopError, renderWorkshopError, workshopErrorCode)
 
 -- | 錯誤 body 一律 @{"error":{"code":…,"message":…}}@。
 --
@@ -119,4 +135,62 @@ knownCodes =
   , "id_collision"
   , "vault_config_invalid"
   , "index_update_failed"
+  ]
+
+-- 工作坊(llm-workshop-mcp/F004) -------------------------------------------------
+
+-- | 'WorkshopError' → HTTP 狀態碼與錯誤 body。與 'toServerError' 同一個形狀,
+-- 分派同樣走字串(見 'statusForWorkshopCode'),不 pattern match 'WorkshopError'
+-- 的建構子——server 因此不需要認得它的建構子集合會不會增減。
+toWorkshopServerError :: WorkshopError -> ServerError
+toWorkshopServerError e =
+  base
+    { errBody = encode (errorBody code (renderWorkshopError e))
+    , errHeaders = [("Content-Type", "application/json;charset=utf-8")]
+    }
+  where
+    code = workshopErrorCode e
+    base = statusForWorkshopCode code
+
+-- | 代碼 → 狀態碼。七個工作坊自己的代碼,加上 'WsLlmFailed' 原樣沿用的五個
+-- @llmErrorCode@ ——後者第一次跨過 HTTP,狀態碼由本 feature(F004)決定。
+statusForWorkshopCode :: Text -> ServerError
+statusForWorkshopCode = \case
+  -- 404:資源不存在
+  "workshop_session_not_found" -> err404
+  -- 409:目前狀態不允許這個操作,客戶端調整後可重試
+  "workshop_stages_exhausted" -> err409
+  "workshop_nothing_to_commit" -> err409
+  -- 422:語法對、語意不成立
+  "workshop_no_stages" -> err422
+  "workshop_missing_required_field" -> err422
+  "llm_config_missing" -> err422
+  "llm_config_invalid" -> err422
+  -- 500:Vault 裡的資料壞了,或伺服器的環境問題
+  "workshop_snapshot_corrupt" -> err500
+  "workshop_snapshot_write_failed" -> err500
+  -- 502:上游(LLM 端點)回了一個錯誤狀態碼,或回了 2xx 但形狀不對——本服務是
+  -- 那個上游的閘道
+  "llm_http_status" -> err502
+  "llm_bad_response" -> err502
+  -- 503:連不上,可重試
+  "llm_unavailable" -> err503
+  _ -> err500
+
+-- | 這張表認得的全部代碼,'StoryFlow.Server.WorkshopErrorMapSpec' 拿它與真的
+-- 產得出來的代碼比對。
+knownWorkshopCodes :: [Text]
+knownWorkshopCodes =
+  [ "workshop_session_not_found"
+  , "workshop_snapshot_corrupt"
+  , "workshop_snapshot_write_failed"
+  , "workshop_no_stages"
+  , "workshop_stages_exhausted"
+  , "workshop_nothing_to_commit"
+  , "workshop_missing_required_field"
+  , "llm_unavailable"
+  , "llm_http_status"
+  , "llm_bad_response"
+  , "llm_config_missing"
+  , "llm_config_invalid"
   ]

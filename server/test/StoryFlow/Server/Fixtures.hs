@@ -8,6 +8,7 @@ module StoryFlow.Server.Fixtures
   ( -- * 環境
     withServer
   , withServerToken
+  , withServerDir
   , withVaultDir
   , withEnvVars
   , registryDir
@@ -58,6 +59,7 @@ import StoryFlow.Core.Registry (EntityTypeSpec)
 import StoryFlow.Server (app)
 import StoryFlow.Server.State (newAppState)
 import StoryFlow.Service
+import StoryFlow.Workshop (Session)
 import System.Directory (doesDirectoryExist, getCurrentDirectory)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.FilePath ((</>))
@@ -115,6 +117,20 @@ withServerToken serverToken clientToken act = withVaultDir $ \dir -> do
   Warp.testWithApplication (pure (app serverToken st)) $ \port ->
     act (mkClientEnv mgr (BaseUrl Http "127.0.0.1" port ""))
 
+-- | 與 'withServer' 相同,但__多把 Vault 根目錄交出去__(llm-workshop-mcp/F004)。
+--
+-- 工作坊的 @step@\/@commit@ 端到端案例需要在請求打進來之前,把臨時 Vault 的
+-- @.storyflow\/config.toml@ 加上一段指向本機 stub 端點的 @[llm]@ ——
+-- 'StoryFlow.Server.State.AppState' 的 'StoryFlow.Service.Env' 是延遲取得的
+-- (第一個真的需要它的請求才開),所以在第一個請求送出之前寫檔就來得及。
+withServerDir :: (FilePath -> ClientEnv -> IO a) -> IO a
+withServerDir act = withVaultDir $ \dir -> do
+  _ <- orDie =<< createVault dir "liftgame"
+  st <- newAppState (Just "liftgame") dir
+  mgr <- newManager (managerWith Nothing)
+  Warp.testWithApplication (pure (app Nothing st)) $ \port ->
+    act dir (mkClientEnv mgr (BaseUrl Http "127.0.0.1" port ""))
+
 -- | client 端的 token 走 @managerModifyRequest@ 加 header。
 --
 -- 這正是 middleware 式認證的好處:API 型別裡沒有認證,client 也就不必為它多一層
@@ -163,6 +179,9 @@ data Api = Api
   , cSearch :: Text -> Maybe Text -> Maybe Status -> Maybe Text -> Maybe Int -> ClientM [SearchHit]
   , cContext :: ContextReq -> ClientM [ContextHit]
   , cCheck :: CheckReq -> ClientM ConflictReport
+  , cWorkshopStart :: WorkshopStartReq -> ClientM Session
+  , cWorkshopStep :: Text -> WorkshopStepReq -> ClientM WorkshopStepResp
+  , cWorkshopCommit :: Text -> ClientM WorkshopCommitResp
   }
 
 api :: Api
@@ -186,7 +205,8 @@ api = Api {..}
       :<|> (cListLevels :<|> cCreateLevel :<|> cGetLevel :<|> cDeleteLevel)
       :<|> (cAddNode :<|> cRemoveNode)
       :<|> (cTypes :<|> cSearch)
-      :<|> (cContext :<|> cCheck) = client (Proxy :: Proxy StoryFlowAPI)
+      :<|> (cContext :<|> cCheck)
+      :<|> (cWorkshopStart :<|> cWorkshopStep :<|> cWorkshopCommit) = client (Proxy :: Proxy StoryFlowAPI)
 
 runC :: ClientEnv -> ClientM a -> IO a
 runC env m =

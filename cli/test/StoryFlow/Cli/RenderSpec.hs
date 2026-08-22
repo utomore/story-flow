@@ -19,7 +19,9 @@ import StoryFlow.Core.Entity (Entity (..))
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Link (Link (..), LinkKind (Contradicts, PartOf))
 import StoryFlow.Core.Meta (Meta (..), Source (Human), Status (Canon, Draft), emptyTimeline)
+import StoryFlow.Api (WorkshopCommitResp (..))
 import StoryFlow.Service (EntityView (..), LinkReport (..), SearchHit (..))
+import StoryFlow.Workshop (Session (..))
 import Test.Hspec
 
 spec :: Spec
@@ -117,6 +119,40 @@ spec = describe "人類可讀輸出" $ do
       out `shouldSatisfy` T.isInfixOf "第一行 第二行 第三行"
       -- 換行沒有讓那筆命中在表格裡多長出一列
       length (filter (T.isInfixOf "ent-c41d") (T.lines out)) `shouldBe` 1
+
+  describe "renderWorkshopStarted(llm-workshop-mcp/F004)" $
+    it "含 session id、型別與第幾階段" $ do
+      let out = renderWorkshopStarted sampleWorkshopSession
+      out `shouldSatisfy` T.isInfixOf "wksp-00000001"
+      out `shouldSatisfy` T.isInfixOf "character-fragment"
+      out `shouldSatisfy` T.isInfixOf "第 2/4 階段"
+
+  describe "renderWorkshopCommit(llm-workshop-mcp/F004)" $ do
+    it "尚未走完全部階段時印進入第 N 階段" $ do
+      let r = WorkshopCommitResp sampleWorkshopSession {wsCurrent = 1} [view]
+      renderWorkshopCommit r `shouldSatisfy` T.isInfixOf "已定案 1 個片段"
+      renderWorkshopCommit r `shouldSatisfy` T.isInfixOf "進入第 2 階段"
+
+    it "wsCurrent 達到 stages 長度時印工作坊已完成全部階段" $ do
+      let r = WorkshopCommitResp sampleWorkshopSession {wsCurrent = 4} []
+      renderWorkshopCommit r `shouldSatisfy` T.isInfixOf "已定案 0 個片段"
+      renderWorkshopCommit r `shouldSatisfy` T.isInfixOf "工作坊已完成全部階段"
+
+-- 底稿:工作坊(llm-workshop-mcp/F004) ---------------------------------------------
+
+sampleWorkshopSession :: Session
+sampleWorkshopSession =
+  Session
+    { wsId = "wksp-00000001"
+    , wsType = "character-fragment"
+    , wsConstraints = []
+    , wsStages = ["定位", "外貌與舉止", "動機與過往", "關係網"]
+    , wsCurrent = 1
+    , wsHistory = []
+    , wsOwner = Nothing
+    , wsPending = []
+    , wsCommitted = []
+    }
 
 -- 底稿:conflict check ------------------------------------------------------------
 

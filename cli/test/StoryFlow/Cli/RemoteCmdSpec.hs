@@ -4,11 +4,17 @@
 -- 這是「沒有只有內嵌模式做得到的事」的可測形式。
 module StoryFlow.Cli.RemoteCmdSpec (spec) where
 
-import Data.Aeson (Value (Array, Bool, Object, String), decodeStrict)
+import Data.Aeson (Value (Array, Bool, Object, String), decodeStrict, encode, object, (.=))
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (toList)
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
+import Network.HTTP.Types.Status (status200)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
 import StoryFlow.Cli.Fixtures
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -111,6 +117,21 @@ spec = describe "遠端模式的每個子指令" $ do
         env <- sfRemoteJson url ["conflict", "check", "--draft", f]
         firstNoteCode env `shouldBe` Just "judge_not_configured"
 
+  -- llm-workshop-mcp/F004 T19:workshop 三指令的遠端路徑。
+  describe "workshop 的遠端路徑" $ do
+    it "start / step / commit 全部 exit 0,--json 的 data 解得開" $
+      withCliServerLlm draftReply $ \_ url -> do
+        startEnv <- sfRemoteJson url ["workshop", "start", "--type", "character-fragment"]
+        let sid = T.unpack (sessionIdOf startEnv)
+        stepEnv <- sfRemoteJson url ["workshop", "step", sid, "--input", "使用者輸入"]
+        jsonPath ["data", "reply"] stepEnv `shouldSatisfy` isJustV
+        commitEnv <- sfRemoteJson url ["workshop", "commit", sid]
+        jsonPath ["data", "entities"] commitEnv `shouldSatisfy` isJustV
+
+    it "不存在的 session id 遠端也回 workshop_session_not_found" $ withCliServer $ \_ url -> do
+      env <- sfRemoteJson url ["workshop", "step", "wksp-00000000", "--input", "x"]
+      env `shouldHaveCode` "workshop_session_not_found"
+
 -- | @data.notes@ 的第一筆 @code@。'jsonPath' 只往 'Object' 裡鑽,不索引
 -- 'Array',所以陣列這一段自己拆。
 firstNoteCode :: Value -> Maybe T.Text
@@ -134,6 +155,73 @@ draftFile dir txt = do
 
 isJustV :: Maybe Value -> Bool
 isJustV = maybe False (const True)
+
+-- 工作坊的遠端路徑底稿(llm-workshop-mcp/F004) ------------------------------------
+
+draftReply :: Text
+draftReply =
+  T.unlines
+    [ "以下是這個階段可以定案的草稿。"
+    , "```json"
+    , "[{\"title\":\"外貌\",\"summary\":\"銀灰短髮\",\"body\":\"銀灰短髮剪到耳際……\",\"tags\":[\"外觀\"]}]"
+    , "```"
+    ]
+
+sessionIdOf :: Value -> Text
+sessionIdOf env = case jsonPath ["data", "id"] env of
+  Just (String sid) -> sid
+  other -> error ("data.id 取不到:" <> show other)
+
+-- | 與 'withCliServer' 相同,但多起一個本機 stub 端點並把伺服器綁定的那個
+-- Vault 的 @[llm]@ 段指過去——@Env@ 延遲取得,寫檔發生在第一個請求之前。
+withCliServerLlm :: Text -> (FilePath -> String -> IO a) -> IO a
+withCliServerLlm reply act =
+  withLlmStub reply $ \port ->
+    withCliServer $ \dir url -> do
+      appendLlmConfig dir port
+      act dir url
+
+withLlmStub :: Text -> (Int -> IO a) -> IO a
+withLlmStub reply act = Warp.testWithApplication (pure (stubApp reply)) act
+
+stubApp :: Text -> Wai.Application
+stubApp reply _req respond =
+  respond $
+    Wai.responseLBS status200 [("Content-Type", "application/json")] (chatCompletion reply)
+
+chatCompletion :: Text -> LBS.ByteString
+chatCompletion content =
+  encode $
+    object
+      [ "id" .= ("chatcmpl-stub" :: Text)
+      , "object" .= ("chat.completion" :: Text)
+      , "created" .= (1755648000 :: Int)
+      , "model" .= ("qwen2.5-14b-instruct" :: Text)
+      , "choices"
+          .= [ object
+                 [ "index" .= (0 :: Int)
+                 , "finish_reason" .= ("stop" :: Text)
+                 , "message" .= object ["role" .= ("assistant" :: Text), "content" .= content]
+                 ]
+             ]
+      ]
+
+appendLlmConfig :: FilePath -> Int -> IO ()
+appendLlmConfig dir port = do
+  let fp = dir </> ".storyflow" </> "config.toml"
+  old <- TE.decodeUtf8 <$> BS.readFile fp
+  BS.writeFile
+    fp
+    ( TE.encodeUtf8
+        ( old
+            <> T.unlines
+              [ ""
+              , "[llm]"
+              , "base_url = \"http://127.0.0.1:" <> T.pack (show port) <> "/v1\""
+              , "model = \"qwen2.5-14b-instruct\""
+              ]
+        )
+    )
 
 -- | 跑__一次__遠端指令,從那一次的結果同時斷言 exit code 與信封。
 --

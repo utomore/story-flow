@@ -13,13 +13,21 @@ import Control.Lens ((^.))
 import Data.Aeson (ToJSON, Value (..), toJSON)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
+import Data.Foldable (toList)
 import qualified Data.HashMap.Strict.InsOrd as IOM
 import Data.List (sort)
-import Data.OpenApi (ToSchema, properties, required, toSchema)
+import Data.OpenApi (ToSchema, enum_, properties, required, toSchema)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
-import StoryFlow.Api (CheckReq, ContextReq)
+import StoryFlow.Api
+  ( CheckReq
+  , ContextReq
+  , WorkshopCommitResp
+  , WorkshopStartReq
+  , WorkshopStepReq
+  , WorkshopStepResp
+  )
 import StoryFlow.Api.Fixtures
 import StoryFlow.Conflict.Json ()
 import StoryFlow.Conflict.Types
@@ -39,7 +47,9 @@ import StoryFlow.Core.Link (Link)
 import StoryFlow.Core.Meta (Meta, Timeline)
 import StoryFlow.Core.Registry (EntityTypeSpec, FieldSpec)
 import StoryFlow.Core.Tree (NodeTree)
+import StoryFlow.Llm (Message, Role)
 import StoryFlow.Service
+import StoryFlow.Workshop (Session, StageDraft)
 import Test.Hspec
 
 spec :: Spec
@@ -98,6 +108,36 @@ spec = describe "ToSchema 與 ToJSON 逐欄對齊" $ do
     it "CheckReq" $ aligns (Proxy :: Proxy CheckReq) sampleCheckReq
     it "CheckReq 的 required 只有 draft" $
       schemaRequired (Proxy :: Proxy CheckReq) `shouldBe` ["draft"]
+
+  describe "工作坊(llm-workshop-mcp/F004)" $ do
+    it "StageDraft" $ aligns (Proxy :: Proxy StageDraft) sampleStageDraft
+    it "Session" $ aligns (Proxy :: Proxy Session) sampleSession
+    it "WorkshopStartReq" $ aligns (Proxy :: Proxy WorkshopStartReq) sampleWorkshopStartReq
+    it "WorkshopStepReq" $ aligns (Proxy :: Proxy WorkshopStepReq) sampleWorkshopStepReq
+    it "WorkshopStepResp" $ aligns (Proxy :: Proxy WorkshopStepResp) sampleWorkshopStepResp
+    it "WorkshopCommitResp" $ aligns (Proxy :: Proxy WorkshopCommitResp) sampleWorkshopCommitResp
+
+    -- Message 沒有 Data.Aeson.ToJSON 實例("StoryFlow.Llm.Client" 刻意不定義它),
+    -- 所以不能像其餘型別一樣直接 aligns。wire 形狀只透過 Session 的 ToJSON
+    -- 手動編碼現身(StoryFlow.Workshop.Session 的 messageJson),這裡改為拿
+    -- sampleSession 實際序列化出來的 history 第一筆物件的鍵集合,與 Message 的
+    -- schema 鍵集合比對(見待確認假設 A6)。
+    it "Message(透過 Session 的 wire 格式驗證,見待確認假設 A6)" $
+      case toJSON sampleSession of
+        Object o -> case KM.lookup "history" o of
+          Just (Array xs) -> case toList xs of
+            (Object m : _) ->
+              let jsonKeys = sort (map K.toText (KM.keys m))
+               in jsonKeys `shouldBe` schemaKeys (Proxy :: Proxy Message)
+            _ -> expectationFailure "sampleSession 的 history 第一筆不是物件"
+          _ -> expectationFailure "sampleSession 的 history 應該是非空陣列"
+        other -> expectationFailure ("toJSON sampleSession 不是物件:" <> show other)
+
+    -- Role 是列舉字串,不對齊 aligns(它本身就不是一個帶鍵的物件),改驗
+    -- schema 的 enum_ 逐字等於 StoryFlow.Workshop.Session 的 roleWire 三個值。
+    it "Role 的 schema 是列舉字串(system / user / assistant)" $
+      (toSchema (Proxy :: Proxy Role)) ^. enum_
+        `shouldBe` Just (map String ["system", "user", "assistant"])
 
   describe "純量型別是字串,不是物件" $
     it "Id / Ref 的 schema 沒有 properties" $ do

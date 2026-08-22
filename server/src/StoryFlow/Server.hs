@@ -23,6 +23,7 @@ module StoryFlow.Server
   ) where
 
 import Control.Exception (finally)
+import Control.Monad.IO.Class (liftIO)
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -41,14 +42,27 @@ import StoryFlow.Api
   , NodeAPI
   , StoryFlowAPI
   , VaultAPI
+  , WorkshopAPI
+  , WorkshopCommitResp (..)
+  , WorkshopStartReq (..)
+  , WorkshopStepReq (..)
+  , WorkshopStepResp (..)
   , storyFlowAPI
   )
 import StoryFlow.Conflict.Pipeline (acquireJudge, checkConflict, gatherContext)
+import StoryFlow.Llm (LlmClient, llmConfig, newLlmClient)
 import StoryFlow.Server.Auth
 import StoryFlow.Server.Error
-import StoryFlow.Server.State (AppState, closeAppState, newAppState, run1, runIO)
+import StoryFlow.Server.State (AppState, closeAppState, newAppState, run1, runEither, runIO)
 import qualified StoryFlow.Service as S
-import StoryFlow.Service (EntityFilter (..))
+import StoryFlow.Service (EntityFilter (..), ServiceM)
+import StoryFlow.Workshop
+  ( WorkshopError (..)
+  , commitStage
+  , loadSession
+  , startWorkshop
+  , stepWorkshop
+  )
 import System.Directory (getCurrentDirectory)
 import System.IO (hPutStrLn, stderr)
 
@@ -138,6 +152,7 @@ handlers st =
     :<|> nodeH st
     :<|> miscH st
     :<|> conflictH st
+    :<|> workshopH st
 
 -- | 前兩條走 'runIO':它們對應 service 不需要 @Env@ 的兩個函式,所以在沒有目前
 -- Vault 的目錄裡也答得出來。
@@ -200,3 +215,43 @@ conflictH :: AppState -> Server ConflictAPI
 conflictH st =
   (\ContextReq {..} -> run1 st (gatherContext crqOpts crqDraft))
     :<|> (\CheckReq {..} -> run1 st (acquireJudge ckNoLlm ckOpts >>= \stage -> checkConflict stage ckOpts ckDraft))
+
+-- | 工作坊的三個出口(llm-workshop-mcp/F004)。走 'runEither'(而不是 'run1'):
+-- 每一條都可能再短路成 @Left WorkshopError@,'toWorkshopServerError' 決定那個
+-- 分支的狀態碼與 body。
+--
+-- 'stepFlow' \/ 'commitFlow' \/ 'acquireLlmClient' 在這裡__重複定義一份__,與
+-- "StoryFlow.Cli.Backend" 那份程式碼相同——工作坊沒有對應的既有接線層函式可
+-- 共用(見 F004 文檔「實作方式」的 @LlmClient@ 小節)。
+workshopH :: AppState -> Server WorkshopAPI
+workshopH st =
+  (\WorkshopStartReq {..} -> runEither st toWorkshopServerError (startWorkshop wsrType wsrConstraints))
+    :<|> (\sid WorkshopStepReq {..} -> runEither st toWorkshopServerError (stepFlow sid wsiInput))
+    :<|> (\sid -> runEither st toWorkshopServerError (commitFlow sid))
+
+stepFlow :: Text -> Text -> ServiceM (Either WorkshopError WorkshopStepResp)
+stepFlow sid input =
+  loadSession sid >>= \case
+    Left e -> pure (Left e)
+    Right session ->
+      acquireLlmClient >>= \case
+        Left e -> pure (Left e)
+        Right client ->
+          stepWorkshop client session input >>= \case
+            Left e -> pure (Left e)
+            Right (session', reply) -> pure (Right (WorkshopStepResp session' reply))
+
+commitFlow :: Text -> ServiceM (Either WorkshopError WorkshopCommitResp)
+commitFlow sid =
+  loadSession sid >>= \case
+    Left e -> pure (Left e)
+    Right session ->
+      commitStage session >>= \case
+        Left e -> pure (Left e)
+        Right (session', views) -> pure (Right (WorkshopCommitResp session' views))
+
+acquireLlmClient :: ServiceM (Either WorkshopError LlmClient)
+acquireLlmClient =
+  llmConfig >>= \case
+    Left e -> pure (Left (WsLlmFailed e))
+    Right cfg -> Right <$> liftIO (newLlmClient cfg)

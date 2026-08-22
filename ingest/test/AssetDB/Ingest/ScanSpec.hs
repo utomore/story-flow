@@ -23,7 +23,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Database.SQLite.Simple
-import System.Directory (createDirectoryIfMissing, createDirectoryLink, getFileSize, removeFile)
+import System.Directory (createDirectoryIfMissing, createDirectoryLink, getFileSize, listDirectory, removeFile)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process (callCommand)
@@ -242,6 +242,54 @@ spec = around withScanned $ do
     it "一般例外仍然接得住" $ \(_, _) -> do
       r <- guardedTry (throwIO (userError "boom")) :: IO (Either SomeException ())
       r `shouldSatisfy` isLeft
+
+  -- G-E003 指標 5:兩處「靠 ioError 傳達失敗」。它們的共同點是失敗訊息只有
+  -- 一個型別看不出來的例外,而呼叫端的回傳型別上完全看不到失敗的可能。
+  describe "走訪與登記的錯誤出口(G-E003)" $ do
+    it "root 的 kind 違反 CHECK 時中止,而不是拋 SQLError" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-bad-kind" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True root
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        tools <- discoverTools
+        -- roots.kind 只接受 packs / reference / studio。登記根目錄是整次掃描
+        -- 的第一個寫入 —— 它失敗代表寫入端根本不通,再往下跑只是把同一個
+        -- 失敗重複數千次。
+        rep <- scanRoot st tools (defaultScanOptions root) {soRootKind = "nonsense"}
+        srAborted rep `shouldSatisfy` isJust
+        srArchives rep `shouldBe` 0
+        srLooseFiles rep `shouldBe` 0
+        -- 訊息要說得出是「登記根目錄」那一步失敗的。
+        srProblems rep `shouldSatisfy` any ("根目錄" `T.isInfixOf`)
+        close (storeConn st)
+
+    it "讀不到的子目錄記進 srProblems,其餘照樣走訪完" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-denied-dir" $ \dir -> do
+        let root = dir </> "library"
+            denied = root </> "denied"
+        createDirectoryIfMissing True (root </> "ok")
+        BC.writeFile (root </> "ok" </> "a.txt") "hello"
+        createDirectoryIfMissing True denied
+        BC.writeFile (denied </> "b.txt") "hidden"
+        denyRead denied
+        blocked <- isUnreadable denied
+        if not blocked
+          then do
+            allowRead denied
+            pendingWith "這個環境的 ACL 沒有生效,製造不出讀不到的目錄"
+          else do
+            st <- openStore (dir </> "db.sqlite")
+            void (initSchema st)
+            tools <- discoverTools
+            rep <- scanRoot st tools (defaultScanOptions root)
+            -- 讀不到一個目錄不是整批失敗:那是**讀取端**的單點問題。
+            srAborted rep `shouldBe` Nothing
+            srProblems rep `shouldSatisfy` any ("denied" `T.isInfixOf`)
+            -- 走訪繼續 —— 另一個子目錄裡的散檔照樣進了索引。
+            srLooseFiles rep `shouldBe` 1
+            close (storeConn st)
+            allowRead denied
 
   -- E006:批次失敗兩層。界線劃在寫入端 vs 讀取端。
   describe "整批中止(E006)" $ do
@@ -489,3 +537,22 @@ shaOf st rel = do
   rows <-
     query (storeConn st) "SELECT sha256 FROM assets WHERE rel_path = ?" (Only rel)
   pure (case rows of (Only s : _) -> s; _ -> Nothing)
+
+-- | 用 ACL 把一個目錄變成列不出來的。
+--
+-- Windows 上沒有 @chmod@,而「權限不足的目錄」是這條測試唯一能製造的
+-- 真實觸發條件。拒絕 Everyone(@*S-1-1-0@)的讀取與列出。
+denyRead :: FilePath -> IO ()
+denyRead p = ignoring (callCommand ("icacls \"" <> p <> "\" /deny *S-1-1-0:(OI)(CI)(RX) >nul 2>&1"))
+
+-- | 還原。**必須在暫存目錄被刪掉之前跑** —— 拒絕存取的 ACE 會連刪除都擋掉。
+allowRead :: FilePath -> IO ()
+allowRead p = ignoring (callCommand ("icacls \"" <> p <> "\" /remove:d *S-1-1-0 >nul 2>&1"))
+
+isUnreadable :: FilePath -> IO Bool
+isUnreadable p = either (const True) (const False) <$> guardedTry (listDirectory p)
+
+-- | icacls 在不同的環境上可能不存在或無效。這裡不讓它的失敗變成測試的失敗
+-- —— 真正的判準是 'isUnreadable',不是 icacls 的結束碼。
+ignoring :: IO () -> IO ()
+ignoring act = () <$ guardedTry act

@@ -17,8 +17,9 @@ module AssetDB.Ingest.ClusterDb
 
 import AssetDB.Ingest.Cluster
 import AssetDB.Naming
+import AssetDB.Guard (guardedTry)
 import AssetDB.Store
-import Control.Monad (when)
+import AssetDB.Store.Errors (renderUnexpected)
 import Data.Aeson (ToJSON, decodeStrict, encode)
 import Data.ByteString.Lazy qualified as BL
 import Data.List (sortOn)
@@ -161,18 +162,29 @@ applyNames st vocab pid confirm = do
     then do
       -- 未確認時到此為止:計算全部做完(所以預覽的數字與名字就是實際會發生的),
       -- 但不進交易。預覽與套用共用這一整段,兩者不可能漂移(G-B001)。
-      when confirm $ do
-        now <- T.pack . iso8601Show <$> getCurrentTime
-        withTransaction (storeConn st) $
-          mapM_
-            ( \(p, n) ->
-                execute
-                  (storeConn st)
-                  "UPDATE assets SET logical_name = ?, updated_at = ? WHERE pack_id = ? AND entry_path = ?"
-                  (n, now, pid, p)
-            )
-            safe
-      pure (ApplyNames (length safe) skipped [] [] safe)
+      -- 撞名檢查只在**這一包內**建表,而 logical_name 是**全域唯一**的
+      -- (ADR-004)—— 跨包撞名會撞 UNIQUE。少了這個出口的話,一個跨包的
+      -- 重名會讓整個 cluster apply 以 SQLite 的 constraint 錯誤崩掉,而
+      -- 使用者看不出是哪一筆(G-E003)。
+      w <-
+        if confirm
+          then do
+            now <- T.pack . iso8601Show <$> getCurrentTime
+            guardedTry $
+              withTransaction (storeConn st) $
+                mapM_
+                  ( \(p, n) ->
+                      execute
+                        (storeConn st)
+                        "UPDATE assets SET logical_name = ?, updated_at = ? WHERE pack_id = ? AND entry_path = ?"
+                        (n, now, pid, p)
+                  )
+                  safe
+          else pure (Right ())
+      case w of
+        -- 全有全無:寫入是一個交易,失敗就整批回滾,所以這裡一筆都沒寫進去。
+        Left e -> pure (ApplyNames 0 skipped [("(整批寫入)", renderUnexpected e)] [] [])
+        Right () -> pure (ApplyNames (length safe) skipped [] [] safe)
     else
       -- 有問題就**什麼都不寫**。半套用的命名比沒有命名更難收拾:
       -- 你不知道哪些是舊的、哪些是新的。

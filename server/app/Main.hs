@@ -1,7 +1,9 @@
 module Main (main) where
 
 import AssetDB.Console (setupConsole)
+import AssetDB.Guard (withTopLevel)
 import AssetDB.Server.App (runServer)
+import AssetDB.Store.Errors (renderUnexpected)
 import AssetDB.Server.Cli (CliCommand (..), parseArgs, usageText)
 import AssetDB.Server.TsTypes (tsDefinitions)
 import Data.ByteString qualified as BS
@@ -13,6 +15,10 @@ import System.IO (hPutStrLn, stderr)
 main :: IO ()
 main = do
   setupConsole
+  withTopLevel renderUnexpected run
+
+run :: IO ()
+run = do
   args <- getArgs
   case parseArgs args of
     Left err -> hPutStrLn stderr err >> exitFailure

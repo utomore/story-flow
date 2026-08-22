@@ -8,8 +8,9 @@ module AssetDB.Archive.Zip
   ) where
 
 import AssetDB.Archive.Types
+import AssetDB.Guard (guardedTry)
 import Codec.Archive.Zip qualified as Z
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException)
 import Data.ByteString (ByteString)
 import Data.Map.Strict qualified as M
 import Data.Text (Text)
@@ -23,7 +24,7 @@ import System.FilePath (splitDirectories)
 -- 呼叫端統一 —— 兩邊都會過濾掉目錄。
 listZipEntries :: FilePath -> IO (Either ArchiveError [ArchiveEntry])
 listZipEntries path = do
-  r <- try (Z.withArchive path Z.getEntries)
+  r <- guardedTry (Z.withArchive path Z.getEntries)
   pure $ case r of
     Left e -> Left (MalformedArchive path (compactException e))
     Right m -> Right (map toEntry (M.toList m))
@@ -44,7 +45,7 @@ listZipEntries path = do
 -- 真正大的是壓縮檔本身,而那個從來不會被整份載入。
 readZipEntry :: FilePath -> Text -> IO (Either ArchiveError ByteString)
 readZipEntry path entry = do
-  r <- try $ Z.withArchive path $ do
+  r <- guardedTry $ Z.withArchive path $ do
     sel <- Z.mkEntrySelector (T.unpack (normalizeEntryPath entry))
     Z.getEntry sel
   pure $ case r of

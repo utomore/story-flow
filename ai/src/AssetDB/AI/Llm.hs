@@ -70,6 +70,7 @@ module AssetDB.AI.Llm
   ) where
 
 import Control.Concurrent (threadDelay)
+import AssetDB.Guard (guardedTry)
 import Control.Exception (Exception, SomeException, try)
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
@@ -399,7 +400,7 @@ sendWithRetry cfg mgr ep body = go 0
 
 sendOnce :: LlmConfig -> Manager -> Endpoint -> Value -> IO (Either LlmError Value)
 sendOnce cfg mgr ep body = do
-  ereq <- try (parseRequest (T.unpack (lcBaseUrl cfg) <> endpointPath ep))
+  ereq <- guardedTry (parseRequest (T.unpack (lcBaseUrl cfg) <> endpointPath ep))
   case ereq of
     Left (e :: SomeException) -> pure (Left (LlmUnavailable (compact (show e))))
     Right req0 -> do
@@ -436,7 +437,7 @@ sendOnce cfg mgr ep body = do
     -- 「告訴使用者服務沒開」,所以粗分類就夠了 —— 但逾時必須與連線被拒
     -- 分開,因為前者可能只是模型還在載入。
     tryHttp act = do
-      r <- try act
+      r <- try @HttpException act
       pure $ case r of
         Right x -> Right x
         Left e -> case e of

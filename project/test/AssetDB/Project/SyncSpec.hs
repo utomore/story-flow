@@ -12,6 +12,7 @@
 module AssetDB.Project.SyncSpec (spec) where
 
 import AssetDB.Archive (ArchiveTools (..))
+import AssetDB.Guard (guardedTry)
 import AssetDB.Ingest.Hash (sha256Bytes, unSha256)
 import AssetDB.Manifest
 import AssetDB.Naming (logicalNameText)
@@ -34,6 +35,7 @@ import System.Directory
   )
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
+import System.Process (callCommand)
 import Test.Hspec
 
 spec :: Spec
@@ -104,6 +106,29 @@ spec = do
       removeFile (proj </> "assets/sprites/ui_gui_alpha_01.png")
       plan <- mustPlan (planSync st defOpts {soQuery = Just "alpha"})
       classOf plan "ui_gui_alpha_01" `shouldBe` [SyncLocallyModified]
+
+    -- G-E003 T10。doesFileExist 與 sha256File 之間是 TOCTOU 視窗:檔案可能
+    -- 被刪掉、改名或被其他程式鎖住。契約 §6 已經把「檔案已不在」歸進
+    -- SyncLocallyModified(不覆蓋、請人來看),讀不到雜湊落在同一類 ——
+    -- 沒有比對基準時保守處理,而不是讓一個 IOException 炸掉整次 sync。
+    it "對帳途中讀不到檔案時是 SyncLocallyModified,不是拋例外" $ withFixture $ \st proj -> do
+      registerProjectRow (conn st) proj
+      let rel = "assets/sprites/ui_gui_alpha_01.png"
+          dest = proj </> rel
+      writeAsset proj rel (blobContent "alpha")
+      addReg (conn st) "01ARZ3NDEKTSV4RRFFQ69G5FA1" (T.pack rel) (Just (shaOf "alpha"))
+      -- 只拒絕**讀取內容**(RD),不動屬性 —— doesFileExist 與 getFileSize
+      -- 照樣成功,失敗的正好是 sha256File 那一步。
+      denyReadData dest
+      blocked <- isUnreadable dest
+      if not blocked
+        then do
+          allowReadData dest
+          pendingWith "這個環境的 ACL 沒有生效,製造不出讀不到的檔案"
+        else do
+          plan <- mustPlan (planSync st defOpts {soQuery = Just "alpha"})
+          classOf plan "ui_gui_alpha_01" `shouldBe` [SyncLocallyModified]
+          allowReadData dest
 
     -- D3:大小不同必然內容不同,所以先比 blobs.bytes 就能短路掉整批讀檔。
     it "大小與 blobs.bytes 不同時判為 SyncLocallyModified" $ withFixture $ \st proj -> do
@@ -613,3 +638,23 @@ dbState c = do
   rows <- registrationRows c
   ups <- projectUpdatedAt c
   pure (rows, map fromOnly ups)
+
+-- | 只拒絕讀取檔案內容(@RD@),屬性照樣讀得到。
+--
+-- Windows 上沒有 @chmod@,而「讀不到的檔案」是這條測試唯一能製造的真實
+-- 觸發條件。用 @R@ 會連屬性一起擋掉,那樣 'doesFileExist' 就先失敗了,
+-- 測不到 'sha256File' 那一步。
+denyReadData :: FilePath -> IO ()
+denyReadData p = ignoring (callCommand ("icacls \"" <> p <> "\" /deny *S-1-1-0:(RD) >nul 2>&1"))
+
+-- | 還原。**必須在暫存目錄被刪掉之前跑**。
+allowReadData :: FilePath -> IO ()
+allowReadData p = ignoring (callCommand ("icacls \"" <> p <> "\" /remove:d *S-1-1-0 >nul 2>&1"))
+
+isUnreadable :: FilePath -> IO Bool
+isUnreadable p = either (const True) (const False) <$> guardedTry (BS.readFile p)
+
+-- | icacls 在不同環境上可能不存在或無效。真正的判準是 'isUnreadable',
+-- 不是 icacls 的結束碼。
+ignoring :: IO () -> IO ()
+ignoring act = () <$ guardedTry act

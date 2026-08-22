@@ -9,7 +9,8 @@ module AssetDB.Ingest.ThumbRun
 import AssetDB.Archive
 import AssetDB.Ingest.Thumb
 import AssetDB.Store
-import Control.Exception (SomeException, try)
+import AssetDB.Guard (guardedTry)
+import Control.Exception (SomeException)
 import Control.Monad (foldM, forM_)
 import Data.ByteString qualified as BS
 import Data.Text (Text)
@@ -67,20 +68,28 @@ generateThumbs st tools ThumbOptions {..} = do
           markOk sha
           pure acc {trSkipped = trSkipped acc + 1}
         else do
-          r <- try (readEntry tools (toLibraryRoot <> "/" <> T.unpack archiveRel) entry)
+          -- guardedTry 而不是裸 try:readEntry 對 solid 壓縮檔會叫起 7-Zip
+          -- 子程序,那不只毫秒,中斷訊號很可能落在裡面(G-E003)。
+          r <- guardedTry (readEntry tools (toLibraryRoot <> "/" <> T.unpack archiveRel) entry)
           case r of
-            Left (e :: SomeException) -> failWith acc sha (compact e)
+            Left e -> failWith acc sha (compact e)
             Right (Left err) -> failWith acc sha (renderArchiveError err)
             Right (Right content) ->
               case mapM (`makeThumb` content) thumbSizes of
                 Left err -> failWith acc sha err
                 Right imgs -> do
-                  forM_ (zip thumbSizes imgs) $ \(size, png) -> do
+                  -- 寫檔是這個 6,000+ 次迴圈裡最可能失敗的一步(磁碟滿、快取
+                  -- 目錄唯讀),而失敗時 trFailed 原本拿不到任何東西 —— 例外
+                  -- 直接飛出 generateThumbs,整批縮圖產生崩掉。
+                  w <- guardedTry $ forM_ (zip thumbSizes imgs) $ \(size, png) -> do
                     let p = thumbPath toCacheRoot sha size
                     createDirectoryIfMissing True (takeDirectory p)
                     BS.writeFile p png
-                  markOk sha
-                  pure acc {trMade = trMade acc + 1}
+                  case w of
+                    Left e -> failWith acc sha ("寫入縮圖快取失敗 " <> compact e)
+                    Right () -> do
+                      markOk sha
+                      pure acc {trMade = trMade acc + 1}
 
     failWith acc sha msg = do
       -- 失敗要記在資料庫裡,否則每次重跑都會再試一次同一批壞檔案。

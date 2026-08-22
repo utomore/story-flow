@@ -22,10 +22,12 @@ runNoteImport dbPath NoteArgs {..} = do
   kind <- either die pure (parseTextEnum naKind :: Either Text NoteKind)
   withStore dbPath $ \st -> do
     _ <- initSchema st
-    imported <- importNotes st kind naPath
+    (imported, problems) <- importNotes st kind naPath
     n <- reindexNotes st
     mapM_ (\(t, s) -> TIO.putStrLn ("  " <> t <> "   (" <> s <> ")")) imported
+    mapM_ (\p -> TIO.putStrLn ("  ⚠ 跳過 " <> p)) problems
     TIO.putStrLn ("匯入 " <> tshow (length imported) <> " 篇,索引共 " <> tshow n <> " 篇")
+    if null problems then pure () else exitFailure
 
 runNoteList :: FilePath -> Maybe Text -> IO ()
 runNoteList dbPath mk =

@@ -14,13 +14,17 @@ module AssetDB.Server.App
   , countAssets
   , isThumbSha
   , thumbCacheControl
+  , statusFor
   ) where
 
 import AssetDB.PathText (ThumbSize (..), thumbPath)
 import AssetDB.Server.Api
 import AssetDB.Store
+import AssetDB.Guard (guardedTry)
+import AssetDB.Store.Errors (isBusy, renderUnexpected)
 import AssetDB.Store.Index (ftsStale)
 import AssetDB.Store.Search
+import Control.Exception (SomeException, fromException)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (object, (.=))
 import Data.ByteString qualified as BS
@@ -171,13 +175,13 @@ handlers cfg st =
         , sqOffset = maybe 0 (max 0) off
         }
 
-    searchH q k p v a c named ref exc lim off = liftIO $ do
+    searchH q k p v a c named ref exc lim off = guarded $ do
       let sq = mkQuery q k p v a c named ref exc lim off
       total <- searchCount conn sq
       hits <- search conn sq
       pure (SearchResponse total (map toItem hits))
 
-    facetsH q k p v a c named ref exc = liftIO $ do
+    facetsH q k p v a c named ref exc = guarded $ do
       fc <- facetCounts conn (mkQuery q k p v a c named ref exc Nothing Nothing)
       pure $
         object
@@ -190,7 +194,7 @@ handlers cfg st =
 
     pairs xs = [object ["value" .= v, "count" .= n] | (v, n) <- xs]
 
-    packsH = liftIO $ do
+    packsH = guarded $ do
       rows <-
         query_
           conn
@@ -202,7 +206,7 @@ handlers cfg st =
           \ORDER BY p.name"
       pure [PackSummary s n vd au li stt ai c | (s, n, vd, au, li, stt, ai, c) <- rows]
 
-    healthH = liftIO $ do
+    healthH = guarded $ do
       let scalar q' = do
             r <- query_ conn q' :: IO [Only Int]
             pure (case r of (Only x : _) -> x; _ -> 0)
@@ -225,7 +229,9 @@ handlers cfg st =
           let p = thumbPath (scCacheRoot cfg) sha (if size >= 512 then Thumb512 else Thumb128)
           ok <- liftIO (doesFileExist p)
           if ok
-            then addHeader thumbCacheControl <$> liftIO (BS.readFile p)
+            -- 存在不等於讀得到:權限、磁碟錯誤、掃到一半被清掉的快取都可能失敗。
+            -- 讓它逃到 Warp 會變成空 body 的 500(G-E003)。
+            then addHeader thumbCacheControl <$> guarded (BS.readFile p)
             else throwError (utf8Err err404 "找不到縮圖")
 
     staticH =
@@ -233,6 +239,26 @@ handlers cfg st =
         (defaultWebAppSettings (scWebRoot cfg))
           { ssIndices = [unsafeToPiece "index.html"]
           }
+
+-- | 把一段 IO 包成「失敗會變成帶訊息的 5xx」的 handler 動作。
+--
+-- 沒有這一層時,'SQLError' 會一路逃到 Warp,而 Warp 對未捕捉的例外回的是
+-- **空 body 的 500** —— 前端只看到一個沒有訊息的錯誤,而伺服器的 log 裡是英文
+-- backtrace。最常見的觸發是背景掃描正在寫入,那是**預期中的並行**(ADR-009),
+-- 使用者需要知道的是「稍後重試」而不是「500」。
+--
+-- 忙碌回 503(可重試),其餘回 500;兩者的 body 都是繁中(G-E003)。
+guarded :: IO a -> Handler a
+guarded act =
+  liftIO (guardedTry act) >>= \case
+    Right a -> pure a
+    Left e -> throwError (utf8Err (statusFor e) (renderUnexpected e))
+
+-- | 暫時性的失敗回 503,呼叫端重試有意義;其餘回 500。
+statusFor :: SomeException -> ServerError
+statusFor e
+  | Just se <- fromException e, isBusy se = err503
+  | otherwise = err500
 
 -- | 縮圖 sha 的合法形狀:剛好 64 位十六進位字元(對應 @blobs.sha256@)。
 isThumbSha :: Text -> Bool

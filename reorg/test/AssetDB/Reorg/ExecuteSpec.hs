@@ -130,6 +130,48 @@ spec = do
       bs <- listBatches (store env)
       length bs `shouldBe` 1
 
+  -- G-E003 指標 1 的三處。階段 A 的三個檔案系統動作原本都是裸的:
+  -- 任何一個失敗,例外就飛出 applyPlan,而使用者只看到一個英文例外 ——
+  -- 更糟的是不知道搬到一半停在哪裡。
+  describe "檔案系統動作的錯誤出口(G-E003)" $ do
+    it "建目錄、搬移、寫 pack.toml 三者失敗時各自進 arErrors" $ withLib $ \env -> do
+      -- 在 library/ 該在的位置放一個**檔案**:三個動作都要先
+      -- createDirectoryIfMissing 到它底下,於是三者一起失敗。
+      -- 比起改 ACL,這個觸發條件在每個平台上都一樣。
+      createDirectoryIfMissing True (dst env)
+      BS.writeFile (dst env </> "library") "占位"
+
+      r <- runApply env False
+
+      arErrors r `shouldSatisfy` any (T.isInfixOf "建目錄失敗")
+      arErrors r `shouldSatisfy` any (T.isInfixOf "建目標目錄失敗")
+      arErrors r `shouldSatisfy` any (T.isInfixOf "寫入 pack.toml 失敗")
+      -- library/ 底下一個目錄都建不出來(其餘不在它底下的目錄不受影響)。
+      doesDirectoryExist (dst env </> "library" </> "packs") `shouldReturn` False
+      arMoved r `shouldBe` 0
+      arWritten r `shouldBe` 0
+
+    it "失敗時一筆都不刪,來源原封不動" $ withLib $ \env -> do
+      -- 這是既有的安全性質:對帳沒過就不刪。錯誤出口不得在任何情況下
+      -- 讓刪除提前發生 —— 那是唯一不可回退的動作。
+      createDirectoryIfMissing True (dst env)
+      BS.writeFile (dst env </> "library") "占位"
+
+      r <- runApply env True
+
+      arDeleted r `shouldBe` 0
+      doesFileExist (src env </> "Game Assets itchio/Raw/demo.zip") `shouldReturn` True
+      doesFileExist (src env </> "Game Assets itchio/extracted/a.png") `shouldReturn` True
+
+    it "對帳讀不到搬移後的檔案時回報不符,而不是拋例外" $ withLib $ \env -> do
+      -- reconcile 的 doesFileExist 與 sha256File 之間是 TOCTOU 視窗,
+      -- 而對帳的結論直接決定階段 B 要不要刪散檔。
+      createDirectoryIfMissing True (dst env)
+      BS.writeFile (dst env </> "library") "占位"
+      r <- runApply env True
+      arReconciled r `shouldBe` 0
+      arErrors r `shouldSatisfy` (not . null)
+
 --------------------------------------------------------------------------------
 
 data Env = Env {store :: Store, src :: FilePath, dst :: FilePath}

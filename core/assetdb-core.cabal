@@ -25,6 +25,7 @@ library
         AssetDB.Manifest
         AssetDB.PathText
         AssetDB.Console
+        AssetDB.Guard
     hs-source-dirs:   src
     build-depends:
         , base          >=4.17 && <5
@@ -57,12 +58,15 @@ test-suite assetdb-core-test
         AssetDB.IdSpec
         AssetDB.ManifestSpec
         AssetDB.PathTextSpec
+        AssetDB.GuardSpec
     hs-source-dirs:   test
     build-depends:
         , assetdb-core
         , base
+        , bytestring
         , aeson
         , containers
+        , directory
         , filepath
         , hspec         >=2.10
         , QuickCheck    >=2.14

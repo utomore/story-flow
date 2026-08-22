@@ -64,6 +64,7 @@ test-suite assetdb-ingest-test
         AssetDB.Ingest.ClusterSpec
         AssetDB.Ingest.ClusterDbSpec
         AssetDB.Ingest.ThumbSpec
+        AssetDB.Ingest.ThumbRunSpec
         AssetDB.Ingest.NotesSpec
         AssetDB.Ingest.ScanSpec
     hs-source-dirs:   test

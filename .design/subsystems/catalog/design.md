@@ -5,7 +5,7 @@ title: catalog
 description: 定義領域型別、命名文法、Manifest schema 與 SQLite 儲存/檢索,是全系統的型別與資料基座
 status: active
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-001, ADR-003, ADR-004, ADR-006, ADR-008]
 ---
@@ -203,6 +203,40 @@ thumbPath    :: FilePath -> Text -> ThumbSize -> FilePath   -- 快取根 → sha
 setupConsole :: IO ()              -- stdout/stderr UTF-8 + Windows console code page 65001
 ```
 
+### `AssetDB.Guard` —— 例外守衛(G-E003)
+
+```haskell
+guardedTry  :: IO a -> IO (Either SomeException a)
+withTopLevel :: (SomeException -> Text) -> IO () -> IO ()
+```
+
+`guardedTry` 是逐項的 `try`,但**重新拋出 `AsyncException`** —— 裸的
+`try @SomeException` 會把使用者的 Ctrl-C 記成「這一項失敗」然後繼續跑下一項。
+全系統只有這一份實作:這條規則的正確性很微妙(忘了重拋沒有人會發現),
+不該有第二份可以各自演進。
+
+`withTopLevel` 是執行檔的頂層處理,擁有**判斷的順序**:`ExitCode` 必須重拋
+(`exitFailure` 是用例外實作的),`AsyncException` 印「已中斷」,其餘交給呼叫端
+提供的渲染函式。渲染函式由外部注入是因為它要認得 `SQLError`,而那來自
+sqlite-simple —— core 不能依賴(ADR-001)。
+
+### `AssetDB.Store.Errors` —— 別人的失敗翻成繁中(G-E003)
+
+```haskell
+renderSqlError       :: SQLError -> Text
+renderIoError        :: IOException -> Text
+renderMigrationError :: MigrationError -> Text
+renderUnexpected     :: SomeException -> Text   -- 兜底:認得的先認,其餘壓成單行
+isBusy               :: SQLError -> Bool        -- SQLITE_BUSY / SQLITE_LOCKED
+```
+
+訊息要同時回答「發生什麼事」與「我現在該做什麼」;只講前者等於沒講。
+`isBusy` 是**可重試性**的判準,delivery 的 HTTP 層據此決定回 503 還是 500 ——
+忙碌的典型成因是背景掃描正在寫入,那是預期中的並行(ADR-009),不是故障。
+
+放在 `store` 而不是 `core`:渲染需要 `SQLError`,而 core 是遊戲本體唯一依賴的
+套件(ADR-001),刻意保持零重量級依賴。
+
 ### `AssetDB.Store` —— 連線與初始化
 
 ```haskell
@@ -329,6 +363,7 @@ facetCounts :: Connection -> SearchQuery -> IO FacetCounts
 | `AssetDB.Manifest` | `assets/manifest.json` 的型別與手寫序列化、版本把關、查表 |
 | `AssetDB.PathText` | 跨套件共用的路徑分解、slug 化與縮圖快取定址 |
 | `AssetDB.Console` | 終端機位元組層設定(唯一有 IO 的核心模組) |
+| `AssetDB.Guard` | 例外守衛:不吞 Ctrl-C 的逐項 `try`,以及執行檔頂層處理的判斷順序 |
 
 ### `assetdb-store`(SQLite,知道 SQL;上面的層不該知道)
 
@@ -341,6 +376,7 @@ facetCounts :: Connection -> SearchQuery -> IO FacetCounts
 | `AssetDB.Store.Tokenize` | 中日韓 n-gram 展開與 FTS5 語法跳脫(寫入與查詢共用) |
 | `AssetDB.Store.Index` | 兩張 assets 全文索引的全量重建與落後偵測 |
 | `AssetDB.Store.Search` | 條件組裝查詢、分頁與 facet 計數 |
+| `AssetDB.Store.Errors` | `SQLError` / `IOException` / `MigrationError` 的繁中渲染與可重試性判定 |
 
 依賴方向:`Store` → `Migrate` + `Schema` → `Migrate`;`Index` → `Tokenize`;
 `Search` → `Tokenize`;`Orphans` → core。`Tokenize` 不依賴任何 store 內部模組。
@@ -443,6 +479,7 @@ catalog **內部**模組之間、以及其他子系統呼叫進來的介面:
 | `AssetDB.Manifest` | delivery、遊戲本體 | `Manifest` 及其 DTO、`currentSchemaVersion`、`manifestIndex` / `lookupAsset` |
 | `AssetDB.PathText` | ingest、ai-tagging、delivery | `slugify`、`leafOf` / `extensionOf`、`thumbPath` / `ThumbSize` |
 | `AssetDB.Console` | delivery(cli / server 進入點) | `setupConsole` |
+| `AssetDB.Guard` | 全系統(每個批次迴圈與兩個 `main`) | `guardedTry`、`withTopLevel` |
 | `AssetDB.Store` | 全系統 | `Store`、`openStore` / `withStore` / `openStoreInMemory`、`initSchema`、`storeVersion` |
 | `AssetDB.Store.Migrate` | `AssetDB.Store`、`AssetDB.Store.Schema` | `Migration`、`runMigrations`、`currentVersion`、`lit` / `num` |
 | `AssetDB.Store.Schema` | `AssetDB.Store` | `migrations`、`schemaVersion` |
@@ -450,6 +487,7 @@ catalog **內部**模組之間、以及其他子系統呼叫進來的介面:
 | `AssetDB.Store.Tokenize` | `AssetDB.Store.Index`、`AssetDB.Store.Search`、ingest(notes 索引) | `cjkIndex` / `cjkMatchExpr` / `hasCJK` / `ftsQuoted` / `ftsPhrase` |
 | `AssetDB.Store.Index` | delivery(CLI reindex / doctor) | `reindexFts`、`ftsRowCount`、`ftsStale` |
 | `AssetDB.Store.Search` | delivery(server API / CLI search) | `SearchQuery` / `emptyQuery`、`search` / `searchCount` / `facetCounts` |
+| `AssetDB.Store.Errors` | ingest、ai-tagging、delivery | `renderUnexpected` / `renderSqlError` / `renderMigrationError`、`isBusy` |
 
 ---
 

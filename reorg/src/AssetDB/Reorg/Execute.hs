@@ -34,8 +34,9 @@ import AssetDB.Reorg.PackToml (renderPackToml)
 import AssetDB.Reorg.Plan
 import AssetDB.Reorg.Snapshot
 import AssetDB.Store
-import Control.Exception (SomeException, try)
-import Control.Monad (foldM, forM, forM_, unless, when)
+import AssetDB.Guard (guardedTry)
+import Control.Exception (SomeException)
+import Control.Monad (foldM, forM, unless, when)
 import Data.Map.Strict qualified as Map
 import Data.ByteString qualified as BS
 import Data.Text (Text)
@@ -187,8 +188,17 @@ preflight ApplyOptions {..} src dst plan = do
 runMkDirs :: ApplyOptions -> FilePath -> Plan -> ApplyReport -> IO ApplyReport
 runMkDirs _ dst plan acc = do
   let dirs = [T.unpack p | OpMkDir p <- planOps plan]
-  forM_ dirs $ \d -> createDirectoryIfMissing True (dst </> d)
-  pure acc {arDirsCreated = length dirs}
+  -- 建目錄失敗(權限、磁碟滿、路徑被檔案佔住)必須進 arErrors:
+  -- 讓它逃出去的話,搬移階段連一步都還沒走,而使用者只看到一個英文例外(G-E003)。
+  results <- forM dirs $ \d ->
+    guardedTry (createDirectoryIfMissing True (dst </> d)) >>= \case
+      Left e -> pure (Left (T.pack d <> ":建目錄失敗 " <> compact e))
+      Right () -> pure (Right ())
+  pure
+    acc
+      { arDirsCreated = length [() | Right () <- results]
+      , arErrors = arErrors acc <> [e | Left e <- results]
+      }
 
 runMoves :: Store -> ApplyOptions -> FilePath -> FilePath -> Plan -> ApplyReport -> IO ApplyReport
 runMoves st ApplyOptions {..} src dst plan acc = do
@@ -206,8 +216,11 @@ runMoves st ApplyOptions {..} src dst plan acc = do
         then pure a
         else do
           aoOnEvent (EvProgress i total f)
-          createDirectoryIfMissing True (takeDirectory to)
-          r <- moveFile from to
+          -- 目標目錄建不出來就不必試搬移了 —— 同樣走 arErrors,不逃出去。
+          mk <- guardedTry (createDirectoryIfMissing True (takeDirectory to))
+          r <- case mk of
+            Left e -> pure (Left ("建目標目錄失敗 " <> compact e))
+            Right () -> moveFile from to
           case r of
             Left err -> pure a {arErrors = arErrors a <> [f <> ":" <> err]}
             Right () -> do
@@ -220,11 +233,11 @@ runMoves st ApplyOptions {..} src dst plan acc = do
 -- 留給對帳階段確認之後再處理。這裡的順序不能反過來。
 moveFile :: FilePath -> FilePath -> IO (Either Text ())
 moveFile from to = do
-  r <- try (renamePath from to)
+  r <- guardedTry (renamePath from to)
   case r of
     Right () -> pure (Right ())
     Left (_ :: SomeException) -> do
-      r2 <- try (copyFileWithMetadata from to >> removeFile from)
+      r2 <- guardedTry (copyFileWithMetadata from to >> removeFile from)
       pure $ case r2 of
         Right () -> Right ()
         Left (e :: SomeException) -> Left (compact e)
@@ -239,10 +252,16 @@ runWrites st ApplyOptions {..} dst snap plan acc = do
         Nothing -> pure (Left ("找不到 " <> t <> " 對應的素材包"))
         Just pk -> do
           let target = dst </> T.unpack t
-          createDirectoryIfMissing True (takeDirectory target)
-          writeUtf8 target (renderPackToml pk)
-          recordMove st aoBatchId "write" Nothing (Just t) 0
-          pure (Right ())
+          -- 寫 pack.toml 失敗不該讓整個階段 A 崩在半路 —— 壓縮檔可能已經搬完了,
+          -- 而例外逃出去之後沒有人知道搬到哪裡(G-E003)。
+          w <- guardedTry $ do
+            createDirectoryIfMissing True (takeDirectory target)
+            writeUtf8 target (renderPackToml pk)
+          case w of
+            Left e -> pure (Left (t <> ":寫入 pack.toml 失敗 " <> compact e))
+            Right () -> do
+              recordMove st aoBatchId "write" Nothing (Just t) 0
+              pure (Right ())
   pure
     acc
       { arWritten = length [() | Right () <- written]
@@ -269,12 +288,16 @@ reconcile ApplyOptions {..} dst snap plan = do
       then pure (Just (t <> ":搬移後找不到檔案"))
       else case Map.lookup (leafOf t) byLeaf of
         Nothing -> pure (Just (t <> ":資料庫裡沒有這個壓縮檔的雜湊紀錄"))
-        Just pk -> do
-          actual <- unSha256 <$> sha256File target
-          pure $
-            if actual == prArchiveSha pk
-              then Nothing
-              else
+        Just pk ->
+          -- doesFileExist 與 sha256File 之間檔案可能被移走(TOCTOU),而對帳
+          -- 失敗必須是一則可讀的不符,不是逃出去的例外 —— 對帳的結論直接決定
+          -- 階段 B 要不要刪散檔。
+          guardedTry (unSha256 <$> sha256File target) >>= \case
+            Left e -> pure (Just (t <> ":讀不到檔案,無法對帳 " <> compact e))
+            Right actual -> pure $
+              if actual == prArchiveSha pk
+                then Nothing
+                else
                 Just
                   ( t
                       <> ":雜湊不符\n      預期 "
@@ -308,7 +331,7 @@ runDeletes st ApplyOptions {..} src plan acc = do
   where
     step total a (i, (rel, bytes)) = do
       when (i `mod` 500 == 0 || i == total) (aoOnEvent (EvProgress i total rel))
-      r <- try (removeFile (src </> T.unpack rel))
+      r <- guardedTry (removeFile (src </> T.unpack rel))
       case r of
         Left (e :: SomeException) -> pure a {arErrors = arErrors a <> [rel <> ":" <> compact e]}
         Right () -> do
@@ -361,7 +384,7 @@ undoBatch st src dst batch say = do
           Right () -> markUndone st rid >> pure Nothing
           Left e -> pure (Just (t <> ":" <> e))
       ("write", _, Just t) -> do
-        r <- try (removeFile (dst </> T.unpack t))
+        r <- guardedTry (removeFile (dst </> T.unpack t))
         case r of
           Right () -> markUndone st rid >> pure Nothing
           Left (_ :: SomeException) -> markUndone st rid >> pure Nothing

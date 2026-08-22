@@ -5,7 +5,7 @@ title: ingest
 description: 把磁碟上的壓縮檔與散檔轉成內容定址的索引資料
 status: active
 created: 2026-08-19
-updated: 2026-08-21
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-002, ADR-004, ADR-005, ADR-009]
 ---
@@ -175,7 +175,8 @@ parseCatalogue :: Text -> Either Text Catalogue
 
 data ApplyResult = ApplyResult
   { arMatched :: [(Text, Bool)]        -- (壓縮檔名, 是否升級為 ready)
-  , arMissingArchive :: [Text], arMissingLicense :: [Text] }
+  , arMissingArchive :: [Text], arMissingLicense :: [Text]
+  , arRejected :: [(Text, Text)] }     -- (壓縮檔名, 原因)—— 欄位值不合法,這包沒套用,其餘照常
 applyCatalogue :: Store -> Catalogue -> IO ApplyResult
 ```
 
@@ -260,7 +261,8 @@ data NoteDoc = NoteDoc
 parseFrontMatter :: Text -> Text -> NoteDoc              -- (來源檔名, 原始內容)
 frontJson        :: [(Text, Text)] -> Text
 
-importNotes  :: Store -> NoteKind -> FilePath -> IO [(Text, Text)]   -- [(標題, 來源)]
+importNotes  :: Store -> NoteKind -> FilePath -> IO ([(Text, Text)], [Text])
+             -- ([(標題, 來源)], [逐檔失敗的說明]);讀不到一個檔案不中止整次匯入
 listNotes    :: Store -> Maybe NoteKind -> IO [(Text, Text, Text, Text)]
 reindexNotes :: Store -> IO Int
 
@@ -459,6 +461,7 @@ data/packs.toml 文字 ──parseCatalogue──► Catalogue
               找不到壓縮檔      授權名稱不存在      兩者齊備
                      │               │                │
               arMissingArchive  arMissingLicense   作者 upsert(補空欄位,不覆蓋)
+                     │               │                │(寫入被約束擋下 → arRejected)
                                                       │
                                           授權與作者都在 → status = ready
                                           否則           → status = draft
@@ -780,6 +783,7 @@ archive ◄──── ingest ◄──── reorg
   - 授權與作者齊備時 status 升級為 `ready`,缺作者維持 `draft`
   - 引用不存在的授權名稱會回報在 `arMissingLicense`,不是靜靜忽略
   - 資料庫裡沒有的壓縮檔回報在 `arMissingArchive`
+  - 欄位值違反資料庫約束(如 `ai` 寫成 `AI-generated`)時只拒絕那一包並回報在 `arRejected`,其餘照常套用
   - 作者只建立一次,已存在時補上先前缺的欄位但不覆蓋已有值
   - 重複套用不產生變化(冪等)
   - 產出的 `pack.toml` 含識別欄位、壓縮檔雜湊/大小/項目數;只寫檔名不寫路徑;缺欄位不產生空白 key;雙引號與反斜線跳脫;中文原樣保留
@@ -853,6 +857,7 @@ archive ◄──── ingest ◄──── reorg
   - `---` 後直接 EOF 或只有換行的內容都正確解析
   - 含反斜線與控制字元的值產生**合法** JSON;空 front matter 是空物件
   - 只匯入 `.md` / `.markdown`;以來源路徑為識別鍵,重複匯入是更新而不是新增;可依 kind 篩選
+  - 讀不到的檔案跳過並回報在第二個回傳值,其餘照樣匯入 —— 一個壞檔案不該讓整次匯入崩掉
   - 中文筆記進 CJK bigram 索引(對中文而言那是主力而非備援)
   - 未知實體型別回 `Left` 帶友善訊息而非崩潰;五種已知型別對應到資料表
   - 邊建立後雙向都查得到;重複建立同一條邊是無操作;`entityLinks` 回傳的對端識別是 ULID 而非內部整數 id

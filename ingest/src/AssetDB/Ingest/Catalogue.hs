@@ -23,7 +23,10 @@ module AssetDB.Ingest.Catalogue
   , applyCatalogue
   ) where
 
+import AssetDB.Guard (guardedTry)
 import AssetDB.Store
+import AssetDB.Store.Errors (renderUnexpected)
+import AssetDB.Types (AiDisclosure, parseTextEnum)
 import Control.Monad (forM)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -107,6 +110,12 @@ data ApplyResult = ApplyResult
   -- ^ 目錄裡有但資料庫裡找不到的壓縮檔 —— 通常是還沒掃描,或檔名打錯。
   , arMissingLicense :: [Text]
   -- ^ 引用了不存在的授權名稱。
+  , arRejected :: [(Text, Text)]
+  -- ^ (壓縮檔名, 原因)—— 欄位值不合法,這一包沒有套用,其餘照常。
+  --
+  -- @data\/packs.toml@ 是人手寫的自由文字,而 @ai_disclosure@ 與 @kind@ 在資料庫
+  -- 有 CHECK 約束。少了這個 bucket 的話,寫錯一個值會讓整個 @pack apply@ 以
+  -- SQLite 的 constraint 錯誤崩掉,而使用者看不出是哪一包、哪個欄位(G-E003)。
   }
   deriving stock (Eq, Show)
 
@@ -124,12 +133,29 @@ applyCatalogue st (Catalogue entries) = do
       { arMatched = [(a, ready) | Right (a, ready) <- results]
       , arMissingArchive = [a | Left (MissingArchive a) <- results]
       , arMissingLicense = [l | Left (MissingLicense l) <- results]
+      , arRejected = [(a, why) | Left (Rejected a why) <- results]
       }
 
-data ApplyProblem = MissingArchive Text | MissingLicense Text
+data ApplyProblem = MissingArchive Text | MissingLicense Text | Rejected Text Text
 
 applyOne :: Connection -> Text -> PackEntry -> IO (Either ApplyProblem (Text, Bool))
-applyOne conn now PackEntry {..} = do
+applyOne conn now PackEntry {..}
+  -- 先驗證再寫入。ai_disclosure 有對應的 TextEnum(ADR-008),所以錯誤訊息
+  -- 說得出「只接受哪些值」,而不是丟一個 SQLite 的 constraint 錯誤。
+  | Just bad <- badAi =
+      pure (Left (Rejected peArchive ("ai 欄位的值不合法:" <> bad)))
+  | otherwise = go
+  where
+    badAi = case peAi of
+      Nothing -> Nothing
+      Just v -> case parseTextEnum v :: Either Text AiDisclosure of
+        Right _ -> Nothing
+        Left e -> Just e
+
+    go = applyOneChecked conn now PackEntry {..}
+
+applyOneChecked :: Connection -> Text -> PackEntry -> IO (Either ApplyProblem (Text, Bool))
+applyOneChecked conn now PackEntry {..} = do
   packRows <-
     query
       conn
@@ -149,7 +175,9 @@ applyOne conn now PackEntry {..} = do
               -- 授權與作者都齊備才升級。CHECK 約束也會擋,
               -- 但在這裡先算出來才能回報「哪幾包還沒好」。
               ready = licenseId /= Nothing && mAuthorId /= Nothing
-          execute
+          -- 其餘的欄位約束(kind 等)沒有對應的 TextEnum,所以不自己抄一份
+          -- 對照表,而是讓資料庫判斷、把違反接成這一包的拒絕原因。
+          w <- guardedTry $ execute
             conn
             "UPDATE packs SET name=?, slug=?, vendor=?, author_id=?, license_id=?, \
             \  source_url=?, version=?, price_usd=?, acquired=?, \
@@ -172,7 +200,9 @@ applyOne conn now PackEntry {..} = do
             , SQLText now
             , SQLInteger (fromIntegral packId)
             ]
-          pure (Right (peArchive, ready))
+          case w of
+            Left e -> pure (Left (Rejected peArchive (renderUnexpected e)))
+            Right () -> pure (Right (peArchive, ready))
 
 ensureAuthor :: Connection -> Maybe Text -> Maybe Text -> Text -> IO Int
 ensureAuthor conn url contact name = do

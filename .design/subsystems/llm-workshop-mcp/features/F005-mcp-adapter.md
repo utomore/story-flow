@@ -3,7 +3,7 @@ id: F005
 type: feature
 title: mcp-adapter
 description: MCP stdio adapter,把 REST 的全部 operation 依 operationId 映射成 tools
-status: open
+status: done
 created: 2026-08-22
 updated: 2026-08-22
 depends-on: [service-and-interfaces/F003, F004]
@@ -562,53 +562,53 @@ MCP adapter 沒有業務邏輯:`tools/call` 的參數→HTTP body、HTTP 回應�
 
 ## TodoList
 
-- [ ] T1:`mcp/storyflow-mcp.cabal` 套件骨架(library 六個模組先建空殼、executable
+- [x] T1:`mcp/storyflow-mcp.cabal` 套件骨架(library 六個模組先建空殼、executable
       `story-flow-mcp`、test-suite 骨架);`cabal.project` 的 `packages:` 加 `mcp/`,
       新增 `package storyflow-mcp` 區塊(與現有十一個套件同一種 `ghc-options` 四旗標格式)
       `dep: -`
-- [ ] T2:`StoryFlow.Mcp.Protocol`——`RpcMessage`、`parseLine`、`encodeResult`、`encodeError`
+- [x] T2:`StoryFlow.Mcp.Protocol`——`RpcMessage`、`parseLine`、`encodeResult`、`encodeError`
       `dep: T1`
-- [ ] T3:`api/src/StoryFlow/Api.hs` 加 `deriveOperationId` 與套用它的 traverse,
+- [x] T3:`api/src/StoryFlow/Api.hs` 加 `deriveOperationId` 與套用它的 traverse,
       `storyFlowOpenApi` 的全部 28 個 operation 取得非空、彼此不重複的 `_operationOperationId`
       `dep: -`
-- [ ] T4:`api/test/StoryFlow/Api/OpenApiSpec.hs`(或新開一個 spec 檔)加斷言:28 個 operation
+- [x] T4:`api/test/StoryFlow/Api/OpenApiSpec.hs`(或新開一個 spec 檔)加斷言:28 個 operation
       的 `_operationOperationId` 全部是 `Just`、彼此不重複、逐一等於 `deriveOperationId` 依
       T3 規則算出的值 `dep: T3`
-- [ ] T5:`StoryFlow.Mcp.Tools`——`Tool`、`toolsFromOpenApi`、`lookupTool`,`inputSchema` 的
+- [x] T5:`StoryFlow.Mcp.Tools`——`Tool`、`toolsFromOpenApi`、`lookupTool`,`inputSchema` 的
       巢狀組法(path/query 參數攤平 + `"body"` 巢狀 `$ref`) `dep: T3`
-- [ ] T6:`StoryFlow.Mcp.Config`——`Config`、`resolveConfig`(`--url` > `STORYFLOW_URL`,
+- [x] T6:`StoryFlow.Mcp.Config`——`Config`、`resolveConfig`(`--url` > `STORYFLOW_URL`,
       `STORYFLOW_TOKEN` 只走環境變數) `dep: T1`
-- [ ] T7:`StoryFlow.Mcp.Client`——`probe`(打 `GET /vaults`)、`invoke`(依 `Tool` 組 HTTP
+- [x] T7:`StoryFlow.Mcp.Client`——`probe`(打 `GET /vaults`)、`invoke`(依 `Tool` 組 HTTP
       請求並送出)、傳輸失敗分類(`remote_unavailable`/`remote_bad_response`,逐字沿用
       `cli/src/StoryFlow/Cli/Error.hs` 的 code 字串) `dep: T5, T6`
-- [ ] T8:`StoryFlow.Mcp.Server`——stdio 讀取迴圈、三個方法的分派、通知略過、未知
+- [x] T8:`StoryFlow.Mcp.Server`——stdio 讀取迴圈、三個方法的分派、通知略過、未知
       method/tool/缺參數的 JSON-RPC error `dep: T2, T5, T6, T7`
-- [ ] T9:`StoryFlow.Mcp`(門面)與 `mcp/app/Main.hs`(執行檔進入點,`argv` → `resolveConfig`
+- [x] T9:`StoryFlow.Mcp`(門面)與 `mcp/app/Main.hs`(執行檔進入點,`argv` → `resolveConfig`
       → `runServer`) `dep: T8`
-- [ ] T10:`mcp/test/StoryFlow/Mcp/CabalSpec.hs`(照 D9 範本):`build-depends` 逐字清單、
+- [x] T10:`mcp/test/StoryFlow/Mcp/CabalSpec.hs`(照 D9 範本):`build-depends` 逐字清單、
       `forbidden` 含 `storyflow-service`/`storyflow-store`/`storyflow-md`/`storyflow-conflict`/
       `storyflow-workshop`/`storyflow-llm`/`storyflow-core`/`servant-client`/`servant-server`/
       `warp`(僅 library 段)/`optparse-applicative`、`required` 含 `storyflow-api`;
       `cabal.project` 的 `packages 含 mcp/`、`package storyflow-mcp 的 ghc-options 段`、
       `allow-newer 仍然只開三項` `dep: T1`
-- [ ] T11:`StoryFlow.Mcp.ToolsSpec`——`length (toolsFromOpenApi storyFlowOpenApi) == 28`;
+- [x] T11:`StoryFlow.Mcp.ToolsSpec`——`length (toolsFromOpenApi storyFlowOpenApi) == 28`;
       tool 名稱集合與 `map (^. operationId) (全部 28 個 Operation)` 逐一相等(順序不拘,
       內容必須相等);對 3-5 個代表性 operation(`postWorkshop`、`getEntitiesById`、
       `deleteEntitiesByIdLinks`、`postNodesById`)逐一比對 `inputSchema` 的 `properties`/
       `required` 鍵集合 `dep: T5, T4`
-- [ ] T12:`StoryFlow.Mcp.ProtocolSpec`——`parseLine` 對請求/通知/壞 JSON 三種輸入的行為;
+- [x] T12:`StoryFlow.Mcp.ProtocolSpec`——`parseLine` 對請求/通知/壞 JSON 三種輸入的行為;
       `encodeResult`/`encodeError` 的往返 `dep: T2`
-- [ ] T13:`StoryFlow.Mcp.ConfigSpec`——`--url` 蓋過 `STORYFLOW_URL`;都沒有回 `Left`;
+- [x] T13:`StoryFlow.Mcp.ConfigSpec`——`--url` 蓋過 `STORYFLOW_URL`;都沒有回 `Left`;
       `STORYFLOW_TOKEN` 空字串視同沒設 `dep: T6`
-- [ ] T14:`StoryFlow.Mcp.ClientSpec`(起本機 warp stub 模擬 `story-flow-serve`):`probe`
+- [x] T14:`StoryFlow.Mcp.ClientSpec`(起本機 warp stub 模擬 `story-flow-serve`):`probe`
       成功/連不上兩種案例;`invoke` 對一個有 path+query+body 的 operation 成功案例、
       REST 錯誤 body 原樣轉出、stub 直接斷線時分類成 `remote_unavailable` `dep: T7`
-- [ ] T15:`StoryFlow.Mcp.ServerSpec`(端到端,對 stdin/stdout 管線或直接呼叫 `handleLine`
+- [x] T15:`StoryFlow.Mcp.ServerSpec`(端到端,對 stdin/stdout 管線或直接呼叫 `handleLine`
       層級的函式,不強求真的 spawn 子行程):`initialize` 未設定連線 / 連不上 / 成功三種
       JSON-RPC 回應逐位元組比對;`tools/list` 回 28 筆且不連線(stub 伺服器沒被打到);
       `tools/call` 成功案例(對著 stub)、業務錯誤案例(`isError:true`)、未知 tool 名
       (`-32602`)、未知 method(`-32601`)、通知(無回應) `dep: T8`
-- [ ] T16:`mcp/storyflow-mcp.cabal` 的 test-suite `other-modules`/`Spec.hs` 補齊 T4 額外新增
+- [x] T16:`mcp/storyflow-mcp.cabal` 的 test-suite `other-modules`/`Spec.hs` 補齊 T4 額外新增
       的 api spec(若拆成獨立檔案)與 T10-T15 六個 spec 模組 `dep: T10, T11, T12, T13, T14, T15`
 
 ## 1-to-1 測試對照表
@@ -682,4 +682,38 @@ MCP adapter 沒有業務邏輯:`tools/call` 的參數→HTTP body、HTTP 回應�
 
 ## 實作備註
 
-(實作階段填)
+- **`StoryFlow.Mcp.Server` 額外匯出 `processLine`**(文檔只寫了 `runServer`):`processLine ::
+  Either Text Config -> [Tool] -> ByteString -> IO (Maybe ByteString)` 是「一行輸入 → 最多一行
+  輸出」的完整邏輯,不碰 `stdin`/`stdout`。`runServer` 只是在它外面包一層讀一行、把結果寫出去、
+  flush 的迴圈。這讓 T15(`ServerSpec`)可以直接呼叫 `processLine` 逐行核對輸出位元組,不需要
+  真的 spawn 子行程去讀寫管線——文檔 T15 本來就寫「不強求真的 spawn 子行程」,這是它字面上
+  唯一說得通的測試邊界,不是契約偏離
+- **`tools/call` 在連線設定沒配好時的行為**,文檔沒有逐字寫出(只寫了 `initialize` 的行為):
+  比照「REST 業務錯誤與傳輸失敗都回 `isError:true`」的精神,把「還不知道 server 在哪」也當成
+  一次工具執行的失敗(`isError:true`,`structuredContent.code = "story_flow_url_missing"`),
+  而不是 JSON-RPC 協定層錯誤——因為這通 `tools/call` 本身是合法的(tool 名字對、參數齊全),
+  只是這次執行做不下去
+- **`probe` 對 401 的處理**:直接把伺服器 `{"error":{"code":"unauthorized",...}}` 的 code/message
+  原樣回傳(不強制改寫成 `remote_unavailable`),`initialize` 的 handler 把這個 `(code, message)`
+  套進同一句「連不上 story-flow 伺服器(...)...請先跑 story-flow-serve,或以 --url /
+  STORYFLOW_URL 指到正確的位址」的外層訊息——data.code 保留伺服器實際回的 code(如
+  `"unauthorized"`),不是全部硬編成 `remote_unavailable`。這樣呼叫端拿到的訊息文字符合
+  design.md「這會被 initialize 的連線探測當成連不上的一種」,但 `data.code` 仍然誠實反映失敗
+  的真正來源
+- **`Data.OpenApi` 的 `Component` 記錄使用 `parameters`\/`schema` 兩個共用的 classy lens**
+  (`HasParameters`\/`HasSchema`):`Operation`\/`Components`\/`Param`\/`MediaTypeObject` 都用同一個
+  方法名字,型別自動消歧義,`StoryFlow.Mcp.Tools` 因此不需要額外的 qualified import
+- 手動查證確認 `openapi3-3.2.5` 用 `makeFields` 對 `Operation` 產生 `HasOperationId` classy lens
+  (方法名 `operationId`),`Data.OpenApi` 模組有 re-export——`op ^. operationId`/`op &
+  operationId ?~ ...` 兩個方向都成立,設計文檔「新增的介面」段落的程式碼片段可以逐字照抄
+
+## 驗收查核
+
+- `cabal build all`:12 個套件全部編譯成功,**零 warning**(含新套件 `storyflow-mcp` 與
+  `api/src/StoryFlow/Api.hs` 的改動)
+- `cabal test all`:**12 suites PASS,1432 examples,0 failures**(基線 11 suites/1378 examples;
+  新增 `storyflow-mcp-test` 53 examples,`storyflow-api-test` 的 `OpenApiSpec` 新增 1 條
+  operationId 斷言,`1378 + 53 + 1 = 1432` 對得上帳)
+- 手動 smoke test:`story-flow-mcp` 執行檔對 `initialize`(未設定連線)與 `tools/list` 兩則
+  JSON-RPC 請求,stdout 只印出兩行合法 JSON、stderr 全空、28 個 tool 全數列出且
+  `inputSchema`/`name` 形狀與設計相符

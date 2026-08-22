@@ -8,7 +8,8 @@ module StoryFlow.Api.OpenApiSpec (spec) where
 import Control.Lens ((^.))
 import Data.Aeson (decode, encode, toJSON)
 import qualified Data.HashMap.Strict.InsOrd as IOM
-import Data.Maybe (isJust)
+import Data.List (nub, sort)
+import Data.Maybe (isJust, mapMaybe)
 import Data.OpenApi
   ( OpenApi
   , Operation
@@ -18,6 +19,7 @@ import Data.OpenApi
   , description
   , get
   , info
+  , operationId
   , patch
   , paths
   , post
@@ -28,7 +30,7 @@ import Data.OpenApi
   , version
   )
 import qualified Data.Text as T
-import StoryFlow.Api (storyFlowOpenApi)
+import StoryFlow.Api (deriveOperationId, storyFlowOpenApi)
 import Test.Hspec
 
 spec :: Spec
@@ -44,6 +46,15 @@ spec = describe "OpenAPI 文件" $ do
 
   it "每個 operation 都有非空 summary" $
     mapM_ (\(k, op) -> (k, fmap T.null (op ^. summary)) `shouldBe` (k, Just False)) labelled
+
+  -- llm-workshop-mcp/F005:storyflow-mcp 的 tool 名字直接讀 operationId 這個欄位
+  -- (不在 Mcp.Tools 另外重算一次)。這條斷言擋的正是「兩個 operation 撞名」
+  -- ——那會讓兩個 MCP tool 撞名,claude code 那邊分不出是哪一個。
+  it "全部 28 個 operation 的 operationId 都非空、彼此不重複、與 deriveOperationId 規則相符" $ do
+    let ids = mapMaybe (^. operationId) operations
+    length ids `shouldBe` length operations
+    length (nub ids) `shouldBe` length ids
+    sort ids `shouldBe` sort expectedOperationIds
 
   it "info 有 title、version 與 description" $ do
     doc ^. info . title `shouldBe` "story-flow API"
@@ -128,6 +139,15 @@ labelled =
 
 operations :: [Operation]
 operations = map snd labelled
+
+-- | 拿 method+path 逐一重算一遍 'deriveOperationId',與文件裡實際出現的
+-- operationId 對帳(不看順序,只看集合是否相等)。
+expectedOperationIds :: [T.Text]
+expectedOperationIds =
+  [ deriveOperationId (T.pack verb) (T.pack p)
+  | (p, item) <- IOM.toList (doc ^. paths)
+  , (verb, Just _) <- verbsOf item
+  ]
 
 verbsOf :: PathItem -> [(String, Maybe Operation)]
 verbsOf item =

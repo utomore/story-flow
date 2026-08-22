@@ -85,6 +85,7 @@ data WorkshopError
   | WsNoStages Text                     -- 這個型別的註冊表宣告沒有 stages
   | WsStagesExhausted Text              -- 階段已走完,還想 step / commit
   | WsNothingToCommit Text              -- wsPending 是空的
+  | WsMissingRequiredField Text [Text]   -- 型別鍵 + 還缺的必填欄位名
   | WsLlmFailed LlmError                -- 模型那一跳,原樣包住不攤平
 renderWorkshopError :: WorkshopError -> Text
 workshopErrorCode   :: WorkshopError -> Text
@@ -199,7 +200,31 @@ workshop(P5)、LLM」。`storyflow-llm` 的 `LlmError` 與 `storyflow-conflict` 
   `type: character-fragment`,而 `owner_type` 這一欄存在的理由正是讓兩個鍵命中同一筆宣告
 - 之後每個階段用 `addFragment` 往**同一份**主題檔加節
 - 每個片段建 `partOf` 指向主體;`source` 一律 `workshop:<型別>`
+- **`status` 一律 `draft`**(2026-08-22 裁決):ADR-003 定了「只有 `canon` 參與衝突偵測的比對
+  基準」,理由是「草稿不該被拿來當『過去的設定』比對,否則每個未定案的想法都會製造假衝突」。
+  剛跟模型談出來、作者還沒過目的片段正是那種東西。作者看過之後用
+  `story-flow entity set --status canon` 敲定
 - 主體 id 記在 `wsOwner`,快照帶著它,所以中斷後接回去仍寫進同一份檔案
+
+**必填欄位由型別註冊表驅動**(2026-08-22;F003 設計階段查出的缺口):型別註冊表可以把任意
+`Meta` 欄位宣告成必填(`fields` 的 `required = true`)。現況是 `lore-fragment` 與
+`plot-fragment` 都宣告 `timeline` 必填,而 `createEntity` 在寫檔前跑驗證,缺必填欄位就
+`ValidationFailed` 且**一個位元組都不寫**——若工作坊給不出那一欄,五個型別裡有兩個會**每次
+定案都失敗**。
+
+兩件事一起做,而且都**由註冊表驅動,不寫死欄位名**:
+
+1. **`Workshop.Stages` 組 prompt 時把該型別的 `etsFields` 一併送進 system message**——欄位名、
+   `fsRequired`、`fsHint` 三者都給。ADR-005 明寫 `fields` 與 `allowed_links`「同時是給作者與
+   AI Agent 的提示來源」,這條路本來就在設計裡,只是還沒有人走。這也讓「**新增型別不改工作坊的
+   程式**」這條驗收標準延伸到必填欄位:改 TOML 就改得動模型被要求填什麼
+2. **`StageDraft` 帶 `sdTimeline`**,模型在約定 JSON 裡填。`commitStage` 在寫入前對照該型別的
+   必填清單自己檢查,缺了就回 `WsMissingRequiredField`(帶型別鍵與缺的欄位名),**不讓
+   `ValidationFailed` 直接噴到使用者面前**——後者講的是「寫入被拒絕」,而使用者要聽的是
+   「再講一輪,把時間軸講出來」
+
+`StageDraft` 仍然刻意**不**帶 `status` / `links` / `source`:那三者由 `commitStage` 依契約填,
+不讓模型決定(見上一段)。`timeline` 不同——它是**內容**,只有讀過草稿的模型答得出來。
 
 **MCP adapter 的連線與 tool 命名**(2026-08-22 批次澄清):
 
@@ -323,10 +348,11 @@ data Session = Session
 -- 依契約自己填(source 一律 workshop:<型別>、partOf 指向 wsOwner),不讓模型決定
 -- ——那幾欄的值錯了會直接汙染衝突偵測的比對基準(ADR-003:只有 canon 參與比對)。
 data StageDraft = StageDraft
-  { sdTitle   :: Text
-  , sdSummary :: Text
-  , sdBody    :: Text
-  , sdTags    :: [Text]
+  { sdTitle    :: Text
+  , sdSummary  :: Text
+  , sdBody     :: Text
+  , sdTags     :: [Text]
+  , sdTimeline :: Maybe Timeline  -- 型別把 timeline 宣告為必填時,模型要在約定 JSON 裡給
   }
 
 data Message = Message { msgRole :: Role, msgContent :: Text }
@@ -365,7 +391,7 @@ data Role = System | User | Assistant
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
 | 2 | workshop-stages | 依型別註冊表 `stages` 驅動的階段式狀態機與 session 快照 | #1 | F002 |
-| 3 | workshop-emit | 每階段定案 → 產出多個片段 Entity 並經 service 寫進圖譜 | #2 | - |
+| 3 | workshop-emit | 每階段定案 → 產出多個片段 Entity 並經 service 寫進圖譜 | #2 | F003 |
 | 4 | workshop-interface | 工作坊的 CLI 子指令與 REST 路由 | #3 | - |
 
 ### 階段三:MCP
@@ -410,8 +436,9 @@ data Role = System | User | Assistant
   「模組間公開介面與資料結構」的 `Session` / `StageDraft`,以及
   `Workshop.Stages` → `Llm.Client`、→ `Workshop.Session` 兩條
 - **資料流管線段落**:工作坊管線的 `startWorkshop` → `stepWorkshop` 段(定案之前)
-- **驗收標準**:階段清單完全來自型別註冊表的 `stages`——**新增一個型別不改工作坊的程式**;
-  硬約束片段以 `summary` 進 prompt;`Session` 是可序列化的快照,落在
+- **驗收標準**:階段清單完全來自型別註冊表的 `stages`,**而 prompt 裡的欄位要求完全來自
+  `etsFields`(名稱 / `fsRequired` / `fsHint`)**——**新增一個型別、或改它的必填欄位,都不改
+  工作坊的程式**;硬約束片段以 `summary` 進 prompt;`Session` 是可序列化的快照,落在
   `.storyflow/workshops/<id>.json`,中斷後 `loadSession` 接得回去(三個寫入操作各自在成功後
   寫出快照);對話歷程不進圖譜;`stepWorkshop` 從模型回覆解析約定 JSON 存進 `wsPending`,
   解析失敗時保留上一次成功的值、回覆照樣給人看;`LlmError` 由 `WsLlmFailed` 原樣包住浮上來,
@@ -431,7 +458,9 @@ data Role = System | User | Assistant
   關鍵差異);**一次工作坊 = 一份主題檔**——首次 `commitStage` 用 `createEntity` 建主體
   (`type` 取註冊表的 `owner_type`,沒宣告就用型別鍵本身)並記進 `wsOwner`,之後每階段用
   `addFragment` 往同一份檔案加節;每個片段建 `partOf` 指向 `wsOwner`;寫入的 `source` 一律
-  `workshop:<型別>`;`wsPending` 是空的時候回 `WsNothingToCommit`,**不寫出空片段**;寫入走與
+  `workshop:<型別>`;`status` 一律 `draft`;**寫入前對照該型別的必填欄位清單自己檢查**,缺了
+  回 `WsMissingRequiredField`(帶型別鍵與缺的欄位名),不讓 `ValidationFailed` 噴給使用者;
+  `wsPending` 是空的時候回 `WsNothingToCommit`,**不寫出空片段**;寫入走與
   CLI 相同的 `ServiceM` 操作,落地失敗照樣講 `ServiceError` 那套話(`WorkshopError` 只講工作坊
   自己的失敗)
 - **明確不做**:不直接碰 `storyflow-store`;不決定階段流程(那是 `workshop-stages`);

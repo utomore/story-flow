@@ -22,6 +22,8 @@ import AssetDB.Cli.Thumbs (runThumbs)
 import AssetDB.Cli.Project (runNewProject, runProjectSync)
 import AssetDB.Cli.Notes (runLink, runNoteImport, runNoteList)
 import AssetDB.Console (setupConsole)
+import AssetDB.Guard (withTopLevel)
+import AssetDB.Store.Errors (renderUnexpected)
 import Data.Text.IO qualified as TIO
 
 main :: IO ()
@@ -31,6 +33,12 @@ main = do
   -- (SetConsoleOutputCP)。只做前者的話,檔案是對的、螢幕是亂碼。
   setupConsole
 
+  -- 逃到這裡的例外一律翻成繁中(G-E003)。最常見的一個是拿 PATH 上的舊
+  -- 執行檔開新版資料庫 —— 原本印的是 DatabaseNewerThanCode 4 3 加 backtrace。
+  withTopLevel renderUnexpected run
+
+run :: IO ()
+run = do
   Invocation global cmd <- parseInvocation
   -- 只有 scan 是「初始化」語意,允許在找不到資料庫時開一個新的。其餘指令
   -- 都在讀既有索引,找不到資料庫就該報錯 —— 見 delivery/B001。

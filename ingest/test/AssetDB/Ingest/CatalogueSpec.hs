@@ -5,6 +5,7 @@ import AssetDB.Store
 import Control.Monad (void)
 import Data.Either (isLeft)
 import Data.Text (Text)
+import Data.Text qualified as T
 import Database.SQLite.Simple
 import Test.Hspec
 
@@ -78,6 +79,27 @@ spec = do
       map snd (arMatched r) `shouldBe` [True]
       countWhere st "packs" `shouldReturn` 1
 
+    -- G-E003 T8。data/packs.toml 是人手寫的自由文字,而 ai_disclosure 在
+    -- 資料庫有 CHECK 約束。原本寫錯一個值會讓整個 pack apply 以 SQLite 的
+    -- constraint 錯誤崩掉,使用者看不出是哪一包、哪個欄位。
+    it "ai 欄位的值不合法時只拒絕那一包,其餘照常套用" $ \st -> do
+      seedSecondPack st
+      r <- apply st (badAi <> secondOk)
+      -- 被拒絕的那一包說得出是哪一包、哪個欄位。
+      map fst (arRejected r) `shouldBe` ["demo.zip"]
+      snd (headOr ("", "") (arRejected r)) `shouldSatisfy` \why ->
+        "ai" `T.isInfixOf` why && "AI-generated" `T.isInfixOf` why
+      -- 其餘照常。
+      map fst (arMatched r) `shouldBe` ["other.zip"]
+      countWhere st "packs WHERE slug = 'other-applied'" `shouldReturn` 1
+      -- 被拒絕的那一包一個欄位都沒動。
+      countWhere st "packs WHERE slug = 'demo'" `shouldReturn` 1
+
+    it "合法的 ai 值照樣寫得進去" $ \st -> do
+      r <- apply st sample
+      arRejected r `shouldBe` []
+      countWhere st "packs WHERE ai_disclosure = 'assisted'" `shouldReturn` 1
+
 --------------------------------------------------------------------------------
 
 apply :: Store -> Text -> IO ApplyResult
@@ -135,3 +157,30 @@ countWhere :: Store -> Text -> IO Int
 countWhere st what = do
   rows <- query_ (storeConn st) (Query ("SELECT COUNT(*) FROM " <> what))
   pure (case rows of (Only n : _) -> n; _ -> -1)
+
+-- | 第二個素材包 —— 「其餘照常套用」需要有個「其餘」。
+seedSecondPack :: Store -> IO ()
+seedSecondPack st = do
+  let conn = storeConn st
+  execute_
+    conn
+    "INSERT INTO packs (id,ulid,slug,name,root_id,rel_dir,created_at,updated_at) \
+    \VALUES (2,'01P1','other','Other',1,'vendor/other.zip','t','t')"
+  execute_
+    conn
+    "INSERT INTO archives (id,ulid,pack_id,rel_path,format,sha256,bytes) \
+    \VALUES (2,'01A1',2,'vendor/other.zip','zip','cafebabe',1)"
+
+-- | @AI-generated@ 看起來很合理,但列舉存進資料庫的是穩定小寫文字(ADR-008)。
+badAi :: Text
+badAi =
+  "[[pack]]\narchive=\"demo.zip\"\nname=\"Demo\"\nslug=\"demo-rejected\"\n\
+  \author=\"A\"\nlicense=\"Demo License\"\nai=\"AI-generated\"\n"
+
+secondOk :: Text
+secondOk =
+  "[[pack]]\narchive=\"other.zip\"\nname=\"Other\"\nslug=\"other-applied\"\n\
+  \author=\"B\"\nlicense=\"Demo License\"\nai=\"none\"\n"
+
+headOr :: a -> [a] -> a
+headOr d xs = case xs of (x : _) -> x; [] -> d

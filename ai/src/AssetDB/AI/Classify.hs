@@ -24,6 +24,7 @@ import AssetDB.AI.Prompt
 import AssetDB.AI.Run
 import AssetDB.AI.Suggest
 import AssetDB.AI.Vocab
+import AssetDB.Store.Errors (renderUnexpected)
 import Data.Aeson (encode)
 import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
@@ -68,36 +69,51 @@ data ClassifyReport = ClassifyReport
 
 classifyClusters :: Connection -> Llm -> ClassifyOptions -> [ClusterTarget] -> IO ClassifyReport
 classifyClusters conn llm ClassifyOptions {..} targets0 = do
-  vocab <- loadVocab conn visionScopes
-  -- 成員多的先做。五分鐘後喊停時,已經涵蓋的是佔最多素材的那些叢集。
-  let bySize = sortDesc [t | t <- targets0, ctCount t >= coMinMembers]
-  todo <-
-    if coForce
-      then pure (limit bySize)
-      else limit <$> filterM' (fmap not . hasSuggestionsFor conn "cluster" . targetKey) bySize
-  runId <-
-    beginRun
-      conn
-      "cluster"
-      (llmConfig llm)
-      promptVersion
-      (TE.decodeUtf8 (BL.toStrict (encode (map ctPackSlug todo))))
-      (length todo)
-  (ok, skipped, failed, aborted) <-
-    driveItems conn runId coOnProgress label (step vocab runId) todo
-  let n = ok
-  case aborted of
-    Just why -> abortRun conn runId why n (length failed)
-    Nothing -> finishRun conn runId n (length failed)
-  pure
-    ClassifyReport
-      { crDone = ok
-      , crSkipped = skipped
-      , crSuggested = ok
-      , crFailed = failed
-      , crAborted = aborted
-      }
+  -- 與 'AssetDB.AI.Vision.visionTagBlobs' 同一個理由:前置的讀詞彙表、
+  -- 篩佇列、開 run 列都碰資料庫,炸掉會讓 @ai_runs@ 留下停在 @'running'@
+  -- 的孤兒列(G-E003)。
+  prep <- guardedTry $ do
+    vocab <- loadVocab conn visionScopes
+    -- 成員多的先做。五分鐘後喊停時,已經涵蓋的是佔最多素材的那些叢集。
+    let bySize = sortDesc [t | t <- targets0, ctCount t >= coMinMembers]
+    todo <-
+      if coForce
+        then pure (limit bySize)
+        else limit <$> filterM' (fmap not . hasSuggestionsFor conn "cluster" . targetKey) bySize
+    runId <-
+      beginRun
+        conn
+        "cluster"
+        (llmConfig llm)
+        promptVersion
+        (TE.decodeUtf8 (BL.toStrict (encode (map ctPackSlug todo))))
+        (length todo)
+    pure (vocab, todo, runId)
+  case prep of
+    Left e -> pure (abortedReport (renderUnexpected e))
+    Right (vocab, todo, runId) -> do
+      r <- guardedTry (driveItems conn runId coOnProgress label (step vocab runId) todo)
+      case r of
+        Left e -> do
+          let why = renderUnexpected e
+          _ <- guardedTry (abortRun conn runId why 0 0)
+          pure (abortedReport why)
+        Right (ok, skipped, failed, aborted) -> do
+          let n = ok
+          case aborted of
+            Just why -> abortRun conn runId why n (length failed)
+            Nothing -> finishRun conn runId n (length failed)
+          pure
+            ClassifyReport
+              { crDone = ok
+              , crSkipped = skipped
+              , crSuggested = ok
+              , crFailed = failed
+              , crAborted = aborted
+              }
   where
+    abortedReport why = ClassifyReport 0 0 0 [] (Just why)
+
     limit = maybe id take coLimit
     label ct = ctPackSlug ct <> " │ " <> ctShape ct
     sortDesc = foldr ins []

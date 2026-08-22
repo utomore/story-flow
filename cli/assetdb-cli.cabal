@@ -63,6 +63,7 @@ executable assetdb
         , assetdb-archive
         , assetdb-cli
         , assetdb-core
+        , assetdb-store
         , base
         , text
     default-language: GHC2021
@@ -91,6 +92,7 @@ test-suite assetdb-cli-test
         , hspec                >=2.10
         , optparse-applicative >=0.17
         , process              >=1.6
+        , sqlite-simple        >=0.4.18
         , temporary            >=1.3
         , text                 >=2.0
     build-tool-depends:

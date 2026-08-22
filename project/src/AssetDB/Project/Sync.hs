@@ -25,6 +25,7 @@ module AssetDB.Project.Sync
   ) where
 
 import AssetDB.Archive (ArchiveTools)
+import AssetDB.Guard (guardedTry)
 import AssetDB.Id (parseULID)
 import AssetDB.Ingest.Hash (sha256File, unSha256)
 import AssetDB.Manifest
@@ -253,7 +254,7 @@ classify conn projPath reg p =
 reconcile :: Connection -> FilePath -> Registration -> Text -> IO SyncClass
 reconcile conn projPath r srcSha = do
   let dest = projPath </> T.unpack (rgDestRel r)
-  present <- doesFileExist dest
+  present <- either (const False) id <$> guardedTry (doesFileExist dest)
   if not present
     then pure SyncLocallyModified
     else do
@@ -263,17 +264,24 @@ reconcile conn projPath r srcSha = do
       if mismatch
         then pure SyncLocallyModified
         else do
-          disk <- unSha256 <$> sha256File dest
-          pure $ case rgCopiedSha r of
-            Just c
-              | disk /= c -> SyncLocallyModified
-              | c == srcSha -> SyncUnchanged
-              | otherwise -> SyncSourceUpdated
-            -- copied_sha256 為 NULL 時沒有比對基準,退回與來源比(F006 A4):
-            -- 保守地永遠不覆蓋。
-            Nothing
-              | disk == srcSha -> SyncUnchanged
-              | otherwise -> SyncLocallyModified
+          -- TOCTOU:'doesFileExist' 與這一行之間,檔案可能已經被刪掉、
+          -- 改名或被其他程式鎖住。契約 §6 已經把「檔案已不在」歸進
+          -- 'SyncLocallyModified'(不覆蓋、請人來看),讀不到雜湊落在
+          -- 同一類 —— 沒有比對基準時保守處理,而不是讓一個 IOException
+          -- 穿出子系統邊界把整次 sync 炸掉(G-E003)。
+          hashed <- guardedTry (unSha256 <$> sha256File dest)
+          pure $ case hashed of
+            Left _ -> SyncLocallyModified
+            Right disk -> case rgCopiedSha r of
+              Just c
+                | disk /= c -> SyncLocallyModified
+                | c == srcSha -> SyncUnchanged
+                | otherwise -> SyncSourceUpdated
+              -- copied_sha256 為 NULL 時沒有比對基準,退回與來源比(F006 A4):
+              -- 保守地永遠不覆蓋。
+              Nothing
+                | disk == srcSha -> SyncUnchanged
+                | otherwise -> SyncLocallyModified
 
 sizeMismatch :: Connection -> FilePath -> Maybe Text -> IO Bool
 sizeMismatch _ _ Nothing = pure False
@@ -281,8 +289,10 @@ sizeMismatch conn dest (Just sha) = do
   rows <- query conn "SELECT bytes FROM blobs WHERE sha256 = ?" (Only sha) :: IO [Only Integer]
   case rows of
     (Only expected : _) -> do
-      actual <- getFileSize dest
-      pure (actual /= expected)
+      -- 讀不到大小(檔案剛被刪掉、權限不足)就當成不一致 —— 接下來的
+      -- 分類是 'SyncLocallyModified',也就是不覆蓋。
+      actual <- guardedTry (getFileSize dest)
+      pure (either (const True) (/= expected) actual)
     [] -> pure False
 
 --------------------------------------------------------------------------------

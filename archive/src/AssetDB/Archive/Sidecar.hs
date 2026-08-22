@@ -16,7 +16,8 @@ module AssetDB.Archive.Sidecar
   ) where
 
 import AssetDB.Archive.Types
-import Control.Exception (SomeException, try)
+import AssetDB.Guard (guardedTry)
+import Control.Exception (SomeException)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as BL
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -209,7 +210,7 @@ extractAllViaSidecar sz path destDir = do
 -- 方括號與小括號,任何一層字串拼接都會出事。
 runSevenZip :: SevenZip -> [String] -> IO (Either (Int, Text) BL.ByteString)
 runSevenZip (SevenZip exe) args = do
-  r <- try (readProcess (proc exe args))
+  r <- guardedTry (readProcess (proc exe args))
   pure $ case r of
     Left e -> Left (-1, compact (e :: SomeException))
     Right (ExitSuccess, out, _) -> Right out

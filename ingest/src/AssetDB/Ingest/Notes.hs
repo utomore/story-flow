@@ -21,7 +21,9 @@ module AssetDB.Ingest.Notes
   ) where
 
 import AssetDB.Id (newULID, unULID)
+import AssetDB.Guard (guardedTry)
 import AssetDB.Store
+import AssetDB.Store.Errors (renderUnexpected)
 import AssetDB.Store.Tokenize
 import AssetDB.Types (LinkRel, NoteKind, TextEnum (..))
 import Control.Monad (forM, forM_)
@@ -82,38 +84,51 @@ parseFrontMatter source raw =
 --
 -- 以 @source_path@ 為識別鍵重複匯入是更新而不是新增 —— 筆記會被反覆編輯,
 -- 每次匯入都新增一筆會讓同一份文件散成好幾個版本。
-importNotes :: Store -> NoteKind -> FilePath -> IO [(Text, Text)]
+-- 逐檔各自有出口:讀不到一個檔案不該讓整次匯入崩掉(G-E003)。同一個模組裡的
+-- 'linkEntities' 的註解早就寫著「打錯不該是例外或崩潰」並回 'Either' —— 這裡
+-- 只是把同樣的標準補到 I/O 這一側。
+importNotes :: Store -> NoteKind -> FilePath -> IO ([(Text, Text)], [Text])
 importNotes st kind dir = do
-  ok <- doesDirectoryExist dir
-  if not ok
-    then pure []
-    else do
-      names <- listDirectory dir
-      let mds = [n | n <- names, takeExtension n `elem` [".md", ".markdown"]]
-      now <- T.pack . iso8601Show <$> getCurrentTime
-      forM mds $ \n -> do
-        raw <- decodeUtf8Lenient <$> BS.readFile (dir </> n)
-        let doc = parseFrontMatter (T.pack n) raw
-        u <- unULID <$> newULID
-        -- 部分唯一索引的 ON CONFLICT **必須重複同樣的 WHERE 述詞**,
-        -- 否則 SQLite 認不出要用哪個索引來解衝突。
-        execute
-          (storeConn st)
-          "INSERT INTO notes (ulid, kind, title, body_md, front_matter_json, source_path, created_at, updated_at) \
-          \VALUES (?,?,?,?,?,?,?,?) \
-          \ON CONFLICT (source_path) WHERE source_path IS NOT NULL DO UPDATE SET \
-          \  title = excluded.title, body_md = excluded.body_md, \
-          \  front_matter_json = excluded.front_matter_json, updated_at = excluded.updated_at"
-          ( u
-          , toTextEnum kind
-          , ndTitle doc
-          , ndBody doc
-          , frontJson (ndFront doc)
-          , ndSource doc
-          , now
-          , now
-          )
-        pure (ndTitle doc, ndSource doc)
+  ok <- guardedTry (doesDirectoryExist dir)
+  case ok of
+    Left e -> pure ([], ["讀不到目錄 " <> T.pack dir <> " —— " <> renderUnexpected e])
+    Right False -> pure ([], [])
+    Right True ->
+      guardedTry (listDirectory dir) >>= \case
+        Left e -> pure ([], ["列不出目錄 " <> T.pack dir <> " —— " <> renderUnexpected e])
+        Right names -> do
+          let mds = [n | n <- names, takeExtension n `elem` [".md", ".markdown"]]
+          now <- T.pack . iso8601Show <$> getCurrentTime
+          results <- forM mds $ \n ->
+            guardedTry (importOne st kind now dir n) >>= \case
+              Left e -> pure (Left (T.pack n <> " —— " <> renderUnexpected e))
+              Right r -> pure (Right r)
+          pure ([r | Right r <- results], [e | Left e <- results])
+
+importOne :: Store -> NoteKind -> Text -> FilePath -> FilePath -> IO (Text, Text)
+importOne st kind now dir n = do
+  raw <- decodeUtf8Lenient <$> BS.readFile (dir </> n)
+  let doc = parseFrontMatter (T.pack n) raw
+  u <- unULID <$> newULID
+  -- 部分唯一索引的 ON CONFLICT **必須重複同樣的 WHERE 述詞**,
+  -- 否則 SQLite 認不出要用哪個索引來解衝突。
+  execute
+    (storeConn st)
+    "INSERT INTO notes (ulid, kind, title, body_md, front_matter_json, source_path, created_at, updated_at) \
+    \VALUES (?,?,?,?,?,?,?,?) \
+    \ON CONFLICT (source_path) WHERE source_path IS NOT NULL DO UPDATE SET \
+    \  title = excluded.title, body_md = excluded.body_md, \
+    \  front_matter_json = excluded.front_matter_json, updated_at = excluded.updated_at"
+    ( u
+    , toTextEnum kind
+    , ndTitle doc
+    , ndBody doc
+    , frontJson (ndFront doc)
+    , ndSource doc
+    , now
+    , now
+    )
+  pure (ndTitle doc, ndSource doc)
 
 -- | front matter → 存進 @notes.front_matter_json@ 的 JSON 文字。
 --

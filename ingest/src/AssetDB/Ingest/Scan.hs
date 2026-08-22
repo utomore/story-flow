@@ -33,7 +33,8 @@ import AssetDB.Ingest.Hash
 import AssetDB.PathText (leafOf, slugify)
 import AssetDB.Store
 import AssetDB.Types
-import Control.Exception (AsyncException, SomeException, fromException, throwIO, try)
+import AssetDB.Guard (guardedTry)
+import Control.Exception (SomeException, fromException)
 import Control.Monad (foldM, forM)
 import Data.Aeson (Value, encode)
 import Data.ByteString qualified as BS
@@ -127,21 +128,6 @@ emptyReport = ScanReport 0 0 0 0 0 0 0 [] Nothing
 
 --------------------------------------------------------------------------------
 
--- | 逐項的 try,但**不吞掉 Ctrl-C**。
---
--- 判準來自 @ai\/Run.hs@ 的同名函式:裸的 @try \@SomeException@ 只有在
--- 「每筆只花毫秒」時才安全,因為中斷訊號幾乎不可能落在工作內部。掃描不符合
--- 那個條件 —— 一個素材包的寫入是數千次 insert,散檔的準備是實際的檔案讀取,
--- 中斷訊號落在裡面的機率很高。被 'SomeException' 接住之後迴圈會繼續跑下一項,
--- 使用者按幾次 Ctrl-C 都停不下來。
---
--- 兩份實作刻意分開:ai-tagging 與 ingest 互不相依,方向上 ingest 也不該依賴 ai。
-guardedTry :: IO a -> IO (Either SomeException a)
-guardedTry act =
-  try act >>= \case
-    Left e | Just (ae :: AsyncException) <- fromException e -> throwIO ae
-    r -> pure r
-
 -- | 這個例外算不算「寫入端失效」。
 --
 -- **中止的界線劃在寫入端**:資料庫寫不進去(磁碟滿、db 損毀、搶不到寫鎖)不是
@@ -161,30 +147,39 @@ writeFailure e = case fromException e :: Maybe SQLError of
 scanRoot :: Store -> ArchiveTools -> ScanOptions -> IO ScanReport
 scanRoot st tools opts@ScanOptions {..} = do
   absRoot <- makeAbsolute soRootPath
-  rootId <- ensureRoot st absRoot soRootLabel soRootKind
+  -- 登記根目錄是整次掃描的**第一個寫入**。它失敗代表資料庫根本寫不進去
+  -- (唯讀、損毀、kind 值違反 CHECK),再往下跑只會把同一個失敗重複數千次
+  -- —— 那正是「寫入端失效即中止」的定義(G-E003)。
+  guardedTry (ensureRoot st absRoot soRootLabel soRootKind) >>= \case
+    Left e -> do
+      let why = "登記素材庫根目錄失敗 —— " <> maybe (compact e) id (writeFailure e)
+      soOnEvent (EvAborted why)
+      pure emptyReport {srAborted = Just why, srProblems = ["中止:" <> why]}
+    Right rootId -> scanFrom rootId absRoot
+  where
+    scanFrom rootId absRoot = do
+      (archivePaths, loosePaths, loopWarnings) <- discover absRoot
+      soOnEvent (EvDiscovered (length archivePaths) (length loosePaths))
+      mapM_ (soOnEvent . EvProblem) loopWarnings
 
-  (archivePaths, loosePaths, loopWarnings) <- discover absRoot
-  soOnEvent (EvDiscovered (length archivePaths) (length loosePaths))
-  mapM_ (soOnEvent . EvProblem) loopWarnings
+      r1 <-
+        foldM
+          ( \acc (i, p) -> case srAborted acc of
+              -- 已中止就不再碰剩下的壓縮檔。
+              Just _ -> pure acc
+              Nothing -> scanArchive st tools opts rootId absRoot (i, length archivePaths) p acc
+          )
+          emptyReport {srProblems = loopWarnings}
+          (zip [1 ..] archivePaths)
 
-  r1 <-
-    foldM
-      ( \acc (i, p) -> case srAborted acc of
-          -- 已中止就不再碰剩下的壓縮檔。
-          Just _ -> pure acc
-          Nothing -> scanArchive st tools opts rootId absRoot (i, length archivePaths) p acc
-      )
-      emptyReport {srProblems = loopWarnings}
-      (zip [1 ..] archivePaths)
-
-  case srAborted r1 of
-    -- 中止不進散檔階段:寫入端已經失效,再試只會再失敗一次。
-    Just _ -> pure r1
-    Nothing -> do
-      soOnEvent (EvLooseStart (length loosePaths))
-      r2 <- scanLoose st soOnEvent rootId absRoot loosePaths r1
-      soOnEvent (EvLooseDone (length loosePaths))
-      pure r2
+      case srAborted r1 of
+        -- 中止不進散檔階段:寫入端已經失效,再試只會再失敗一次。
+        Just _ -> pure r1
+        Nothing -> do
+          soOnEvent (EvLooseStart (length loosePaths))
+          r2 <- scanLoose st soOnEvent rootId absRoot loosePaths r1
+          soOnEvent (EvLooseDone (length loosePaths))
+          pure r2
 
 -- | 把根目錄底下的檔案分成壓縮檔與散檔,並回報偵測到的目錄迴圈。
 --
@@ -201,9 +196,14 @@ discover root = do
   ((as, ls, ws), _) <- go (Set.singleton rootKey) root ([], [], [])
   pure (as, ls, reverse ws)
   where
-    go visited dir acc = do
-      names <- sort <$> listDirectory dir
-      foldM step (acc, visited) [dir </> n | n <- names, not ("." `isPrefixOf` n)]
+    -- 列不到目錄(權限不足、走訪途中被移走)不該讓整次掃描崩掉:
+    -- 記進警告、跳過這個目錄、繼續走訪(G-E003)。
+    go visited dir acc@(as, ls, ws) =
+      guardedTry (sort <$> listDirectory dir) >>= \case
+        Left e ->
+          pure ((as, ls, ("讀不到目錄,已跳過:" <> T.pack dir <> " —— " <> compact e) : ws), visited)
+        Right names ->
+          foldM step (acc, visited) [dir </> n | n <- names, not ("." `isPrefixOf` n)]
 
     step (acc@(as, ls, ws), visited) p = do
       isDir <- doesDirectoryExist p

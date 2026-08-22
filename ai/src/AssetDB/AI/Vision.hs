@@ -28,6 +28,7 @@ import AssetDB.AI.Prompt
 import AssetDB.AI.Run
 import AssetDB.AI.Suggest
 import AssetDB.AI.Vocab
+import AssetDB.Store.Errors (renderUnexpected)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (getCurrentTime)
@@ -103,23 +104,41 @@ selectJobs conn VisionOptions {..} =
 
 visionTagBlobs :: Connection -> Llm -> VisionOptions -> IO VisionReport
 visionTagBlobs conn llm opts@VisionOptions {..} = do
-  vocab <- loadVocab conn visionScopes
-  todo <- selectJobs conn opts
-  runId <- beginRun conn "vision" (llmConfig llm) promptVersion "{}" (length todo)
-  (ok, skipped, failed, aborted) <-
-    driveItems conn runId voOnProgress vjOriginal (step vocab runId) todo
-  case aborted of
-    Just why -> abortRun conn runId why ok (length failed)
-    Nothing -> finishRun conn runId ok (length failed)
-  pure
-    VisionReport
-      { vrTagged = ok
-      , vrSkipped = skipped
-      , vrSuggested = ok
-      , vrFailed = failed
-      , vrAborted = aborted
-      }
+  -- 前置三步(讀詞彙表、選佇列、開 run 列)一樣會失敗 —— 資料庫被伺服器
+  -- 鎖住、詞彙表資料列損壞。不保護的話例外直接穿出子系統邊界;更糟的是
+  -- 「開了 run 列之後才炸」會在 @ai_runs@ 留下一列永遠停在 @'running'@,
+  -- 而續跑邏輯要靠那個欄位判斷(G-E003)。
+  prep <- guardedTry $ do
+    vocab <- loadVocab conn visionScopes
+    todo <- selectJobs conn opts
+    runId <- beginRun conn "vision" (llmConfig llm) promptVersion "{}" (length todo)
+    pure (vocab, todo, runId)
+  case prep of
+    -- 還沒有 run 列可以標記,所以只能回報。至少佇列原封不動。
+    Left e -> pure (abortedReport (renderUnexpected e))
+    Right (vocab, todo, runId) -> do
+      r <- guardedTry (driveItems conn runId voOnProgress vjOriginal (step vocab runId) todo)
+      case r of
+        Left e -> do
+          let why = renderUnexpected e
+          -- run 列已經開了,一定要關掉它;連關都關不掉就只能回報。
+          _ <- guardedTry (abortRun conn runId why 0 0)
+          pure (abortedReport why)
+        Right (ok, skipped, failed, aborted) -> do
+          case aborted of
+            Just why -> abortRun conn runId why ok (length failed)
+            Nothing -> finishRun conn runId ok (length failed)
+          pure
+            VisionReport
+              { vrTagged = ok
+              , vrSkipped = skipped
+              , vrSuggested = ok
+              , vrFailed = failed
+              , vrAborted = aborted
+              }
   where
+    abortedReport why = VisionReport 0 0 0 [] (Just why)
+
     size = if voLarge then Thumb512 else Thumb128
 
     step vocab runId job = do

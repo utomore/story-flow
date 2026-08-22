@@ -4,7 +4,7 @@
 module AssetDB.Console (setupConsole) where
 
 #ifdef mingw32_HOST_OS
-import Control.Exception (SomeException, try)
+import AssetDB.Guard (guardedTry)
 import System.Win32.Console (setConsoleCP, setConsoleOutputCP)
 #endif
 import System.IO
@@ -35,8 +35,8 @@ setupConsole = do
   -- 沒有主控台時(輸出被導向管線、或當成服務跑)這兩個呼叫會失敗。
   -- 那是正常情況,不該讓程式死掉 —— 而且那種情況下 code page 本來就無關,
   -- 位元組會原封不動進到檔案或管線裡。
-  _ <- try @SomeException (setConsoleOutputCP 65001)
-  _ <- try @SomeException (setConsoleCP 65001)
+  _ <- guardedTry (setConsoleOutputCP 65001)
+  _ <- guardedTry (setConsoleCP 65001)
   pure ()
 #endif
   hSetEncoding stdout utf8

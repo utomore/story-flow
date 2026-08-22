@@ -5,7 +5,7 @@ import AssetDB.Store
 import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Text.IO qualified as TIO
 import Database.SQLite.Simple
 import System.Exit (exitFailure)
@@ -47,7 +47,12 @@ runPackApply dbPath cataloguePath = do
   -- 明確以 UTF-8 解碼。Data.Text.IO.readFile 用的是 locale 編碼,
   -- Windows 上可能是 CP950 —— 那會把 packs.toml 裡的中文解成亂碼,
   -- 或直接因為無法解碼而拋例外。TOML 規格本身就規定 UTF-8。
-  src <- decodeUtf8 <$> BS.readFile cataloguePath
+  --
+  -- 用 lenient 而不是嚴格版:檔案真的被存成 CP950 時(繁中 Windows 上很容易
+  -- 發生),嚴格版拋的是 UnicodeException,而使用者看到的是一個英文例外而不是
+  -- 「這個檔案的編碼不對」。壞掉的位元組變成替代字元,TOML 解析器接著會指出
+  -- 是哪一行 —— 那才是可行動的訊息(G-E003)。
+  src <- decodeUtf8Lenient <$> BS.readFile cataloguePath
   case parseCatalogue src of
     Left err -> TIO.putStrLn ("✗ 目錄解析失敗:\n" <> err) >> exitFailure
     Right cat ->
@@ -62,9 +67,10 @@ runPackApply dbPath cataloguePath = do
 
         report "目錄裡有但資料庫找不到的壓縮檔(先跑 scan?)" (arMissingArchive r)
         report "引用了不存在的授權名稱" (arMissingLicense r)
+        report "欄位值不合法,這幾包沒有套用" [a <> " —— " <> why | (a, why) <- arRejected r]
         report "仍是 draft(缺授權或作者)" stillDraft
 
-        if null (arMissingArchive r) && null (arMissingLicense r)
+        if null (arMissingArchive r) && null (arMissingLicense r) && null (arRejected r)
           then pure ()
           else exitFailure
   where

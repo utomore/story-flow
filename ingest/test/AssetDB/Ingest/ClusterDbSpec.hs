@@ -52,7 +52,7 @@ spec = around withPack $ do
       saveCluster st (rule PUi "gui") {nrDropTokens = [0, 1]} "sprites|U_W_WNa|.png"
       r <- applyNames st defaultVocab 1 True
       map fst (anCollisions r) `shouldBe` ["ui_gui_alert_01a"]
-      length (snd (head (anCollisions r))) `shouldBe` 2
+      map (length . snd) (anCollisions r) `shouldBe` [2]
 
     it "有撞名就一筆都不寫" $ \st -> do
       -- 半套用比沒套用更難收拾。
@@ -84,6 +84,33 @@ spec = around withPack $ do
       anNames applied `shouldBe` anNames preview
       anNamed applied `shouldBe` anNamed preview
       names st `shouldReturn` ["ui_gui_travel-book-alert_01a", "ui_gui_wizard-book-alert_01a"]
+
+  -- G-E003 T8。撞名檢查只在**這一包內**建表,而 logical_name 是**全域唯一**的
+  -- (ADR-004)。少了這個出口的話,一個跨包的重名會讓整個 cluster apply 以
+  -- SQLite 的 constraint 錯誤崩掉,而使用者看不出是哪一筆。
+  describe "跨包撞名(G-E003)" $ do
+    it "撞到全域 UNIQUE 時進 anFailed,不是崩潰" $ \st -> do
+      saveCluster st (rule PUi "gui") "sprites|U_W_WNa|.png"
+      first <- applyNames st defaultVocab 1 True
+      anNamed first `shouldBe` 2
+
+      seedSecondPack st
+      saveRuleFor st 2 (rule PUi "gui")
+      second <- applyNames st defaultVocab 2 True
+
+      anFailed second `shouldSatisfy` (not . null)
+      map fst (anFailed second) `shouldBe` ["(整批寫入)"]
+      -- 全有全無:寫入是一個交易,失敗就整批回滾。
+      anNamed second `shouldBe` 0
+      anNames second `shouldBe` []
+
+    it "第一包的命名不受第二包失敗影響" $ \st -> do
+      saveCluster st (rule PUi "gui") "sprites|U_W_WNa|.png"
+      _ <- applyNames st defaultVocab 1 True
+      seedSecondPack st
+      saveRuleFor st 2 (rule PUi "gui")
+      _ <- applyNames st defaultVocab 2 True
+      names st `shouldReturn` ["ui_gui_ui-travel-book-alert_01a", "ui_gui_ui-wizard-book-alert_01a"]
 
   describe "預覽" $
     it "不寫入任何東西" $ \st -> do
@@ -147,3 +174,30 @@ entries =
   , "P/Preview/Promo.png"
   , "P/Aseprite/Book.aseprite"
   ]
+
+-- | 第二個素材包,內含一筆與第一包**同名**的資源。
+--
+-- 這在真實素材庫裡很常見:兩個廠商各附一份形狀相同的 UI 圖組。
+seedSecondPack :: Store -> IO ()
+seedSecondPack st = do
+  let conn = storeConn st
+  execute_
+    conn
+    "INSERT INTO packs (id,ulid,slug,name,root_id,rel_dir,created_at,updated_at) \
+    \VALUES (2,'01P2','other','Other',1,'v/other','t','t')"
+  execute_
+    conn
+    "INSERT INTO archives (id,ulid,pack_id,rel_path,format,sha256,bytes) \
+    \VALUES (2,'01A2',2,'other.zip','zip','sha2',1)"
+  execute
+    conn
+    "INSERT INTO assets (ulid,kind,archive_id,entry_path,original_name,pack_id,created_at,updated_at) \
+    \VALUES ('01C1','image',2,?,?,2,'t','t')"
+    (headOr "" entries, headOr "" entries)
+
+saveRuleFor :: Store -> Int -> NameRule -> IO ()
+saveRuleFor st pid r =
+  saveRule st pid (Cluster (clusterKeyOf "P/Sprites/UI_A_B01a.png") 0 []) r
+
+headOr :: a -> [a] -> a
+headOr d xs = case xs of (x : _) -> x; [] -> d

@@ -24,6 +24,7 @@ library
         AssetDB.Store.Tokenize
         AssetDB.Store.Index
         AssetDB.Store.Search
+        AssetDB.Store.Errors
     hs-source-dirs:   src
     build-depends:
         , assetdb-core
@@ -50,6 +51,7 @@ test-suite assetdb-store-test
         AssetDB.Store.FtsSpec
         AssetDB.Store.TokenizeSpec
         AssetDB.Store.SearchSpec
+        AssetDB.Store.ErrorsSpec
     hs-source-dirs:   test
     build-depends:
         , assetdb-core

@@ -3,7 +3,7 @@ id: G-E003
 type: enhance
 title: error-boundary-convergence
 description: 資料庫錯誤與檔案系統例外不再穿越子系統邊界
-status: open
+status: done
 created: 2026-08-22
 updated: 2026-08-22
 depends-on: [ingest/E006, G-B001]
@@ -318,16 +318,16 @@ isBusy           :: SQLError -> Bool
 
 ## TodoList
 
-- [ ] T1: `core` 新增 `AssetDB.Guard` 的 `guardedTry`;`ai/Run.hs` 與 `ingest/Scan.hs` 改為 re-export  `dep: -`
-- [ ] T2: `store` 新增 `AssetDB.Store.Errors`(四個函式),含 `MigrationError` 的繁中渲染  `dep: -`
-- [ ] T3: 兩個 `main` 加頂層 handler(重拋 `ExitCode`、Ctrl-C 印「已中斷」、其餘走渲染)  `dep: T2`
-- [ ] T4: `server` 五個 handler 的錯誤處理(`isBusy` → 503,其餘 → 500,body 帶繁中)  `dep: T2`
-- [ ] T5: `ingest/Scan.hs` 的 `discover` → `srProblems`、`ensureRoot` → `srAborted`  `dep: T1`
-- [ ] T6: `ingest/ThumbRun.hs` 改用 `guardedTry` 並把寫檔失敗導進 `trFailed`  `dep: T1`
-- [ ] T7: `reorg/Execute.hs` 三處檔案系統動作導進 `arErrors`  `dep: T1`
-- [ ] T8: `ingest/Notes.hs` 的逐檔出口;`applyCatalogue` 先驗證再寫入(`arRejected`);`applyNames` 跨包撞名導進 `anFailed`  `dep: T1`
-- [ ] T9: `ai/Vision.hs` 與 `Classify.hs` 的 `loadVocab` / `selectJobs` / `beginRun` 納入保護,失敗走 `abortRun`  `dep: T1`
-- [ ] T10: `cli/Pack.hs` 改用 `decodeUtf8Lenient`;`project/Sync.hs` 的 `sha256File` TOCTOU 歸類為 `SyncLocallyModified`  `dep: T1`
+- [x] T1: `core` 新增 `AssetDB.Guard` 的 `guardedTry`;`ai/Run.hs` 與 `ingest/Scan.hs` 改為 re-export  `dep: -`
+- [x] T2: `store` 新增 `AssetDB.Store.Errors`(四個函式),含 `MigrationError` 的繁中渲染  `dep: -`
+- [x] T3: 兩個 `main` 加頂層 handler(重拋 `ExitCode`、Ctrl-C 印「已中斷」、其餘走渲染)  `dep: T2`
+- [x] T4: `server` 五個 handler 的錯誤處理(`isBusy` → 503,其餘 → 500,body 帶繁中)  `dep: T2`
+- [x] T5: `ingest/Scan.hs` 的 `discover` → `srProblems`、`ensureRoot` → `srAborted`  `dep: T1`
+- [x] T6: `ingest/ThumbRun.hs` 改用 `guardedTry` 並把寫檔失敗導進 `trFailed`  `dep: T1`
+- [x] T7: `reorg/Execute.hs` 三處檔案系統動作導進 `arErrors`  `dep: T1`
+- [x] T8: `ingest/Notes.hs` 的逐檔出口;`applyCatalogue` 先驗證再寫入(`arRejected`);`applyNames` 跨包撞名導進 `anFailed`  `dep: T1`
+- [x] T9: `ai/Vision.hs` 與 `Classify.hs` 的 `loadVocab` / `selectJobs` / `beginRun` 納入保護,失敗走 `abortRun`  `dep: T1`
+- [x] T10: `cli/Pack.hs` 改用 `decodeUtf8Lenient`;`project/Sync.hs` 的 `sha256File` TOCTOU 歸類為 `SyncLocallyModified`  `dep: T1`
 
 ## 1-to-1 測試對照表
 
@@ -347,4 +347,63 @@ isBusy           :: SQLError -> Bool
 
 ## 實作備註
 
-(實作時填寫)
+
+
+### 結構指標的量化結果
+
+| # | 指標 | 改善前 | 改善後 | 怎麼驗證 |
+|---|---|---|---|---|
+| 1 | 不重拋 `AsyncException` 的裸 `try` | 4 處(現況分析清點)+ 實際再找到 4 處(`core/Console.hs` ×2、`archive/Zip.hs` ×2、`archive/Sidecar.hs`、`ai/Llm.hs`)= 8 | **0** | `core` 的 `GuardSpec`「library 原始碼裡一個都不剩」——掃全 repo 九個套件的 `src/`,寫成測試而不是一次性清點 |
+| 2 | `guardedTry` 的實作份數 | 2 | **1**(`core:AssetDB.Guard`) | `ai/Run.hs` 與 `ingest/Scan.hs` 改為 re-export,匯出清單不變 |
+| 3 | `server` 有錯誤處理的 handler | 1/5 | **5/5** | `AppSpec`「資料庫壞掉時 `/api/search` 回 5xx 且 body 是繁中」「`/api/facets` 與 `/api/health` 也一樣」 |
+| 4 | 有頂層例外處理的執行檔 | 0/2 | **2/2** | `cli/main/Main.hs`、`server/app/Main.hs` 都是 `setupConsole >> withTopLevel renderUnexpected run` |
+| 5 | 已有錯誤 bucket 但未接上的公開入口 | 8 | **0** | T5–T10 逐處接上,每處各有測試 |
+
+行為目標:
+
+- **目標 6(繁中且可行動)**:`DatabaseNewerThanCode` 從 `DatabaseNewerThanCode 4 3` +
+  backtrace 變成三行繁中(現況版本、程式認得的版本、重新安裝指令)。`store/ErrorsSpec`
+  斷言訊息含「較新版本」與 `cabal install`,且**不含**建構子名稱與 `CallStack`;
+  `cli/EndToEndSpec` 對一個真的被灌成 v999 的資料庫跑 `search`,斷言 stderr 含 `v999`
+  與 `cabal install`、不含 `HasCallStack`。
+- **目標 7(5xx 帶訊息)**:忙碌 503、其餘 500,body 一律非空的 UTF-8 繁中。
+  `statusFor` 的映射與端點的實際行為分兩層測。
+- **目標 8(不吞 `ExitCode` 與 Ctrl-C)**:`withTopLevel` 先判 `ExitCode` 再判
+  `AsyncException`,順序寫進 haddock。`EndToEndSpec` 斷言刻意的 `exitFailure` 之後
+  stderr 仍是原本的提示,**不含** `ExitFailure` 也不含「未預期」。
+  Ctrl-C 的穿透另有三條:`GuardSpec`(型別層 + 迴圈真的停下來)、`ScanSpec`(既有)、
+  `ThumbRunSpec`(整批中斷,第二筆之後一個都沒被碰)。
+
+### 測試
+
+`cabal test all`:**667 examples, 0 failures**(實作前 624),零警告。新增 43 條,
+分佈為 core +6、store +9、ingest +12、reorg +3、ai +4、server +4、cli +3、project +1、
+以及既有測試因回傳形狀改變而調整的 1 條(`NotesSpec`)。
+
+### 與設計的偏差
+
+1. **指標 1 的實際數量是 8 而不是 4。** 現況分析只清點了「批次迴圈裡的」裸 `try`。
+   把檢查寫成測試之後,`core/Console.hs`、`archive/Zip.hs`、`archive/Sidecar.hs`、
+   `ai/Llm.hs` 也被抓出來。前三處確實該用 `guardedTry`(7-Zip 子程序與整包解壓都是
+   長時間動作);`ai/Llm.hs` 的 `tryHttp` 只接 `HttpException`,本來就不吞 Ctrl-C,
+   改成明寫 `try @HttpException` —— 這同時成為一條**寫法約定**:要用 `try` 就得把
+   型別寫出來,否則改用 `guardedTry`。`GuardSpec` 的檢查依此判定。
+2. **T10 的 CP950 測試放在 `cli/EndToEndSpec` 而不是新開 `PackSpec`。** 測試對照表寫
+   「`cli` 的 `PackSpec`」,但 `runPackApply` 會 `exitFailure`,在同行程的 hspec 裡
+   會殺掉整個測試套件。`EndToEndSpec` 已經有跑子行程的基礎設施,而且測到的是**真的
+   被安裝的那條路徑**,比抽出一個純函數再測更接近使用者會遇到的情況。
+3. **`statusFor` 從 `server` 匯出。** 原本是私有的。匯出的理由是「忙碌 → 503」這條
+   映射本身就是契約(前端據此決定要不要重試),而透過端點間接測它需要製造真的
+   `SQLITE_BUSY` —— 在 WAL 模式下讀取者不會被寫入者擋住,做不出穩定的觸發條件。
+4. **`ingest/Notes.hs` 的 `importNotes` 回 `([(Text, Text)], [Text])`。** 文檔把形狀
+   留給實作者決定,只要求呼叫端分辨得出成功與失敗。選 tuple 而不是 `[Either]` 是因為
+   呼叫端(`cli/Notes.hs`)本來就分兩段印:成功清單、失敗清單。
+5. **`GuardSpec` 的結構檢查排除註解行與 import 行。** 它們提到 `try` 不代表呼叫了它。
+   `AssetDB.Guard` 自己的檔案整份排除 —— 全系統唯一合法的裸 `try` 在那裡。
+
+### 順手清掉的既有問題(同源、各一行)
+
+- `ingest/ClusterDbSpec.hs:55` 的 `head (anCollisions r)`(`-Wx-partial`,G-B001 時記錄過)。
+- `ai/LlmSpec.hs:71,75` 的 `let Object o = …`(`-Wincomplete-uni-patterns`)。
+
+兩者都是測試碼裡的 partial function,與本次「不讓失敗以例外的形式離開」同源。

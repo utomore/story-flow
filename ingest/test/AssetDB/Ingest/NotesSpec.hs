@@ -67,8 +67,9 @@ spec = do
 
   describe "importNotes" $ do
     it "匯入目錄裡的 Markdown" $ withNotes $ \(st, dir) -> do
-      r <- importNotes st NkKnowledge dir
+      (r, problems) <- importNotes st NkKnowledge dir
       length r `shouldBe` 2
+      problems `shouldBe` []
       map fst r `shouldContain` ["技術棧清單"]
 
     it "重複匯入是更新而不是新增" $ withNotes $ \(st, dir) -> do
@@ -79,8 +80,30 @@ spec = do
 
     it "非 Markdown 檔案不理會" $ withNotes $ \(st, dir) -> do
       writeFile (dir </> "note.txt") "不是 markdown"
-      r <- importNotes st NkKnowledge dir
+      (r, problems) <- importNotes st NkKnowledge dir
       length r `shouldBe` 2
+      problems `shouldBe` []
+
+    -- G-E003 T8。同一個模組裡的 linkEntities 早就寫著「打錯不該是例外或
+    -- 崩潰」並回 Either,而同一個檔案裡的 I/O 卻沒比照 —— 一個讀不到的
+    -- 檔案會讓整次匯入崩掉,已經解析好的也一起沒了。
+    it "讀不到的檔案跳過並回報,其餘照樣匯入" $ withNotes $ \(st, dir) -> do
+      -- 目錄不是檔案:BS.readFile 對它必定失敗,而且每個平台都一樣。
+      -- 副檔名仍是 .md,所以它會進入待匯入清單。
+      createDirectoryIfMissing True (dir </> "broken.md")
+      (r, problems) <- importNotes st NkKnowledge dir
+      length r `shouldBe` 2
+      map fst r `shouldContain` ["技術棧清單"]
+      -- 回報說得出是哪一個檔案。
+      problems `shouldSatisfy` any (T.isInfixOf "broken.md")
+      length problems `shouldBe` 1
+      -- 成功的那兩篇真的進了資料庫。
+      length <$> listNotes st Nothing `shouldReturn` 2
+
+    it "目錄不存在時是空結果,不是錯誤" $ withNotes $ \(st, dir) -> do
+      (r, problems) <- importNotes st NkKnowledge (dir </> "nope")
+      r `shouldBe` []
+      problems `shouldBe` []
 
     it "依 kind 篩選" $ withNotes $ \(st, dir) -> do
       _ <- importNotes st NkKnowledge dir

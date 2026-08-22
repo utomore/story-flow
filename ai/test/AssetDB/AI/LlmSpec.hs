@@ -68,14 +68,16 @@ spec = do
     it "單一文字段落輸出字串形式的 content" $ do
       -- 維持與效能量測當初送出的位元組一致。這裡若悄悄改成陣列形式,
       -- 之後的迴歸會很難歸因。
-      let Object o = encodeMessage (userText "hi")
-      KM.lookup "content" o `shouldBe` Just (String "hi")
+      case encodeMessage (userText "hi") of
+        Object o -> KM.lookup "content" o `shouldBe` Just (String "hi")
+        other -> expectationFailure ("預期物件,得到 " <> show other)
 
     it "含圖時輸出 parts 陣列" $ do
-      let Object o = encodeMessage (userTextImage "看圖" "data:image/png;base64,AA")
-      case KM.lookup "content" o of
-        Just (Array a) -> length a `shouldBe` 2
-        other -> expectationFailure ("預期陣列,得到 " <> show other)
+      case encodeMessage (userTextImage "看圖" "data:image/png;base64,AA") of
+        Object o -> case KM.lookup "content" o of
+          Just (Array a) -> length a `shouldBe` 2
+          other -> expectationFailure ("預期陣列,得到 " <> show other)
+        other -> expectationFailure ("預期物件,得到 " <> show other)
 
   describe "fakeLlm" $
     it "讓整條呼叫路徑不需要真的推論服務" $ do

@@ -5,7 +5,7 @@ title: ai-tagging
 description: 以本機 LLM 離線批次分類與標註素材,結果先進暫存表待人工確認
 status: active
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-007]
 ---
@@ -116,6 +116,11 @@ classifyClusters :: Connection -> Llm -> ClassifyOptions -> [ClusterTarget] -> I
 
 **`[ClusterTarget]` 是輸入而不是自己查,這是子系統邊界的一部分。** 呼叫端(cli,它本來就
 相依 ingest)負責分群並把清單遞進來。
+
+**`crAborted` / `vrAborted` 涵蓋前置步驟的失敗(G-E003)。** 讀詞彙表、篩佇列、開 run 列
+這三步也會失敗(資料庫被伺服器鎖住、資料列損壞),它們一樣走中止回報而不是讓例外穿越
+子系統邊界。開了 run 列之後才失敗時 `ai_runs.status` 必須收在 `'aborted'` —— 續跑邏輯
+靠那個欄位判斷,一列永遠停在 `'running'` 會讓「上次跑到哪裡」永遠沒有答案。
 
 ### 4. 視覺標註(`AssetDB.AI.Vision`)
 

@@ -19,7 +19,7 @@ module AssetDB.AI.Run
 
 import AssetDB.AI.Llm
 import AssetDB.Id (newULID, renderULID)
-import Control.Exception (AsyncException, SomeException, fromException, throwIO, try)
+import AssetDB.Guard (guardedTry)
 import Data.IORef
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -73,11 +73,8 @@ abortRun conn (RunId i) why done failed = do
 -- 不可能落在工作內部。這裡每筆 5.8 秒,中斷訊號落在 LLM 呼叫裡的機率接近
 -- 100% —— 被 SomeException 接住之後迴圈會繼續跑下一筆,使用者按 6,238 次
 -- Ctrl-C 也停不下來。
-guardedTry :: IO a -> IO (Either SomeException a)
-guardedTry act =
-  try act >>= \case
-    Left e | Just (ae :: AsyncException) <- fromException e -> throwIO ae
-    r -> pure r
+-- 實作在 @core@ 的 'AssetDB.Guard'(G-E003):這條規則的正確性很微妙,
+-- 全系統只該有一份。此處 re-export,呼叫端的 import 不必改。
 
 -- | 單筆的結果。
 data StepOutcome

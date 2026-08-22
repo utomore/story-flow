@@ -2,6 +2,7 @@ module AssetDB.Server.AppSpec (spec) where
 
 import AssetDB.Server.App
 import AssetDB.Store
+import Control.Exception (ErrorCall (..), toException)
 import Data.Aeson (Key, Value (..), decode)
 import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString qualified as BS
@@ -11,8 +12,8 @@ import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (isInfixOf)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
-import Database.SQLite.Simple (execute, execute_, lastInsertRowId, withTransaction)
+import Data.Text.Encoding (decodeUtf8Lenient, encodeUtf8)
+import Database.SQLite.Simple (Error (..), SQLError (..), execute, execute_, lastInsertRowId, withTransaction)
 import Network.HTTP.Types (Query, ResponseHeaders, hCacheControl, renderQuery, statusCode)
 import Network.Wai
   ( Application
@@ -25,6 +26,7 @@ import Network.Wai
   )
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Internal (ResponseReceived (..))
+import Servant (ServerError (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (isAbsolute, (</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -237,6 +239,38 @@ spec = do
           Just (Array ks) -> length ks `shouldBe` 1
           other -> expectationFailure ("預期 kinds 是陣列,收到 " <> show other)
 
+  -- G-E003 目標 7 與指標 3。原本五個 handler 只有 thumb 的讀檔有出口,
+  -- 其餘四個一旦資料庫出事就是一個**空白的 500**:前端顯示「載入失敗」,
+  -- 使用者不知道發生什麼事、也不知道該做什麼。
+  describe "handler 的錯誤邊界" $ do
+    it "statusFor:忙碌回 503(可重試)" $ do
+      -- 背景掃描正在寫入是**預期中的並行**(ADR-009),不是故障。
+      errHTTPCode (statusFor (toException (sqlErr ErrorBusy))) `shouldBe` 503
+      errHTTPCode (statusFor (toException (sqlErr ErrorLocked))) `shouldBe` 503
+
+    it "statusFor:其餘回 500" $ do
+      errHTTPCode (statusFor (toException (sqlErr ErrorCorrupt))) `shouldBe` 500
+      errHTTPCode (statusFor (toException (sqlErr ErrorConstraint))) `shouldBe` 500
+      errHTTPCode (statusFor (toException (ErrorCall "不是資料庫的錯"))) `shouldBe` 500
+
+    it "資料庫壞掉時 /api/search 回 5xx,而且 body 是有內容的繁中" $
+      withApiApp 3 $ \app st -> do
+        breakDatabase st
+        (code, _, body) <- runGetFull app ["api", "search"] []
+        code `shouldSatisfy` (>= 500)
+        body `shouldNotBe` ""
+        BL.toStrict body `shouldSatisfy` hasChinese
+
+    it "/api/facets 與 /api/health 也一樣有出口,不是空白 500" $
+      withApiApp 3 $ \app st -> do
+        breakDatabase st
+        (fc, _, fb) <- runGetFull app ["api", "facets"] []
+        (hc, _, hb) <- runGetFull app ["api", "health"] []
+        fc `shouldSatisfy` (>= 500)
+        hc `shouldSatisfy` (>= 500)
+        BL.toStrict fb `shouldSatisfy` hasChinese
+        BL.toStrict hb `shouldSatisfy` hasChinese
+
 cfg :: FilePath -> Bool -> ServerConfig
 cfg path doInit =
   ServerConfig
@@ -372,3 +406,24 @@ insertAssets st n
                 )
           )
           [1 .. n]
+
+--------------------------------------------------------------------------------
+
+sqlErr :: Error -> SQLError
+sqlErr e = SQLError {sqlError = e, sqlErrorDetails = "details", sqlErrorContext = "ctx"}
+
+-- | 把資料庫弄壞到每個查詢都會拋例外 —— 直接把 handler 都會碰的表拿掉。
+--
+-- 比起假造 'SQLError',這個做法測到的是**真的有沒有把 handler 包起來**:
+-- 例外從 sqlite-simple 的深處拋出來,一路走到 servant 的邊界。
+breakDatabase :: Store -> IO ()
+breakDatabase st = do
+  let conn = storeConn st
+  execute_ conn "DROP TABLE IF EXISTS assets_fts"
+  execute_ conn "DROP TABLE IF EXISTS assets_cjk"
+  execute_ conn "DROP TABLE IF EXISTS assets"
+
+-- | body 裡有沒有中日韓文字。斷言的是「訊息真的是給人看的繁中」,
+-- 而不只是「body 非空」—— 一個英文的 @show@ 也是非空的。
+hasChinese :: BS.ByteString -> Bool
+hasChinese = T.any (> '\x2e80') . decodeUtf8Lenient

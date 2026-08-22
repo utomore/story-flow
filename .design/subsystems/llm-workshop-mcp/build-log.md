@@ -86,9 +86,9 @@ fan out 前預先分配,subagent 不得自行配號。
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
 | llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | **impl-done**(10/10 Todo,commit f2fec1e) |
-| workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | **design-done**(12 Todo;設計跑三版:v1 因 A1/A2 被推翻、v2 因必填欄位缺口修訂) |
-| workshop-emit | F003 | F003-workshop-emit.md | sonnet | sonnet | **design-done**(8 Todo;設計跑兩版,v2 補必填欄位檢查) |
-| workshop-interface | F004 | F004-workshop-interface.md | sonnet | sonnet | **design-done**(22 Todo) |
+| workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | **impl-done**(12/12 Todo,commit 3313d72;設計跑三版) |
+| workshop-emit | F003 | F003-workshop-emit.md | sonnet | sonnet | **impl-done**(8/8 Todo,commit 3236561;設計跑兩版) |
+| workshop-interface | F004 | F004-workshop-interface.md | sonnet | sonnet | **impl-done**(22/22 Todo,commit dac2f7f) |
 | mcp-adapter | F005 | F005-mcp-adapter.md | sonnet | sonnet | 待展開 |
 
 **F001 的兩個模型欄寫「繼承」是 0.7.x 的舊寫法**,如實留著。0.8.x 起委派模型固定
@@ -144,6 +144,96 @@ F002–F005 的號碼在階段一就預先保留,本次接續模式沿用,不重
 | F001 A9 | `chatEndpoint :: LlmConfig -> String` 是「新增的介面」清單外的公開名字,且穿透門面 | 住在 `Llm.Config`:它有兩個呼叫端(`parseLlmConfig` 驗證 `base_url`、`chat` 組請求),放進 `Llm.Client` 會讓 Config 反向 import Client;Haskell 無法「只給同套件看」,要藏只能兩邊各寫一份 URL 規則 | **不接受**:閘門裁定要它退出公開面。門面改為逐項列舉匯出 15 個名字,`chatEndpoint` 仍住 `Llm.Config` 供套件內部共用(URL 規則沒有變成兩份)。以 `cabal repl` 走已編譯的 package interface 實測:`import StoryFlow.Llm` 後 `chatEndpoint` 不在作用域,再 `:m + StoryFlow.Llm.Config` 就看得到 |
 
 ## 階段結果
+
+### 階段二:工作坊
+
+**完成的 feature**:F002 workshop-stages(12/12 Todo)、F003 workshop-emit(8/8)、
+F004 workshop-interface(22/22),設計與實作模型皆 `sonnet`。子系統進度 4/5 (80%)。
+
+**測試**:`cabal test all` **11 suites PASS,1378 examples,0 failures**(編排者在每個
+checkpoint 獨立複跑驗證)。1169 →(階段一)→ 1318 → 1327 → 1378。`cabal build all` 零 error、
+零 warning。新增 `storyflow-workshop-test` 56 條;`cli` 212 → 237、`server` 66 → 84、
+`api` 71 → 79、`service` 99 → 102、`store` +1。
+
+**既有測試改動全為擴充,無一放寬**(編排者與 arch-audit 各自獨立逐檔比對 `git diff`):
+`ApiSpec` 的 operation 計數 25 → 28、`OpenApiSpec` 16 → 19 路徑 / 25 → 28 operation / +8 schema、
+三份 `CabalSpec` 的 `required` 清單只增不減、`ParitySpec` / `OptionsSpec` / `RemoteCmdSpec` /
+`RenderSpec` 只新增案例、`store/InitSpec` 擴充 `.gitignore` 斷言。
+
+**契約層守衛完好**:`storyflow-service` 的 `.cabal` 除了測試模組表多一行 `VaultRootSpec` 之外
+**零改動**,`CabalSpec` 的逐字四名單一個字沒動——ADR-011 的「契約層單向」與 B001 的守衛在這次
+新增一個上游套件之後仍然成立。`cabal.project` 的 `allow-newer` 一個字沒動。
+
+**設計階段就攔下的兩件事**(沒有拖到閘門,因為會被下游 feature 繼承):
+
+1. **F002 A1 / A2 被推翻**:subagent 提議往契約層的 `ServiceError` 加五個 `Workshop*` 建構子,
+   並用 `vaultInfo` 取 vault root。前者會讓契約層認識 P5;後者複核發現 `vaultInfo` 是
+   `listEntities` 全表掃描,而快照每一 step 寫一次。改為 `WorkshopError` 自成一套 +
+   新增 `vaultRoot :: ServiceM FilePath`。**F002 設計重跑**
+2. **F003 查出必填欄位缺口**:`lore-fragment` / `plot-fragment` 都宣告 `timeline` 必填而
+   `StageDraft` 沒那一欄,五個工作坊型別有兩個會**每次定案都 `ValidationFailed`**。順著查下去
+   還發現 F002 組 prompt 時完全沒用 `etsFields`,而 ADR-005 明寫那一欄是「給 AI Agent 的提示
+   來源」。採宣告式補法(prompt 讀 `etsFields` + `StageDraft` 加 `sdTimeline` +
+   `WsMissingRequiredField`)。**F002 與 F003 兩份設計都重跑**
+
+### 階段二 arch-audit 發現(依嚴重度)
+
+**中 1 條、低 3 條,無高**。編排者逐條打開原始碼複核,三條屬實:
+
+- **F1(中)`commitStage` 推進 `wsCurrent`,與契約卡「明確不做」字面牴觸**
+  (`workshop/src/StoryFlow/Workshop/Emit.hs:66`)。`workshop-emit` 的契約卡寫著「不決定階段
+  流程(那是 `workshop-stages`)」,但「前進到下一階段」落在 `commitStage` 裡。這不是實作者
+  自作主張——F003 A3 已完整記錄這個張力(F002 的三個操作都不改 `wsCurrent`,不做的話工作坊
+  會卡死在同一階段;`design.md` 的資料流管線文字本來就把「進入下一階段」緊接在 `commitStage`
+  之後)。**待閘門裁決**
+- **F2(低)`design.md`「內部模組劃分」表漏列 `Workshop.Error`**(全文零命中),`workshop-stages`
+  契約卡的「負責模組」欄同樣沒有。**與階段一的 A-3(`Llm.Error`)是同一個子系統內同一類問題
+  再犯一次**
+- **F3(低)`cli/src/StoryFlow/Cli/Error.hs` 的模組註解仍寫「四種失敗」,實際已六種**
+  (`CliService` / `CliRemote` / `CliResolve` / `CliInput` / `CliUsage` / `CliWorkshop`)。
+  F004 A3 記過舊有的「四 vs 五」漂移,本次又加了 `CliWorkshop` 沒同步,漂移擴大而非收斂
+- **F4(低)階段一遺留兩條未處理**:A-1(`entity-graph-core/F004` 仍寫 `Maybe LlmConfig`)、
+  A-2(`system.md` 漏列 `http-client-tls`)。非本次委派造成,如實提醒
+
+**通過的檢查**(arch-audit 逐項查證,非採信回報):
+
+- **門面 `StoryFlow.Workshop` 的匯出與 Level 2 契約一個不多一個不少**——逐項列舉而非
+  `module X` 整包 re-export,**沒有重犯 F001 `chatEndpoint` 穿透門面那一類問題**
+- **四個簽名與 `design.md` 逐字相符**;`Session` 九欄、`StageDraft` 五欄、`WorkshopError`
+  八個建構子逐一比對相符
+- **邊界外洩**:`storyflow-workshop` 的 `build-depends` 無 `storyflow-store` / `storyflow-md` /
+  `sqlite-simple` / `direct-sqlite` / `servant` / `warp`,且自己的 `CabalSpec` 逐字釘住並帶
+  mutation test;`cli` / `server` 的 workshop 路徑只做接線(不驗證階段、不組 prompt)
+- **SRP**:`Workshop.Stages` 是唯一呼叫 `chat` 的模組且不 import `createEntity` / `addFragment`;
+  `Workshop.Emit` 沒有 `LlmClient` 參數,不重問模型
+- **必填欄位真的由註冊表驅動**:`fieldsBlock` / `requiredFieldNames` 都逐一取自 `etsFields` /
+  `fsRequired`,沒有寫死欄位名當業務規則
+- **測試品質**:`Warp.testWithApplication` 動態配埠、無寫死埠號、無固定長 sleep;
+  `ErrorSpec` 對八個建構子逐一斷言 code 與 message,不是空殼
+
+### 階段二閘門結論(2026-08-22)
+
+開發者裁決:**接受,進階段三**。
+
+- **F1(中)→ 接受現狀,改寫契約卡**:`commitStage` 推進 `wsCurrent` 保留。理由是推進游標是
+  「定案」這個動作本身的一部分,不是流程決策——判斷「還有沒有下一階段」的守衛
+  (`WsStagesExhausted`)仍然住在 `Workshop.Stages`。`design.md` 的 `workshop-emit` 契約卡
+  「明確不做」已改寫成「不判斷 stages 是否耗盡、不組 prompt、不決定階段的內容;但定案成功後
+  負責把 `wsCurrent` 推進一格」,字面矛盾消除。**程式碼一行未動**
+- **F2(低)→ 修**:`design.md` 的「內部模組劃分」表補列 `Workshop.Error`,`workshop-stages`
+  契約卡的「負責模組」欄同步。**順帶補列 `Llm.Error`**——同一張表、同一類問題,階段一的
+  arch-audit A-3 就記過,不補的話下次 arch-audit 還會再抱怨一次(編排者判斷,已如實記下)
+- **F3(低)→ 修**:`cli/src/StoryFlow/Cli/Error.hs` 的模組註解由「四種失敗」改為「六種」,
+  補上 `CliInput` 與 `CliWorkshop` 兩行,並加一句「這段清單漏過兩次」的提醒。純註解
+- **F4(低)→ 不在本次處理**:階段一遺留的 A-1 / A-2 屬跨子系統與 Level 1 文檔
+- **13 條待確認假設 → 整批接受**,記在上面的表裡備查。它們都落在實作自主權範圍內,
+  無一與 Level 2 契約牴觸;arch-audit 另外逐條查過 F003 A5 的失敗路徑與 F004 A4 的 DTO 位置,
+  與記錄一致。F004 A1 / A2(JSON 欄位命名、`workshopErrorCode` 字串)已被落地程式碼核對而
+  自動失效——兩者與假設完全一致
+
+**契約有無變更**:有一處,`workshop-emit` 契約卡的「明確不做」改寫(見 F1)。Level 2 的四個
+簽名、`Session` / `StageDraft` / `WorkshopError` 的形狀一個字都沒動。**`system.md` 本次一個字
+都沒改。**
 
 ### 階段一:LLM 存取
 

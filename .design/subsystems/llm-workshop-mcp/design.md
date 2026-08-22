@@ -50,11 +50,13 @@ related-adr: [ADR-003, ADR-005, ADR-006]
 
 | 套件 | 元件 | 職責 |
 |---|---|---|
-| `storyflow-llm` | `Llm.Client` | OpenAI 相容端點的抽象:chat completion、逾時、重試、錯誤語彙 |
+| `storyflow-llm` | `Llm.Client` | OpenAI 相容端點的抽象:chat completion、逾時、重試 |
 | | `Llm.Config` | 後端選擇與模型參數,讀 Vault 的 `.storyflow/config.toml` |
+| | `Llm.Error` | `LlmError` 的五類分類與它的兩個輸出。獨立成葉子模組是為了避免 `Client` ↔ `Config` 互相 import(2026-08-22 補列:階段一的 arch-audit A-3 記過這一格漏列) |
 | `storyflow-workshop` | `Workshop.Session` | 一次工作坊的狀態:型別、已選的硬約束 Entity、目前階段、各階段的定案 |
 | | `Workshop.Stages` | 依註冊表的 `stages` 驅動的狀態機:進入 / 對話 / 定案 / 下一階段 |
 | | `Workshop.Emit` | 定案 → 多個 `NewEntityReq` / `NewFragmentReq`,經 service 寫進圖譜 |
+| | `Workshop.Error` | `WorkshopError` 的八個建構子與它的兩個輸出。與 `Llm.Error` 同一個切法、同一個理由(2026-08-22 補列) |
 | `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器,把 REST 的 24 個操作暴露成 MCP tools |
 
 **工作坊的狀態存在哪裡**:記憶體 + 一份可序列化的 session 快照。工作坊是**互動流程**,
@@ -429,7 +431,7 @@ data Role = System | User | Assistant
 ### workshop-stages
 
 - **階段**:階段二(工作坊)
-- **負責模組**:`Workshop.Session`、`Workshop.Stages`
+- **負責模組**:`Workshop.Session`、`Workshop.Stages`、`Workshop.Error`
 - **實作的 Level 2 介面**:「對外契約」的 `WorkshopError` / `renderWorkshopError` /
   `workshopErrorCode`、`startWorkshop`、`loadSession` 與 `stepWorkshop`(四者的簽名見契約,
   一律 `ServiceM (Either WorkshopError …)`);
@@ -463,8 +465,12 @@ data Role = System | User | Assistant
   `wsPending` 是空的時候回 `WsNothingToCommit`,**不寫出空片段**;寫入走與
   CLI 相同的 `ServiceM` 操作,落地失敗照樣講 `ServiceError` 那套話(`WorkshopError` 只講工作坊
   自己的失敗)
-- **明確不做**:不直接碰 `storyflow-store`;不決定階段流程(那是 `workshop-stages`);
-  不在寫入失敗時自行重試改寫
+- **明確不做**:不直接碰 `storyflow-store`;**不判斷 stages 是否耗盡、不組 prompt、不決定
+  階段的內容**(那些是 `workshop-stages`);不在寫入失敗時自行重試改寫。
+  **但定案成功後負責把 `wsCurrent` 推進一格**——推進游標是「定案」這個動作本身的一部分,
+  不是流程決策:判斷「還有沒有下一階段」的守衛仍然住在 `Workshop.Stages`
+  (`WsStagesExhausted`)。2026-08-22 階段二閘門裁定,原本的「不決定階段流程」字面與實作
+  牴觸(F003 A3)
 
 ### workshop-interface
 

@@ -4,14 +4,20 @@
 -- 兩種模式各有一套錯誤型別的話,那句話最先破在錯誤路徑上,而且是最不容易被
 -- 注意到的地方。
 --
--- 四種失敗,只有第一種是業務的:
+-- 六種失敗,只有第一種與第六種是業務的:
 --
 -- * 'CliService' —— @service@ 的 'ServiceError'。內嵌模式直接拿到
 -- * 'CliRemote' —— 傳輸層。__其中 'RemoteStatus' 帶著伺服器自己回的 code 與
 --   message__,所以遠端模式的業務失敗與內嵌模式__字元級相同__(伺服器那邊也是用
 --   同一個 'errorCode' \/ 'renderServiceError' 產生的)
 -- * 'CliResolve' —— 用標題找不到 \/ 找到多筆。service 沒有這個概念
+-- * 'CliInput' —— @--body-file@ \/ stdin 讀不進來
 -- * 'CliUsage' —— 引數組合不合法(例如 @--remote@ 與 @--vault@ 併用)
+-- * 'CliWorkshop' —— @storyflow-workshop@ 的 'WorkshopError'(llm-workshop-mcp\/F004)。
+--   工作坊自己的失敗__不折進 'CliService'__:契約層的 'ServiceError' 刻意不認識 P5
+--
+-- __這段清單漏過兩次__('CliInput' 與 'CliWorkshop' 都是後補的建構子,註解沒跟上,
+-- 由 2026-08-22 階段二的 arch-audit 抓到)。加建構子時記得回來加一行。
 module StoryFlow.Cli.Error
   ( -- * 定址
     Subject (..)

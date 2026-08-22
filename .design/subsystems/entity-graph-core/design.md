@@ -5,7 +5,7 @@ title: entity-graph-core
 description: 片段圖譜核心:型別、註冊表、Markdown 解析與可重建索引
 status: active
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-21
 parent: system
 related-adr: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-008, ADR-009, ADR-010]
 ---
@@ -182,17 +182,51 @@ NewEntity / MetaOverride(來自 service-and-interfaces)
 
 資料格式本身:
 
-詳見主架構「資料結構的框架格式」一節(統一 `Meta`、核心關聯詞彙、Markdown 分節格式、
-Level 標題階層、SQLite 索引結構)。本子系統**擁有**那些格式的定義與實作,主架構只是描述它們。
+**對外契約的那幾種格式**(統一 `Meta`、核心關聯詞彙、Markdown 分節格式、Level 標題階層)
+詳見主架構「資料結構的框架格式」一節——作者用編輯器直接改檔就是一種合法輸入,所以那些格式
+是系統的對外契約。本子系統**擁有**它們的實作。
+
+**SQLite 索引結構則相反,它住在這裡**(2026-08-21 `/arch-audit system` 後從主架構下放):
+索引是可丟棄的內部落地細節,不是對外契約,依 conventions 的抽象邊界規範不該由 Level 1 定義。
+主架構只留一件會外溢到別的子系統的事實(trigram 讓二字詞走 `LIKE`,而那條路徑給不出
+相關度分數,所以 `conflict-detection` 第 2 層的 `ByRetrieval` 只能吃 `Maybe Double`)。
+
+```text
+meta_info(key PK, value)                                -- schema_version、vault_root、vault_name
+files(path PK, mtime, size)                             -- 外部改動的過時偵測
+entities(id PK, vault, type, title, summary, status, timeline, timeline_order,
+         source, revision, created, updated, file_path, section_anchor)
+entity_aliases(entity_id, alias)
+entity_tags(entity_id, tag)                             -- efTag 過濾;與 aliases 對稱
+links(src, dst_vault, dst, kind, note, file_path)       -- 有方向,src → dst
+levels(id PK, vault, title, summary, root, ...)
+nodes(id PK, level_id, parent_id, order_idx, kind, title, summary, ...)
+node_entities(node_id, entity_id)
+entities_fts(title, summary, body, aliases, tags)        -- FTS5, trigram
+fts_map(rowid PK, entity_id)                             -- FTS5 的整數 rowid ↔ 字串 id
+```
+
+- `links` 的 `file_path` 讓單檔重新索引變成一次外鍵級聯:關聯的來源可能是 Entity / Level /
+  Node 任一種,靠 `src` 反查要三個子查詢
+- `meta_info` 記著 Vault 根目錄,讓「只拿到一個索引連線」的查詢函式也能回讀檔案取得 body
+- `file_path` + `section_anchor` 讓索引能回指原始檔案的哪一節,CLI/API 回傳結果時可直接給出
+  「去改哪個檔案的哪一段」
+- `files` 表存 mtime 與 size:作者用編輯器直接改檔案後,查詢前比對即可偵測過時並重讀該檔,
+  不必手動 `index rebuild`(ADR-002 要求 P1 就處理)。它同時讓「這個檔案的所有記錄」以外鍵
+  級聯刪除,單檔重新索引就是整檔替換而非逐筆 diff
+- `body` 進 FTS 但**不進 `entities` 表**——正文只有檔案有,索引只需要能搜到它
+- schema 變更時不寫遷移程式,`schema_version` 不符即自動全量重建
 
 三條本子系統獨有的約束:
 
 1. **節層繼承**:`id` / `title` / `summary` / `aliases` / `links` / `revision` **不繼承**,
    `tags` 聯集去重,其餘繼承檔案層。`summary` 不繼承是因為繼承主體的總結等於餵給衝突偵測假資訊
-2. **`entities_fts` 不是 contentless**:contentless 的 FTS5 表不支援 `snippet()` 也不支援
-   刪除單列,兩者都是必須的。代價是 body 在索引裡多存一份 —— 索引本來就可丟棄,划算
-3. **中文二字詞**:trigram 以三字元為索引單位,兩字詞 `MATCH` 一定不命中,所以
-   `searchEntities` 對兩字元以下的查詢改走 `LIKE` 掃描
+2. **`entities_fts` 不是 contentless**:contentless 的 FTS5 表既不支援 `snippet()`(檢索要回傳
+   命中片段)也不支援刪除單列(單檔重新索引要能整批換掉舊記錄),兩者都是必須的。代價是 body
+   在索引裡多存一份 —— 索引本來就可丟棄,這個代價划算
+3. **中文二字詞**:trigram 以三字元為索引單位,兩字詞(角色名、道具名)`MATCH` 一定不命中,
+   所以 `searchEntities` 對兩字元以下的查詢改走 `LIKE` 全表掃描。**那條路徑沒有相關度可言**,
+   `searchEntities` 因此回 `Maybe Double` 而不是捏一個假分數
 
 ## 使用到的套件
 

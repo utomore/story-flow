@@ -77,6 +77,7 @@ parent: llm-workshop-mcp
 | S3 | `service-and-interfaces` 的 CLI 指令樹新增 `workshop start / step / commit`,servant API 新增 `POST /workshop`、`POST /workshop/:id/step`、`POST /workshop/:id/commit` | 對外形式表本來就寫著這三個出口;它們是介面包裝層(ADR-011 的全面下游),不是新業務操作。`ApiSpec` 的 operation 計數斷言與 `ParitySpec` 的 CLI/REST 對照要跟著更新 | F004 |
 | S4 | `storyflow-api` / `storyflow-cli` / `storyflow-server` 的 `build-depends` 加 `storyflow-workshop`;三份 `CabalSpec` 的逐字清單同步 | 工作坊的 DTO(`Session` / `StageDraft`)要進 API 型別,與 `storyflow-conflict` 進 `storyflow-api` 完全同一種性質。**`storyflow-service` 的清單一個字都不准動**(B001) | F004 |
 | S5 | `.storyflow/.gitignore` 加一行 `workshops/` | 快照是本機互動狀態,不是故事設定。`store` 的 `initVault` 已經在寫那份 `.gitignore`,加一行即可 | F002 |
+| S6 | `StoryFlow.Service` 新增內嵌出口 `vaultRoot :: ServiceM FilePath`(操作數 26 → 27);**只開內嵌出口,不接 CLI 與 REST** | 快照要寫 `<root>/.storyflow/workshops/`,而 `storyflow-workshop` 與 `storyflow-llm` 同樣不准依賴 `storyflow-store`,拿不到 root。**不沿用 `vaultInfo`**:它為了 `vvEntityCount` 會 `listEntities` 全表掃描(`service/src/StoryFlow/Service.hs:146`),而快照每一 step 寫一次——付一次全表掃描換一個馬上被丟掉的數字。與 F001 新增 `vaultConfig` 完全同一種先例 | F002 |
 
 ## 配號表
 
@@ -85,7 +86,7 @@ fan out 前預先分配,subagent 不得自行配號。
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
 | llm-endpoint | F001 | F001-llm-endpoint.md | 繼承 | 繼承 | **impl-done**(10/10 Todo,commit f2fec1e) |
-| workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | 待展開 |
+| workshop-stages | F002 | F002-workshop-stages.md | sonnet | sonnet | **設計重跑中**(第一版因 A1/A2 被推翻作廢) |
 | workshop-emit | F003 | F003-workshop-emit.md | sonnet | sonnet | 待展開 |
 | workshop-interface | F004 | F004-workshop-interface.md | sonnet | sonnet | 待展開 |
 | mcp-adapter | F005 | F005-mcp-adapter.md | sonnet | sonnet | 待展開 |
@@ -97,6 +98,18 @@ fan out 前預先分配,subagent 不得自行配號。
 F002–F005 的號碼在階段一就預先保留,本次接續模式沿用,不重配。
 
 ## 待確認假設彙總
+
+### 階段二 + 階段三(2026-08-22)
+
+| 來源 | 假設 | 採取的判斷 | 閘門裁決 |
+|---|---|---|---|
+| F002 A1 | `startWorkshop` / `loadSession` 除了 `ServiceError` 沒有錯誤通道,工作坊自己的失敗要放哪 | 往 `storyflow-service` 的 `ServiceError` 加五個 `Workshop*` 建構子 | **不接受**(2026-08-22,設計階段就裁決,未拖到閘門)。那會讓契約層的錯誤型別認識 P5,而 `StoryFlow.Service` 門面註解明寫「明確不做的:conflict(P4)、workshop(P5)、LLM」。改為 `storyflow-workshop` 自己一套 `WorkshopError`(七個建構子),四個對外操作一律回 `ServiceM (Either WorkshopError …)`;`WsLlmFailed` 原樣包住 `LlmError` 不攤平,與 `StoreFailed` 包 `StoreError` 同一個做法。已升格為 `design.md` 對外契約。**F002 設計因此重跑** |
+| F002 A2 | `storyflow-workshop` 拿不到 vault root(不准依賴 `storyflow-store`) | 沿用既有的 `vaultInfo` 取 `vvRoot`,「略微增加 SQLite 查詢成本」 | **不接受**(2026-08-22)。編排者複核 `service/src/StoryFlow/Service.hs:146`:`vaultInfo` 是 `listEntities conn emptyFilter` 再 `length`,**全表掃描**,而快照每一 step 寫一次——代價被低估了。改為新增 `vaultRoot :: ServiceM FilePath`(見 S6)。**F002 設計因此重跑** |
+| F002 A3 | 硬約束存在性檢查的時機 | `startWorkshop` 及早驗證、`stepWorkshop` 現讀不快取 | 待重跑後的文檔確認,留閘門 |
+| F002 A4 | `wsId` 產生方式 | `fnv1a64` + `wksp-` 前綴 + 檔案存在性碰撞重試,不進 `Core.Id.IdPrefix` 封閉集合 | 待閘門(編排者已複核 `fnv1a64` 確實由 `StoryFlow.Core.Id` 匯出) |
+| F002 A5 | `saveSession` 與 id 產生函式要不要進套件公開面 | 暫不公開,留給 F003 以套件內部呼叫重用 | 待閘門 |
+
+### 階段一(2026-08-20)
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|

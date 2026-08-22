@@ -78,10 +78,21 @@ newLlmClient :: LlmConfig -> IO LlmClient
 chat :: LlmClient -> [Message] -> IO (Either LlmError Text)
 
 -- storyflow-workshop
-startWorkshop  :: Text -> [Id] -> ServiceM Session   -- 型別 + 硬約束片段;建立並寫出快照
-loadSession    :: Text -> ServiceM Session           -- 依 session id 讀回快照
-stepWorkshop   :: LlmClient -> Session -> Text -> ServiceM (Either LlmError (Session, Text))
-commitStage    :: Session -> ServiceM (Session, [EntityView])   -- 定案該階段,寫進圖譜
+data WorkshopError
+  = WsSessionNotFound Text              -- 沒有這個 session id 的快照
+  | WsSnapshotCorrupt FilePath Text     -- 快照讀得到但解不開
+  | WsSnapshotWriteFailed FilePath Text
+  | WsNoStages Text                     -- 這個型別的註冊表宣告沒有 stages
+  | WsStagesExhausted Text              -- 階段已走完,還想 step / commit
+  | WsNothingToCommit Text              -- wsPending 是空的
+  | WsLlmFailed LlmError                -- 模型那一跳,原樣包住不攤平
+renderWorkshopError :: WorkshopError -> Text
+workshopErrorCode   :: WorkshopError -> Text
+
+startWorkshop :: Text -> [Id] -> ServiceM (Either WorkshopError Session)
+loadSession   :: Text -> ServiceM (Either WorkshopError Session)
+stepWorkshop  :: LlmClient -> Session -> Text -> ServiceM (Either WorkshopError (Session, Text))
+commitStage   :: Session -> ServiceM (Either WorkshopError (Session, [EntityView]))
 ```
 
 對外形式:
@@ -138,6 +149,10 @@ retries    = 1                           # 選填,預設 1。只作用於 LlmUna
 「不進圖譜」,而 `.storyflow/` 底下的東西本來就不進圖譜:`store` 的索引掃描略過所有以 `.` 開頭
 的名字,所以快照不會被索引、不會出現在 `list` / `search`、也不會被衝突偵測撈到。
 
+Vault root 經 `service-and-interfaces` 於 2026-08-22 新增的內嵌出口 `vaultRoot :: ServiceM FilePath`
+取得(**不**沿用 `vaultInfo`:它為了 `vvEntityCount` 會 `listEntities` 全表掃描,而快照每一 step
+寫一次)。`storyflow-workshop` 與 `storyflow-llm` 同樣不准依賴 `storyflow-store`。
+
 放 Vault 內而不是家目錄,是因為 `wsConstraints` 指的是**這個 Vault 裡的 Entity id**——快照跟著
 Vault 走,換 Vault 就換一組工作坊;放家目錄則會出現「跨 Vault 拿到壞參照」。`.storyflow/.gitignore`
 加一行 `workshops/`(與 `index.db` 同一個理由:未定案的對話是本機互動狀態,不是故事設定)。
@@ -148,13 +163,25 @@ Vault 走,換 Vault 就換一組工作坊;放家目錄則會出現「跨 Vault �
 快照,介面層只需要 `loadSession`。把存檔時機交給介面層,CLI 與 REST 兩邊就會各有一份判斷,
 而那正是「session id 在兩種介面裡是同一個東西」最容易破的地方。
 
-**`stepWorkshop` 的錯誤通道**(2026-08-22 批次澄清):簽名回
-`ServiceM (Either LlmError (Session, Text))`,與 F001 已定的
-`llmConfig :: ServiceM (Either LlmError LlmConfig)` 同一個形狀——**不讓下層的錯誤型別認識上層的
-`ServiceError`**,呈現交給介面層。工作坊沒有 `conflict-detection` 第 3 層那種「退化成前兩層」的
-逃生口:模型連不上,這一步就是做不下去,所以錯誤要原樣浮到使用者面前,而不是被折成一個泛用的
-失敗。`LlmError` 的五類分類(見上)在這裡直接可用:「你還沒設定」與「地端服務沒起來」的下一步
-不同。
+**工作坊的錯誤語彙**(2026-08-22 批次澄清;F002 的 A1 裁決):`storyflow-workshop` **自己一套
+`WorkshopError`**,四個對外操作一律回 `ServiceM (Either WorkshopError …)`。
+
+**不往 `storyflow-service` 的 `ServiceError` 加 `Workshop*` 建構子**:那會讓契約層的錯誤型別
+認識 P5 的概念,而 `StoryFlow.Service` 的門面註解明寫著「明確不做的:conflict(P4)、
+workshop(P5)、LLM」。`storyflow-llm` 的 `LlmError` 與 `storyflow-conflict` 的 `ReportNote`
+已經是同一種形狀——**下層的錯誤型別不認識上層**,呈現一律交給介面層。
+
+`WsLlmFailed` **包住 `LlmError` 而不攤平**,理由與 `ServiceError` 的 `StoreFailed` 原樣包住
+`StoreError` 一模一樣:`renderLlmError` 的每一則訊息都已經寫成「說出下一步」的形式,重寫一遍
+只會讓兩份訊息隨時間漂移。`LlmError` 的五類分類(見上)因此在工作坊路徑上完整可用——「你還沒
+設定」與「地端服務沒起來」的下一步不同。
+
+工作坊**沒有** `conflict-detection` 第 3 層那種「退化成前兩層」的逃生口:模型連不上,這一步就是
+做不下去,所以錯誤要原樣浮到使用者面前,而不是被折成一個泛用的失敗。
+
+`ServiceM` 本身的 `ServiceError` 通道仍然在用——`commitStage` 寫圖譜時的落地失敗(樂觀鎖過時、
+必填欄位缺漏)是**業務層的失敗**,本來就該講 `ServiceError` 那套話。`WorkshopError` 只講工作坊
+自己的失敗。
 
 **階段定案的來源:結構化草稿**(2026-08-22 批次澄清):`commitStage` 的簽名**沒有** `LlmClient`,
 所以定案時不再問一次模型。「把一段對話切成多個片段」發生在 `stepWorkshop`:它的 system prompt
@@ -377,9 +404,9 @@ data Role = System | User | Assistant
 
 - **階段**:階段二(工作坊)
 - **負責模組**:`Workshop.Session`、`Workshop.Stages`
-- **實作的 Level 2 介面**:「對外契約」的 `startWorkshop :: Text -> [Id] -> ServiceM Session`、
-  `loadSession :: Text -> ServiceM Session` 與
-  `stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Either LlmError (Session, Text))`;
+- **實作的 Level 2 介面**:「對外契約」的 `WorkshopError` / `renderWorkshopError` /
+  `workshopErrorCode`、`startWorkshop`、`loadSession` 與 `stepWorkshop`(四者的簽名見契約,
+  一律 `ServiceM (Either WorkshopError …)`);
   「模組間公開介面與資料結構」的 `Session` / `StageDraft`,以及
   `Workshop.Stages` → `Llm.Client`、→ `Workshop.Session` 兩條
 - **資料流管線段落**:工作坊管線的 `startWorkshop` → `stepWorkshop` 段(定案之前)
@@ -387,23 +414,26 @@ data Role = System | User | Assistant
   硬約束片段以 `summary` 進 prompt;`Session` 是可序列化的快照,落在
   `.storyflow/workshops/<id>.json`,中斷後 `loadSession` 接得回去(三個寫入操作各自在成功後
   寫出快照);對話歷程不進圖譜;`stepWorkshop` 從模型回覆解析約定 JSON 存進 `wsPending`,
-  解析失敗時保留上一次成功的值、回覆照樣給人看;`LlmError` 原樣浮上來,不折成泛用失敗
-- **明確不做**:不寫圖譜(那是 `workshop-emit`);不定義 CLI 與 REST 形狀;不自己實作端點
+  解析失敗時保留上一次成功的值、回覆照樣給人看;`LlmError` 由 `WsLlmFailed` 原樣包住浮上來,
+  不攤平也不折成泛用失敗;vault root 走 `vaultRoot`,**不碰 `storyflow-store`**
+- **明確不做**:不寫圖譜(那是 `workshop-emit`);不定義 CLI 與 REST 形狀;不自己實作端點;
+  **不往 `storyflow-service` 的 `ServiceError` 加建構子**
 
 ### workshop-emit
 
 - **階段**:階段二(工作坊)
 - **負責模組**:`Workshop.Emit`
 - **實作的 Level 2 介面**:「對外契約」的
-  `commitStage :: Session -> ServiceM (Session, [EntityView])`;
+  `commitStage :: Session -> ServiceM (Either WorkshopError (Session, [EntityView]))`;
   「模組間公開介面」的 `Workshop.Emit` → `service-and-interfaces`
 - **資料流管線段落**:工作坊管線的「定案 → `NewEntityReq` → service 寫入 → `[EntityView]`」
 - **驗收標準**:一次定案產出**多個片段 Entity**,不是一份文件(這是相對 design-studio 的
   關鍵差異);**一次工作坊 = 一份主題檔**——首次 `commitStage` 用 `createEntity` 建主體
   (`type` 取註冊表的 `owner_type`,沒宣告就用型別鍵本身)並記進 `wsOwner`,之後每階段用
   `addFragment` 往同一份檔案加節;每個片段建 `partOf` 指向 `wsOwner`;寫入的 `source` 一律
-  `workshop:<型別>`;`wsPending` 是空的時候回錯誤,**不寫出空片段**;寫入走與 CLI 相同的
-  `ServiceM` 操作
+  `workshop:<型別>`;`wsPending` 是空的時候回 `WsNothingToCommit`,**不寫出空片段**;寫入走與
+  CLI 相同的 `ServiceM` 操作,落地失敗照樣講 `ServiceError` 那套話(`WorkshopError` 只講工作坊
+  自己的失敗)
 - **明確不做**:不直接碰 `storyflow-store`;不決定階段流程(那是 `workshop-stages`);
   不在寫入失敗時自行重試改寫
 
@@ -417,8 +447,9 @@ data Role = System | User | Assistant
   兩種介面都以 `loadSession` 取回 session,**不自己管存檔時機**
 - **資料流管線段落**:工作坊管線的外部入口(參數/請求 → Session 操作 → 渲染回應)
 - **驗收標準**:CLI 與 REST 行為一致;`--json` 走統一信封;錯誤沿用 `errorCode` 與
-  `renderServiceError`;`LlmError` 在這一層才被折成使用者看得懂的訊息(沿用
-  `renderLlmError` 的原文,不重寫下層訊息);session id 在兩種介面裡是同一個東西
+  `renderServiceError`;`WorkshopError` 在這一層才被折成使用者看得懂的訊息(走
+  `renderWorkshopError` / `workshopErrorCode`,而它們對 `LlmError` 又是沿用
+  `renderLlmError` / `llmErrorCode` 的原文,一路不重寫下層訊息);session id 在兩種介面裡是同一個東西
   ——同一份 `.storyflow/workshops/<id>.json`,CLI 開的 session 用 REST 接得下去
 - **明確不做**:不含工作坊邏輯(薄包裝);不新增業務操作;不為工作坊另立一套錯誤語彙
 

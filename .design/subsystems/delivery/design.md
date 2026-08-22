@@ -5,7 +5,7 @@ title: delivery
 description: 系統對人的四個入口:CLI、HTTP API、Web 前端與專案產出
 status: active
 created: 2026-08-19
-updated: 2026-08-20
+updated: 2026-08-21
 parent: system
 related-adr: [ADR-001]
 ---
@@ -147,9 +147,13 @@ assetdb-server --help | -h
 - **資料庫路徑有兩種語意,而且分開表示**。查詢類指令要求資料庫**必須已存在**,找不到就以
   非 0 結束碼結束並印出「用 `--db` 指定」與「先跑 `scan`」的指引;只有 `scan` 是初始化語意,
   允許在找不到時開新庫。合成一個函式並預設後者,會讓在錯誤工作目錄下的任何查詢都靜默建出空庫。
-- **會改動狀態的動作預設只預覽**。`cluster rule`、`ai suggest confirm/reject`、`ai apply`、
-  `project sync` 都要 `--confirm` 才真的寫入;`reorganize` 的模式旗標互斥且**沒有預設值**,
-  而可回退的階段 A 與不可回退的階段 B 需要兩個旗標。
+- **會改動狀態的動作預設只預覽**。`cluster rule`、`cluster apply`、`ai suggest confirm/reject`、
+  `ai apply`、`project sync` 都要 `--confirm` 才真的寫入;`reorganize` 的模式旗標互斥且
+  **沒有預設值**,而可回退的階段 A 與不可回退的階段 B 需要兩個旗標。
+  `cluster apply` 在其中最容易被漏掉,因為它看起來只是「把已確認的規則套上去」——但它
+  一次寫入的是全域唯一的 `logical_name`(ADR-004 的對外命名契約,遊戲的 `Assets.hs`
+  常數由它產生),而且**沒有 undo 路徑**。`cluster rule` 的 `--confirm` 只確認規則本身,
+  不能替代這一道(G-B001)。
 - **授權閘門預設是開的**。`new-project` 與 `project sync` 要 `--allow-non-commercial` 才會關掉。
 
 ### 4. 前端與後端的型別契約
@@ -415,7 +419,7 @@ data GlobalArgs = GlobalArgs { gaDbPath :: Maybe FilePath }
 data Invocation = Invocation GlobalArgs Command
 data Command    = CmdScan ScanArgs | CmdTools | CmdDoctor | CmdPackList | CmdPackApply FilePath
                 | CmdReorgPlan ReorgArgs | CmdClusterList (Maybe Text) | CmdClusterRule RuleArgs
-                | CmdClusterApply (Maybe Text) | CmdSearch SearchArgs | CmdIndex | CmdThumbs Bool
+                | CmdClusterApply (Maybe Text) Bool | CmdSearch SearchArgs | CmdIndex | CmdThumbs Bool
                 | CmdNewProject ProjectArgs | CmdProjectSync SyncArgs
                 | CmdNoteImport NoteArgs | CmdNoteList (Maybe Text)
                 | CmdLink LinkArgs | CmdAiPing AiConn | CmdAiClassify AiConn AiClassifyArgs

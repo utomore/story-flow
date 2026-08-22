@@ -207,9 +207,17 @@ previewCluster :: NamingVocab -> NameRule -> [Text] -> [NamePreview]
 
 data ApplyNames = ApplyNames
   { anNamed :: Int, anSkipped :: Int
-  , anFailed :: [(Text, Text)], anCollisions :: [(Text, [Text])] }
-applyNames :: Store -> NamingVocab -> Int -> IO ApplyNames
+  , anFailed :: [(Text, Text)], anCollisions :: [(Text, [Text])]
+  , anNames :: [(Text, Text)] }        -- (項目路徑, 邏輯名稱):會寫入 / 已寫入的完整對應
+applyNames :: Store -> NamingVocab -> Int -> Bool -> IO ApplyNames
 ```
+
+`applyNames` 的最後一個參數是**確認**:`False` 時做完全部計算但**不進交易**。
+`logical_name` 是全域唯一的對外命名契約且沒有 undo 路徑,所以套用必須能先預覽
+(見 `system.md` 錯誤處理策略第 3 條)。預覽與實際套用**走同一條計算路徑**,
+因此 `anNamed` 與 `anNames` 在兩種模式下逐筆相同——兩份各自計算的預覽與實作
+遲早會漂移,那是 `delivery/B007` 的教訓。`anNames` 讓呼叫端能給人看「這個檔案會變成
+這個名字」,而規則對不對只有看名字才判斷得出來,數字看不出來。
 
 ### 縮圖 — `AssetDB.Ingest.Thumb` / `AssetDB.Ingest.ThumbRun`
 
@@ -470,8 +478,15 @@ data/packs.toml 文字 ──parseCatalogue──► Catalogue
           ┌─────┴──────────────────────┐
       有失敗或撞名                  全部乾淨
           │                             │
-   一筆都不寫,回報所有問題      單一交易寫入 logical_name
+   一筆都不寫,回報所有問題      ┌──────┴───────┐
+                            未確認          已確認
+                              │                │
+                     只回報會產生什麼   單一交易寫入 logical_name
+                     (anNames),不寫入
 ```
+
+**計算與寫入是同一條路徑上的兩段,不是兩份程式碼。** 未確認時停在第一段結束處,
+所以預覽報告的數字與名字就是確認後實際會發生的事。
 
 分群與反查用**同一段程式碼**產生形狀鍵,否則規則會套到錯的檔案上。
 
@@ -781,7 +796,8 @@ archive ◄──── ingest ◄──── reorg
   - 規則存進去讀得回來;同一叢集重複確認是覆寫而非新增
   - 只套用已確認叢集,其餘計入 `anSkipped`;沒有任何規則時什麼都不做
   - 撞名在寫入之前攔下,回報**所有**撞名而不是第一個,且一筆都不寫
-  - 預覽不寫入任何東西
+  - 預覽不寫入任何東西;`applyNames` 未確認時同樣一個字都不寫,但算得出會命名幾筆
+    與實際會產生的名字(`anNames`),且與確認後的結果逐筆相同
   - 產生的名稱一律通過 catalog 的命名文法驗證;純中文檔名回報錯誤而不是產生垃圾
   - 非末尾權杖的數字保留(否則同一系列的變體會撞名);三位數以上自動判為格號而非變體
 - **明確不做**:不自動決定尾端數字是變體還是格號(`NumAuto` 只在形狀明確時下結論,其餘由人指定);不猜檔名裡缺失的主體;不做語意分類;不改檔案名稱(只寫資料庫的 `logical_name`);不做跨素材包的叢集合併

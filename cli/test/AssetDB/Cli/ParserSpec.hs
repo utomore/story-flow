@@ -122,6 +122,34 @@ spec = do
         Just (Invocation _ (CmdNewProject a)) -> paAllowNonCommercial a `shouldBe` True
         other -> unexpected other
 
+  describe "cluster apply" $ do
+    it "--help 以成功結束並列出 --confirm" $ do
+      helpExit ["cluster", "apply", "--help"] `shouldBe` Just ExitSuccess
+      let t = helpText ["cluster", "apply", "--help"]
+      mapM_ (\f -> t `shouldSatisfy` (f `isInfixOf`)) ["--pack", "--confirm"]
+
+    it "預設只預覽 —— 它一次改動的是全域唯一的邏輯名稱,而且沒有 undo" $
+      case parse ["cluster", "apply"] of
+        Just (Invocation _ (CmdClusterApply mSlug confirm)) -> do
+          mSlug `shouldBe` Nothing
+          confirm `shouldBe` False
+        other -> unexpected other
+
+    it "--confirm 要明講才會真的寫入,--pack 一起收得到" $
+      case parse ["cluster", "apply", "--pack", "demo", "--confirm"] of
+        Just (Invocation _ (CmdClusterApply mSlug confirm)) -> do
+          mSlug `shouldBe` Just "demo"
+          confirm `shouldBe` True
+        other -> unexpected other
+
+    it "cluster rule 與 cluster list 的解析不受影響" $ do
+      case parse ["cluster", "list", "--pack", "demo"] of
+        Just (Invocation _ (CmdClusterList s)) -> s `shouldBe` Just "demo"
+        other -> unexpected other
+      case parse ["cluster", "rule", "--pack", "p", "--shape", "s", "--kind", "ui", "--domain", "gui"] of
+        Just (Invocation _ (CmdClusterRule _)) -> pure ()
+        other -> unexpected other
+
   describe "project sync" $ do
     it "--help 以成功結束並列出全部旗標" $ do
       helpExit ["project", "sync", "--help"] `shouldBe` Just ExitSuccess

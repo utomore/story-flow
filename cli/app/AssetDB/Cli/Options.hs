@@ -64,7 +64,7 @@ data Command
   | CmdReorgPlan ReorgArgs
   | CmdClusterList (Maybe Text)
   | CmdClusterRule RuleArgs
-  | CmdClusterApply (Maybe Text)
+  | CmdClusterApply (Maybe Text) Bool
   | CmdSearch SearchArgs
   | CmdIndex
   | CmdThumbs Bool
@@ -408,8 +408,11 @@ clusterP =
         <> command
           "apply"
           ( info
-              (CmdClusterApply <$> optional packOpt)
-              (progDesc "把已確認的規則套用成邏輯名稱")
+              ( CmdClusterApply
+                  <$> optional packOpt
+                  <*> switch (long "confirm" <> help "真的寫入。不加就只是預覽")
+              )
+              (progDesc "把已確認的規則套用成邏輯名稱(預設只預覽)")
           )
     )
   where

@@ -11,6 +11,7 @@ import AssetDB.Naming (defaultVocab)
 import AssetDB.Store
 import AssetDB.Store.Index (reindexFts)
 import AssetDB.Types (KindPrefix, parseTextEnum)
+import Control.Monad (unless, void, when)
 import Data.List (find)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -126,30 +127,44 @@ runClusterRule dbPath RuleArgs {..} =
         Right n -> TIO.putStrLn ("    → " <> n)
         Left e -> TIO.putStrLn ("    ✗ " <> e)
 
-    -- 頭中尾各取,不是前 N 筆 —— 前 N 筆常常長得一模一樣。
-    sampleOf xs =
-      let n = length xs
-       in if n <= 6 then xs else [xs !! 0, xs !! 1, xs !! (n `div` 3), xs !! (n `div` 2), xs !! (n - 2), xs !! (n - 1)]
+--------------------------------------------------------------------------------
+
+-- | 頭中尾各取,不是前 N 筆 —— 前 N 筆常常長得一模一樣,看不出規則在
+-- 不同位置的成員上是否都成立。
+sampleOf :: [a] -> [a]
+sampleOf xs =
+  let n = length xs
+   in if n <= 6 then xs else [xs !! 0, xs !! 1, xs !! (n `div` 3), xs !! (n `div` 2), xs !! (n - 2), xs !! (n - 1)]
 
 --------------------------------------------------------------------------------
 
-runClusterApply :: FilePath -> Maybe Text -> IO ()
-runClusterApply dbPath mSlug =
+-- | 把已確認的規則套用成邏輯名稱。
+--
+-- **預設只預覽。** @logical_name@ 是 ADR-004 的對外命名契約:全域唯一、
+-- 遊戲專案的 @Assets.hs@ 常數由它產生,而且寫入後沒有 undo 路徑。一次
+-- @apply@ 可能改動數千筆,所以要先讓人看見會發生什麼(G-B001)。
+runClusterApply :: FilePath -> Maybe Text -> Bool -> IO ()
+runClusterApply dbPath mSlug confirm =
   withStore dbPath $ \st -> do
     _ <- initSchema st
     packs <- listPacks st mSlug
-    results <- mapM (\pk -> (,) pk <$> applyNames st defaultVocab (pkId pk)) packs
+    results <- mapM (\pk -> (,) pk <$> applyNames st defaultVocab (pkId pk) confirm) packs
 
     mapM_ report results
 
     -- 命名改變了 logical_name,而那是全文索引的主要欄位。
-    _ <- reindexFts (storeConn st)
+    -- 預覽沒有改動任何東西,索引自然也不必重建。
+    when confirm $ void (reindexFts (storeConn st))
 
     let named = sum [anNamed r | (_, r) <- results]
         skipped = sum [anSkipped r | (_, r) <- results]
         problems = sum [length (anFailed r) + length (anCollisions r) | (_, r) <- results]
     TIO.putStrLn ""
-    TIO.putStrLn ("命名 " <> tshow named <> " 筆,跳過 " <> tshow skipped <> " 筆(叢集未確認)")
+    if confirm
+      then TIO.putStrLn ("命名 " <> tshow named <> " 筆,跳過 " <> tshow skipped <> " 筆(叢集未確認)")
+      else do
+        TIO.putStrLn ("將命名 " <> tshow named <> " 筆,跳過 " <> tshow skipped <> " 筆(叢集未確認)")
+        TIO.putStrLn "這是預覽,沒有寫入任何東西。確認名字正確後加上 --confirm。"
     if problems > 0 then exitFailure else pure ()
   where
     report (pk, r)
@@ -157,7 +172,19 @@ runClusterApply dbPath mSlug =
       | otherwise = do
           TIO.putStrLn ""
           TIO.putStrLn ("── " <> pkName pk)
-          TIO.putStrLn ("  命名 " <> tshow (anNamed r) <> ",跳過 " <> tshow (anSkipped r))
+          TIO.putStrLn
+            ( (if confirm then "  命名 " else "  將命名 ")
+                <> tshow (anNamed r)
+                <> ",跳過 "
+                <> tshow (anSkipped r)
+            )
+          -- 預覽的重點是「這個檔案會變成這個名字」—— 數字看不出規則對不對。
+          -- 不逐筆全列:一次可能數千筆,而且有副作用的指令接 Select-Object
+          -- 會在寫入前被殺掉,重導向到檔案才是正確用法。
+          unless confirm $
+            mapM_
+              (\(p, n) -> TIO.putStrLn ("      " <> p <> "\n        → " <> n))
+              (sampleOf (anNames r))
           mapM_ (\(p, e) -> TIO.putStrLn ("  ✗ " <> p <> "\n      " <> e)) (take 10 (anFailed r))
           mapM_
             ( \(n, ps) -> do

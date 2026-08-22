@@ -57,7 +57,12 @@ related-adr: [ADR-003, ADR-005, ADR-006]
 | | `Workshop.Stages` | 依註冊表的 `stages` 驅動的狀態機:進入 / 對話 / 定案 / 下一階段 |
 | | `Workshop.Emit` | 定案 → 多個 `NewEntityReq` / `NewFragmentReq`,經 service 寫進圖譜 |
 | | `Workshop.Error` | `WorkshopError` 的八個建構子與它的兩個輸出。與 `Llm.Error` 同一個切法、同一個理由(2026-08-22 補列) |
-| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器,把 REST 的 24 個操作暴露成 MCP tools |
+| `storyflow-mcp` | `Mcp.Server` | MCP stdio 伺服器:JSON-RPC 2.0 的 `initialize` / `tools/list` / `tools/call` |
+| | `Mcp.Tools` | 從 `storyFlowOpenApi` 反推 tool 清單與 `inputSchema`,**不連線** |
+| | `Mcp.Client` | 依 path template + method 組 `http-client` 請求打 `story-flow-serve` |
+| | `Mcp.Config` | 連線設定(`--url` > `STORYFLOW_URL`;`STORYFLOW_TOKEN`) |
+| | `Mcp.Protocol` | JSON-RPC 2.0 的信封編解碼 |
+| | `Mcp` | 門面 |
 
 **工作坊的狀態存在哪裡**:記憶體 + 一份可序列化的 session 快照。工作坊是**互動流程**,
 中途的對話不是「故事設定」,不該寫進 Vault 汙染圖譜;只有**定案的片段**才寫進去。
@@ -231,7 +236,7 @@ workshop(P5)、LLM」。`storyflow-llm` 的 `LlmError` 與 `storyflow-conflict` 
 **MCP adapter 的連線與 tool 命名**(2026-08-22 批次澄清):
 
 - **連線**:`story-flow-mcp --url <base>`,或 `STORYFLOW_URL` / `STORYFLOW_TOKEN` 兩個環境變數
-  (旗標優先)。**沒設定或連不上就在 `initialize` 回錯誤並說出下一步**(「先跑 `story-flow serve`」)
+  (旗標優先)。**沒設定或連不上就在 `initialize` 回錯誤並說出下一步**(「先跑 `story-flow-serve`」——2026-08-22 更正:批次澄清時誤寫成 `story-flow serve`,但那個子指令不存在,service-and-interfaces/F003 當初就把它做成獨立執行檔了)
   ——與 F001「沒有 `[llm]` 段就說你還沒設定,不猜預設值」同一個立場。adapter **不自己拉背景
   server**:ADR-006 已經為了孤兒行程、port 衝突、多 Vault 對應哪個 daemon 這三件事否決過那條路
 - **tool 命名**:由 OpenAPI 的 `operationId` 推導,**不手維護對照表**。「claude code 掛上後不必再讀
@@ -310,7 +315,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
                                 │ REST
                    ┌────────────┴─────────────┐
                    │     storyflow-mcp        │  薄層:無業務邏輯
-                   │  MCP tools ← 24 個操作    │
+                   │  MCP tools ← 全部 operation│
                    └────────────┬─────────────┘
                                 │ stdio
                         claude code / codex
@@ -325,7 +330,7 @@ CLI 用的同一組 `ServiceM` 操作,不另開後門。
 | `Workshop.Stages` → `Llm.Client` | 只用 `chat :: LlmClient -> [Message] -> IO (Either LlmError Text)`,不知道後端是地端還是雲端 |
 | `Workshop.Stages` → `Workshop.Session` | 讀寫 `Session`(型別、硬約束、目前階段、各階段定案),狀態只在這裡變動 |
 | `Workshop.Emit` → `service-and-interfaces` | 經 `ServiceM` 以 `NewEntityReq` 寫入,與 CLI 用同一組操作 |
-| `Mcp.Server` → `service-and-interfaces` | 打 REST 的 24 個 operation,不 import `storyflow-service` |
+| `Mcp.Server` → `service-and-interfaces` | 打 REST 的**全部** operation(數量隨路由增減,不寫死),不 import `storyflow-service` |
 
 資料結構:
 
@@ -400,7 +405,7 @@ data Role = System | User | Assistant
 
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
-| 5 | mcp-adapter | MCP stdio adapter,把 REST 的 24 個操作暴露成 MCP tools | service-and-interfaces | - |
+| 5 | mcp-adapter | MCP stdio adapter,把 REST 的全部 operation 暴露成 MCP tools | service-and-interfaces | F005 |
 
 小結:共 **5 個 features、3 個階段**。全部完成即達成主架構 P5 的完成標準「地端模型能引導
 產出片段;claude code 以 MCP 直接操作」。
@@ -491,7 +496,7 @@ data Role = System | User | Assistant
 ### mcp-adapter
 
 - **階段**:階段三(MCP)
-- **負責模組**:`Mcp.Server`
+- **負責模組**:`Mcp.Server`、`Mcp.Tools`、`Mcp.Client`、`Mcp.Config`、`Mcp.Protocol`
 - **實作的 Level 2 介面**:「對外契約」對外形式表的 MCP 那一列——stdio 傳輸,tools 由
   `service-and-interfaces` REST 的**全部** operation 映射(**數量不寫死**,由 API 型別決定);
   「模組間公開介面」的 `Mcp.Server` → `service-and-interfaces`;以及本文件的
@@ -500,7 +505,7 @@ data Role = System | User | Assistant
 - **驗收標準**:**每一個** REST operation 都有對應的 MCP tool 且參數形狀來自同一份 API 型別
   ——可測形式是 **tools 數 == OpenAPI operation 數**,tool 名字由 `operationId` 推導,不手維護
   對照表;連線走 `--url` 或 `STORYFLOW_URL` / `STORYFLOW_TOKEN`(旗標優先),沒設定或連不上
-  就在 `initialize` 回錯誤並指出「先跑 `story-flow serve`」;錯誤沿用 REST 的 `code` 與訊息;
+  就在 `initialize` 回錯誤並指出「先跑 `story-flow-serve`」;錯誤沿用 REST 的 `code` 與訊息;
   claude code 掛上後不必再讀 API 文件就能建/查片段與關聯
 - **明確不做**:不含任何業務邏輯;不 import `storyflow-service`(只打 HTTP);
   不自行擴充 REST 沒有的操作;**不自己拉背景 server**(ADR-006 已否決那條路)

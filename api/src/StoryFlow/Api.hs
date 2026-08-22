@@ -44,20 +44,29 @@ module StoryFlow.Api
 
     -- * OpenAPI
   , storyFlowOpenApi
+  , deriveOperationId
   ) where
 
-import Control.Lens ((&), (.~), (?~))
+import Control.Lens ((&), (.~), (?~), (%~))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.!=), (.:), (.:?), (.=))
+import Data.Char (toUpper)
 import Data.OpenApi
   ( NamedSchema (..)
   , OpenApi
   , OpenApiType (OpenApiObject)
   , ToSchema (..)
   , declareSchemaRef
+  , delete
   , description
+  , get
   , info
   , license
+  , operationId
+  , patch
+  , paths
+  , post
   , properties
+  , put
   , required
   , title
   , type_
@@ -67,6 +76,7 @@ import Data.OpenApi.Operation (applyTagsFor)
 import qualified Data.HashMap.Strict.InsOrd as IOM
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
+import qualified Data.Text as T
 -- @Servant.API@ 也匯出一個 @Link@(它的 safe-link 型別),與 core 的關聯型別撞名。
 -- 隱藏它而不是把 core 的那個 qualified:這份檔案講的 @Link@ 從頭到尾都是關聯,
 -- 而 safe link 在這裡一次都沒用到。
@@ -545,8 +555,8 @@ storyFlowAPI = Proxy
 
 -- | OpenAPI 3 文件,由 'storyFlowAPI' 推導。
 --
--- @story-flow serve --openapi@ 直接把它印出來,所以
--- @story-flow serve --openapi > openapi.json@ 是給 Agent 的一步驟交付。
+-- @story-flow-serve --openapi@ 直接把它印出來,所以
+-- @story-flow-serve --openapi > openapi.json@ 是給 Agent 的一步驟交付。
 storyFlowOpenApi :: OpenApi
 storyFlowOpenApi =
   tagged (toOpenApi storyFlowAPI)
@@ -556,7 +566,8 @@ storyFlowOpenApi =
     & info . license ?~ "BSD-3-Clause"
   where
     tagged =
-      applyTagsFor (subOperations (Proxy :: Proxy VaultAPI) storyFlowAPI) ["vault"]
+      setOperationIds
+        . applyTagsFor (subOperations (Proxy :: Proxy VaultAPI) storyFlowAPI) ["vault"]
         . applyTagsFor (subOperations (Proxy :: Proxy EntityAPI) storyFlowAPI) ["entity"]
         . applyTagsFor (subOperations (Proxy :: Proxy LinkAPI) storyFlowAPI) ["link"]
         . applyTagsFor (subOperations (Proxy :: Proxy LevelAPI) storyFlowAPI) ["level"]
@@ -564,3 +575,41 @@ storyFlowOpenApi =
         . applyTagsFor (subOperations (Proxy :: Proxy MiscAPI) storyFlowAPI) ["misc"]
         . applyTagsFor (subOperations (Proxy :: Proxy ConflictAPI) storyFlowAPI) ["conflict"]
         . applyTagsFor (subOperations (Proxy :: Proxy WorkshopAPI) storyFlowAPI) ["workshop"]
+
+-- | 幫 'storyFlowOpenApi' 全部 28 個 operation 補上 @operationId@
+-- (llm-workshop-mcp/F005)。@servant-openapi3@ 完全不設定這個欄位(查證結果 2),
+-- 但 @storyflow-mcp@ 的 tool 名字要「由 operationId 推導,不手維護對照表」——
+-- 這一步讓那句話在 __編譯期__ 就成立:'StoryFlowAPI' 一改,這裡的 traverse 自動
+-- 跟著算出新的 operationId,沒有人要手動同步一份表。
+setOperationIds :: OpenApi -> OpenApi
+setOperationIds doc = doc & paths %~ IOM.mapWithKey setForPath
+  where
+    setForPath path item =
+      item
+        & get %~ fmap (setId "get" path)
+        & post %~ fmap (setId "post" path)
+        & put %~ fmap (setId "put" path)
+        & patch %~ fmap (setId "patch" path)
+        & delete %~ fmap (setId "delete" path)
+    setId verb path op = op & operationId ?~ deriveOperationId verb (T.pack path)
+
+-- | 從 HTTP method(小寫)與 OpenAPI 路徑模板(如 @\"\/entities\/{id}\/links\"@)
+-- 機械推導 operationId,不手寫任何一筆對照。規則:
+--
+--   1. 依 @\'\/\'@ 切成片段,去掉空字串
+--   2. 片段形如 @\"{name}\"@ → @\"By\"@ <> 首字大寫(name)
+--   3. 其餘片段 → 首字大寫(片段本身,全部已是純小寫英文單字)
+--   4. method(小寫)接上全部轉換後片段依序串接
+--
+-- 例:@(\"post\", \"\/entities\/{id}\/links\")@ -> @\"postEntitiesByIdLinks\"@;
+-- @(\"post\", \"\/vault\/index\/rebuild\")@ -> @\"postVaultIndexRebuild\"@。
+deriveOperationId :: Text -> Text -> Text
+deriveOperationId method path = T.concat (method : map convertSegment segments)
+  where
+    segments = filter (not . T.null) (T.splitOn "/" path)
+    convertSegment seg = case T.stripPrefix "{" seg >>= T.stripSuffix "}" of
+      Just name -> "By" <> capitalize name
+      Nothing -> capitalize seg
+    capitalize t = case T.uncons t of
+      Nothing -> t
+      Just (c, rest) -> T.cons (toUpper c) rest

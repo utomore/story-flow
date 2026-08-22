@@ -392,7 +392,7 @@ data Role = System | User | Assistant
 |---|---------|-----------|------|------|
 | 2 | workshop-stages | 依型別註冊表 `stages` 驅動的階段式狀態機與 session 快照 | #1 | F002 |
 | 3 | workshop-emit | 每階段定案 → 產出多個片段 Entity 並經 service 寫進圖譜 | #2 | F003 |
-| 4 | workshop-interface | 工作坊的 CLI 子指令與 REST 路由 | #3 | - |
+| 4 | workshop-interface | 工作坊的 CLI 子指令與 REST 路由 | #3 | F004 |
 
 ### 階段三:MCP
 

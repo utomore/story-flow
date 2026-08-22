@@ -3,7 +3,7 @@ id: F003
 type: feature
 title: workshop-emit
 description: 工作坊每階段定案寫成多個片段 Entity,首次定案另建主題檔
-status: open
+status: done
 created: 2026-08-22
 updated: 2026-08-22
 depends-on: [F002, entity-graph-core/F002, service-and-interfaces/F001]
@@ -331,14 +331,14 @@ commitStage :: Session -> ServiceM (Either WorkshopError (Session, [EntityView])
 
 ## TodoList
 
-- [ ] T1: 新增 `StoryFlow.Workshop.Emit` 模組骨架,加進 `workshop/storyflow-workshop.cabal` 的 `exposed-modules`(緊接 F002 已建好的三個模組之後,library `build-depends` 不需要新增任何套件——`storyflow-core`/`storyflow-service` 已在 F002 的清單內)  `dep: -`
-- [ ] T2: `commitStage` 第一步:`wsPending` 為空 → `pure (Left (WsNothingToCommit (wsId session)))`,不呼叫任何 service 操作  `dep: T1`
-- [ ] T3: `checkRequiredFields`:`listEntityTypes` 找 `wsType` 的 `EntityTypeSpec`,取 `etsFields` 裡 `fsRequired == True` 的 `fsName` 清單,逐一用 `stageFieldPresent` 對照 `wsPending` 每筆 `StageDraft`(`title`/`summary`/`tags`/`timeline` 各自的欄位語意,`aliases` 恆 `False`,其餘欄位名恆 `True`);有缺 → `pure (Left (WsMissingRequiredField wsType missing))` 且不呼叫任何 `createEntity`/`addFragment`;`commitStage` 在 `resolveOwner`/`commitDrafts` 之前插入這一步  `dep: T2`
-- [ ] T4: `resolveOwner`:`wsOwner` 已有值直接沿用;`Nothing` 時 `listEntityTypes` 找 `wsType` 的 `EntityTypeSpec`(找不到 → `throwError (UnknownType _)`),取 `etsOwnerType`(`Nothing` 退回 `wsType`),借用 `head (wsPending session)` 的 `sdTitle`/`sdSummary`/`sdTimeline` 組 `NewEntityReq`(`nerStatus = Draft`、`nerSource = Workshop wsType`、`nerBody = ""`、`nerTimeline = fromMaybe emptyTimeline (sdTimeline seed)`)呼叫 `createEntity`  `dep: T3`
-- [ ] T5: `commitDrafts`:對 `wsPending` 逐筆組 `NewFragmentReq`(`nfrType = Just wsType`、`nfrStatus = Just Draft`、`nfrSource = Just (Workshop wsType)`、`nfrTimeline = sdTimeline d`、`nfrLinks = [Link PartOf (localRef ownerId) Nothing]`)呼叫 `addFragment`,收集 `[EntityView]`  `dep: T4`
-- [ ] T6: 組新 `Session`(`wsOwner`/`wsPending = []`/`wsCommitted` 累加片段 id/`wsCurrent + 1`),呼叫 `saveSession`;`Left` 原樣浮上去,`Right` 回傳 `(newSession, views)`  `dep: T5`
-- [ ] T7: 測試底稿重用 F002 的 `StoryFlow.Workshop.Fixtures`(`withVault`/`runS`/`orDie` 或其等效函式,建臨時 Vault 只靠 `storyflow-service` 的 `createVault`/`openEnv`/`runService`,D8 先例)  `dep: T1`
-- [ ] T8: 套件邊界測試延伸:`StoryFlow.Workshop.CabalSpec` 加一條斷言 `Workshop.Emit` 在 `exposed-modules`,且 library 的 `build-depends` 仍逐字等於 F002 釘住的清單(本 feature 未新增任何套件)  `dep: T1`
+- [x] T1: 新增 `StoryFlow.Workshop.Emit` 模組骨架,加進 `workshop/storyflow-workshop.cabal` 的 `exposed-modules`(緊接 F002 已建好的三個模組之後,library `build-depends` 不需要新增任何套件——`storyflow-core`/`storyflow-service` 已在 F002 的清單內)  `dep: -`
+- [x] T2: `commitStage` 第一步:`wsPending` 為空 → `pure (Left (WsNothingToCommit (wsId session)))`,不呼叫任何 service 操作  `dep: T1`
+- [x] T3: `checkRequiredFields`:`listEntityTypes` 找 `wsType` 的 `EntityTypeSpec`,取 `etsFields` 裡 `fsRequired == True` 的 `fsName` 清單,逐一用 `stageFieldPresent` 對照 `wsPending` 每筆 `StageDraft`(`title`/`summary`/`tags`/`timeline` 各自的欄位語意,`aliases` 恆 `False`,其餘欄位名恆 `True`);有缺 → `pure (Left (WsMissingRequiredField wsType missing))` 且不呼叫任何 `createEntity`/`addFragment`;`commitStage` 在 `resolveOwner`/`commitDrafts` 之前插入這一步  `dep: T2`
+- [x] T4: `resolveOwner`:`wsOwner` 已有值直接沿用;`Nothing` 時 `listEntityTypes` 找 `wsType` 的 `EntityTypeSpec`(找不到 → `throwError (UnknownType _)`),取 `etsOwnerType`(`Nothing` 退回 `wsType`),借用 `head (wsPending session)` 的 `sdTitle`/`sdSummary`/`sdTimeline` 組 `NewEntityReq`(`nerStatus = Draft`、`nerSource = Workshop wsType`、`nerBody = ""`、`nerTimeline = fromMaybe emptyTimeline (sdTimeline seed)`)呼叫 `createEntity`  `dep: T3`
+- [x] T5: `commitDrafts`:對 `wsPending` 逐筆組 `NewFragmentReq`(`nfrType = Just wsType`、`nfrStatus = Just Draft`、`nfrSource = Just (Workshop wsType)`、`nfrTimeline = sdTimeline d`、`nfrLinks = [Link PartOf (localRef ownerId) Nothing]`)呼叫 `addFragment`,收集 `[EntityView]`  `dep: T4`
+- [x] T6: 組新 `Session`(`wsOwner`/`wsPending = []`/`wsCommitted` 累加片段 id/`wsCurrent + 1`),呼叫 `saveSession`;`Left` 原樣浮上去,`Right` 回傳 `(newSession, views)`  `dep: T5`
+- [x] T7: 測試底稿重用 F002 的 `StoryFlow.Workshop.Fixtures`(`withVault`/`runS`/`orDie` 或其等效函式,建臨時 Vault 只靠 `storyflow-service` 的 `createVault`/`openEnv`/`runService`,D8 先例)  `dep: T1`
+- [x] T8: 套件邊界測試延伸:`StoryFlow.Workshop.CabalSpec` 加一條斷言 `Workshop.Emit` 在 `exposed-modules`,且 library 的 `build-depends` 仍逐字等於 F002 釘住的清單(本 feature 未新增任何套件)  `dep: T1`
 
 ## 1-to-1 測試對照表
 
@@ -403,6 +403,40 @@ commitStage :: Session -> ServiceM (Either WorkshopError (Session, [EntityView])
   清理本次 session 遺留的孤兒 Entity」的邏輯,或者 `storyflow-store`/`storyflow-service`
   補一個跨檔案的批次寫入原語——兩者都是本 feature 範圍外的新契約。
 
+- A6:編排者的委派 prompt 額外要求「門面 `StoryFlow.Workshop` 加上 `commitStage`(逐項
+  列舉匯出,不要 `module X` 整包 re-export)」,但 F003 文檔本身的 TodoList 沒有這一項
+  ——F002 也沒有建過這個門面(`storyflow-workshop` 目前只有 `Workshop.Error` /
+  `Workshop.Session` / `Workshop.Stages` 三個 `exposed-modules`,測試全部直接 import
+  內部模組,不像 `storyflow-llm` 有 `StoryFlow.Llm.hs` 門面)。→ 採取:新增
+  `workshop/src/StoryFlow/Workshop.hs`,逐項列舉匯出「對外契約」章節目前**已經存在**的
+  全部四個操作與相關型別(`Session`/`StageDraft`、`startWorkshop`/`loadSession`/
+  `stepWorkshop`/`commitStage`、`WorkshopError`/`renderWorkshopError`/
+  `workshopErrorCode`),仿 `StoryFlow.Llm` 的形狀與匯出風格(含同一段「為什麼逐項列舉」
+  的說明註解);已加進 `exposed-modules`,`CabalSpec` 補一條斷言確認它在清單裡。→
+  影響:這只是重新匯出既有名字的門面模組,不是新公開介面,即使判斷有誤,調整範圍也僅
+  限這一個檔案與它在 `exposed-modules`/`CabalSpec` 的登記,不影響 `Emit.hs` 本身。
+- A7:文檔「實作方式 五」給的範例程式碼裡 `views <- commitDrafts ownerId session` 只含
+  片段,但緊接著的說明段落與「待確認假設 A4」明寫「回傳的 `[EntityView]` 含主體(首次
+  定案時)與全部片段」,而 1-to-1 測試對照表 T5 那一列的措辭「回傳的 `[EntityView]`
+  (**扣掉**首次定案的主體那 1 筆)有 3 筆」也預設 `views` 本來就含主體——範例程式碼與
+  文字說明對不上。→ 採取:以文字說明與測試對照表為準(範例程式碼視為示意,不是逐字規格
+  ——文檔開頭「實作自主權」也明寫內部實作自主決定):把 `resolveOwner` 的回傳型別從
+  `ServiceM Id` 改成 `ServiceM (Id, Maybe EntityView)`(`Just` 僅在本次新建主體時),
+  `commitStage` 首次定案時把主體的 `EntityView` 併進回傳的 `views`(`wsCommitted` 仍然
+  只累加片段 id,不受影響)。這不算偏離 Level 2 契約——`commitStage` 的簽名字面
+  (`Session -> ServiceM (Either WorkshopError (Session, [EntityView]))`)完全沒變,
+  只是回傳清單「裝了什麼」照文字說明走。→ 影響:若判斷錯誤(應該以範例程式碼為準,
+  `views` 只含片段),`commitStage` 最後一步把 `views` 換回 `fragViews` 即可,是局部改動。
+
 ## 實作備註
 
-(開發過程中與設計的偏差記錄於此,撰寫時留空)
+- `StoryFlow.Workshop.Emit.resolveOwner` 借用 `head (wsPending session)` 取「首筆草稿」
+  這件事,文檔範例直接寫 `head`,但專案的 `-Wall`(GHC 9.14)把 `-Wx-partial` 也算進
+  `-Wall`,對 `head` 會報警告,而零 warning 是驗收標準。改用 `case wsPending session of
+  [] -> error "..."; seed : _ -> ...` 表達同一件事(`[]` 分支在型別層面不可達——
+  `commitStage` 已經在呼叫 `resolveOwner` 之前對 `null (wsPending session)` 短路過),
+  不影響任何對外行為,純粹是為了不觸發 `-Wx-partial`。
+- 測試裡兩處 `let before = ...` / `let after = ...` 一開始沿用文檔慣用的變數名,但
+  `Test.Hspec` 匯出 `before`/`after`(hspec-core 的 hook 名稱),`-Wall` 的
+  `-Wname-shadowing` 對此報警告;改名成 `countBefore`/`countAfter`,同樣是為了零
+  warning,不影響測試語意。

@@ -41,7 +41,7 @@ spec = do
       any ("warp" `isInfixOf`) testSuiteDeps `shouldBe` True
       any ("wai" `isInfixOf`) testSuiteDeps `shouldBe` True
 
-  describe "模組" $
+  describe "模組" $ do
     it "三個模組都註冊在 exposed-modules" $ do
       src <- readCabal
       mapM_
@@ -50,6 +50,17 @@ spec = do
         , "StoryFlow.Workshop.Session"
         , "StoryFlow.Workshop.Stages"
         ]
+
+    -- F003(workshop-emit)T8:新模組與門面都要登記在 exposed-modules,
+    -- library 的 build-depends 逐字比對(見上面「build-depends」describe)
+    -- 仍等於 F002 釘住的清單——本 feature 沒有新增任何套件。
+    it "StoryFlow.Workshop.Emit 在 exposed-modules" $ do
+      src <- readCabal
+      ("StoryFlow.Workshop.Emit" `isInfixOf` src) `shouldBe` True
+
+    it "門面 StoryFlow.Workshop 在 exposed-modules" $ do
+      src <- readCabal
+      lines (librarySection src) `shouldSatisfy` any ((== "StoryFlow.Workshop") . trim)
 
   describe "cabal.project" $ do
     it "packages 含 workshop/" $ do

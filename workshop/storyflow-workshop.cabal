@@ -23,9 +23,11 @@ library
     import:           warnings, lang
     hs-source-dirs:   src
     exposed-modules:
+        StoryFlow.Workshop
         StoryFlow.Workshop.Error
         StoryFlow.Workshop.Session
         StoryFlow.Workshop.Stages
+        StoryFlow.Workshop.Emit
     -- 「所有讀取經 ServiceM」這條子系統界線靠的正是這幾個名字不出現:
     -- storyflow-store / storyflow-md / sqlite-simple / direct-sqlite 一個都
     -- 不准進來,與 storyflow-llm / storyflow-conflict 同一條紀律
@@ -55,6 +57,7 @@ test-suite storyflow-workshop-test
     main-is:          Spec.hs
     other-modules:
         StoryFlow.Workshop.CabalSpec
+        StoryFlow.Workshop.EmitSpec
         StoryFlow.Workshop.ErrorSpec
         StoryFlow.Workshop.Fixtures
         StoryFlow.Workshop.PromptSpec

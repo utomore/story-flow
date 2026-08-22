@@ -1,6 +1,7 @@
 module Main (main) where
 
 import qualified StoryFlow.Workshop.CabalSpec
+import qualified StoryFlow.Workshop.EmitSpec
 import qualified StoryFlow.Workshop.ErrorSpec
 import qualified StoryFlow.Workshop.PromptSpec
 import qualified StoryFlow.Workshop.SessionIdSpec
@@ -26,3 +27,4 @@ main = do
     describe "T9 StoryFlow.Workshop.Stages(prompt 組裝)" StoryFlow.Workshop.PromptSpec.spec
     describe "T10 StoryFlow.Workshop.Stages.stepWorkshop" StoryFlow.Workshop.StepSpec.spec
     describe "T11 測試底稿自己的契約" StoryFlow.Workshop.StubSpec.spec
+    describe "T2-T6 StoryFlow.Workshop.Emit.commitStage" StoryFlow.Workshop.EmitSpec.spec

@@ -231,7 +231,7 @@ workshop(P5)、LLM」。`storyflow-llm` 的 `LlmError` 與 `storyflow-conflict` 
 **MCP adapter 的連線與 tool 命名**(2026-08-22 批次澄清):
 
 - **連線**:`story-flow-mcp --url <base>`,或 `STORYFLOW_URL` / `STORYFLOW_TOKEN` 兩個環境變數
-  (旗標優先)。**沒設定或連不上就在 `initialize` 回錯誤並說出下一步**(「先跑 `story-flow serve`」)
+  (旗標優先)。**沒設定或連不上就在 `initialize` 回錯誤並說出下一步**(「先跑 `story-flow-serve`」——2026-08-22 更正:批次澄清時誤寫成 `story-flow serve`,但那個子指令不存在,service-and-interfaces/F003 當初就把它做成獨立執行檔了)
   ——與 F001「沒有 `[llm]` 段就說你還沒設定,不猜預設值」同一個立場。adapter **不自己拉背景
   server**:ADR-006 已經為了孤兒行程、port 衝突、多 Vault 對應哪個 daemon 這三件事否決過那條路
 - **tool 命名**:由 OpenAPI 的 `operationId` 推導,**不手維護對照表**。「claude code 掛上後不必再讀
@@ -400,7 +400,7 @@ data Role = System | User | Assistant
 
 | # | feature | 一句話說明 | 依賴 | doc |
 |---|---------|-----------|------|------|
-| 5 | mcp-adapter | MCP stdio adapter,把 REST 的 24 個操作暴露成 MCP tools | service-and-interfaces | - |
+| 5 | mcp-adapter | MCP stdio adapter,把 REST 的全部 operation 暴露成 MCP tools | service-and-interfaces | F005 |
 
 小結:共 **5 個 features、3 個階段**。全部完成即達成主架構 P5 的完成標準「地端模型能引導
 產出片段;claude code 以 MCP 直接操作」。
@@ -500,7 +500,7 @@ data Role = System | User | Assistant
 - **驗收標準**:**每一個** REST operation 都有對應的 MCP tool 且參數形狀來自同一份 API 型別
   ——可測形式是 **tools 數 == OpenAPI operation 數**,tool 名字由 `operationId` 推導,不手維護
   對照表;連線走 `--url` 或 `STORYFLOW_URL` / `STORYFLOW_TOKEN`(旗標優先),沒設定或連不上
-  就在 `initialize` 回錯誤並指出「先跑 `story-flow serve`」;錯誤沿用 REST 的 `code` 與訊息;
+  就在 `initialize` 回錯誤並指出「先跑 `story-flow-serve`」;錯誤沿用 REST 的 `code` 與訊息;
   claude code 掛上後不必再讀 API 文件就能建/查片段與關聯
 - **明確不做**:不含任何業務邏輯;不 import `storyflow-service`(只打 HTTP);
   不自行擴充 REST 沒有的操作;**不自己拉背景 server**(ADR-006 已否決那條路)

@@ -103,7 +103,22 @@ data ScanReport = ScanReport
 emptyReport :: ScanReport
 
 scanRoot :: Store -> ArchiveTools -> ScanOptions -> IO ScanReport
+
+-- 兩階段化的兩半(匯出供測試,E006)
+data PreparedLoose                       -- 一筆已經算完的散檔:沒有 FilePath、沒有內容
+prepareLoose   :: FilePath -> FilePath -> IO PreparedLoose   -- 交易外:讀檔、雜湊、探測
+writeLoose     :: Connection -> Int -> Text -> PreparedLoose -> IO ()  -- 交易內:只有寫入
+looseBatchSize :: Int
+guardedTry     :: IO a -> IO (Either SomeException a)        -- 接住例外但重拋 AsyncException
 ```
+
+後五項匯出是為了讓**「交易內不做任何計算」這條性質被測到**(ADR-009)。它是最容易被
+下一個人默默改壞的性質:把一行雜湊或探測搬回交易裡,行為完全正確、測試全綠,只有寫鎖
+會被多持有幾分鐘——而那要在有人同時開著伺服器時才看得出來。同樣的理由已經用過兩次
+(`Archive.Sidecar` 的 `parseListing`、`Project.Create` 的 `nonCommercialPacks`)。
+
+**`prepareLoose` 與 `writeLoose` 的型別分工是契約的一部分**:`writeLoose` 的參數裡沒有
+`FilePath`、沒有內容 `ByteString`,所以交易內想讀檔或重新解碼,型別上就辦不到。
 
 `srAborted` 是橫向約束第 3 條的出口:`Nothing` 代表跑完(可能帶著單筆失敗),
 `Just 原因` 代表**中止**,此時計數反映的是「中止前完成了多少」而不是全部。
@@ -577,6 +592,7 @@ entityLinks ──► 雙向查詢,對端識別轉回 ULID
 | `Ingest.Handler` | `kindForPath` / `probeContent` | `Ingest.Scan` | kind 判定與探測都只吃路徑與位元組,不碰資料庫 |
 | `Ingest.Handler` | `archiveExtensions` | `Reorg.Execute` | 判斷哪些搬移需要雜湊對帳 |
 | `Ingest.Scan` | `ScanEvent` / `ScanReport` | `Ingest.Report`、delivery | 渲染與統計分離;`srEntriesUnread` 非零代表刪除閘門的依據不完整;`srArchivesFailed` 非零代表**有整包沒有可信雜湊**(比前者嚴重);`srAborted` 為 `Just` 時所有計數都只是中止前的進度,呼叫端不得當成完整結果 |
+| `Ingest.Scan` | `PreparedLoose` / `prepareLoose` / `writeLoose` / `looseBatchSize` / `guardedTry` | 測試 | 匯出供測試(E006)。`writeLoose` 的參數型別裡不含 `FilePath` 或內容位元組——**交易內不做計算這條性質由型別保證**,不是靠人記得 |
 | `Ingest.Cluster` | `ClusterKey` / `clusterKeyOf` / `clusterKeyText` / `Cluster` / `clusterBy` | `Ingest.ClusterDb`、delivery 的 `cli`(含 AI 輔助流程) | 分群與反查共用同一個鍵函式;`clusterKeyText` 是資料庫裡的形狀鍵格式 |
 | `Ingest.Cluster` | `NameRule`(含手寫 JSON codec)/ `applyRule` | `Ingest.ClusterDb` | JSON 欄位名是**跨版本持久化格式**,不由 Haskell 欄位名間接決定 |
 | `Ingest.ClusterDb` | `PackRef` / `listPacks` / `packPaths` / `packClusters` | delivery 的 `cli` | pack 的內部整數 id 只在同一次操作內流通 |
@@ -690,10 +706,10 @@ archive ◄──── ingest ◄──── reorg
 > | 缺口 | 對應的新契約 | 路線 | 狀態 |
 > |---|---|---|---|
 > | 整包取內容失敗被吞成成功,項目以 `sha256` NULL 入庫 | 橫向約束第 2 條、管線 A 的 `EvArchiveFailed` | `/bugfix` | ✅ `B001` |
-> | 散檔掃描與壓縮檔寫入把長時間 IO 包在單一交易內 | 橫向約束第 4 條、管線 A 的交易邊界 | `/enhance-design` | 📋 `E006` 已設計 |
-> | 掃描沒有「整批中止」這一層,且裸 `try` 會吞掉 Ctrl-C | 橫向約束第 3 條、`srAborted` | `/enhance-design` | 📋 `E006` 已設計 |
-> | 散檔的逐檔 IO 失敗會讓整次掃描崩掉(完全沒有 `try`) | 橫向約束第 1、2 條 | `/enhance-design` | 📋 `E006` 已設計 |
-> | 資料庫錯誤與檔案系統例外穿越邊界(`Scan.hs` 以外的 11 處) | 橫向約束第 1 條 | 全域 `/enhance-design` | 待展開 |
+> | 散檔掃描與壓縮檔寫入把長時間 IO 包在單一交易內 | 橫向約束第 4 條、管線 A 的交易邊界 | `/enhance-design` | ✅ `E006`(單批交易實測 6.0ms) |
+> | 掃描沒有「整批中止」這一層,且裸 `try` 會吞掉 Ctrl-C | 橫向約束第 3 條、`srAborted` | `/enhance-design` | ✅ `E006` |
+> | 散檔的逐檔 IO 失敗會讓整次掃描崩掉(完全沒有 `try`) | 橫向約束第 1、2 條 | `/enhance-design` | ✅ `E006` |
+> | 資料庫錯誤與檔案系統例外穿越邊界(`Scan.hs` 以外的 11 處,含本檔的 `ensureRoot`) | 橫向約束第 1 條 | 全域 `/enhance-design` | 待展開 |
 > | `ThumbRun` 的裸 `try` 同樣會吞掉 Ctrl-C(`readEntry` 對 solid 壓縮檔會叫起子程序,不只毫秒) | 橫向約束第 3 條 | `/enhance-design` | 待展開(`E006` 的排除項) |
 
 ## 功能規劃

@@ -3,7 +3,7 @@ id: E006
 type: enhance
 title: scan-transaction-boundary-and-abort
 description: 掃描的長時間工作移出寫交易,並補上整批中止層
-status: open
+status: done
 created: 2026-08-21
 updated: 2026-08-21
 depends-on: [B001]
@@ -280,12 +280,12 @@ B001 定的「壓縮檔讀不開 = 單筆失敗」不一致。建議改為**只�
 
 ## TodoList
 
-- [ ] T1: 抽出 `guardedTry`(接住例外但重拋 `AsyncException`),並取代 `scanArchive` 現有的裸 `try`  `dep: -`
-- [ ] T2: `ScanEvent` 加 `EvAborted`、`ScanReport` 加 `srAborted`;`emptyReport` 同步  `dep: -`
-- [ ] T3: 壓縮檔路徑兩階段化:交易外預算 sha / meta,交易內只剩寫入  `dep: T2`
-- [ ] T4: 散檔路徑兩階段化 + 分批提交,並給每一檔一個失敗出口  `dep: T2`
-- [ ] T5: 中止判定與短路:寫入端 `SQLError` → `srAborted`,剩餘壓縮檔與散檔階段都不再處理  `dep: T3, T4`
-- [ ] T6: `Report.hs` 呈現 `EvAborted` 與中止報告(含「重跑會補齊」的指引)  `dep: T2, T5`
+- [x] T1: 抽出 `guardedTry`(接住例外但重拋 `AsyncException`),並取代 `scanArchive` 現有的裸 `try`  `dep: -`
+- [x] T2: `ScanEvent` 加 `EvAborted`、`ScanReport` 加 `srAborted`;`emptyReport` 同步  `dep: -`
+- [x] T3: 壓縮檔路徑兩階段化:交易外預算 sha / meta,交易內只剩寫入  `dep: T2`
+- [x] T4: 散檔路徑兩階段化 + 分批提交,並給每一檔一個失敗出口  `dep: T2`
+- [x] T5: 中止判定與短路:寫入端 `SQLError` → `srAborted`,剩餘壓縮檔與散檔階段都不再處理  `dep: T3, T4`
+- [x] T6: `Report.hs` 呈現 `EvAborted` 與中止報告(含「重跑會補齊」的指引)  `dep: T2, T5`
 
 ## 1-to-1 測試對照表
 
@@ -303,4 +303,47 @@ B001 定的「壓縮檔讀不開 = 單筆失敗」不一致。建議改為**只�
 
 ## 實作備註
 
-(實作時填寫)
+依「改善方案」完成,六項 Todo 全數勾選。
+
+### 量化結果(對照「改善目標」)
+
+| # | 目標 | 結果 |
+|---|---|---|
+| 1 | 寫入階段的輸入型別不含 `FilePath` / 內容 `ByteString` | ✅ `writeLoose :: Connection -> Int -> Text -> PreparedLoose -> IO ()`、`insertEntry :: … -> PreparedEntry -> IO Integer`。兩個 Prepared 型別只有 `Text` / `Integer` / `AssetKind`。**交易內想讀檔,型別上就辦不到**,由編譯器保證 |
+| 2 | 一批(200 筆)寫入的單次交易 < 100ms | ✅ **實測 6.0ms**。舊版的單次交易涵蓋**整個散檔階段**——真實素材庫的 5,424 個散檔全部讀完、雜湊完、PNG 解碼完為止 |
+| 3 | 寫入端失效 → `srAborted`,剩餘不再處理 | ✅ 測試以 `PRAGMA query_only = 1` 觸發真實 `SQLError`,斷言 `srAborted` 為 `Just`、`EvArchiveStart` 只出現一次 |
+| 4 | Ctrl-C 可中斷 | ✅ `guardedTry` 重拋 `AsyncException`,一般例外仍接得住,兩者各一條測試 |
+| 5 | 散檔逐檔容錯 | ✅ 掃描期間抽走一個檔案,其餘照樣入庫、失敗記進 `srProblems`、例外不逃出 `scanRoot` |
+| 6 | 冪等不變 | ✅ 中止後重跑補齊且不重複(`assets` 1 → 2、`archives` 2) |
+
+測試 613 → **624 examples / 0 failures**(9 suites),建置零 warning。ingest 由 121 增至 132。
+
+### 與設計的偏差
+
+**一項,已事先與開發者確認**:「介面變動」原本只列 `EvAborted` / `srAborted`,實作時發現
+改善目標 2 與 4 **從模組外面測不到**——`scanRoot` 到交易邊界之間隔著整組真實素材庫與
+不可控的失敗注入。經確認後追加匯出 `PreparedLoose` / `prepareLoose` / `writeLoose` /
+`looseBatchSize` / `guardedTry`,理由與 `Archive.Sidecar` 的 `parseListing`、
+`Project.Create` 的 `nonCommercialPacks` 同構。`ingest/design.md` 的模組介面已同步。
+
+### 一個設計時沒想到、實作時才浮現的坑
+
+**光把型別換成 `Text` 不夠——惰性會讓計算跟著 thunk 飄進交易裡。**
+
+嚴格欄位(`!`)只強制到 WHNF,而 `Maybe Text` 的 WHNF 是 `Just <thunk>`。也就是說
+雜湊與 PNG 解碼的**執行時機完全沒變**,只是程式碼看起來變乾淨了——型別分離白做,而且
+不會有任何測試發現。
+
+解法是 `forceMaybeText`:碰一次裡面那個 `Text`。`Data.Text.Text` 的 WHNF 就是完整的
+位元組陣列,所以碰到它一次就足以逼出整條計算,而那一碰發生在交易外。
+
+這件事值得記下來:**在 Haskell 裡「把工作移出交易」不是搬程式碼的位置,是搬求值的時機**。
+
+### 過程中確認、但依 scope 未動的
+
+`ensureRoot`(`Scan.hs`)的 `INSERT OR IGNORE INTO roots` 沒有任何保護,資料庫唯讀或
+損毀時 `SQLError` 會直接飛出 `scanRoot`。這條屬 `G-E003` 的範圍(arch-audit 已把它列在
+S5 清單),本次依 scope 未動——測試因此改成在 `ensureRoot` 之後才切唯讀。
+
+`srLooseFiles` 的語意由「走訪到的散檔數」改為「**實際寫入的散檔數**」。失敗的檔案不再
+計入,而是出現在 `srProblems`;中止時它反映的是中止前的進度。既有測試無一受影響。

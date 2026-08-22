@@ -22,21 +22,40 @@ renderEvent = \case
   EvLooseStart n -> Just ("散檔 " <> tshow n <> " 個")
   EvLooseDone _ -> Nothing
   EvProblem m -> Just ("  ⚠ " <> m)
+  EvAborted why -> Just ("\n✗ 中止:" <> why)
 
 renderReport :: ScanReport -> Text
 renderReport ScanReport {..} =
   T.unlines $
     [ ""
-    , "掃描完成"
-    , "  壓縮檔      " <> tshow srArchives <> skipped
-    , "  壓縮檔內項目 " <> tshow srEntries
-    , "  散檔        " <> tshow srLooseFiles
-    , "  雜湊資料量   " <> humanBytes srBytesHashed
+    , heading
     ]
+      <> abortNote
+      <> [ "  壓縮檔      " <> tshow srArchives <> skipped
+         , "  壓縮檔內項目 " <> tshow srEntries
+         , "  散檔        " <> tshow srLooseFiles
+         , "  雜湊資料量   " <> humanBytes srBytesHashed
+         ]
       <> failed
       <> unread
       <> problems
   where
+    heading = case srAborted of
+      Nothing -> "掃描完成"
+      Just _ -> "✗ 掃描中止(未跑完)"
+
+    -- 中止時最需要回答的是「我現在該做什麼」。已寫入的部分留著,
+    -- 而掃描是冪等的 —— 重跑會從缺的地方補齊,不會產生重複。
+    abortNote = case srAborted of
+      Nothing -> []
+      Just why ->
+        [ "  原因:" <> why
+        , ""
+        , "  以下數字是**中止前**完成的進度,不是全部。"
+        , "  已完成的部分已經寫入資料庫;排除原因後重跑同一個指令即可補齊。"
+        , ""
+        ]
+
     skipped
       | srArchivesSkipped > 0 = "(另有 " <> tshow srArchivesSkipped <> " 個雜湊未變已跳過)"
       | otherwise = ""

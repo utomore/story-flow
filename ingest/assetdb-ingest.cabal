@@ -84,6 +84,7 @@ test-suite assetdb-ingest-test
         , sqlite-simple
         , temporary
         , text
+        , time
         , zip
     build-tool-depends: hspec-discover:hspec-discover
     default-language: GHC2021

@@ -10,15 +10,18 @@ import AssetDB.Ingest
 import AssetDB.Store
 import Codec.Archive.Zip qualified as Z
 import Codec.Picture qualified as P
-import Control.Exception (SomeException, try)
+import Control.Exception (AsyncException (..), SomeException, throwIO, try)
 import Control.Monad (forM_, void)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Lazy qualified as BL
+import Data.Either (isLeft)
+import Data.Maybe (isJust)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Database.SQLite.Simple
 import System.Directory (createDirectoryIfMissing, createDirectoryLink, getFileSize, removeFile)
 import System.FilePath ((</>))
@@ -171,6 +174,201 @@ spec = around withScanned $ do
             seen `shouldSatisfy` not . any (\case EvArchiveDone _ _ -> True; _ -> False)
             close (storeConn st)
 
+  -- E006 的回歸網:分批提交不得改變任何一筆的結果。
+  describe "散檔批次(E006 回歸)" $
+    it "超過一批的散檔全部入庫,每筆的雜湊與大小都正確" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-loose-batch" $ \dir -> do
+        let root = dir </> "library"
+            n = 250 :: Int
+        createDirectoryIfMissing True root
+        forM_ [1 .. n] $ \i ->
+          BC.writeFile (root </> ("f" <> show i <> ".txt")) (BC.pack ("content " <> show i))
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        tools <- discoverTools
+        rep <- scanRoot st tools (defaultScanOptions root)
+        srLooseFiles rep `shouldBe` n
+        count st "assets" `shouldReturn` n
+        count st "assets WHERE sha256 IS NULL" `shouldReturn` 0
+        -- 每一筆的雜湊都要是它自己內容的雜湊,不是別筆的
+        expected <- pure (unSha256 (sha256Bytes (BC.pack "content 7")))
+        shaOf st "f7.txt" `shouldReturn` Just expected
+        close (storeConn st)
+
+  -- E006 / ADR-009:寫交易的持有時間必須以毫秒計。任何檔案 IO、解碼、雜湊
+  -- 都要在交易之外算完 —— 因為 assetdb-server 可能正在同一個資料庫上服務查詢,
+  -- 寫鎖持有超過 busy_timeout 會讓它寫入失敗。
+  describe "交易邊界(E006)" $ do
+    it "寫入階段的輸入裡沒有檔案路徑,只有已經算完的值" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-prepared" $ \dir -> do
+        let f = dir </> "x.txt"
+        BC.writeFile f "hello"
+        pl <- prepareLoose dir f
+        -- 型別本身保證交易內讀不了檔:PreparedLoose 沒有 FilePath 欄位。
+        -- 這裡驗證的是它確實**已經算完** —— 雜湊是真的雜湊,不是 thunk。
+        plSha pl `shouldBe` unSha256 (sha256Bytes (BC.pack "hello"))
+        plBytes pl `shouldBe` 5
+        plRel pl `shouldBe` "x.txt"
+
+    it "一批寫入的單次交易持有時間以毫秒計" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-txn-time" $ \dir -> do
+        let n = looseBatchSize
+        forM_ [1 .. n] $ \i ->
+          BC.writeFile (dir </> ("b" <> show i <> ".txt")) (BC.pack ("body " <> show i))
+        prepared <-
+          mapM (\i -> prepareLoose dir (dir </> ("b" <> show i <> ".txt"))) [1 .. n]
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        let conn = storeConn st
+        execute_ conn "INSERT INTO roots (id,path,label,kind) VALUES (1,'/r','r','packs')"
+        t0 <- getCurrentTime
+        withTransaction conn (mapM_ (writeLoose conn 1 "t") prepared)
+        t1 <- getCurrentTime
+        -- 上限刻意寬鬆:抓的是「有人把 IO 搬回交易裡」這種數量級回歸,
+        -- 不是微調效能。
+        realToFrac (diffUTCTime t1 t0) `shouldSatisfy` (< (0.1 :: Double))
+        close conn
+
+    it "Ctrl-C 不會被當成一則問題吞掉" $ \(_, _) -> do
+      -- 裸 try @SomeException 會接住 AsyncException,於是掃描迴圈繼續跑
+      -- 下一項 —— 使用者按幾次 Ctrl-C 都停不下來(ai/Run.hs 的 guardedTry
+      -- 註解記載了同一個教訓)。
+      caught <- try (guardedTry (throwIO UserInterrupt)) :: IO (Either AsyncException (Either SomeException ()))
+      case caught of
+        Left UserInterrupt -> pure ()
+        Left other -> expectationFailure ("預期 UserInterrupt,得到 " <> show other)
+        Right _ -> expectationFailure "AsyncException 被吞掉了,應該要穿透"
+
+    it "一般例外仍然接得住" $ \(_, _) -> do
+      r <- guardedTry (throwIO (userError "boom")) :: IO (Either SomeException ())
+      r `shouldSatisfy` isLeft
+
+  -- E006:批次失敗兩層。界線劃在寫入端 vs 讀取端。
+  describe "整批中止(E006)" $ do
+    it "正常跑完時 srAborted 是 Nothing" $ \(st, opts) -> do
+      srAborted emptyReport `shouldBe` Nothing
+      tools <- discoverTools
+      rep <- scanRoot st tools opts {soRehash = True}
+      srAborted rep `shouldBe` Nothing
+      srArchives rep `shouldBe` 1
+
+    it "寫入端失效即中止,剩下的壓縮檔不再處理" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-write-abort" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True root
+        forM_ ["one.zip", "two.zip"] $ \nm ->
+          Z.createArchive (root </> nm) $ do
+            sel <- Z.mkEntrySelector "a.txt"
+            Z.addEntry Z.Deflate (BC.pack nm) sel
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        let conn = storeConn st
+        events <- newIORef []
+        tools <- discoverTools
+        -- 走訪完成之後才把資料庫切成唯讀:寫入必定拋 SQLError,讀取照常。
+        -- (切在更早會連 ensureRoot 都寫不進去,而那條裸寫入屬 G-E003 的範圍,
+        --  不在 E006 的 scope 內。)
+        rep <-
+          scanRoot st tools (defaultScanOptions root)
+            { soOnEvent = \e -> do
+                modifyIORef' events (e :)
+                case e of
+                  EvDiscovered _ _ -> execute_ conn "PRAGMA query_only = 1"
+                  _ -> pure ()
+            }
+        srAborted rep `shouldSatisfy` isJust
+        srArchives rep `shouldBe` 0
+        seen <- readIORef events
+        -- 只有第一個壓縮檔被碰過 —— 中止之後不再往下跑
+        length [() | EvArchiveStart {} <- seen] `shouldBe` 1
+        length [() | EvAborted _ <- seen] `shouldBe` 1
+        execute_ (storeConn st) "PRAGMA query_only = 0"
+        close (storeConn st)
+
+    it "中止後已完成的部分留在資料庫,重跑補齊且不重複" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-abort-resume" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True root
+        forM_ ["one.zip", "two.zip"] $ \nm ->
+          Z.createArchive (root </> nm) $ do
+            sel <- Z.mkEntrySelector "a.txt"
+            Z.addEntry Z.Deflate (BC.pack nm) sel
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        let conn = storeConn st
+        tools <- discoverTools
+        -- 第一個壓縮檔寫完之後才切唯讀 → 第二個中止
+        rep1 <-
+          scanRoot st tools (defaultScanOptions root)
+            { soOnEvent = \case
+                EvArchiveDone _ _ -> execute_ conn "PRAGMA query_only = 1"
+                _ -> pure ()
+            }
+        srAborted rep1 `shouldSatisfy` isJust
+        execute_ conn "PRAGMA query_only = 0"
+        -- 已完成的那一包還在
+        count st "assets" `shouldReturn` 1
+        -- 重跑補齊,而且不產生重複
+        rep2 <- scanRoot st tools (defaultScanOptions root)
+        srAborted rep2 `shouldBe` Nothing
+        count st "assets" `shouldReturn` 2
+        count st "archives" `shouldReturn` 2
+        close conn
+
+    it "中止的報告說得出原因,也說得出該做什麼" $ \(_, _) -> do
+      let t = renderReport emptyReport {srAborted = Just "磁碟已滿", srArchives = 3}
+      t `shouldSatisfy` T.isInfixOf "中止"
+      t `shouldSatisfy` T.isInfixOf "磁碟已滿"
+      t `shouldSatisfy` T.isInfixOf "重跑"
+      t `shouldNotSatisfy` T.isInfixOf "掃描完成"
+      renderEvent (EvAborted "壞了") `shouldSatisfy` maybe False (T.isInfixOf "壞了")
+      -- 沒有中止時維持原本的措辭
+      renderReport emptyReport `shouldSatisfy` T.isInfixOf "掃描完成"
+
+    it "讀取端失敗不中止,其餘壓縮檔照樣索引" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-read-failure" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True root
+        -- 一個讀不開的,一個正常的
+        BC.writeFile (root </> "broken.rar") "not an archive"
+        Z.createArchive (root </> "good.zip") $ do
+          sel <- Z.mkEntrySelector "a.txt"
+          Z.addEntry Z.Deflate "content" sel
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        tools <- discoverTools
+        rep <- scanRoot st tools (defaultScanOptions root)
+        srAborted rep `shouldBe` Nothing
+        srArchivesFailed rep `shouldBe` 1
+        srArchives rep `shouldBe` 1
+        count st "assets" `shouldReturn` 1
+        close (storeConn st)
+
+    it "散檔讀不到時記下來繼續跑,不讓整次掃描崩掉" $ \(_, _) ->
+      withSystemTempDirectory "assetdb-loose-failure" $ \dir -> do
+        let root = dir </> "library"
+        createDirectoryIfMissing True root
+        BC.writeFile (root </> "ok1.txt") "one"
+        BC.writeFile (root </> "gone.txt") "two"
+        BC.writeFile (root </> "ok2.txt") "three"
+        st <- openStore (dir </> "db.sqlite")
+        void (initSchema st)
+        tools <- discoverTools
+        -- 在走訪之後、準備之前把檔案抽走:模擬掃描期間被移動的檔案。
+        -- 用事件回呼卡住時序 —— EvLooseStart 在準備階段之前發出。
+        let opts =
+              (defaultScanOptions root)
+                { soOnEvent = \case
+                    EvLooseStart _ -> removeFile (root </> "gone.txt")
+                    _ -> pure ()
+                }
+        rep <- scanRoot st tools opts
+        -- 沒有崩掉,而且是「單筆失敗」不是「整批中止」
+        srAborted rep `shouldBe` Nothing
+        srProblems rep `shouldSatisfy` any (T.isInfixOf "gone.txt")
+        count st "assets" `shouldReturn` 2
+        close (storeConn st)
+
   describe "符號連結迴圈防護" $
     it "對含自我指涉連結的目錄樹不無窮遞迴,且記錄警告" $ \(_, _) ->
       withSystemTempDirectory "assetdb-symlink-loop" $ \dir -> do
@@ -285,3 +483,9 @@ count :: Store -> Text -> IO Int
 count st what = do
   rows <- query_ (storeConn st) (Query ("SELECT COUNT(*) FROM " <> what))
   pure (case rows of (Only n : _) -> n; _ -> -1)
+
+shaOf :: Store -> Text -> IO (Maybe Text)
+shaOf st rel = do
+  rows <-
+    query (storeConn st) "SELECT sha256 FROM assets WHERE rel_path = ?" (Only rel)
+  pure (case rows of (Only s : _) -> s; _ -> Nothing)

@@ -17,6 +17,14 @@ related-feature: []
 > (A1:擴充 `ServiceError`;A2:沿用 `vaultInfo` 拿 vault root)已被開發者**推翻**,
 > 結論已寫進 `design.md` 的「對外契約」章節,本文檔逐字照新契約重寫,不再是那兩條
 > 假設的延伸。
+>
+> 本文檔隨後又經過一次**同日修訂**:`workshop-emit`(F003)設計階段查出「型別註冊表
+> 可以把任意 `Meta` 欄位宣告成必填,而 `lore-fragment` / `plot-fragment` 都宣告
+> `timeline` 必填,`StageDraft` 卻沒有那一欄」的缺口(見 `design.md`「必填欄位由型別
+> 註冊表驅動」一節)。這次修訂補兩件事:prompt 的欄位要求改由 `etsFields` 驅動(第
+> 八節)、`StageDraft` 加 `sdTimeline`、`WorkshopError` 加 `WsMissingRequiredField`
+> 建構子(本 feature 只定義它,產生它是 F003 的事)。舊版遺留的 A1/A2/A3 三條假設
+> 不受影響,新增 A4/A5。
 
 ## 功能概述
 
@@ -29,7 +37,7 @@ related-feature: []
 
 | # | 驗收標準 | 怎麼算通過 |
 |---|---|---|
-| 1 | 階段清單完全來自型別註冊表的 `stages`,新增一個型別不改工作坊的程式 | `wsStages` 由 `listEntityTypes` 找到的 `EntityTypeSpec.etsStages` 直接指定,程式裡沒有任何寫死的階段名字或型別鍵 |
+| 1 | 階段清單完全來自型別註冊表的 `stages`,**而 prompt 裡的欄位要求完全來自 `etsFields`**(名稱 / `fsRequired` / `fsHint`)——新增一個型別、或改它的必填欄位,都不改工作坊的程式 | `wsStages` 由 `listEntityTypes` 找到的 `EntityTypeSpec.etsStages` 直接指定;`stepWorkshop` 組 system message 時把同一筆 spec 的 `etsFields` 逐條(欄位名 + 必填與否 + hint)送進去,程式裡沒有任何寫死的階段名字、型別鍵或欄位名 |
 | 2 | 硬約束片段以 `summary` 進 prompt | `stepWorkshop` 組 system message 時,`wsConstraints` 逐一經 `getEntity` 取 `metaSummary`,不送 `entBody` |
 | 3 | `Session` 是可序列化的快照,落在 `.storyflow/workshops/<id>.json`,中斷後 `loadSession` 接得回去 | 三個寫入操作(`startWorkshop`/`stepWorkshop`,以及未來 `commitStage`)各自在成功後寫出快照;`loadSession` 讀同一個檔案能重建出等價的 `Session`;快照路徑經新增的 `vaultRoot :: ServiceM FilePath` 取得 |
 | 4 | 對話歷程不進圖譜 | `wsHistory` 只落在 `.storyflow/workshops/`(索引掃描略過 `.` 開頭路徑),不呼叫任何 `createEntity`/`addFragment` |
@@ -54,8 +62,11 @@ related-feature: []
   `renderLlmError`、`workshopErrorCode` 對它取 `llmErrorCode`
 - **`entity-graph-core/F002`(core-types-and-registry)**:`Id`(`wsConstraints` / `wsOwner` /
   `wsCommitted` 的元素型別)、`Entity` / `Meta`(讀 `metaSummary` 組 prompt)、
-  `EntityTypeSpec`(`etsStages` 就是階段清單來源,`etsKey` 用來比對型別)、
-  `fnv1a64`(session id 產生的雜湊原語)全部定義在這裡
+  `EntityTypeSpec`(`etsStages` 是階段清單來源,`etsFields` 是 prompt 欄位要求的來源,`etsKey`
+  用來比對型別)、`FieldSpec`(`fsName` / `fsRequired` / `fsHint`,欄位要求文字逐條取自它)、
+  `Timeline`(`StageDraft.sdTimeline` 的元素型別)、`instance ToJSON/FromJSON Timeline`(沿用
+  既有編碼,見「實作方式」第五節)、`metaFieldNames`(讀作查證,確認 `"timeline"` 是合法的
+  `Meta` 欄位名)、`fnv1a64`(session id 產生的雜湊原語)全部定義在這裡
 - **`entity-graph-core/F004`(store-vault-io-and-index)**:`store/src/StoryFlow/Store/Vault.hs`
   的 `initVault` 是本 feature 唯一直接改動的 `storyflow-store` 原始碼(`.storyflow/.gitignore`
   多寫一行 `workshops/`,見「實作方式」第三節與 D6/S5)。這是**原始碼編輯**,不是
@@ -79,7 +90,9 @@ F002 完成前 `workshop-emit` 無法動工(`commitStage` 的簽名吃 `Session`
 
 | 契約出處 | 條目 | 本 feature 的落點 |
 |---|---|---|
-| `llm-workshop-mcp/design.md` 對外契約 | `data WorkshopError = WsSessionNotFound Text \| WsSnapshotCorrupt FilePath Text \| WsSnapshotWriteFailed FilePath Text \| WsNoStages Text \| WsStagesExhausted Text \| WsNothingToCommit Text \| WsLlmFailed LlmError` | `StoryFlow.Workshop.Error.WorkshopError`(七個建構子**全部**定義在本 feature;`WsNothingToCommit` F002 不產生,留給 F003 的 `commitStage`) |
+| `llm-workshop-mcp/design.md` 對外契約 | `data WorkshopError = WsSessionNotFound Text \| WsSnapshotCorrupt FilePath Text \| WsSnapshotWriteFailed FilePath Text \| WsNoStages Text \| WsStagesExhausted Text \| WsNothingToCommit Text \| WsMissingRequiredField Text [Text] \| WsLlmFailed LlmError` | `StoryFlow.Workshop.Error.WorkshopError`(**八個**建構子全部定義在本 feature;`WsNothingToCommit` 與 `WsMissingRequiredField` F002 不產生,留給 F003 的 `commitStage`) |
+| 「必填欄位由型別註冊表驅動」 | `Workshop.Stages` 組 prompt 時把該型別的 `etsFields` 一併送進 system message——欄位名、`fsRequired`、`fsHint` 三者都給 | `stepWorkshop` 每次呼叫重新 `listEntityTypes` 取得對應 `EntityTypeSpec`,`buildMessages` 從 `etsFields` 逐條組出欄位要求區塊(見「實作方式」第八節) |
+| 同上 | `StageDraft` 加 `sdTimeline :: Maybe Timeline`;`WorkshopError` 加 `WsMissingRequiredField Text [Text]`(型別鍵 + 還缺的必填欄位名) | `StoryFlow.Workshop.Session.StageDraft`(欄位定義);`StoryFlow.Workshop.Error.WorkshopError`(建構子定義,`renderWorkshopError` / `workshopErrorCode` 涵蓋它;**F002 不丟出它**,丟出的是 F003 的 `commitStage`) |
 | 同上 | `renderWorkshopError :: WorkshopError -> Text` / `workshopErrorCode :: WorkshopError -> Text` | `StoryFlow.Workshop.Error` |
 | 同上 | `startWorkshop :: Text -> [Id] -> ServiceM (Either WorkshopError Session)` | `StoryFlow.Workshop.Stages.startWorkshop` |
 | 同上 | `loadSession :: Text -> ServiceM (Either WorkshopError Session)` | `StoryFlow.Workshop.Session.loadSession` |
@@ -156,6 +169,10 @@ library;`servant` / `warp` 是比照 `storyflow-llm` 的既有紀律,理由相�
 目錄建立與原子寫入(`storyflow-workshop` 不依賴 `storyflow-store`,所以不能用它的
 `atomicWriteText`,自己用 `directory` 的 `renamePath` 寫一份同構的邏輯,見第五節)。
 
+（`throwError` 的兩個呼叫點——`startWorkshop` 第一步、`stepWorkshop` 第二步——都是同一種
+情況「型別不在註冊表」,重用同一個 `UnknownType` 建構子,不是本次修訂新增新的失敗種類,只是
+呼叫點從一處變兩處,見第七、九節。）
+
 `build-depends`(test-suite)——沿用 F001 的 D8 先例,warp 起真的本機 stub 端點:
 
 ```
@@ -222,14 +239,18 @@ data WorkshopError
   | WsNoStages Text
   | WsStagesExhausted Text
   | WsNothingToCommit Text
+  | WsMissingRequiredField Text [Text]
   | WsLlmFailed LlmError
   deriving stock (Show, Eq)
 ```
 
-逐字等於 `design.md` 對外契約的定義。**F002 只產生前五個與 `WsLlmFailed`**(`WsNothingToCommit`
-是 `commitStage`/F003 的事);`renderWorkshopError` / `workshopErrorCode` 仍然要對全部七個
-建構子窮盡(`-Wall` 的 `-Wincomplete-uni-patterns`/`case` 完整性要求),F002 因此**定義好
-`WsNothingToCommit` 的渲染文案**,F003 直接沿用不必再改這個模組。
+逐字等於 `design.md` 對外契約的定義(2026-08-22 同日第二次修訂後的版本,新增了
+`WsMissingRequiredField`)。**F002 只產生前五個與 `WsLlmFailed`**(`WsNothingToCommit`
+與 `WsMissingRequiredField` 都是 `commitStage`/F003 的事);`renderWorkshopError` /
+`workshopErrorCode` 仍然要對全部**八個**建構子窮盡(`-Wall` 的
+`-Wincomplete-uni-patterns`/`case` 完整性要求),F002 因此**定義好
+`WsNothingToCommit` 與 `WsMissingRequiredField` 的渲染文案**,F003 直接沿用不必再改
+這個模組。
 
 `renderServiceError` / `errorCode`(`StoryFlow.Service.Error`,已讀過)是形狀範本:
 
@@ -250,6 +271,9 @@ renderWorkshopError = \case
     "session「" <> sid <> "」的階段已經走完,不能再 step;請改用 `workshop commit` 定案"
   WsNothingToCommit sid ->
     "session「" <> sid <> "」目前沒有待定案的草稿;請先 `workshop step` 讓模型產出草稿"
+  WsMissingRequiredField ty missing ->
+    "型別「" <> ty <> "」還缺這些必填欄位:" <> T.intercalate "、" missing
+      <> ";請再 `workshop step` 一輪,把這些內容講清楚後再定案"
   WsLlmFailed e -> renderLlmError e
 
 workshopErrorCode :: WorkshopError -> Text
@@ -260,6 +284,7 @@ workshopErrorCode = \case
   WsNoStages _ -> "workshop_no_stages"
   WsStagesExhausted _ -> "workshop_stages_exhausted"
   WsNothingToCommit _ -> "workshop_nothing_to_commit"
+  WsMissingRequiredField _ _ -> "workshop_missing_required_field"
   WsLlmFailed e -> llmErrorCode e
 ```
 
@@ -284,21 +309,62 @@ data Session = Session
   deriving stock (Show, Eq)
 
 data StageDraft = StageDraft
-  { sdTitle   :: Text
-  , sdSummary :: Text
-  , sdBody    :: Text
-  , sdTags    :: [Text]
+  { sdTitle    :: Text
+  , sdSummary  :: Text
+  , sdBody     :: Text
+  , sdTags     :: [Text]
+  , sdTimeline :: Maybe Timeline
   }
   deriving stock (Show, Eq)
 ```
 
-逐字等於 `design.md`「模組間公開介面與資料結構」的定義。`wsOwner` / `wsCommitted` 由
-`commitStage`(`workshop-emit`,F003)寫入;F002 只負責在 `startWorkshop` 把它們初始化成
-`Nothing` / `[]`,`stepWorkshop` 完全不碰這兩欄。
+逐字等於 `design.md`「模組間公開介面與資料結構」的定義(2026-08-22 同日第二次修訂後的
+版本,新增了 `sdTimeline`)。`wsOwner` / `wsCommitted` 由 `commitStage`(`workshop-emit`,
+F003)寫入;F002 只負責在 `startWorkshop` 把它們初始化成 `Nothing` / `[]`,
+`stepWorkshop` 完全不碰這兩欄。`sdTimeline` 不同——它是**內容**,只有讀過草稿的模型答得
+出來,`stepWorkshop` 從模型回覆的約定 JSON 解析出來(見第九節);`StageDraft` 仍然刻意
+**不**帶 `status` / `links` / `source`,那三者由 `commitStage` 依契約填。
+
+**`Timeline` 沿用既有型別與既有編碼,不另造一套**(已讀 `core/src/StoryFlow/Core/Meta.hs`
+確認 `data Timeline = Timeline { tlLabel :: Maybe Text, tlOrder :: Maybe Int }
+deriving stock (Show, Eq, Ord)`;已讀 `core/src/StoryFlow/Core/Json.hs` 確認
+`instance ToJSON Timeline` / `instance FromJSON Timeline` 已存在——`{"label":…}` /
+`{"order":…}` 兩鍵皆選填、皆為 `Nothing` 時仍是一個空物件 `{}`,不是整個鍵消失;那個「整個
+`timeline` 鍵消失」的行為是 `Meta.metaPairs` 對**非 `Maybe` 的** `Timeline`
+用 `isEmptyTimeline` 額外判斷出來的,`StageDraft.sdTimeline :: Maybe Timeline` 用的是
+更直接的 `Maybe` 消失規則,見下)。`storyflow-workshop` 已經依賴 `storyflow-core`
+(見第一節 build-depends,**不需要新增任何相依**——這個孤兒實例本來就在作用域裡),
+`StageDraft` 的 `ToJSON`/`FromJSON` 因此直接沿用 `Core.Json` 的 `Timeline` 實例來編解碼
+`sdTimeline` 包住的那個 `Timeline` 值,不重新定義一次。
 
 **JSON 編碼**(`instance ToJSON Session` / `FromJSON Session`、`StageDraft` 同理,直接寫在
 `Workshop.Session`,不另開 `.Json` 模組——目前唯一的消費者就是這個套件自己,`workshop-interface`
 未來若要序列化給 REST/CLI,再決定要不要拆,那是它的 Level 3 自主權):
+
+```haskell
+instance ToJSON StageDraft where
+  toJSON StageDraft {..} =
+    object $
+      [ "title" .= sdTitle
+      , "summary" .= sdSummary
+      , "body" .= sdBody
+      , "tags" .= sdTags
+      ]
+        ++ ["timeline" .= v | Just v <- [sdTimeline]]
+
+instance FromJSON StageDraft where
+  parseJSON = withObject "StageDraft" $ \o ->
+    StageDraft
+      <$> o .: "title"
+      <*> o .: "summary"
+      <*> o .: "body"
+      <*> o .:? "tags" .!= []
+      <*> o .:? "timeline"
+```
+
+`sdTimeline = Nothing` 時整個 `timeline` 鍵不出現,與 `Session.wsOwner`(`Maybe Id`)同一個
+「`Maybe` 沒值鍵不出現」寫法——不是 `Meta.metaPairs` 那種靠 `isEmptyTimeline` 判斷值是否
+「空」的寫法,因為 `sdTimeline` 本身就是 `Maybe`,不需要再多一層「空值」判斷。
 
 ```json
 {
@@ -313,11 +379,18 @@ data StageDraft = StageDraft
   ],
   "owner": "ent-9c21",
   "pending": [
-    {"title": "外貌", "summary": "...", "body": "...", "tags": ["外觀"]}
+    {
+      "title": "外貌", "summary": "...", "body": "...", "tags": ["外觀"],
+      "timeline": {"label": "崩塌前後", "order": 3}
+    },
+    {"title": "舉止", "summary": "...", "body": "...", "tags": []}
   ],
   "committed": []
 }
 ```
+
+第一則 `pending` 帶 `timeline`(型別把它宣告為必填時模型給的形狀,`label` / `order` 兩鍵各自
+選填);第二則沒有 `timeline` 鍵——`sdTimeline` 解析成 `Nothing`。
 
 `owner` 為 `Nothing` 時整個鍵不出現(沿用 `Core.Json` / `Service.Json` 的「`Maybe` 沒值鍵不
 出現」約定)。`Id` 直接用 `aeson`——`storyflow-core` 已經有 `instance ToJSON Id` /
@@ -407,29 +480,42 @@ startWorkshop :: Text -> [Id] -> ServiceM (Either WorkshopError Session)
 `ServiceError`,步驟 1、3)是業務層失敗;內層(`Left` 值,步驟 2、5)是工作坊自己的失敗。
 兩者互不轉譯,各自原樣浮上去。
 
+`startWorkshop` 找到的 `spec :: EntityTypeSpec` 同時帶著 `etsFields`,但這一步**不用它**
+——欄位要求是 prompt 的事,只有 `stepWorkshop` 需要(見第八、九節)。`startWorkshop`
+只用 `spec` 的 `etsStages` 初始化 `wsStages`。
+
 ### 八、`Workshop.Stages`:prompt 組裝
 
-私有函式,組出這一輪要送給 `chat` 的 `[Message]`,**與舊版設計不變**(A1/A2 兩條裁決不
-影響這一節):
+私有函式,組出這一輪要送給 `chat` 的 `[Message]`。**這是本次修訂的核心**:欄位要求
+(驗收標準 1 的後半)從這裡進 prompt,A1/A2 兩條舊裁決不影響這一節的其餘部分:
 
 ```haskell
-buildMessages :: Session -> [(Id, Text)] -> Text -> [Message]
+buildMessages :: Session -> [(Id, Text)] -> [FieldSpec] -> Text -> [Message]
 ```
 
-第二個參數是**已經取好**的硬約束 `(Id, summary)` 清單。System message 依序排:
+第二個參數是**已經取好**的硬約束 `(Id, summary)` 清單;第三個參數是**該型別**的
+`etsFields`(呼叫端從 `stepWorkshop` 重新 `listEntityTypes` 找到的那一筆,見第九節)。
+System message 依序排:
 
 1. 開場一句:「你正在引導使用者完成『{型別}』的第 {N}/{總數} 個階段:『{階段名}』。」
    (`N` = `wsCurrent + 1`,`階段名` = `wsStages !! wsCurrent`)
 2. 硬約束區塊(有的話):逐條「【既有設定 {id}(只有 summary)】{summary}」——與
    `Conflict.Judge.renderPairPrompt`(已讀過)同一個「id + 內容」的呈現方式,但這裡
    只送 `summary`(驗收標準 2)
-3. 格式指示:要求模型在對使用者的自然語言回覆之外,**另外**用一個 ` ```json ` 圍起來的
+3. **欄位要求區塊**(這次修訂新增,只要 `etsFields` 非空就出現):逐條「- {fsName}
+   ({必填 或 選填}):{fsHint}」,`{必填/選填}` 由 `fsRequired` 決定。**三個子項——欄位名、
+   必填與否、hint——全部原樣取自 `etsFields`,不重寫、不篩選、不寫死任何欄位名**:這正是
+   驗收標準 1「新增一個型別、或改它的必填欄位,都不改工作坊的程式」的落點——`types/registry/
+   *.toml` 的 `[[fields]]` 一改,這裡的文字就跟著改,`buildMessages` 的程式碼一個字不用動
+4. 格式指示:要求模型在對使用者的自然語言回覆之外,**另外**用一個 ` ```json ` 圍起來的
    區塊附上目前這個階段可以定案的片段草稿,陣列形狀 `[{"title":…, "summary":…, "body":…,
-   "tags":[…]}]`;沒有想清楚就附 `[]`;可以附多個
+   "tags":[…], "timeline":{"label":…, "order":…}}]`;`timeline` 整個鍵可省略,`label` /
+   `order` 兩鍵也各自可省略;沒有想清楚就附 `[]`;可以附多個。第 3 點若列出 `timeline`
+   為必填,這裡額外提醒「這個階段的必填欄位裡有 `timeline`,請盡量附上」
 
 Messages 全體 = `[Message System systemPrompt] ++ wsHistory session ++ [Message User input]`
 ——`wsHistory` 只存使用者/模型的往返,system message 每次呼叫時重新組(硬約束的 summary
-可能隨時間被改過,現讀現送比存一份舊的更正確)。
+與型別的必填欄位都可能隨時間被改過,現讀現送比存一份舊的更正確,見「待確認假設」A4)。
 
 ### 九、`Workshop.Stages`:`stepWorkshop`
 
@@ -440,18 +526,26 @@ stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Either WorkshopError (
 1. `wsCurrent session >= length (wsStages session)` → `pure (Left (WsStagesExhausted
    (wsId session)))`——防禦性檢查:正常流程下 `startWorkshop` 已擋掉零階段的型別,但一個
    已經被 `commitStage`(F003)推到最後一階之後的 `Session` 仍可能被呼叫端誤傳進來
-2. 逐一對 `wsConstraints session` 呼叫 `getEntity`,取 `metaSummary . entMeta . evEntity`
+2. `listEntityTypes >>= \specs -> case find ((== wsType session) . etsKey) specs of ...`
+   ——找不到 → `throwError (UnknownType (wsType session))`,**與 `startWorkshop` 第一步
+   同一個通道、同一個建構子**(重用,不新增);找到 → 取 `etsFields spec`。這一步是本次
+   修訂新增的:`etsFields` 不存在 `Session` 裡(`Session` 的九個欄位是 Level 2 鎖定的
+   形狀,加第十個欄位就是偏離契約),所以每次 `stepWorkshop` 都重新查一次,理由與下一步
+   對硬約束「現讀現送」完全一樣——見「待確認假設」A4
+3. 逐一對 `wsConstraints session` 呼叫 `getEntity`,取 `metaSummary . entMeta . evEntity`
    組成 `(Id, Text)` 清單(重用 `startWorkshop` 已經驗證過存在,但**不快取**——見「待確認
    假設」A1,現讀現送)。這一步若某個 id 已被刪除,`getEntity` 一樣走 `ServiceError`
    原生通道
-3. `buildMessages session constraintSummaries input` 組出 `[Message]`
-4. `liftIO (chat client messages)`
-5. `Left e` → `pure (Left (WsLlmFailed e))`。**不寫快照、`Session` 不變**——這一步什麼都
+4. `buildMessages session constraintSummaries (etsFields spec) input` 組出 `[Message]`
+5. `liftIO (chat client messages)`
+6. `Left e` → `pure (Left (WsLlmFailed e))`。**不寫快照、`Session` 不變**——這一步什麼都
    沒發生,`wsHistory` 不該記一輪沒有下文的失敗嘗試
-6. `Right reply`:
+7. `Right reply`:
    a. `newHistory = wsHistory session ++ [Message User input, Message Assistant reply]`
    b. 對 `reply` 跑 JSON 擷取(見下),成功 → `newPending`;失敗 → 沿用
-      `wsPending session`(驗收標準 5)
+      `wsPending session`(驗收標準 5)。`extractDrafts` 解出的 `StageDraft` 可能帶
+      `sdTimeline`,原樣放進 `newPending`,這一步不對照 `etsFields` 檢查缺不缺——那是
+      `commitStage`(F003)寫入前的事,`stepWorkshop` 只負責把模型給的解析出來
    c. `newSession = session { wsHistory = newHistory, wsPending = newPending }`
    d. `saveSession newSession` ——`Left werr` → `pure (Left werr)`(原樣浮上去);
       `Right ()` → `pure (Right (newSession, reply))`——`reply` 是**原始**回覆,不剝 JSON、
@@ -466,7 +560,7 @@ stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Either WorkshopError (
 2. 對取到的內容跑 `Data.Aeson.eitherDecodeStrictText :: Text -> Either String [StageDraft]`
 3. 失敗時退回「第一個 `[` 到最後一個 `]`」的切片再 decode 一次(`Judge.sliceBraces` 的方括號
    版本)
-4. 兩次都失敗 → `Nothing`。**不捏假資料**,呼叫端(`stepWorkshop` 第 6b 步)在 `Nothing` 時
+4. 兩次都失敗 → `Nothing`。**不捏假資料**,呼叫端(`stepWorkshop` 第 7b 步)在 `Nothing` 時
    原樣保留舊的 `wsPending`
 5. 解出空陣列 `[]` **算成功**——`newPending = []`,不是「保留舊值」
 
@@ -492,8 +586,12 @@ stepWorkshop :: LlmClient -> Session -> Text -> ServiceM (Either WorkshopError (
 | `data Meta = Meta { metaSummary :: Text, … }` | `core/src/StoryFlow/Core/Meta.hs` | entity-graph-core/F002 | 取硬約束的 `summary` |
 | `data Id`(不透明)/ `renderId :: Id -> Text` / `parseId :: Text -> Either IdError (IdPrefix, Id)` | `core/src/StoryFlow/Core/Id.hs` | entity-graph-core/F002 | `wsConstraints` / `wsOwner` / `wsCommitted` 的元素型別;JSON 編碼沿用 `Core.Json` 既有的 `Id` 實例 |
 | `fnv1a64 :: BS.ByteString -> Word64` | 同上 | entity-graph-core/F002 | session id 產生的雜湊原語 |
-| `data EntityTypeSpec = EntityTypeSpec { etsKey :: Text, etsStages :: [Text], … }` | `core/src/StoryFlow/Core/Registry.hs` | entity-graph-core/F002 | `startWorkshop` 找型別、讀 `stages` |
-| `instance ToJSON Id` / `instance FromJSON Id` | `core/src/StoryFlow/Core/Json.hs` | entity-graph-core/F002 | `Session` 的 `wsConstraints` / `wsOwner` / `wsCommitted` 編解碼直接沿用,不重新定義 |
+| `data EntityTypeSpec = EntityTypeSpec { etsKey :: Text, etsFields :: [FieldSpec], etsStages :: [Text], … }` | `core/src/StoryFlow/Core/Registry.hs` | entity-graph-core/F002 | `startWorkshop` 找型別、讀 `etsStages`;`stepWorkshop` 重新找同一筆,讀 `etsFields` 組 prompt 的欄位要求區塊 |
+| `data FieldSpec = FieldSpec { fsName :: Text, fsRequired :: Bool, fsHint :: Text }` | 同上 | entity-graph-core/F002 | `buildMessages` 逐條組出欄位要求文字的來源;`fsName` 保證落在 `metaFieldNames` 內(見下一列,`validateRegistry` 已對此把關,`storyflow-workshop` 不必再驗一次) |
+| `metaFieldNames :: [Text]`(讀作**查證**,不是被呼叫的函式——載入期的把關在 `validateRegistry`,不在本套件) | `core/src/StoryFlow/Core/Meta.hs` | entity-graph-core/F002 | 確認 `"timeline"` 在這份清單裡(已讀確認),所以 `lore-fragment` / `plot-fragment` 把它宣告必填是合法宣告,不是註冊表載入期就會被擋下的錯誤——這正是本次修訂要接住的情境 |
+| `data Timeline = Timeline { tlLabel :: Maybe Text, tlOrder :: Maybe Int } deriving stock (Show, Eq, Ord)` | 同上 | entity-graph-core/F002 | `StageDraft.sdTimeline :: Maybe Timeline` 的元素型別 |
+| `instance ToJSON Timeline` / `instance FromJSON Timeline`(兩鍵 `label` / `order` 皆選填) | `core/src/StoryFlow/Core/Json.hs` | entity-graph-core/F002 | `StageDraft` 的 `ToJSON`/`FromJSON` 對 `sdTimeline` 包住的 `Timeline` 值直接沿用,不重新定義編碼 |
+| `instance ToJSON Id` / `instance FromJSON Id` | 同上 | entity-graph-core/F002 | `Session` 的 `wsConstraints` / `wsOwner` / `wsCommitted` 編解碼直接沿用,不重新定義 |
 | `atomicWriteText`(讀作**做法**範本,不是被呼叫的函式——`storyflow-workshop` 不依賴 `storyflow-store`) | `store/src/StoryFlow/Store/Atomic.hs` | entity-graph-core/F004 | `saveSession` 的原子寫入邏輯**同構**於它:暫存檔同目錄、`hFlush`/`hClose`/`renamePath`、失敗清暫存檔 |
 | `initVault :: FilePath -> Text -> IO (Either StoreError Vault)`(內部寫 `.storyflow/.gitignore` 的那一段) | `store/src/StoryFlow/Store/Vault.hs` | entity-graph-core/F004 | 本 feature**改動**這裡的 `.gitignore` 內容(D6/S5),不是呼叫它 |
 | `vaultRoot :: Vault -> FilePath`(`Vault` record 欄位存取子;讀作**命名衝突查證**,不是被呼叫的函式) | 同上 | entity-graph-core/F004 | 確認新增 `StoryFlow.Service.vaultRoot` 時,`Service.hs` 既有的 `import StoryFlow.Store` 需要處理同名衝突(見「實作方式」第二節) |
@@ -511,6 +609,8 @@ data WorkshopError
   | WsStagesExhausted Text              -- session 已經沒有下一階段(stepWorkshop)
   | WsNothingToCommit Text              -- wsPending 是空的(commitStage,F003 產生;
                                          -- 本 feature 只定義建構子與渲染,不產生它)
+  | WsMissingRequiredField Text [Text]  -- 型別鍵 + 還缺的必填欄位名(commitStage,F003
+                                         -- 產生;本 feature 只定義建構子與渲染,不產生它)
   | WsLlmFailed LlmError                -- 模型那一跳,原樣包住不攤平
   deriving stock (Show, Eq)
 
@@ -533,13 +633,15 @@ data Session = Session
 -- instance ToJSON Session / instance FromJSON Session
 
 data StageDraft = StageDraft
-  { sdTitle   :: Text
-  , sdSummary :: Text
-  , sdBody    :: Text
-  , sdTags    :: [Text]
+  { sdTitle    :: Text
+  , sdSummary  :: Text
+  , sdBody     :: Text
+  , sdTags     :: [Text]
+  , sdTimeline :: Maybe Timeline
   }
   deriving stock (Show, Eq)
 -- instance ToJSON StageDraft / instance FromJSON StageDraft
+-- (sdTimeline 沿用 storyflow-core 的 instance ToJSON/FromJSON Timeline,不重新定義編碼)
 
 loadSession :: Text -> ServiceM (Either WorkshopError Session)
 -- saveSession 與 session id 產生是套件內部(Stages 呼叫),不在此列出公開名字,
@@ -561,13 +663,13 @@ vaultRoot :: ServiceM FilePath
 - [ ] T1: 建 `workshop/storyflow-workshop.cabal`(common 段照抄 conflict)、`cabal.project` 加 `workshop/` 與 ghc-options 段、三個模組骨架(`Workshop.Error` / `Workshop.Session` / `Workshop.Stages`)  `dep: -`
 - [ ] T2: `storyflow-service` 新增內嵌出口 `vaultRoot :: ServiceM FilePath`(處理與 `StoryFlow.Store.Vault` 的 `vaultRoot` 存取子的命名衝突:`hiding` 清單加它、既有三個呼叫點改 `S.vaultRoot`、匯出清單加入)  `dep: -`
 - [ ] T3: `store` 的 `initVault`:`.storyflow/.gitignore` 內容加一行 `workshops/`(D6/S5)  `dep: -`
-- [ ] T4: `Workshop.Error`:`WorkshopError` 七個建構子、`renderWorkshopError`、`workshopErrorCode`(對 `WsLlmFailed` 往內取 `renderLlmError` / `llmErrorCode`)  `dep: T1`
-- [ ] T5: `Workshop.Session`:`Session` / `StageDraft` 型別與 JSON 編碼(含 `Message`/`Role` 的私有 JSON 轉換,不對 `storyflow-llm` 的型別加孤兒實例)  `dep: T1`
+- [ ] T4: `Workshop.Error`:`WorkshopError` **八個**建構子(含 `WsMissingRequiredField`)、`renderWorkshopError`、`workshopErrorCode`(對 `WsLlmFailed` 往內取 `renderLlmError` / `llmErrorCode`)  `dep: T1`
+- [ ] T5: `Workshop.Session`:`Session` / `StageDraft`(含 `sdTimeline :: Maybe Timeline`)型別與 JSON 編碼(含 `Message`/`Role` 的私有 JSON 轉換,不對 `storyflow-llm` 的型別加孤兒實例;`sdTimeline` 沿用 `storyflow-core` 既有的 `Timeline` JSON 實例)  `dep: T1`
 - [ ] T6: `Workshop.Session`:快照路徑(經新增的 `vaultRoot` 取 root)、目錄建立、`saveSession :: Session -> ServiceM (Either WorkshopError ())`(暫存檔 + rename 的原子寫入)、`loadSession :: Text -> ServiceM (Either WorkshopError Session)`(缺檔 → `WsSessionNotFound`;JSON 壞掉 → `WsSnapshotCorrupt`)  `dep: T4, T5, T2`
 - [ ] T7: `Workshop.Session`:session id 產生(`fnv1a64` 雜湊 + 以快照檔是否已存在做碰撞重試)  `dep: T5`
 - [ ] T8: `Workshop.Stages`:`startWorkshop`(型別不存在 → `throwError (UnknownType _)`;空 `stages` → `pure (Left (WsNoStages _))`;硬約束 id 不存在 → 走 `getEntity` 原生的 `StoreFailed (EntityNotFound _)`;建初始 `Session` → `saveSession`,失敗原樣浮上去)  `dep: T6, T7, T4`
-- [ ] T9: `Workshop.Stages`:system prompt 組裝(階段說明 + 硬約束 summary + JSON 陣列格式指示)  `dep: T8`
-- [ ] T10: `Workshop.Stages`:`stepWorkshop`(越界 → `pure (Left (WsStagesExhausted _))`;`chat` 的 `Left e` → `pure (Left (WsLlmFailed e))` 且不寫快照;`Right` 時更新 `wsHistory`、解析回覆的 JSON 陣列成功則整批替換 `wsPending`、失敗則保留舊值、`saveSession` 失敗原樣浮上去)  `dep: T9`
+- [ ] T9: `Workshop.Stages`:system prompt 組裝(階段說明 + 硬約束 summary + **依 `etsFields` 逐條組出的欄位要求區塊** + JSON 陣列格式指示,格式指示含 `timeline` 選填鍵)  `dep: T8`
+- [ ] T10: `Workshop.Stages`:`stepWorkshop`(越界 → `pure (Left (WsStagesExhausted _))`;**重新 `listEntityTypes` 找 `wsType` 對應的 spec 取 `etsFields`,找不到 → `throwError (UnknownType _)`**;`chat` 的 `Left e` → `pure (Left (WsLlmFailed e))` 且不寫快照;`Right` 時更新 `wsHistory`、解析回覆的 JSON 陣列成功則整批替換 `wsPending`(含 `sdTimeline`)、失敗則保留舊值、`saveSession` 失敗原樣浮上去)  `dep: T9`
 - [ ] T11: 測試底稿 `StoryFlow.Workshop.Fixtures`(warp stub 端點、`withDeadPort`、臨時 Vault:`createVault`/`openEnv`/`runService`)  `dep: T1`
 - [ ] T12: 套件邊界測試 `StoryFlow.Workshop.CabalSpec`(build-depends 逐字釘住、禁用清單、`cabal.project` 已登錄、三個模組都在 `exposed-modules`)  `dep: T1`
 
@@ -583,13 +685,13 @@ stdout utf8` + 手動 `describe "Tn …"`,不用 `hspec-discover`)。T2 的測�
 | T1 | `StoryFlow.Workshop.CabalSpec`(「模組」小節) | `StoryFlow.Workshop.Error` / `StoryFlow.Workshop.Session` / `StoryFlow.Workshop.Stages` 都在 `exposed-modules` |
 | T2 | `StoryFlow.Service.VaultRootSpec` | `runService env vaultRoot` 回傳的路徑,以 `normalise` 比對後等於 `createVault` 建立時給的臨時目錄;該路徑底下 `.storyflow` 子目錄存在(佐證取到的是含 `.storyflow/` 的那一層) |
 | T3 | `StoryFlow.Store.InitSpec`(擴充既有測試「`.storyflow/.gitignore` 含 index.db」那一條) | `initVault` 後 `storyflowDir dir </> ".gitignore"` 的內容同時含 `index.db` 與 `workshops/` 兩行 |
-| T4 | `StoryFlow.Workshop.ErrorSpec` | 七個建構子的 `workshopErrorCode` 互不重複、全為 snake_case;`renderWorkshopError` 每一則非空;`WsLlmFailed e` 的 `renderWorkshopError` 等於 `renderLlmError e` 的原文、`workshopErrorCode (WsLlmFailed e)` 等於 `llmErrorCode e`(逐一對 `LlmError` 的五個建構子驗證) |
-| T5 | `StoryFlow.Workshop.SessionJsonSpec` | `Session` 與 `StageDraft` 各自 encode → decode round-trip 相等(含 `wsOwner = Nothing` 時鍵不出現、`wsOwner = Just _` 時鍵出現);`wsHistory` 的三種 `Role` 都能正確編解碼且互不混淆 |
+| T4 | `StoryFlow.Workshop.ErrorSpec` | **八個**建構子的 `workshopErrorCode` 互不重複、全為 snake_case;`renderWorkshopError` 每一則非空;`WsMissingRequiredField ty missing` 的 `renderWorkshopError` 同時含 `ty` 與 `missing` 每一個元素的文字、`workshopErrorCode` 等於 `"workshop_missing_required_field"`;`WsLlmFailed e` 的 `renderWorkshopError` 等於 `renderLlmError e` 的原文、`workshopErrorCode (WsLlmFailed e)` 等於 `llmErrorCode e`(逐一對 `LlmError` 的五個建構子驗證) |
+| T5 | `StoryFlow.Workshop.SessionJsonSpec` | `Session` 與 `StageDraft` 各自 encode → decode round-trip 相等(含 `wsOwner = Nothing` 時鍵不出現、`wsOwner = Just _` 時鍵出現);`wsHistory` 的三種 `Role` 都能正確編解碼且互不混淆;`StageDraft` 的 `sdTimeline`——`Nothing` 時 encode 出的物件不含 `"timeline"` 鍵、round-trip 後仍是 `Nothing`;`Just (Timeline (Just "崩塌前後") (Just 3))` 時 `"timeline"` 鍵出現且內容為 `{"label":"崩塌前後","order":3}`、round-trip 相等;`Just (Timeline Nothing (Just 3))`(只有 `order`)round-trip 相等,佐證沿用的是 `Core.Json` 既有的 `Timeline` 實例而非另一套編碼 |
 | T6 | `StoryFlow.Workshop.SessionIOSpec` | `saveSession` 回 `Right ()` 後檔案存在於 `.storyflow/workshops/<id>.json`;`loadSession` 讀回的 `Session` 與寫入前相等(`Right`);`loadSession` 對不存在的 id 回 `Left (WsSessionNotFound _)`;把快照檔內容改成不合法 JSON 後 `loadSession` 回 `Left (WsSnapshotCorrupt _ _)` |
 | T7 | `StoryFlow.Workshop.SessionIdSpec` | 連續產生 50 個 id 全部不重複;預先在 `workshops/` 目錄放一個與「即將產生的候選 id」同名的空檔(以雜湊輸入回推構造碰撞),驗證函式會跳過它、拿到不同的 id |
 | T8 | `StoryFlow.Workshop.StartSpec` | 對真實型別(`character-fragment`,`stages` 非空)呼叫 `startWorkshop`,用 `runService` 接:成功 → 外層 `Right (Right session)`,`wsStages` 等於註冊表的 `etsStages`、`wsCurrent == 0`、快照檔已寫出;型別不存在 → 外層 `Left (UnknownType _)`(`ServiceError`,不是 `WorkshopError`);硬約束 id 不存在 → 外層 `Left (StoreFailed (EntityNotFound _))`;`etsStages` 為空的型別(用型別註冊表載入的假型別或 stub 驗證)→ 外層 `Right (Left (WsNoStages _))` |
-| T9 | `StoryFlow.Workshop.PromptSpec` | 純函式測試(不必真的呼叫模型):組出的 system message 含目前階段名與 `N/總數`;硬約束的 `(id, summary)` 逐條出現在文字裡;含 JSON 陣列格式指示(斷言字串含 `title` / `summary` / `body` / `tags` 四個鍵名) |
-| T10 | `StoryFlow.Workshop.StepSpec` | 對 stub 端點,用 `runService` 接:回覆含合法 JSON 陣列(一個或多個 draft)→ 外層 `Right (Right (session', reply))`,`wsPending` 等於解析結果、`wsHistory` 增加兩則、快照被更新;回覆是純自然語言(無 JSON)→ `wsPending` 與呼叫前相等、但 `wsHistory` 與快照仍更新、`reply` 等於 stub 的原始回覆;`withDeadPort` → 外層 `Right (Left (WsLlmFailed (LlmUnavailable _)))` 且快照檔內容與呼叫前逐位元組相同(未被覆寫)、傳入的 `Session` 值本身不變;`wsCurrent = length wsStages` 的 session → 外層 `Right (Left (WsStagesExhausted _))` |
+| T9 | `StoryFlow.Workshop.PromptSpec` | 純函式測試(不必真的呼叫模型):組出的 system message 含目前階段名與 `N/總數`;硬約束的 `(id, summary)` 逐條出現在文字裡;含 JSON 陣列格式指示(斷言字串含 `title` / `summary` / `body` / `tags` / `timeline` 五個鍵名)。**證明「改 TOML 就改得動 prompt」**:比照 T8「用型別註冊表載入的假型別」的技巧,寫一份自訂的臨時 registry 目錄(一個型別、`etsFields` 給兩條——一條 `fsRequired = True`、一條 `False`,`fsHint` 各給一句可辨識的文字),經 `STORYFLOW_REGISTRY` + `openEnv` + `runService env listEntityTypes` 取得真正解析出來的 `EntityTypeSpec`,把它的 `etsFields` 餵進 `buildMessages`:斷言輸出文字含兩個 `fsName`、各自對應「必填」/「選填」標記、以及各自的 `fsHint` 原文;把同一個型別的 `required` 欄位或 `hint` 文字改掉(等效於改 TOML)、重新走一次載入,斷言 `buildMessages` 輸出的對應文字跟著換——過程完全沒有改 `buildMessages` 或任何 `Workshop.Stages` 的程式碼,只改了餵進去的 TOML 內容 |
+| T10 | `StoryFlow.Workshop.StepSpec` | 對 stub 端點,用 `runService` 接:回覆含合法 JSON 陣列(一個或多個 draft,含一則帶 `timeline`、一則不帶)→ 外層 `Right (Right (session', reply))`,`wsPending` 等於解析結果(含 `sdTimeline` 正確解出)、`wsHistory` 增加兩則、快照被更新;回覆是純自然語言(無 JSON)→ `wsPending` 與呼叫前相等、但 `wsHistory` 與快照仍更新、`reply` 等於 stub 的原始回覆;`withDeadPort` → 外層 `Right (Left (WsLlmFailed (LlmUnavailable _)))` 且快照檔內容與呼叫前逐位元組相同(未被覆寫)、傳入的 `Session` 值本身不變;`wsCurrent = length wsStages` 的 session → 外層 `Right (Left (WsStagesExhausted _))`。**接線測試**(與 T9 的純函式證明互補,證明 `stepWorkshop` 真的把 T9 驗證過的組裝邏輯接上了):對一個以自訂 registry 開的 session 呼叫 `stepWorkshop`,以 `stubLast` 取回 `StubHandle` 記下的 `RecordedRequest`,`rrBody` 解成 JSON 後在 `messages` 陣列的 system message 內容裡找得到該型別 `etsFields` 的欄位名與 hint 文字;`wsType` 對應的型別在 `stepWorkshop` 呼叫前被從 registry 移除(改指到另一份沒有它的臨時 registry 目錄)→ 外層 `Left (UnknownType _)`,與 `startWorkshop` 對型別不存在的失敗走同一個通道 |
 | T11 | `StoryFlow.Workshop.StubSpec` | 底稿自己的契約(照抄 F001 的 T9):`withStub` 起得來、回得出設定好的內文;`withDeadPort` 給的埠在區塊內用(透過 `chat` 間接)驗證為連線被拒 |
 | T12 | `StoryFlow.Workshop.CabalSpec`(主體) | `build-depends` 逐字等於設計裡的兩份清單;library 不含 `storyflow-store` / `storyflow-md` / `sqlite-simple` / `direct-sqlite` / `servant` / `warp`;`storyflow-core` / `storyflow-llm` / `storyflow-service` 都在 library;`warp` / `wai` 只出現在 test-suite;`cabal.project` 含 `workshop/` 且含 `package storyflow-workshop` 段 |
 
@@ -615,6 +717,23 @@ stdout utf8` + 手動 `describe "Tn …"`,不用 `hspec-discover`)。T2 的測�
   → 影響:若 F003 的 `commitStage` 需要重用這兩個函式(幾乎必然,因為它也要在成功後寫出
   快照,而且要沿用「`WorkshopError` 走 `Either`,不 `throwError`」這個新形狀),它會是
   「同套件內部呼叫」而不是「新的公開介面」,不影響本文檔已定的公開面。
+- A4(本次修訂新增):`stepWorkshop` 取得 `etsFields` 的時機與資料來源、找不到型別時怎麼辦。
+  → 採取:每次呼叫重新 `listEntityTypes` 找 `wsType session` 對應的 spec,不快取進
+  `Session`——理由與 A1 完全一樣:`Session` 的九個欄位是 Level 2 契約鎖定的形狀,加第十個
+  欄位(例如快取 `etsFields`)就是偏離契約,而且「使用者中途改了 TOML」與 A1 講的「使用者
+  中途編輯了硬約束 summary」是同一種情境,現讀現送才對得上驗收標準「改 TOML 就改得動」;
+  找不到型別(理論上不會發生,`startWorkshop` 已經驗證過,但 session 存活期間型別可能被
+  從註冊表移除)時原樣重用 `startWorkshop` 第一步的做法:`throwError (UnknownType wsType)`,
+  走 `ServiceError` 通道而不是新開一個 `WorkshopError` 建構子。→ 影響:若判斷錯誤——例如
+  認為這種情況該是工作坊自己的失敗——需要新增一個 `WorkshopError` 建構子,那是偏離契約的
+  變動(`WorkshopError` 的建構子集合已在 `design.md` 逐字鎖定),代價明顯更高,這也是選擇
+  重用 `UnknownType` 的加分理由。
+- A5(本次修訂新增):欄位要求區塊在 prompt 裡的確切呈現格式(是否用清單、「必填」/「選填」
+  怎麼寫)。→ 採取:比照硬約束區塊的既有風格,逐條「- {fsName}({必填 或 選填}):{fsHint}」;
+  T9 的測試只斷言子字串出現(欄位名、必填/選填文字、hint 原文各自找得到),不鎖死整體排版
+  或標點。→ 影響:若之後想換更精緻的呈現(例如表格、依 `fsRequired` 分兩段列),只要三個
+  子字串仍然找得到,T9 的斷言不必改;若字串斷言本身也要調整(例如把「必填」換成別的措辭),
+  才需要回頭改測試。
 
 ## 實作備註
 

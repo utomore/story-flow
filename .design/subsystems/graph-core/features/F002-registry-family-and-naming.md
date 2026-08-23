@@ -3,7 +3,7 @@ id: F002
 type: feature
 title: registry-family-and-naming
 description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙(kinds/domains/states)、命名文法改吃注入詞彙並語意區分 variant/state
-status: in-progress
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F001]
@@ -565,6 +565,11 @@ states = [
 **2026-08-23 階段一閘門推翻 A1 後,以下項目已完成但內容不符新契約,需重做**(勾選狀態保留代表
 「這個項目本身仍然要做」,不代表現有程式碼已經符合新契約):T1、T3、T5、T6、T9、T10、T11、T12、
 T13。T2、T4、T7、T8、T14 不受影響。
+
+**2026-08-23 重工完成**:T1、T3、T5、T6、T9、T10、T11、T12、T13 已依本文檔新契約(`npVariant` /
+`npState` 語意分開、`nvStates` 詞彙、`parseLogicalName` 帶 `NamingVocab`、`checkMeta` 的
+`badNameKind` 改切文字不呼叫 `parseLogicalName`)重寫,`cabal test aapms-core aapms-types` 全綠
+(224 / 42,0 failures)。
 
 - [x] T1(**需重做**): `aapms-core`:重寫 `Naming.hs`(`Segment` / `NameParts` 改回
   `npVariant :: Maybe Segment` + `npState :: Maybe Segment`〔不是 `npModifiers`〕/ `NamingVocab`

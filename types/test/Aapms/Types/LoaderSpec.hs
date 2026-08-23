@@ -41,12 +41,19 @@ withRegistryDirRaw files act =
     mapM_ (\(n, c) -> BS.writeFile (dir </> n) (TE.encodeUtf8 c)) files
     act dir
 
--- | 與專案 @types\/registry\/naming.toml@ 相同的 12 個 kind。
+-- | 與專案 @types\/registry\/naming.toml@ 相同的 12 個 kind、37 個 state。
 defaultNamingToml :: Text
 defaultNamingToml =
   T.unlines
     [ "kinds   = [\"spr\", \"tex\", \"atlas\", \"ui\", \"fnt\", \"sfx\", \"bgm\", \"vo\", \"lvl\", \"shd\", \"src\", \"doc\"]"
     , "domains = []"
+    , "states  = ["
+    , "  \"idle\", \"hover\", \"pressed\", \"disabled\", \"active\", \"selected\", \"focus\","
+    , "  \"open\", \"closed\", \"empty\", \"full\", \"on\", \"off\","
+    , "  \"walk\", \"run\", \"attack\", \"dash\", \"death\", \"hurt\", \"cast\","
+    , "  \"up\", \"down\", \"left\", \"right\", \"front\", \"back\", \"north\", \"south\", \"east\", \"west\","
+    , "  \"day\", \"night\", \"dawn\", \"dusk\", \"intro\", \"loop\", \"outro\""
+    , "]"
     ]
 
 -- | 注意鍵的順序:allowed_links 與 stages 必須在 [[fields]] __之前__,
@@ -210,12 +217,24 @@ spec = do
           r <- loadRegistry dir
           map fieldOf (errsOf r) `shouldBe` ["foo"]
 
-    it "kinds / domains 都能正確讀出(對照專案的 naming.toml 內容)" $
+    it "kinds / domains / states 都能正確讀出(對照專案的 naming.toml 內容)" $
       withRegistryDir [] $ \dir -> do
         r <- loadRegistry dir
         case vocabOf r of
-          Just vocab -> length (nvKinds vocab) `shouldBe` 12
+          Just vocab -> do
+            length (nvKinds vocab) `shouldBe` 12
+            nvDomains vocab `shouldBe` []
+            length (nvStates vocab) `shouldBe` 37
           Nothing -> expectationFailure ("載入失敗:" <> show (errsOf r))
+
+    it "states 不是字串陣列時回 BadFieldType" $
+      withRegistryDirRaw
+        [ ("a.toml", goodToml "a-fragment" "甲")
+        , ("naming.toml", "kinds = []\ndomains = []\nstates = [1, 2]\n")
+        ]
+        $ \dir -> do
+          r <- loadRegistry dir
+          map fieldOf (errsOf r) `shouldBe` ["states"]
 
   describe "loadRegistry —— family" $ do
     it "缺少 family 回 MissingField" $
@@ -412,12 +431,13 @@ spec = do
             `shouldBe` sort (entityFixtureKeys ++ map fst assetFixtureSpecs)
         Nothing -> expectationFailure ("專案實檔載入失敗:" <> show (errsOf r))
 
-    it "NamingVocab 的 nvKinds 恰好 12 個,nvDomains 為空" $ do
+    it "NamingVocab 的 nvKinds 恰好 12 個,nvDomains 為空,nvStates 恰好 37 個" $ do
       r <- loadRegistry projectRegistryDir
       case vocabOf r of
         Just vocab -> do
           length (nvKinds vocab) `shouldBe` 12
           nvDomains vocab `shouldBe` []
+          length (nvStates vocab) `shouldBe` 37
         Nothing -> expectationFailure ("專案實檔載入失敗:" <> show (errsOf r))
 
     it "沒有型別佔用保留鍵 level / asset-pack / asset-license" $ do

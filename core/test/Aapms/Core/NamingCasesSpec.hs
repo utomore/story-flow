@@ -36,13 +36,24 @@ parseCases = traverse one . filter keep . map trimComment . T.lines
     trimComment l = fst (T.breakOn " #" l)
     trim = T.dropWhileEnd isSpace . T.dropWhile isSpace
 
--- | 與 @types/registry/naming.toml@ 一致的 12 個 kind。
+-- | 與 @types/registry/naming.toml@ 一致的 12 個 kind、37 個 state。
 vocab :: NamingVocab
 vocab =
   NamingVocab
     { nvKinds =
         rights (map mkSegment ["spr", "tex", "atlas", "ui", "fnt", "sfx", "bgm", "vo", "lvl", "shd", "src", "doc"])
     , nvDomains = []
+    , nvStates =
+        rights
+          ( map
+              mkSegment
+              [ "idle", "hover", "pressed", "disabled", "active", "selected", "focus"
+              , "open", "closed", "empty", "full", "on", "off"
+              , "walk", "run", "attack", "dash", "death", "hurt", "cast"
+              , "up", "down", "left", "right", "front", "back", "north", "south", "east", "west"
+              , "day", "night", "dawn", "dusk", "intro", "loop", "outro"
+              ]
+          )
     }
 
 readUtf8 :: FilePath -> IO T.Text
@@ -50,17 +61,24 @@ readUtf8 p = TE.decodeUtf8 <$> BS.readFile p
 
 spec :: Spec
 spec = describe "T10 test_naming_cases_fixture" $ do
-  it "naming-cases.txt 全部 ok 案例以 naming.toml 詞彙驗證通過" $ do
+  it "naming-cases.txt 全部 ok 案例以 naming.toml 詞彙(含 states)驗證通過" $ do
     src <- readUtf8 casesPath
     case parseCases src of
       Left e -> expectationFailure e
       Right cs ->
         mapM_
-          ( \name -> case parseLogicalName name >>= mkLogicalName vocab of
+          ( \name -> case parseLogicalName vocab name >>= mkLogicalName vocab of
               Right _ -> pure ()
               Left e -> expectationFailure (T.unpack name <> " 應合法,卻得到:" <> show e)
           )
           [n | Ok n <- cs]
+
+  it "spr_char_hero_attack-01_up 額外斷言 npVariant / npState 拆分正確" $
+    case parseLogicalName vocab "spr_char_hero_attack-01_up" of
+      Right p -> do
+        fmap segmentText (npVariant p) `shouldBe` Just "attack-01"
+        fmap segmentText (npState p) `shouldBe` Just "up"
+      Left e -> expectationFailure (show e)
 
   it "naming-cases.txt 全部 bad 案例被對應 NameError 拒絕" $ do
     src <- readUtf8 casesPath
@@ -69,7 +87,7 @@ spec = describe "T10 test_naming_cases_fixture" $ do
       Right cs ->
         mapM_
           ( \name ->
-              (parseLogicalName name >>= mkLogicalName vocab)
+              (parseLogicalName vocab name >>= mkLogicalName vocab)
                 `shouldSatisfy` isLeft
           )
           [n | Bad n <- cs]

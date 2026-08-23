@@ -7,3 +7,20 @@
 # TypeDecl 解析。
 kinds   = ["spr", "tex", "atlas", "ui", "fnt", "sfx", "bgm", "vo", "lvl", "shd", "src", "doc"]
 domains = []
+
+# states 是命名文法拆解 npState 時唯一查的表(2026-08-23 階段一閘門新增,取代 legacy 的
+# nvStates + nvVariants 兩張表)。逐字取自 legacy/assetdb/core/src/AssetDB/Naming.hs 的
+# defaultVocab 的 nvStates(37 個詞,分五組),F002 審視過分類邊界、沒有找到需要增刪的
+# 項目。variant 天生開放,刻意不設詞彙表。
+states = [
+  # 互動狀態
+  "idle", "hover", "pressed", "disabled", "active", "selected", "focus",
+  # 開合
+  "open", "closed", "empty", "full", "on", "off",
+  # 動作
+  "walk", "run", "attack", "dash", "death", "hurt", "cast",
+  # 方向
+  "up", "down", "left", "right", "front", "back", "north", "south", "east", "west",
+  # 時段與播放段落
+  "day", "night", "dawn", "dusk", "intro", "loop", "outro",
+]

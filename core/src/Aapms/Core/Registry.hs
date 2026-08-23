@@ -45,7 +45,7 @@ import Aapms.Core.Meta
   , TypeKey (..)
   , metaFieldNames
   )
-import Aapms.Core.Naming (NameParts (..), Segment, parseLogicalName, segmentText)
+import Aapms.Core.Naming (Segment, segmentText)
 import Data.List (nub, sortOn)
 import qualified Data.Map.Strict as M
 import Data.Maybe (isJust)
@@ -203,12 +203,18 @@ checkMeta reg node =
 
     -- 只對「有命名」的 asset 檢查;tdNameKinds 空清單比照 allowed_links 的
     -- 慣例視為「未宣告限制」(F002 待確認假設 A3)。
+    --
+    -- 不呼叫完整 'parseLogicalName'(2026-08-23 階段一閘門後它需要
+    -- 'NamingVocab' 參數,而 'checkMeta' 的契約簽名沒有這個參數,見 F002
+    -- 待確認假設 A6)——直接切 'LogicalName' 文字第一個 @_@ 之前的片段當
+    -- kind 文字用;'astName' 的建構子只經 'mkLogicalName' 取得,第一段合法性
+    -- ('nvKinds' 成員)已在寫入時保證過,這裡只需要文字本身,不需要重新驗證。
     badNameKind decl = case node of
       NAsset Asset {astName = Just (LogicalName nm)}
         | not (null (tdNameKinds decl))
-        , Right parts <- parseLogicalName nm
-        , npKind parts `notElem` tdNameKinds decl ->
-            [NameKindNotAllowed (tdKey decl) (segmentText (npKind parts))]
+        , kindTxt <- T.takeWhile (/= '_') nm
+        , kindTxt `notElem` map segmentText (tdNameKinds decl) ->
+            [NameKindNotAllowed (tdKey decl) kindTxt]
       _ -> []
 
 -- | 某個 'Meta' 欄位是否「有填」。

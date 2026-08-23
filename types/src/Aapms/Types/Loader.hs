@@ -278,8 +278,9 @@ fieldSpec fp v = case v of
 
 -- naming.toml -----------------------------------------------------------------
 
--- | 讀 @naming.toml@:@kinds@(強制詞彙,命名文法第一段的合法值)與
--- @domains@(不強制,只為與 @kinds@ 對稱)兩個字串陣列。
+-- | 讀 @naming.toml@:@kinds@(強制詞彙,命名文法第一段的合法值)、@domains@
+-- (不強制,只為與 @kinds@ 對稱)、@states@(強制、封閉,'parseLogicalName'
+-- 拆解時唯一查的表,2026-08-23 階段一閘門新增)三個字串陣列。
 readNamingToml :: FilePath -> IO (Either [RegistryError] NamingVocab)
 readNamingToml fp = do
   raw <- try (BS.readFile fp) :: IO (Either IOException BS.ByteString)
@@ -300,9 +301,10 @@ parseNaming fp tbl =
   where
     eKinds = optStrings fp tbl "kinds" >>= traverse (toSegment fp "kinds")
     eDomains = optStrings fp tbl "domains" >>= traverse (toSegment fp "domains")
-    unknownErrs = [UnknownKey fp k | k <- M.keys tbl, k `notElem` ["kinds", "domains"]]
-    errs = concat [lefts1 eKinds, lefts1 eDomains, unknownErrs]
-    mvocab = NamingVocab <$> toMaybe eKinds <*> toMaybe eDomains
+    eStates = optStrings fp tbl "states" >>= traverse (toSegment fp "states")
+    unknownErrs = [UnknownKey fp k | k <- M.keys tbl, k `notElem` ["kinds", "domains", "states"]]
+    errs = concat [lefts1 eKinds, lefts1 eDomains, lefts1 eStates, unknownErrs]
+    mvocab = NamingVocab <$> toMaybe eKinds <*> toMaybe eDomains <*> toMaybe eStates
 
 -- | 字串轉命名文法分段,失敗時帶欄位名的 'BadFieldType'。
 toSegment :: FilePath -> Text -> Text -> Either [RegistryError] Segment

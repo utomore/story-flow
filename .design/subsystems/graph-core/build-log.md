@@ -185,6 +185,40 @@ F004 沒有擅自加欄位或改簽名,照契約原樣實作、測試只驗結�
 `aapms-store` 的 library 對 `aapms-md` 有 build-depends,md 不修好 store 連帶編不過;先跑 F004
 就不必為了讓 F005 綠燈而暫時拔掉那條相依。
 
+### 階段二閘門結果(2026-08-24)
+
+**完成**:F004 / F005 / F006 三個 feature `status: done`,Todo 46/46(16 + 13 + 17)。
+commit:`c9f6fe4`(F004)、`83c737e` + `8ae2c31`(F005 含 D9 重工)、`3b2d1e3`(F006)。
+
+**測試**(編排者獨立重跑):`aapms-core` **224 / 0**、`aapms-types` **42 / 0**、`aapms-md` **239 / 0**、
+`aapms-store` **75 / 0**,合計 **580 examples、0 failures**;`cabal build all` **全綠**。
+
+**兩個里程碑**:① `aapms-md` 從編不過修復,`cabal build all` 自階段一開跑以來首次回綠;
+② 程式碼知識圖恢復可重建,已在 `3b2d1e3` 更新(2378 nodes、9985 edges)。
+
+**arch-audit subsys graph-core 發現**:
+
+1. (無)循環依賴:無;跨界引用:無(graph-core 沒有別人進來、也沒有出去)
+2. (無)契約符合度:契約 E 的索引與查詢 11 條簽名(`rebuildIndex` / `refreshStale` / `indexFile` /
+   `unindexFile` / `lookupNode` / `lookupByName` / `listNodes` / `childrenOf` / `linksFrom` /
+   `linksTo` / `loadLinkGraph`)**逐條與 design.md 相符**,無漂移
+3. (低,觀察)`Aapms.Core.Json` 是連通度第一名(201),534 行、64 個 instance。但 design.md
+   「內部模組劃分」把它定義成「全系統唯一的 aeson 編碼規則」,**高連通是設計意圖不是缺陷**。
+   列為觀察項:型別還會增加,若日後難以維護,可依節點型別拆檔但保持「規則只有一份」
+4. (資訊)圖的子系統對映覆蓋率只有 11%(35/325 檔案)——因為只有 graph-core 填了 `code-paths`,
+   其餘子系統都還沒重建(D1 凍結中)。這不是缺陷,但代表**依賴矩陣目前只看得到局部**,
+   要等 P3 之後其他子系統重建並補 `code-paths` 才有全域結論
+
+**驗收標準逐條對帳**(F006 契約卡):`checkMeta` 警告經 `MetaWarningsFound FilePath Id [MetaWarning]`
+進 `IndexIssue` 且**不擋索引**(符合本子系統「只說出發生了什麼、不決定怎麼辦」的定位);
+`buildTree` 錯誤經 `TreeInvalid` 進 `IndexIssue`(整檔不進索引);`assets.name` 重複經
+`DuplicateAssetName` 整檔回滾。三者都有測試。
+
+**F006 新增假設 A10**:`nodes` 表沒有 `vault` 欄,`metaVault` 由 `VaultHandle` 自己的 `vmId` 回填,
+不逐列儲存 frontmatter 的 `vault:` 標籤。判斷合理——節點屬於哪個 vault 由它**實際所在的 vault**
+決定(ADR-017 的身分是 marker 裡的 id),frontmatter 標籤只是自由文字。模組已寫明日後若需要
+「檔案宣告的標籤」是純 schema 擴充。
+
 ### 階段三 檢索與寫入
 
 (未開始)

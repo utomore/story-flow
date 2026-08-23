@@ -155,6 +155,20 @@ Marker 模組)、A4(`initVaultAt` 不建業務子目錄與 `.gitignore`,留給 `
 A5(vault id 不做碰撞重試——沒有中樞註冊表可查,`salt=0`)、A6(`IndexIssue` 只給一個建構子,
 F006 必須**擴充**而非重新定義)。
 
+**W4 實作 · F004 完成**(`c9f6fe4`):`aapms-md` 從**編不過**變成 **239 examples / 0 failures**;
+core 224 / 0、types 42 / 0 未受影響。Todo 16/16。
+
+**G1 — F004 查出的契約缺口(要在階段二閘門裁決,已阻擋 F008 的一條驗收)**:契約 E 的
+`NewSection` 只有 `nsMeta :: MetaOverride` 一個管道寫節層欄位,但 **`MetaOverride` 裡沒有 asset 專屬
+欄位**(`sha256` / `entry` / `ext` / `meta` / `license` / `author`)**也沒有 license 的八個授權維度**。
+後果:`appendSection`(以及契約 E 的 `addSection`)**寫不出一個能通過 `toPack` / `toLicenses` 驗證的
+完整新節**——而 F008 的驗收標準明寫「`createPackFile` 在指定目錄寫出 pack.md,節的順序與給定順序相同」。
+F004 沒有擅自加欄位或改簽名,照契約原樣實作、測試只驗結構 roundtrip 不假裝 `toPack` 會過,**這個處理是對的**。
+編排者評估:這是 Level 2 契約的表達力缺口,不是實作細節,必須在 F008 設計前定案。
+
+**F004 新增假設**:A6(`toPack` 對節缺 `sha256` / `entry` 用一般的 `SectionYaml` 錯誤,不開
+`SectionFieldMissing` 分支——契約只點名 `type` / `commercial` / `attribution_required` 三個用該建構子)。
+
 **實作順序**:依 D8 改成 **F004 → F005 → F006**(原本 F004 ‖ F005 只適用設計階段)。理由:
 `aapms-store` 的 library 對 `aapms-md` 有 build-depends,md 不修好 store 連帶編不過;先跑 F004
 就不必為了讓 F005 綠燈而暫時拔掉那條相依。

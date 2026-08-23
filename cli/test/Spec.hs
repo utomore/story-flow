@@ -21,6 +21,7 @@ import qualified StoryFlow.Cli.RunCliSpec
 import qualified StoryFlow.Cli.TreeSpec
 import qualified StoryFlow.Cli.VaultCmdSpec
 import qualified StoryFlow.Cli.DoctorSpec
+import qualified StoryFlow.Cli.ReleaseScriptSpec
 import qualified StoryFlow.Cli.WorkshopCmdSpec
 import System.IO
 import Test.Hspec
@@ -58,3 +59,4 @@ main = do
     StoryFlow.Cli.WorkshopCmdSpec.spec
     -- G-E002:doctor 本機診斷
     StoryFlow.Cli.DoctorSpec.spec
+    StoryFlow.Cli.ReleaseScriptSpec.spec

@@ -3,7 +3,7 @@ id: G-E002
 type: enhance
 title: standalone-distribution
 description: 執行檔可獨立發佈:--version、執行檔旁的 registry/ 查找、doctor 診斷、發佈 zip
-status: in-progress
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [entity-graph-core/F002, entity-graph-core/F004, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003, llm-workshop-mcp/F001, llm-workshop-mcp/F005]
@@ -233,9 +233,9 @@ locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, Vau
 - [x] T8: `Command` 加 `Doctor`、`Options.hs` 加 `doctor` 子指令、`dispatch` 走 `direct`;`--remote` 併用時回 `CliUsage`  `dep: T3, T5`
 - [x] T9: `doctor` 五項診斷的組裝與 `DoctorReport` 型別;退出碼規則  `dep: T1, T8`
 - [x] T10: `doctor` 的兩種輸出:`--json` 信封(snake_case 五鍵)與給人看的 `[ok]` / `[!!]` / `[--]` 行  `dep: T9`
-- [ ] T11: `scripts/release.ps1` 與 `release.sh`:安裝三個執行檔、複製 `registry/`、寫 README、壓 zip;不吞 stderr  `dep: T5, T6, T7`
-- [ ] T12: 回寫 `entity-graph-core/design.md`(模組表與架構圖的定位描述)與 `service-and-interfaces/design.md`(`locateVault` 內嵌出口、葉子指令數、對外形式表加 `doctor` 與 `--version`)  `dep: T3, T8`
-- [ ] T13: 全套驗收:`cabal build all` 零 warning、`cabal test all` suites 不變且 examples 不減、`cabal.project` 的 `git diff` 為空  `dep: T10, T11, T12`
+- [x] T11: `scripts/release.ps1` 與 `release.sh`:安裝三個執行檔、複製 `registry/`、寫 README、壓 zip;不吞 stderr  `dep: T5, T6, T7`
+- [x] T12: 回寫 `entity-graph-core/design.md`(模組表與架構圖的定位描述)與 `service-and-interfaces/design.md`(`locateVault` 內嵌出口、葉子指令數、對外形式表加 `doctor` 與 `--version`)  `dep: T3, T8`
+- [x] T13: 全套驗收:`cabal build all` 零 warning、`cabal test all` suites 不變且 examples 不減、`cabal.project` 的 `git diff` 為空  `dep: T10, T11, T12`
 
 ## 1-to-1 測試對照表
 
@@ -257,4 +257,45 @@ locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, Vau
 
 ## 實作備註
 
-(實作時填寫:與設計的偏差、量化結果)
+### 量化結果(對照「改善目標」)
+
+| 指標 | 現況 | 目標 | 實測 |
+|---|---|---|---|
+| 複製執行檔 + `registry/` 到乾淨目錄,不設環境變數 | `registry_unavailable` | `doctor` exit 0,`type list` 回 5 個型別 | **zip 解開後 `doctor` exit 0、`source = beside_executable`、5 個型別;`vault init` → `entity new` → `search` 整條路跑通** ✅ |
+| `--version` | 無 | 三個執行檔同格式 | `story-flow 0.1.0.0` / `story-flow-serve 0.1.0.0` / `story-flow-mcp 0.1.0.0` ✅ |
+| 註冊表找不到的訊息 | 講兩個地方 | 講三個,不提原始碼樹 | 含 `STORYFLOW_REGISTRY`、執行檔旁的實際路徑、`data-files`;測試斷言不含「原始碼樹」 ✅ |
+| `doctor` 在沒有 Vault 的目錄 | 指令不存在 | 跑得起來 | exit 0,Vault 那項 `[!!]`,`[llm]` 標 `[--]` ✅ |
+| `doctor` 對壞掉的 `vaults.toml` | 無從得知 | 報出解析錯誤與路徑 | 測試餵 `測試世界 = "."`,`vault_registry.ok = false`,訊息含 `vaults.toml` ✅ |
+| 發佈腳本 | 無 | 恰好 3 exe + 5 toml + README,壓 zip | `release.ps1` 與 `release.sh` 都驗過;測試逐字比對九個檔案 ✅ |
+| 全套測試 | 12 / 1435 / 0 | suites 不變、examples 不減 | **12 / 1456 / 0**(+21) ✅ |
+| 建置 warning | 0 | 0 | **0** ✅ |
+| `cabal.project` 的 `git diff` | — | 空 | **空** ✅ |
+
+各套件:types 29 → 33、service 102 → 105、cli 237 → 249、server 84 → 86、mcp 53 → 56。
+
+### 與設計的偏差
+
+1. **`cli` 不直接依賴 `storyflow-types`,改由 `service` 門面 re-export**。設計的 T9 寫
+   `doctor` 用 `locateRegistry → loadRegistry`,隱含 `cli` 要 import `Types.Loader`;但 `cli` 的
+   `build-depends` 沒有 `storyflow-types`,而且不該為了一個指令加 —— 與它不依賴 `storyflow-store`
+   同一條紀律。`StoryFlow.Service` 新增「沿用 `types` 的定義(不重造)」一組 re-export 六個名字
+   (`RegistrySource (..)` / `locateRegistry` / `loadRegistry` / `renderLoadError` / `registryEnvVar` /
+   `registryBesideExecutable`)。**`cli` 的相依清單一個字沒動**
+2. **`Types.Loader` 多匯出 `registryBesideExecutable :: IO FilePath`**。`service` 的 `registryHint` 要
+   說出「執行檔旁的哪個路徑」,但 `service` 刻意不依賴 `filepath` / `directory`,算路徑的事由
+   `types` 做好給它。設計沒列這個名字,屬 Level 3 的切分
+3. **`release.ps1` 要 UTF-8 BOM**。PowerShell 5.1 讀無 BOM 的 UTF-8 當 ANSI,中文註解會把
+   tokenizer 弄壞(parse error 指到毫無問題的 `param(` 那行)。`check.ps1` 沒踩到是因為它沒有中文
+4. **`release.sh` 的 zip 有三層 fallback**:`zip` → bsdtar `-a`(Git Bash 的 `tar` 是 GNU tar,
+   要明指 `/c/Windows/System32/tar.exe`)→ 失敗並說資料夾已組好。設計只寫「壓成 zip」
+5. **`--version` 的 server 測試驗的是 `serverVersion` 字串,不是旗標接線**。`story-flow-serve` 的
+   `pinfo` 住在 `app/Main.hs`,library 測試碰不到;把版本字串放進 library(`StoryFlow.Server.serverVersion`)
+   讓格式可測,旗標本身以手動實跑驗證(三個執行檔都跑過)。`mcp` 同理:測 `wantsVersion` 與
+   `mcpVersion`,`Main` 的分支以實跑驗證
+
+### 實作順序上值得記的一件事
+
+`doctor` 第一次在 repo 外實跑,給人看的那五行是 **CP950 亂碼**,`--json` 那條完全正確。這就是
+2026-08-22 smoke test 找到的第二個 bug 在新指令上的重現 —— 它不在本文檔 scope,但 `doctor` 的
+人類輸出刻意用 ASCII 前綴(`[ok]` / `[!!]` / `[--]`),就是為了在那個 bug 修好之前,至少狀態
+本身看得懂。

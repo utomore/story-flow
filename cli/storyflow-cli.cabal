@@ -100,6 +100,7 @@ test-suite storyflow-cli-test
         StoryFlow.Cli.VaultCmdSpec
         StoryFlow.Cli.WorkshopCmdSpec
         StoryFlow.Cli.DoctorSpec
+        StoryFlow.Cli.ReleaseScriptSpec
     build-depends:
         , aeson
         , base
@@ -109,6 +110,7 @@ test-suite storyflow-cli-test
         , hspec
         , http-types
         , optparse-applicative
+        , process
         , storyflow-cli
         , storyflow-server
         , warp

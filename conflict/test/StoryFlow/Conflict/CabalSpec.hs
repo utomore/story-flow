@@ -30,7 +30,9 @@ import Data.Char (isSpace)
 import Data.List (isInfixOf)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import System.Directory (doesFileExist)
+import Control.Monad (filterM)
+import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
+import System.FilePath (takeExtension, takeFileName, (</>))
 import Test.Hspec
 
 spec :: Spec
@@ -76,6 +78,32 @@ spec = describe "第 3 層放行 llm,其餘三項仍然擋住" $ do
   it "exposed-modules 含 StoryFlow.Conflict.Retrieval" $ do
     src <- readCabal
     ("StoryFlow.Conflict.Retrieval" `isInfixOf` src) `shouldBe` True
+
+  -- conflict-detection/E001 T5:門面與實作拆開之後,Internal 也要註冊得到,
+  -- 否則測試 import 不到它。
+  it "exposed-modules 含 StoryFlow.Conflict.Retrieval.Internal(E001)" $ do
+    src <- readCabal
+    ("StoryFlow.Conflict.Retrieval.Internal" `isInfixOf` src) `shouldBe` True
+
+  -- conflict-detection/E001 T6:__本次優化唯一的長期保護__。
+  --
+  -- E001 收斂匯出面是為了兌現契約卡那句「候選撈取策略本身是本模組的內部抽象」,
+  -- 以及 ADR-007 的「換一種候選策略不必動第 1、3 層」。但收斂只是__一次性__的動作
+  -- ——下一個 feature 隨手 @import StoryFlow.Conflict.Retrieval.Internal@ 就把閘門
+  -- 重新打開,而且__一樣不會有任何測試變紅__。這條斷言就是那個會變紅的東西。
+  --
+  -- 只看 @src/@:測試 import Internal 正是它存在的理由。
+  it "src/ 底下只有 Retrieval.hs 能碰 Retrieval.Internal(E001)" $ do
+    files <- srcFiles
+    offenders <- filterM (fmap (isInfixOf internalName) . readUtf8) (filter notFacade files)
+    offenders `shouldBe` []
+
+  -- 同一條守衛的重現:對真實的 src/ 斷言證明不了守衛完整——它現在本來就乾淨,
+  -- 那條斷言無論守衛寫得對不對都會綠。與 service-and-interfaces/B001 同一個做法。
+  it "守衛擋得住 Pipeline.hs 偷 import Internal(E001 重現)" $ do
+    let mutated :: [(String, String)]
+        mutated = [("Pipeline.hs", "import " ++ internalName ++ " (mergeCandidates)")]
+    [f | (f, body) <- mutated, internalName `isInfixOf` body] `shouldBe` ["Pipeline.hs"]
 
   -- conflict-detection/F004 T6:合流與 context 出口的模組。
   --
@@ -159,6 +187,41 @@ forbidden =
 
 -- | 以 UTF-8 讀,不走系統預設編碼:@.cabal@ 裡有繁中註解,而 Windows 的預設
 -- code page 會在讀到第一個中文字時直接丟 InvalidArgument。
+-- | 兩個檔案本來就會出現那個字串,不算違規:
+--
+-- * @Internal.hs@ —— 它的 @module@ 宣告就是那個名字
+-- * @Retrieval.hs@ —— 門面是__唯一__允許 import 它的 @src/@ 檔案
+notFacade :: FilePath -> Bool
+notFacade f = takeFileName f `notElem` ["Retrieval.hs", "Internal.hs"]
+
+internalName :: String
+internalName = "StoryFlow.Conflict.Retrieval.Internal"
+
+-- | @conflict/src/@ 底下所有 @.hs@,遞迴。
+srcFiles :: IO [FilePath]
+srcFiles = go =<< srcRoot
+  where
+    go dir = do
+      names <- listDirectory dir
+      fmap concat . mapM (step . (dir </>)) $ names
+    step path = do
+      isDir <- doesDirectoryExist path
+      if isDir
+        then go path
+        else pure [path | takeExtension path == ".hs"]
+
+-- | 測試可能從專案根目錄或從 @conflict/@ 底下跑。
+srcRoot :: IO FilePath
+srcRoot = go ["src", "conflict" </> "src"]
+  where
+    go [] = fail "找不到 conflict/src"
+    go (d : rest) = do
+      ok <- doesDirectoryExist d
+      if ok then pure d else go rest
+
+readUtf8 :: FilePath -> IO String
+readUtf8 f = T.unpack . TE.decodeUtf8 <$> BS.readFile f
+
 readCabal :: IO String
 readCabal = go ["storyflow-conflict.cabal", "conflict/storyflow-conflict.cabal"]
   where

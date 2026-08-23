@@ -5,7 +5,7 @@ title: conflict-detection
 description: 三層衝突偵測:圖遍歷、FTS5 候選撈取與 LLM 判斷
 status: active
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-22
 parent: system
 related-adr: [ADR-002, ADR-003, ADR-005, ADR-007]
 ---
@@ -49,12 +49,18 @@ claude code 自己有很強的判斷能力。所以前兩層要能單獨出口�
 | `Conflict.Json` | 上述型別的 aeson 實例,集中一處(同 `Core.Json` 的理由) | — | — |
 | `Conflict.Graph`(第 1 層) | 順著草稿已引用片段的 `contradicts` / `supersedes` 遍歷,找已知矛盾與已被取代的設定 | 完全確定性、可重現 | 零 |
 | `Conflict.Retrieval`(第 2 層) | 以關鍵詞 + `aliases` 用 FTS5 撈 top-N 候選;`canon` 過濾、`timeline` 過濾、關聯圖一跳擴充 | 確定性 | 每個關鍵詞一次 SQL(上限可調) |
+| `Conflict.Retrieval.Internal` | 第 2 層的實作,匯出全部部件(調校常數、純函式部件)**只給同套件的測試觀測**。門面 `Conflict.Retrieval` 只 re-export 10 個契約名字;`src/` 底下除門面外不准 import 它(2026-08-22 補列,E001) | — | — |
 | `Conflict.Judge`(第 3 層) | 草稿 × 候選逐對送 LLM 問「是否矛盾、矛盾在哪」 | 非確定性 | 每對一次呼叫 |
 | `Conflict.Pipeline` | 三層合流、去重、依命中層級排序;取得第 3 層的執行階段(`acquireJudge`)並產生 `crNotes` | — | — |
 
 **第 2 層的候選撈取策略刻意設計成可替換**。ADR-007 決定先不做 embedding 語意檢索
 (多一個模型相依、多一套索引、換模型要重算),但把介面留成「策略」——未來要加只是多一個
 策略並在排序時合併,不必動其他兩層。
+
+2026-08-22(E001)把這句承諾**變成守得住的形式**:第 2 層拆成 `Conflict.Retrieval`(門面,
+10 個契約名字)與 `Conflict.Retrieval.Internal`(實作,23 個)。在此之前調校常數與純函式部件
+全在公開面上,一旦被第 1、3 層引用,承諾就會失效而**不會有任何測試變紅**——現在有一條
+`CabalSpec` 斷言在守,而且它附帶變造重現。
 
 ## 對外契約(Public Interface & DTOs)
 
@@ -222,6 +228,7 @@ Draft(草稿文字 + 已引用的片段 id)
 | `Conflict.Pipeline` → 三層 | 依 `ConflictOpts` 決定跑到哪一層,合流時只看 `HitLayer` 排序 |
 | `Conflict.Retrieval` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `searchEntity`,不自己開索引連線 |
 | `Conflict.Judge` → `llm-workshop-mcp` | 消費 `LlmClient` 的 `chat`,不實作端點 |
+| `Conflict.Judge` / `Conflict.Pipeline` → `Conflict.Retrieval` | 共用 `Candidate (..)` 與 `metaSnippet`。2026-08-22(E001)補列:第 2 層的候選型別**是三層之間的資料介面,不是內部細節**——在此之前它是一條沒人承認的隱形相依,而 E001 的匯出面收斂正是靠承認它才知道哪些名字不能收 |
 | `Conflict.Pipeline` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `linkGraph` 與 `getEntity`(第 1 層補 `Meta`) |
 | `Conflict.Judge` → `service-and-interfaces` | 經 `ServiceM` 呼叫 `getEntity`(僅 `coExpandBody` 展開 `body` 時) |
 | `Conflict.Pipeline` → `llm-workshop-mcp` | `acquireJudge` 讀設定並建 client(`llmConfig` / `newLlmClient`),把 `LlmError` 翻成 `crNotes` |

@@ -62,10 +62,20 @@ data Meta = Meta
   , metaAliases  :: [Text]
   , metaLinks    :: [Link]
   , metaSource   :: Source        -- human | agent:<name> | workshop:<type> | scan | ai:<model>
-  , metaRevision :: Int
+  , metaRevision :: Revision
   , metaCreated  :: Day
   , metaUpdated  :: Day
   }
+
+-- 具名純量一律 newtype(2026-08-23 批次澄清):建構子匯出;LogicalName 只經 mkLogicalName 取得
+newtype VaultId     = VaultId Text
+newtype TypeKey     = TypeKey Text
+newtype Sha256      = Sha256 Text
+newtype LogicalName = LogicalName Text
+newtype Revision    = Revision Int
+
+-- pack 的 AI 揭露(沿用 assetdb):文字表示 unknown / none / assisted / generated;缺漏為 unknown
+data AiDisclosure = AiUnknown | AiNone | AiAssisted | AiGenerated
 
 data Link = Link { linkKind :: LinkKind, linkTarget :: Ref, linkNote :: Maybe Text }
 data Ref  = Ref  { refVault :: Maybe VaultId, refId :: Id }     -- 寫成 id 或 <vault>:<id>
@@ -174,6 +184,11 @@ removeSection     :: Id -> Document -> Either MdError Document
 newDocument       :: DocKind -> Meta -> Text -> Document
 ```
 
+`docKind` 只看檔案層 `type`:`level` → `LevelDoc`、`asset-pack` → `PackDoc`、`asset-license` → `LicenseDoc`、
+其餘一律 `TopicDoc`(md 不認識註冊表)。`licenses.md` 的檔案層是**容器不是節點**:frontmatter 寫
+`type: asset-license`,節層繼承它;每節一個 `lic-` 節點、`owner` 為空;檔案層不進 `nodes` 表
+(`toLicenses` 因此只回 `[License]`)。
+
 ### E. 落地(`aapms-store`),全部 `IO (Either StoreError a)` 除非標明
 
 ```haskell
@@ -206,7 +221,7 @@ search       :: VaultHandle -> SearchQuery -> IO SearchResult
 -- 跨 vault 讀(ADR-017):呼叫端給把手集合,本子系統負責 ATTACH
 data VaultSet
 openVaultSet   :: [VaultHandle] -> IO (Either StoreError VaultSet)   -- 超過 ATTACH 上限回 TooManyVaults
-lookupRef      :: VaultSet -> Ref -> IO (Maybe (VaultId, AnyNode))
+lookupRef      :: VaultSet -> VaultId -> Ref -> IO (Maybe (VaultId, AnyNode))   -- 第二個參數:不帶 vault 的 Ref 的預設 vault
 listAcross     :: VaultSet -> NodeFilter -> IO [(VaultId, Meta)]
 searchAcross   :: VaultSet -> SearchQuery -> IO SearchResult  -- 每筆帶 vault
 checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef] -- 本 vault 指出去的懸空引用
@@ -240,7 +255,9 @@ data SearchResult = SearchResult { srHits :: [SearchHit], srTotal :: Int, srFace
 ```
 
 `shScore` 是 `Double`,不是 `Maybe Double`:兩條 FTS 路徑都給 bm25(ADR-016)。
-`nfIncludeReference` 預設 `False`——找 GUI 框時不該跳出參考資料夾的廟宇照片。
+`nfIncludeReference` 預設 `False`——找 GUI 框時不該跳出參考資料夾的廟宇照片;「是 reference」由
+**pack.md 的路徑**決定(在 `library/reference/` 之下),索引時算好存進 `packs` 表,不靠人填欄位或 tag。
+`nfStatus = []` 表示**全部但排除 `missing`**(draft / canon / deprecated 都回);要看 missing 明寫 `[Missing]`。
 
 ### G. 錯誤契約
 
@@ -306,7 +323,7 @@ NewEntity / NewAsset / MetaOverride / AssetPatch(來自 service 或 asset-ingest
 workspace 解析出本次生效的 vault 集合 → service 逐一 openVault → openVaultSet
   → 一個讀連線 ATTACH 每個 vault 的索引(超過上限 → TooManyVaults,列出數量)
   → searchAcross / listAcross:UNION 各索引同名表,排序、分頁、facet 在 SQL 層完成
-  → 每筆結果帶 VaultId;lookupRef 依 Ref 的 vault 欄位路由,缺省為「發問者所在的 vault」
+  → 每筆結果帶 VaultId;lookupRef 依 Ref 的 vault 欄位路由,缺省為呼叫端傳入的預設 vault
   → checkReferences:本 vault 所有 links 的目標逐一 lookupRef,找不到的回 DanglingRef
 ```
 
@@ -333,7 +350,8 @@ nodes(id PK, prefix, type, title, summary, status, timeline, timeline_order, sou
 node_aliases(node_id, alias)  node_tags(node_id, tag)
 links(src, dst_vault, dst, kind, note, file_path)
 assets(id PK→nodes, name UNIQUE, sha256, entry, ext, meta_json, license, author)
-packs(id PK→nodes, vendor, archive, sha256, license, author_json, source_url, ai_disclosure)
+packs(id PK→nodes, vendor, archive, sha256, license, author_json, source_url, ai_disclosure,
+      is_reference)                              -- is_reference 由 file_path 在 library/reference/ 下推得
 licenses(id PK→nodes, commercial, attribution_required, credit_text, modification_allowed,
          redistribution_allowed, resale_allowed, nft_allowed, source_url)
 levels(id PK→nodes, root)
@@ -549,7 +567,8 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
 - **驗收標準**:「藥水」「琳達」(二字詞)命中且 `shScore > 0`;「travel-book」命中;三字以上中文
   走 trigram 並有分數;同時含中英的查詢兩張表都查、結果以分數合併去重;`snippet` 回命中片段;
   `sqFacets = True` 時 `FacetCounts` 五個維度都有;`LIKE` 路徑在程式碼裡不存在;
-  索引體積對 6,783 筆 asset fixture 在可接受範圍(記錄數字,不設硬上限)
+  索引體積對 6,783 筆 asset 在可接受範圍(記錄數字,不設硬上限)——**這一條等 P2 真資料進場再驗**,
+  P1 不合成大 fixture
 - **明確不做**:不引入 ICU / jieba;不做自然語句查詢(`ai`);不做跨 vault(#9)
 
 ### store-write-operations

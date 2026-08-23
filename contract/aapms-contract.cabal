@@ -1,0 +1,53 @@
+cabal-version:      3.0
+name:               aapms-contract
+version:            0.1.0.0
+synopsis:           aapms 的契約層測試:只依賴對外契約,不依賴任何內部型別(ADR-018)
+description:
+    重建核心期間(P1–P3)唯一持續有效的安全網。六組測試全部從__外面__看系統:
+    跑建好的執行檔、讀 .cabal 檔、比對 golden file。build-depends 裡__不得__出現任何
+    aapms-* library——CabalRulesSpec 會對這個檔案自己斷言這件事。
+license:            BSD-3-Clause
+author:             alchbees
+build-type:         Simple
+extra-source-files:
+    fixtures/openapi.golden.json
+    fixtures/naming-cases.txt
+
+common warnings
+    ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+common lang
+    default-language:   GHC2021
+    default-extensions: OverloadedStrings, LambdaCase, DerivingStrategies
+
+test-suite aapms-contract-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Contract.Harness
+        Aapms.Contract.CliEnvelopeSpec
+        Aapms.Contract.MarkdownRoundtripSpec
+        Aapms.Contract.IndexEquivalenceSpec
+        Aapms.Contract.CabalRulesSpec
+        Aapms.Contract.OpenApiGoldenSpec
+        Aapms.Contract.NamingGrammarSpec
+    -- 契約測試的相依面:只有標準工具。任何 aapms-* library 出現在這裡就是違規。
+    build-depends:
+        , aeson
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , process
+        , temporary
+        , text
+    -- 被測的是執行檔,不是 library:cabal 會把它們放進測試的 PATH。
+    build-tool-depends:
+        , aapms-cli:aapms
+        , aapms-server:aapms-serve
+        , hspec-discover:hspec-discover
+    ghc-options:      -threaded -rtsopts -with-rtsopts=-N

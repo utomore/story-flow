@@ -1,13 +1,13 @@
 module Main (main) where
 
-import qualified StoryFlow.Server.AuthSpec
-import qualified StoryFlow.Server.CabalSpec
-import qualified StoryFlow.Server.ConcurrencySpec
-import qualified StoryFlow.Server.ErrorMapSpec
-import qualified StoryFlow.Server.HandlerSpec
-import qualified StoryFlow.Server.ServeOptsSpec
-import qualified StoryFlow.Server.WorkshopErrorMapSpec
-import qualified StoryFlow.Server.WorkshopHandlerSpec
+import qualified Aapms.Server.AuthSpec
+import qualified Aapms.Server.CabalSpec
+import qualified Aapms.Server.ConcurrencySpec
+import qualified Aapms.Server.ErrorMapSpec
+import qualified Aapms.Server.HandlerSpec
+import qualified Aapms.Server.ServeOptsSpec
+import qualified Aapms.Server.WorkshopErrorMapSpec
+import qualified Aapms.Server.WorkshopHandlerSpec
 import System.IO
 import Test.Hspec
 
@@ -16,12 +16,12 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    StoryFlow.Server.CabalSpec.spec
-    StoryFlow.Server.ErrorMapSpec.spec
-    StoryFlow.Server.ServeOptsSpec.spec
-    StoryFlow.Server.AuthSpec.spec
-    StoryFlow.Server.HandlerSpec.spec
-    StoryFlow.Server.ConcurrencySpec.spec
+    Aapms.Server.CabalSpec.spec
+    Aapms.Server.ErrorMapSpec.spec
+    Aapms.Server.ServeOptsSpec.spec
+    Aapms.Server.AuthSpec.spec
+    Aapms.Server.HandlerSpec.spec
+    Aapms.Server.ConcurrencySpec.spec
     -- llm-workshop-mcp/F004
-    StoryFlow.Server.WorkshopErrorMapSpec.spec
-    StoryFlow.Server.WorkshopHandlerSpec.spec
+    Aapms.Server.WorkshopErrorMapSpec.spec
+    Aapms.Server.WorkshopHandlerSpec.spec

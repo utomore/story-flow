@@ -1,21 +1,21 @@
 module Main (main) where
 
-import qualified StoryFlow.Store.AtomicSpec
-import qualified StoryFlow.Store.CreateSpec
-import qualified StoryFlow.Store.DeleteSpec
-import qualified StoryFlow.Store.EndToEndSpec
-import qualified StoryFlow.Store.ErrorSpec
-import qualified StoryFlow.Store.IndexSpec
-import qualified StoryFlow.Store.InitSpec
-import qualified StoryFlow.Store.NodeSpec
-import qualified StoryFlow.Store.QuerySpec
-import qualified StoryFlow.Store.RebuildSpec
-import qualified StoryFlow.Store.SchemaSpec
-import qualified StoryFlow.Store.SearchSpec
-import qualified StoryFlow.Store.StaleSpec
-import qualified StoryFlow.Store.VaultSpec
-import qualified StoryFlow.Store.WriteSpec
-import qualified StoryFlow.StoreSpec
+import qualified Aapms.Store.AtomicSpec
+import qualified Aapms.Store.CreateSpec
+import qualified Aapms.Store.DeleteSpec
+import qualified Aapms.Store.EndToEndSpec
+import qualified Aapms.Store.ErrorSpec
+import qualified Aapms.Store.IndexSpec
+import qualified Aapms.Store.InitSpec
+import qualified Aapms.Store.NodeSpec
+import qualified Aapms.Store.QuerySpec
+import qualified Aapms.Store.RebuildSpec
+import qualified Aapms.Store.SchemaSpec
+import qualified Aapms.Store.SearchSpec
+import qualified Aapms.Store.StaleSpec
+import qualified Aapms.Store.VaultSpec
+import qualified Aapms.Store.WriteSpec
+import qualified Aapms.StoreSpec
 import System.IO
 import Test.Hspec
 
@@ -24,19 +24,19 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    StoryFlow.StoreSpec.spec
-    StoryFlow.Store.VaultSpec.spec
-    StoryFlow.Store.InitSpec.spec
-    StoryFlow.Store.AtomicSpec.spec
-    StoryFlow.Store.SchemaSpec.spec
-    StoryFlow.Store.IndexSpec.spec
-    StoryFlow.Store.RebuildSpec.spec
-    StoryFlow.Store.StaleSpec.spec
-    StoryFlow.Store.WriteSpec.spec
-    StoryFlow.Store.CreateSpec.spec
-    StoryFlow.Store.DeleteSpec.spec
-    StoryFlow.Store.NodeSpec.spec
-    StoryFlow.Store.ErrorSpec.spec
-    StoryFlow.Store.QuerySpec.spec
-    StoryFlow.Store.SearchSpec.spec
-    StoryFlow.Store.EndToEndSpec.spec
+    Aapms.StoreSpec.spec
+    Aapms.Store.VaultSpec.spec
+    Aapms.Store.InitSpec.spec
+    Aapms.Store.AtomicSpec.spec
+    Aapms.Store.SchemaSpec.spec
+    Aapms.Store.IndexSpec.spec
+    Aapms.Store.RebuildSpec.spec
+    Aapms.Store.StaleSpec.spec
+    Aapms.Store.WriteSpec.spec
+    Aapms.Store.CreateSpec.spec
+    Aapms.Store.DeleteSpec.spec
+    Aapms.Store.NodeSpec.spec
+    Aapms.Store.ErrorSpec.spec
+    Aapms.Store.QuerySpec.spec
+    Aapms.Store.SearchSpec.spec
+    Aapms.Store.EndToEndSpec.spec

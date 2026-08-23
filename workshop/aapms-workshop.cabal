@@ -1,0 +1,96 @@
+cabal-version:      3.4
+name:               aapms-workshop
+version:            0.1.0.0
+synopsis:           aapms 的階段式引導工作坊(型別註冊表驅動的狀態機與 session 快照)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Workshop
+        Aapms.Workshop.Error
+        Aapms.Workshop.Session
+        Aapms.Workshop.Stages
+        Aapms.Workshop.Emit
+    -- 「所有讀取經 ServiceM」這條子系統界線靠的正是這幾個名字不出現:
+    -- aapms-store / aapms-md / sqlite-simple / direct-sqlite 一個都
+    -- 不准進來,與 aapms-llm / aapms-conflict 同一條紀律
+    -- (llm-workshop-mcp/F002 T12 釘住)。servant / warp 是另一種違規:這一層
+    -- 不定義 CLI 與 REST 出口。
+    --
+    -- aapms-core 是刻意含入的(與 aapms-llm 刻意不含它相反):本套件
+    -- 要處理 Id / Entity / Meta / EntityTypeSpec,不像 aapms-llm 只搬
+    -- [Message]。
+    build-depends:
+        , aeson
+        , base              >=4.14 && <5
+        , bytestring
+        , directory
+        , filepath
+        , mtl
+        , aapms-core
+        , aapms-llm
+        , aapms-service
+        , text
+        , time
+
+test-suite aapms-workshop-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Workshop.CabalSpec
+        Aapms.Workshop.EmitSpec
+        Aapms.Workshop.ErrorSpec
+        Aapms.Workshop.Fixtures
+        Aapms.Workshop.PromptSpec
+        Aapms.Workshop.SessionIdSpec
+        Aapms.Workshop.SessionIOSpec
+        Aapms.Workshop.SessionJsonSpec
+        Aapms.Workshop.StartSpec
+        Aapms.Workshop.StepSpec
+        Aapms.Workshop.StubSpec
+    -- warp stub 端點打真 HTTP,與 llm/test/Aapms/Llm/Fixtures.hs 同一個
+    -- 先例:「連不上服務」是地端優先場景最常發生的錯誤,必須被真的測到。
+    -- 整合測試建臨時 Vault 只靠 aapms-service:createVault / openEnv /
+    -- runService 都在門面上,aapms-store 一次都不必露臉。
+    --
+    -- http-types 與 time 是 F002 設計文檔「實作方式」第一節逐字列出的清單裡
+    -- __沒有__的兩項(見「待確認假設」A6):stub 端點要組 wai 的 Response 需要
+    -- Network.HTTP.Types.Status / .Header(llm/test 的同一份 stub 底稿也依賴
+    -- http-types);T7 的碰撞重試測試需要 newSessionIdAt 的 UTCTime 引數,
+    -- 因此需要 Data.Time——兩者都是 F002 doc 漏列,補上才編得過。
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , directory
+        , filepath
+        , hspec
+        , http-types
+        , aapms-core
+        , aapms-llm
+        , aapms-service
+        , aapms-workshop
+        , temporary
+        , text
+        , time
+        , wai
+        , warp

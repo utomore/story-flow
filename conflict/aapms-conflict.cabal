@@ -1,0 +1,89 @@
+cabal-version:      3.4
+name:               aapms-conflict
+version:            0.1.0.0
+synopsis:           aapms 衝突偵測的共用資料語彙(型別與編碼,不含偵測邏輯)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Conflict.Graph
+        Aapms.Conflict.Json
+        Aapms.Conflict.Judge
+        Aapms.Conflict.Pipeline
+        Aapms.Conflict.Retrieval
+        Aapms.Conflict.Retrieval.Internal
+        Aapms.Conflict.Types
+    -- 第 2 層(conflict-detection/F003)起,本套件不再只是型別:@Conflict.Retrieval@
+    -- 的存在前提就是 service 已經到位,所以 aapms-service 在這裡是合法的。
+    -- 第 3 層(conflict-detection/F005)起放行 aapms-llm:@Conflict.Judge@ 消費
+    -- llm-workshop-mcp 的 LlmClient / chat,不實作端點。放行的同時剩下三項守得
+    -- 更緊 —— aapms-store / aapms-md / sqlite-simple 一個都不准進來:
+    -- 「所有讀取經 ServiceM」這條子系統界線靠的正是這三個名字不出現。
+    build-depends:
+        , aeson
+        , base              >=4.14 && <5
+        , containers
+        , mtl
+        , aapms-core
+        , aapms-llm
+        , aapms-service
+        , text
+
+test-suite aapms-conflict-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Conflict.CabalSpec
+        Aapms.Conflict.CheckEnvSpec
+        Aapms.Conflict.CheckSpec
+        Aapms.Conflict.EvidenceSpec
+        Aapms.Conflict.Fixtures
+        Aapms.Conflict.GraphSpec
+        Aapms.Conflict.JsonSpec
+        Aapms.Conflict.JudgeEnvSpec
+        Aapms.Conflict.JudgeSpec
+        Aapms.Conflict.MergeSpec
+        Aapms.Conflict.OptsSpec
+        Aapms.Conflict.PipelineSpec
+        Aapms.Conflict.ReportSpec
+        Aapms.Conflict.RetrievalEnvSpec
+        Aapms.Conflict.RetrievalSpec
+        Aapms.Conflict.SortSpec
+    -- 整合測試建臨時 Vault __只靠 aapms-service__:createVault / openEnv /
+    -- runService 都在門面上,aapms-store 一次都不必露臉。
+    -- aapms-llm 是第 3 層測試的假 runner 需要的 LlmClient / Message / Role /
+    -- LlmError 型別的來源;測試套件本身不呼叫 newLlmClient、不發任何網路請求
+    -- (D6:hermetic)。
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , directory
+        , filepath
+        , hspec
+        , aapms-conflict
+        , aapms-core
+        , aapms-llm
+        , aapms-service
+        , temporary
+        , text
+        , time

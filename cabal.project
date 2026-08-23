@@ -6,15 +6,18 @@ packages:
   types/
   md/
   store/
-  service/
-  conflict/
-  llm/
-  workshop/
-  cli/
-  api/
-  server/
-  mcp/
-  contract/
+  -- P1(graph-core 重建)期間凍結下游:core 型別換成統一 Meta 後下游編不過,
+  -- 且 P0 契約測試是起 aapms 執行檔跑的。依 ADR-018 接受 P1–P2 兩邊不完整,
+  -- P3 重建 service / shell 時依序加回。決策見 .design/subsystems/graph-core/build-log.md D1。
+  -- service/
+  -- conflict/
+  -- llm/
+  -- workshop/
+  -- cli/
+  -- api/
+  -- server/
+  -- mcp/
+  -- contract/
 
 -- GHC 9.14 (base-4.22) 仍是新版本,部分套件的 base 上界尚未放寬。
 -- 只對確定安全的套件開放,不要全域 allow-newer。

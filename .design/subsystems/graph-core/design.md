@@ -233,11 +233,11 @@ newDocument       :: DocKind -> Meta -> Text -> Document
 -- vault 把手:由 workspace 決定路徑,本子系統負責開
 data VaultKind   = AssetVault | StoryVault
 data VaultMarker = VaultMarker { vmId :: VaultId, vmKind :: VaultKind, vmName :: Text, vmRefs :: [VaultId] }
-data VaultHandle                                              -- 含 marker、根目錄、索引連線
+data VaultHandle                                              -- 含 marker、根目錄、索引連線、型別註冊表
 
 readMarker  :: FilePath -> IO (Either StoreError VaultMarker)
 initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)   -- 寫 marker、建空索引
-openVault   :: FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))        -- schema 不符重建、過時刷新
+openVault   :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))  -- schema 不符重建、過時刷新
 closeVault  :: VaultHandle -> IO ()
 
 -- 索引維護
@@ -245,6 +245,15 @@ rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])
 refreshStale :: VaultHandle -> IO (Either StoreError [IndexIssue])
 indexFile    :: VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue])
 unindexFile  :: VaultHandle -> FilePath -> IO (Either StoreError ())
+```
+
+**型別註冊表由 `VaultHandle` 攜帶**(2026-08-23 階段二裁決):`openVault` 收 `TypeRegistry` 並存進
+handle,索引路徑因此叫得動 `checkMeta`(資料流管線「`aapms-core` 純驗證」那一段與 F006 契約卡的
+「`checkMeta` 的警告進 `IndexIssue`」都靠它)。**不採「各函式加參數」**——`openVault` 自己就要做
+過時刷新,註冊表遲早得在 handle 裡,分次加只會讓簽名逐次長胖。註冊表載入失敗讓程序死在啟動階段
+(契約 C),`openVault` 收得到它代表這個順序被型別釘死。`initVaultAt` 只寫 marker 與空索引,不需要。
+
+```haskell
 
 -- 單一 vault 查詢(IO,不會失敗的回 Maybe / [])
 lookupNode   :: VaultHandle -> Id -> IO (Maybe AnyNode)

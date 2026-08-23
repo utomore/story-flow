@@ -46,6 +46,11 @@ spec = describe "aapms-core.cabal —— graph-core/F001 契約卡驗收" $ do
       , "Aapms.Core.Registry"
       ]
 
+  -- graph-core/F003:manifest-schema-v2 的驗收標準(T3)。
+  it "exposed-modules 含 Aapms.Core.Manifest(graph-core/F003)" $ do
+    txt <- readCabal
+    ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt) `shouldBe` ("Aapms.Core.Manifest", True)
+
   -- graph-core/F002:'Aapms.Core.Registry' 由本 feature 重建(新形狀,見
   -- design.md 契約 C),F001 當時的斷言已過時,只有 'Graph' 仍是永久刪除。
   it "exposed-modules 不含已刪除的 Graph" $ do

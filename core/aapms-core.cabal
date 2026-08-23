@@ -31,6 +31,7 @@ library
         Aapms.Core.Level
         Aapms.Core.License
         Aapms.Core.Link
+        Aapms.Core.Manifest
         Aapms.Core.Meta
         Aapms.Core.Naming
         Aapms.Core.Pack
@@ -59,6 +60,7 @@ test-suite aapms-core-test
         Aapms.Core.JsonSpec
         Aapms.Core.LicenseSpec
         Aapms.Core.LinkSpec
+        Aapms.Core.ManifestSpec
         Aapms.Core.MetaSpec
         Aapms.Core.NamingCasesSpec
         Aapms.Core.NamingSpec

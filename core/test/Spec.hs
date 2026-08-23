@@ -8,6 +8,7 @@ import qualified Aapms.Core.IdSpec
 import qualified Aapms.Core.JsonSpec
 import qualified Aapms.Core.LicenseSpec
 import qualified Aapms.Core.LinkSpec
+import qualified Aapms.Core.ManifestSpec
 import qualified Aapms.Core.MetaSpec
 import qualified Aapms.Core.NamingCasesSpec
 import qualified Aapms.Core.NamingSpec
@@ -38,3 +39,4 @@ main = do
     describe "graph-core/F002 T1+T9 Aapms.Core.Naming" Aapms.Core.NamingSpec.spec
     describe "graph-core/F002 T10 naming-cases.txt fixture" Aapms.Core.NamingCasesSpec.spec
     describe "graph-core/F002 T2+T3+T11 Aapms.Core.Registry" Aapms.Core.RegistrySpec.spec
+    describe "graph-core/F003 T1~T8 Aapms.Core.Manifest" Aapms.Core.ManifestSpec.spec

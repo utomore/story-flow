@@ -21,6 +21,7 @@ module Aapms.Core.Json () where
 import Data.Aeson
 import Data.Aeson.Types (Pair, Parser)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Aapms.Core.AnyNode (AnyNode (..))
 import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256 (..))
 import Aapms.Core.Entity (Entity (..))
@@ -28,6 +29,7 @@ import Aapms.Core.Id
 import Aapms.Core.Level (Level (..), Node (..), NodeKind, parseNodeKind, renderNodeKind)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Link (Link (..), LinkKind, parseLinkKind, renderLinkKind)
+import Aapms.Core.Manifest
 import Aapms.Core.Meta
 import Aapms.Core.Pack (AiDisclosure (..), Author (..), Pack (..))
 
@@ -346,3 +348,187 @@ instance FromJSON AnyNode where
           PNod -> NNode <$> parseJSON v
           PVlt -> fail "AnyNode: vlt id 不對應任何節點型別"
           PPrj -> fail "AnyNode: prj id 不對應任何節點型別"
+
+--------------------------------------------------------------------------------
+-- graph-core/F003:Manifest(assets/manifest.json、story/manifest.json)
+
+-- | @schemaVersion@ 短路檢查(舊 @AssetDB.Manifest@ 的 fail-fast 順序):
+-- 版本不符立刻 'fail' 明確中文訊息,不繼續解析其餘欄位——避免版本不符時連鎖
+-- 冒出一堆缺欄位錯誤,蓋掉真正原因。'Manifest' 與 'StoryManifest' 各自呼叫,
+-- 各自的版本常數獨立(F003 待確認假設 A4)。
+checkSchemaVersion :: Text -> Int -> Int -> Parser ()
+checkSchemaVersion docName expected got
+  | got == expected = pure ()
+  | otherwise =
+      fail $
+        T.unpack docName
+          <> " schemaVersion 是 "
+          <> show got
+          <> ",本工具只支援 "
+          <> show expected
+          <> "。請重新產生(aapms project sync)。"
+
+instance ToJSON AssetKey where
+  toJSON (AssetKey t) = String t
+
+instance FromJSON AssetKey where
+  parseJSON = withText "AssetKey" (pure . AssetKey)
+
+instance ToJSON ManifestAsset where
+  toJSON ManifestAsset {..} =
+    object
+      [ "id" .= maId
+      , "key" .= maKey
+      , "path" .= maPath
+      , "type" .= maType
+      , "sha256" .= maSha256
+      , "vault" .= maVault
+      , "pack" .= maPack
+      , "license" .= maLicense
+      , "meta" .= maMeta
+      ]
+
+instance FromJSON ManifestAsset where
+  parseJSON = withObject "ManifestAsset" $ \o ->
+    ManifestAsset
+      <$> o .: "id"
+      <*> o .: "key"
+      <*> o .: "path"
+      <*> o .: "type"
+      <*> o .: "sha256"
+      <*> o .: "vault"
+      <*> o .: "pack"
+      <*> o .: "license"
+      <*> o .: "meta"
+
+instance ToJSON ManifestPack where
+  toJSON ManifestPack {..} =
+    object
+      [ "id" .= mpId
+      , "title" .= mpTitle
+      , "vendor" .= mpVendor
+      , "sourceUrl" .= mpSourceUrl
+      , "license" .= mpLicense
+      ]
+
+instance FromJSON ManifestPack where
+  parseJSON = withObject "ManifestPack" $ \o ->
+    ManifestPack
+      <$> o .: "id"
+      <*> o .: "title"
+      <*> o .: "vendor"
+      <*> o .: "sourceUrl"
+      <*> o .: "license"
+
+instance ToJSON ManifestLicense where
+  toJSON ManifestLicense {..} =
+    object
+      [ "id" .= mlId
+      , "title" .= mlTitle
+      , "commercial" .= mlCommercial
+      , "attributionRequired" .= mlAttributionRequired
+      , "creditText" .= mlCreditText
+      , "modificationAllowed" .= mlModificationAllowed
+      , "redistributionAllowed" .= mlRedistributionAllowed
+      , "resaleAllowed" .= mlResaleAllowed
+      , "nftAllowed" .= mlNftAllowed
+      , "sourceUrl" .= mlSourceUrl
+      ]
+
+instance FromJSON ManifestLicense where
+  parseJSON = withObject "ManifestLicense" $ \o ->
+    ManifestLicense
+      <$> o .: "id"
+      <*> o .: "title"
+      <*> o .: "commercial"
+      <*> o .: "attributionRequired"
+      <*> o .: "creditText"
+      <*> o .: "modificationAllowed"
+      <*> o .: "redistributionAllowed"
+      <*> o .: "resaleAllowed"
+      <*> o .: "nftAllowed"
+      <*> o .: "sourceUrl"
+
+instance ToJSON Manifest where
+  toJSON Manifest {..} =
+    object
+      [ "schemaVersion" .= mSchemaVersion
+      , "project" .= mProject
+      , "generatedAt" .= mGeneratedAt
+      , "assets" .= mAssets
+      , "packs" .= mPacks
+      , "licenses" .= mLicenses
+      ]
+
+instance FromJSON Manifest where
+  parseJSON = withObject "Manifest" $ \o -> do
+    v <- o .: "schemaVersion"
+    checkSchemaVersion "manifest" currentSchemaVersion v
+    Manifest v
+      <$> o .: "project"
+      <*> o .: "generatedAt"
+      <*> o .: "assets"
+      <*> o .: "packs"
+      <*> o .: "licenses"
+
+instance ToJSON StoryManifestEntry where
+  toJSON StoryManifestEntry {..} =
+    object
+      [ "ref" .= smeRef
+      , "title" .= smeTitle
+      , "summary" .= smeSummary
+      , "purpose" .= smePurpose
+      , "revision" .= smeRevision
+      ]
+
+instance FromJSON StoryManifestEntry where
+  parseJSON = withObject "StoryManifestEntry" $ \o ->
+    StoryManifestEntry
+      <$> o .: "ref"
+      <*> o .: "title"
+      <*> o .: "summary"
+      <*> o .: "purpose"
+      <*> o .: "revision"
+
+instance ToJSON StoryManifest where
+  toJSON StoryManifest {..} =
+    object
+      [ "schemaVersion" .= smSchemaVersion
+      , "project" .= smProject
+      , "generatedAt" .= smGeneratedAt
+      , "entities" .= smEntities
+      ]
+
+instance FromJSON StoryManifest where
+  parseJSON = withObject "StoryManifest" $ \o -> do
+    v <- o .: "schemaVersion"
+    checkSchemaVersion "story manifest" currentStoryManifestSchemaVersion v
+    StoryManifest v
+      <$> o .: "project"
+      <*> o .: "generatedAt"
+      <*> o .: "entities"
+
+instance ToJSON ImageMeta where
+  toJSON ImageMeta {..} =
+    object $
+      [ "width" .= imWidth
+      , "height" .= imHeight
+      , "hasAlpha" .= imHasAlpha
+      ]
+        ++ ["colorCount" .= v | Just v <- [imColorCount]]
+
+-- | 委派回 "Aapms.Core.Manifest" 的 'parseImageMeta'——'imageMeta' 也用同一份
+-- 邏輯,見該模組頂端的說明。
+instance FromJSON ImageMeta where
+  parseJSON = parseImageMeta
+
+instance ToJSON AudioMeta where
+  toJSON AudioMeta {..} =
+    object
+      [ "durationMs" .= amDurationMs
+      , "sampleRate" .= amSampleRate
+      , "channels" .= amChannels
+      ]
+
+instance FromJSON AudioMeta where
+  parseJSON = parseAudioMeta

@@ -3,7 +3,7 @@ id: F003
 type: feature
 title: manifest-schema-v2
 description: 兩份 manifest(assets/story)的 schema 2 型別、JSON 編碼與 kind 專屬型別化讀取
-status: open
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F001, F002]
@@ -418,25 +418,25 @@ audioMeta :: Value -> Maybe AudioMeta
 
 ## TodoList
 
-- [ ] T1: `Manifest.hs`(新):`AssetKey`、`Manifest`/`ManifestAsset`/`ManifestPack`/`ManifestLicense`、
+- [x] T1: `Manifest.hs`(新):`AssetKey`、`Manifest`/`ManifestAsset`/`ManifestPack`/`ManifestLicense`、
   `StoryManifest`/`StoryManifestEntry`、`ImageMeta`/`AudioMeta`、兩個 `currentSchemaVersion` 常數、
   `manifestIndex`、`imageMeta`、`audioMeta`  `dep: F001, F002`
-- [ ] T2: `Json.hs`(F001 基礎上擴充):上述全部型別的 `ToJSON`/`FromJSON`,`Manifest`/
+- [x] T2: `Json.hs`(F001 基礎上擴充):上述全部型別的 `ToJSON`/`FromJSON`,`Manifest`/
   `StoryManifest` 的 `FromJSON` 各自先檢查 `schemaVersion` 再解析其餘欄位  `dep: T1`
-- [ ] T3: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Manifest`  `dep: T1`
-- [ ] T4: 新增 golden fixtures `core/test/golden/manifest.golden.json` +
+- [x] T3: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Manifest`  `dep: T1`
+- [x] T4: 新增 golden fixtures `core/test/golden/manifest.golden.json` +
   `core/test/golden/story-manifest.golden.json`(手寫,對應本文件「JSON 形狀規格」的範例)
   `dep: T1`
-- [ ] T5: `core/test/Aapms/Core/ManifestSpec.hs`:golden roundtrip(兩份檔案各自 decode → encode →
+- [x] T5: `core/test/Aapms/Core/ManifestSpec.hs`:golden roundtrip(兩份檔案各自 decode → encode →
   語意相同 JSON;decode 後的型別值可再 encode/decode 相等)  `dep: T2, T4`
-- [ ] T6: `ManifestSpec.hs`:`schemaVersion` 錯誤路徑(`Manifest` 與 `StoryManifest` 各自對
+- [x] T6: `ManifestSpec.hs`:`schemaVersion` 錯誤路徑(`Manifest` 與 `StoryManifest` 各自對
   `schemaVersion = 1` 與 `= 3` 回 `Left`,錯誤訊息含「請重新產生」)  `dep: T2`
-- [ ] T7: `ManifestSpec.hs`:`manifestIndex` 正確性(以 `AssetKey` 建表、查得到已知 key、查不到
+- [x] T7: `ManifestSpec.hs`:`manifestIndex` 正確性(以 `AssetKey` 建表、查得到已知 key、查不到
   不存在 key)  `dep: T1`
-- [ ] T8: `ManifestSpec.hs`:`imageMeta`/`audioMeta` 型別化讀取(相符 kind 的 `Value` 回 `Just` 且
+- [x] T8: `ManifestSpec.hs`:`imageMeta`/`audioMeta` 型別化讀取(相符 kind 的 `Value` 回 `Just` 且
   欄位正確;不相符/欄位缺漏回 `Nothing` 或以預設值解析,對照 `ImageMeta`/`AudioMeta` 各自的
   `FromJSON`)  `dep: T1, T2`
-- [ ] T9: `core/test/Spec.hs` 的 `describe` 清單加入 `ManifestSpec`  `dep: T5, T6, T7, T8`
+- [x] T9: `core/test/Spec.hs` 的 `describe` 清單加入 `ManifestSpec`  `dep: T5, T6, T7, T8`
 
 ## 1-to-1 測試對照表
 
@@ -486,4 +486,18 @@ audioMeta :: Value -> Maybe AudioMeta
 
 ## 實作備註
 
-(留空)
+- `imageMeta` / `audioMeta` 依文件指示「不在 `Manifest.hs` 開孤兒實例」放進 `Json.hs`,但這與
+  `imageMeta :: Value -> Maybe ImageMeta` 要直接呼叫 `parseJSON` 產生了真正的模組環——`Json.hs`
+  要 import `Manifest.hs` 才能定義 `instance FromJSON ImageMeta`,若 `imageMeta` 又靠型別類別解析
+  就必須反向 import `Json.hs`,兩個模組互相 import 在 Haskell 裡不合法。解法:`Manifest.hs` 匯出
+  `parseImageMeta :: Value -> Parser ImageMeta` / `parseAudioMeta :: Value -> Parser AudioMeta`
+  兩個**純函式**(非型別類別方法),`imageMeta`/`audioMeta` 直接呼叫它們;`Json.hs` 的
+  `instance FromJSON ImageMeta` 再委派回同一份函式(`parseJSON = parseImageMeta`)。邏輯仍然只有
+  一份,`Manifest.hs` 沒有任何 `instance ToJSON`/`FromJSON` 宣告,符合「唯一一份 aeson 編碼規則」的
+  精神——只是解析邏輯的「定義處」在 `Manifest.hs`、「型別類別掛勾」在 `Json.hs`。
+- `maPack` / `maLicense`(以及 `ManifestPack`/`ManifestLicense` 內的選填欄位)採用 aeson 對
+  `Maybe a` 的內建行為:鍵**恆存在**,`Nothing` 編碼為 `null` 而非省略鍵。這與 `Asset`/`Pack` 等
+  型別「`Nothing` 就省略鍵」的既有慣例不同,但與 F003 doc 給的 JSON 範例(`"pack": null` 顯式出現)
+  和驗收標準 T2「恰好九個鍵」一致,屬型別內部 JSON 形狀的自主決定,不影響契約簽名。
+- golden 檔案讀取沿用 `CabalSpec.hs` 的雙路徑探測寫法(`core/test/golden/...` 與
+  `test/golden/...`),因為測試可能從專案根目錄或 `core/` 底下執行。

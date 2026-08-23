@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 2,
+  "project": "Circle",
+  "generatedAt": "2026-08-23T10:00:00Z",
+  "assets": [
+    {
+      "id": "ast-3f9c1d20",
+      "key": "ui_gui_travel-book-frame_001",
+      "path": "sprites/ui_gui_travel-book-frame_001.png",
+      "type": "asset-image",
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a1",
+      "vault": "vlt-a0c4e1f8",
+      "pack": "pck-11223344",
+      "license": "lic-55667788",
+      "meta": { "width": 512, "height": 512, "hasAlpha": true, "colorCount": 128 }
+    },
+    {
+      "id": "ast-7ad20c31",
+      "key": "sfx_ui_button-click_001",
+      "path": "audio/sfx_ui_button-click_001.ogg",
+      "type": "asset-audio",
+      "sha256": "3b241101707d52a324d3540c8bcffbca8ea0d1e1e2a3e1c3e1b6b6b3f7a2b0f",
+      "vault": "vlt-a0c4e1f8",
+      "pack": null,
+      "license": null,
+      "meta": { "durationMs": 240, "sampleRate": 44100, "channels": 2 }
+    }
+  ],
+  "packs": [
+    {
+      "id": "pck-11223344",
+      "title": "Kenney UI Pack",
+      "vendor": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/ui-pack",
+      "license": "lic-55667788"
+    }
+  ],
+  "licenses": [
+    {
+      "id": "lic-55667788",
+      "title": "CC0",
+      "commercial": true,
+      "attributionRequired": false,
+      "creditText": null,
+      "modificationAllowed": true,
+      "redistributionAllowed": true,
+      "resaleAllowed": true,
+      "nftAllowed": true,
+      "sourceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+    }
+  ]
+}

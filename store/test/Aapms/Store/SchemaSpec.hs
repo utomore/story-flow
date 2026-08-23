@@ -1,84 +1,97 @@
--- | T4:schema 建立、PRAGMA 設定、版本不符自動重建。
+-- | graph-core\/F005:@meta_info@-only schema、PRAGMA 設定、
+-- @schema_version@ 重建與 'IndexIssue'、vault 身分寫入。
 module Aapms.Store.SchemaSpec (spec) where
 
-import Control.Monad (forM_)
 import Data.Text (Text)
-import qualified Data.Text as T
 import Database.SQLite.Simple
-import Aapms.Store.Fixtures
-import Aapms.Store.Index (issueHasError, openVaultIndex)
+import Aapms.Core.Id (VaultId (..))
+import Aapms.Store.Fixtures (orDie, withTempVault)
 import Aapms.Store.Schema
-import Aapms.Store.Vault (Vault (..))
+import System.FilePath ((</>))
 import Test.Hspec
 
+testVaultId :: VaultId
+testVaultId = VaultId "vlt-7f3b2a91"
+
 spec :: Spec
-spec = describe "T4 SQLite schema" $ do
-  it "建立後全部的表都存在" $
-    withVaultIndex $ \_ conn ->
-      forM_ indexTables $ \t -> do
-        n <- tableCount conn t
-        (t, n) `shouldBe` (t, 1)
-
-  it "entities_fts 用 trigram tokenizer" $
-    withVaultIndex $ \_ conn -> do
-      sql <- tableSql conn "entities_fts"
-      sql `shouldSatisfy` T.isInfixOf "trigram"
-      sql `shouldSatisfy` T.isInfixOf "fts5"
-
-  it "foreign_keys 為 ON" $
-    withVaultIndex $ \_ conn ->
-      scalarInt conn "PRAGMA foreign_keys" () `shouldReturn` 1
-
-  it "journal_mode 為 WAL" $
-    withVaultIndex $ \_ conn -> do
-      rows <- query_ conn "PRAGMA journal_mode" :: IO [Only Text]
-      map fromOnly rows `shouldBe` ["wal"]
-
-  it "meta_info 記著 schema_version" $
-    withVaultIndex $ \_ conn ->
+spec = describe "graph-core/F005 schema" $ do
+  it "只建 meta_info 一張表,schemaVersion 寫入其中" $
+    withTempVault $ \dir -> do
+      (conn, _issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
+      tables <- tableNames conn
+      tables `shouldBe` ["meta_info"]
       currentVersion conn `shouldReturn` Just schemaVersion
-
-  it "schema_version 被竄改為舊值後 openIndex 重建而不是報錯" $
-    withEmptyVault $ \v -> do
-      conn <- orDie =<< openIndex v
-      execute_ conn "INSERT INTO files(path, mtime, size) VALUES ('殘留.md', 1, 1)"
-      execute_ conn "UPDATE meta_info SET value = '0' WHERE key = 'schema_version'"
       closeIndex conn
 
-      conn2 <- orDie =<< openIndex v
+  it "foreign_keys / journal_mode / busy_timeout 三個 PRAGMA 符合預期" $
+    withTempVault $ \dir -> do
+      (conn, _issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
+      scalarInt conn "PRAGMA foreign_keys" `shouldReturn` 1
+      journalMode <- query_ conn "PRAGMA journal_mode" :: IO [Only Text]
+      map fromOnly journalMode `shouldBe` ["wal"]
+      scalarInt conn "PRAGMA busy_timeout" `shouldReturn` 5000
+      closeIndex conn
+
+  it "全新索引檔回報一筆 SchemaRebuilt Nothing schemaVersion" $
+    withTempVault $ \dir -> do
+      (conn, issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
+      issues `shouldBe` [SchemaRebuilt Nothing schemaVersion]
+      closeIndex conn
+
+  it "schema_version 被改成舊值後重新開啟會整庫重建並回報" $
+    withTempVault $ \dir -> do
+      let fp = dir </> "index.db"
+      conn1 <- fmap fst . orDie =<< openIndexAt fp testVaultId AssetVault "a"
+      execute_ conn1 "UPDATE meta_info SET value = '0' WHERE key = 'schema_version'"
+      closeIndex conn1
+
+      (conn2, issues) <- orDie =<< openIndexAt fp testVaultId AssetVault "a"
+      issues `shouldBe` [SchemaRebuilt (Just 0) schemaVersion]
       currentVersion conn2 `shouldReturn` Just schemaVersion
-      -- 舊資料跟著 schema 一起被砍掉,而不是留在版本不符的表裡
-      countRows conn2 "files" `shouldReturn` 0
       closeIndex conn2
 
-  it "版本不符後 openVaultIndex 會把整個 Vault 重新索引回來" $
-    withSampleVault $ \v -> do
-      conn <- orDie =<< openIndex v
-      execute_ conn "UPDATE meta_info SET value = '0' WHERE key = 'schema_version'"
+  it "openIndexAt 完成後 meta_info 含正確的 vault_id/vault_kind/vault_name" $
+    withTempVault $ \dir -> do
+      (conn, _issues) <-
+        orDie =<< openIndexAt (dir </> "index.db") testVaultId StoryVault "liftgame"
+      metaValue conn "vault_id" `shouldReturn` Just "vlt-7f3b2a91"
+      metaValue conn "vault_kind" `shouldReturn` Just "story"
+      metaValue conn "vault_name" `shouldReturn` Just "liftgame"
       closeIndex conn
 
-      (conn2, issues) <- orDie =<< openVaultIndex v
-      filter issueHasError issues `shouldBe` []
-      countRows conn2 "files" `shouldReturn` length sampleFiles
-      countRows conn2 "entities" `shouldReturn` 8
-      closeIndex conn2
+  describe "VaultKind" $ do
+    it "renderVaultKind / parseVaultKind 互為反函式" $ do
+      renderVaultKind AssetVault `shouldBe` "asset"
+      renderVaultKind StoryVault `shouldBe` "story"
+      parseVaultKind "asset" `shouldBe` Just AssetVault
+      parseVaultKind "story" `shouldBe` Just StoryVault
 
-  it "連線知道自己屬於哪個 Vault" $
-    withVaultIndex $ \v conn ->
-      vaultRootOf conn `shouldReturn` Just (vaultRoot v)
+    it "parseVaultKind 對其餘字串回 Nothing" $
+      parseVaultKind "other" `shouldBe` Nothing
 
-tableCount :: Connection -> Text -> IO Int
-tableCount conn name =
-  scalarInt
-    conn
-    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
-    (Only name)
+  describe "renderIndexIssue" $
+    it "非空、含新舊版本" $ do
+      renderIndexIssue (SchemaRebuilt (Just 0) 1) `shouldNotBe` ""
+      renderIndexIssue (SchemaRebuilt Nothing 1) `shouldNotBe` ""
 
-tableSql :: Connection -> Text -> IO Text
-tableSql conn name = do
+tableNames :: Connection -> IO [Text]
+tableNames conn = do
   rows <-
-    query conn "SELECT sql FROM sqlite_master WHERE name = ?" (Only name) ::
+    query_ conn "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name" ::
       IO [Only Text]
+  pure (map fromOnly rows)
+
+scalarInt :: Connection -> Query -> IO Int
+scalarInt conn q = do
+  rows <- query_ conn q :: IO [Only Int]
   pure $ case rows of
-    (Only s : _) -> s
-    [] -> ""
+    (Only n : _) -> n
+    [] -> 0
+
+metaValue :: Connection -> Text -> IO (Maybe Text)
+metaValue conn key = do
+  rows <-
+    query conn "SELECT value FROM meta_info WHERE key = ?" (Only key) :: IO [Only Text]
+  pure $ case rows of
+    (Only v : _) -> Just v
+    [] -> Nothing

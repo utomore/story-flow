@@ -25,16 +25,9 @@ library
     exposed-modules:
         Aapms.Store
         Aapms.Store.Atomic
-        Aapms.Store.Create
-        Aapms.Store.Edit
         Aapms.Store.Error
-        Aapms.Store.Index
-        Aapms.Store.Node
-        Aapms.Store.Query
-        Aapms.Store.Row
+        Aapms.Store.Marker
         Aapms.Store.Schema
-        Aapms.Store.Vault
-        Aapms.Store.Write
     build-depends:
         , base          >=4.14 && <5
         , bytestring
@@ -44,7 +37,6 @@ library
         , filepath
         , sqlite-simple
         , aapms-core
-        , aapms-md
         , text
         , time
         , toml-reader
@@ -56,21 +48,10 @@ test-suite aapms-store-test
     main-is:          Spec.hs
     other-modules:
         Aapms.Store.AtomicSpec
-        Aapms.Store.CreateSpec
-        Aapms.Store.DeleteSpec
-        Aapms.Store.EndToEndSpec
         Aapms.Store.ErrorSpec
         Aapms.Store.Fixtures
-        Aapms.Store.IndexSpec
-        Aapms.Store.InitSpec
-        Aapms.Store.NodeSpec
-        Aapms.Store.QuerySpec
-        Aapms.Store.RebuildSpec
+        Aapms.Store.MarkerSpec
         Aapms.Store.SchemaSpec
-        Aapms.Store.SearchSpec
-        Aapms.Store.StaleSpec
-        Aapms.Store.VaultSpec
-        Aapms.Store.WriteSpec
         Aapms.StoreSpec
     build-depends:
         , base
@@ -81,7 +62,6 @@ test-suite aapms-store-test
         , hspec
         , sqlite-simple
         , aapms-core
-        , aapms-md
         , aapms-store
         , temporary
         , text

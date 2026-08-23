@@ -3,7 +3,7 @@ id: F005
 type: feature
 title: store-vault-handle
 description: "aapms-store 的 vault marker 讀寫、initVaultAt / openVault / closeVault、schema 骨架"
-status: open
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F001]
@@ -328,49 +328,49 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
 
 ## TodoList
 
-- [ ] T1: `store/aapms-store.cabal`:library `exposed-modules` 與 test-suite `other-modules`
+- [x] T1: `store/aapms-store.cabal`:library `exposed-modules` 與 test-suite `other-modules`
   移除 `Aapms.Store.Create`/`Edit`/`Index`/`Node`/`Query`/`Row`/`Write` 七個模組與對應的九份
   舊 Spec(`CreateSpec`/`DeleteSpec`/`EndToEndSpec`/`IndexSpec`/`NodeSpec`/`QuerySpec`/
   `RebuildSpec`/`SearchSpec`/`StaleSpec`/`WriteSpec`);library 與 test-suite 的 `build-depends`
   移除 `aapms-md`(本 feature 保留的四個模組都不 import 它)。原始檔**保留在磁碟不刪**,留給
   #6/#8/#9 接手改寫。`dep: -`
-- [ ] T2: `Aapms.Store.Error` 改寫:`StoreError` 縮成六個建構子、`renderStoreError` 逐條繁中
+- [x] T2: `Aapms.Store.Error` 改寫:`StoreError` 縮成六個建構子、`renderStoreError` 逐條繁中
   可操作訊息、`trySqlite` 不變;移除對 `Aapms.Core.Link`/`Aapms.Md.Error` 的 import
   `dep: -`
-- [ ] T3: `Aapms.Store.Schema` 改寫:`VaultKind`/`renderVaultKind`/`parseVaultKind`、
+- [x] T3: `Aapms.Store.Schema` 改寫:`VaultKind`/`renderVaultKind`/`parseVaultKind`、
   `IndexIssue`/`renderIndexIssue`、`indexTables` 縮成 `["meta_info"]`、`schemaDDL` 只剩
   `meta_info` 一張表、`openIndexAt` 新簽名(內含 PRAGMA foreign_keys/WAL/busy_timeout=5000、
   `currentVersion`/`resetSchema` 判斷、`setVaultInfo` 寫入 vault_id/vault_kind/vault_name)
   `dep: T2`
-- [ ] T4: 新建 `Aapms.Store.Marker`(取代 `Vault.hs`,檔案更名):`VaultMarker`、`VaultHandle`、
+- [x] T4: 新建 `Aapms.Store.Marker`(取代 `Vault.hs`,檔案更名):`VaultMarker`、`VaultHandle`、
   `markerDir`/`configPath`/`indexDbPath`、`readMarker`(含逐欄錯誤訊息)、`renderMarker`
   (內部用,marker 轉 TOML 文字)、`initVaultAt`、`openVault`、`closeVault`;刪除
   `resolveVault`/`resolveVaultWith`/`searchUp`/全域註冊表三函式/`LlmSection`/`vaultSubdirs`/
   `.gitignore` 追加邏輯 `dep: T3`
-- [ ] T5: `Aapms.Store.Atomic`:讀碼確認現況(不 import 已刪除的 `Vault` 型別、路徑無關),
+- [x] T5: `Aapms.Store.Atomic`:讀碼確認現況(不 import 已刪除的 `Vault` 型別、路徑無關),
   預期免修改;若無不符只更新模組頂部文件註解確認路徑改為 `.aapms/` `dep: -`
-- [ ] T6: `Aapms.Store` 門面模組:`exposed-modules`/re-export 改成只有 `Atomic`/`Error`/
+- [x] T6: `Aapms.Store` 門面模組:`exposed-modules`/re-export 改成只有 `Atomic`/`Error`/
   `Marker`/`Schema` `dep: T2, T3, T4`
-- [ ] T7: `store/test/Aapms/Store/Fixtures.hs` 瘦身:只保留 `withTempVault`/`orDie`/`idOf`/
+- [x] T7: `store/test/Aapms/Store/Fixtures.hs` 瘦身:只保留 `withTempVault`/`orDie`/`idOf`/
   `refOf`,移除 `withEmptyVault`/`withSampleVault`/`writeVaultFile`/`readVaultFile`/
   `withVaultIndex`/`withSampleIndex`/`countRows`/`scalarInt`/`textsOf`/`testRegistry`/
   `sampleFiles` 與全部範例 Markdown 常數(`lindaMd`……)——這些全部相依已移出 T1 範圍的模組
   或舊 `Vault`/`Registry` API `dep: T1`
-- [ ] T8: 刪除 `store/test/Aapms/Store/VaultSpec.hs`、`InitSpec.hs`;新建
+- [x] T8: 刪除 `store/test/Aapms/Store/VaultSpec.hs`、`InitSpec.hs`;新建
   `store/test/Aapms/Store/MarkerSpec.hs` 覆蓋 `readMarker`/`initVaultAt`/`openVault`/
   `closeVault` 的驗收標準,含「原始碼不出現 `XdgConfig`/`getXdgDirectory`/`searchUp`/
   `vaults.toml`」的靜態檢查(對照舊 `VaultSpec.hs:129-132` 的「LlmConfig 改名徹底」手法)
   `dep: T4, T7`
-- [ ] T9: 改寫 `store/test/Aapms/Store/SchemaSpec.hs`:針對新 `meta_info`-only schema、PRAGMA
+- [x] T9: 改寫 `store/test/Aapms/Store/SchemaSpec.hs`:針對新 `meta_info`-only schema、PRAGMA
   設定(foreign_keys/WAL/busy_timeout)、`schema_version` 重建與 `IndexIssue`、vault 身分寫入
   `dep: T3, T7`
-- [ ] T10: 改寫 `store/test/Aapms/Store/ErrorSpec.hs`:只測本 feature 六個建構子的訊息(繁中、
+- [x] T10: 改寫 `store/test/Aapms/Store/ErrorSpec.hs`:只測本 feature 六個建構子的訊息(繁中、
   非空、可操作、不洩漏原始 `show` 痕跡,沿用舊檔 `showTraces`/`actionable` 的判斷方式)
   `dep: T2`
-- [ ] T11: `store/test/Spec.hs`:移除已刪除/移出範圍模組的 import 與 `describe`,新增
+- [x] T11: `store/test/Spec.hs`:移除已刪除/移出範圍模組的 import 與 `describe`,新增
   `MarkerSpec`;保留 `Aapms.StoreSpec`(骨架測試,不受本次改動影響)與 `AtomicSpec`
   `dep: T8, T9, T10`
-- [ ] T12: `Aapms.StoreSpec`(骨架測試)新增兩條靜態檢查:①`store/aapms-store.cabal` 原始碼
+- [x] T12: `Aapms.StoreSpec`(骨架測試)新增兩條靜態檢查:①`store/aapms-store.cabal` 原始碼
   不含 `Aapms.Store.Index`/`Write`/`Create`/`Query`/`Node`/`Edit`/`Row` 模組項與 `aapms-md`
   依賴項;②`Aapms.Store` 門面模組可實際 import 並呼叫到 `openVault`/`initVaultAt`(間接證明
   T6 的 re-export 生效) `dep: T6, T1`
@@ -439,4 +439,17 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
 
 ## 實作備註
 
-（開發過程中與設計的偏差記錄於此,撰寫時留空）
+- T1~T12 全部完成,無公開介面偏離。`Marker.hs`/`Schema.hs`/`Error.hs` 的簽名與「新增的介面」
+  一節逐字一致
+- `openIndexAt` 內的 PRAGMA 增加 `busy_timeout = 5000` 一條(ADR-022),查詢方式與
+  `journal_mode` 相同(`query_ :: IO [Only Int]`,PRAGMA 設值也回一列結果)——這是內部實作
+  細節,契約簽名未變
+- 驗證時發現本文檔「風險與建置阻塞」第 2 點所述的 `aapms-md`(`Aapms.Md.Inherit`)編譯失敗
+  __已不存在__:委派 prompt 的前置狀態說明 F004 已把 `aapms-md` 修好(239 examples/0
+  failures),`cabal build all`/`cabal test all` 目前對全部四個套件(`aapms-core`/`aapms-types`/
+  `aapms-md`/`aapms-store`)都乾淨通過,不再需要「只能跑限定套件」的迴避——但驗收指令仍照編排者
+  指定的 `cabal build aapms-store` / `cabal test aapms-store` 執行並記錄結果,沒有改用
+  `cabal build all` 取代
+- `Aapms.Store.Fixtures` 依 T7 瘦身後只剩 `withTempVault`/`orDie`/`idOf`/`refOf`;
+  `MarkerSpec.hs`/`SchemaSpec.hs` 需要的臨時目錄與手寫 marker 檔改為各自在測試檔內用
+  `System.Directory`/`ByteString` 組裝,對照舊 `VaultSpec.hs` 的手法(未新增回 Fixtures)

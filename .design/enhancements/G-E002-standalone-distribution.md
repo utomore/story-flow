@@ -288,6 +288,9 @@ locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, Vau
    tokenizer 弄壞(parse error 指到毫無問題的 `param(` 那行)。`check.ps1` 沒踩到是因為它沒有中文
 4. **`release.sh` 的 zip 有三層 fallback**:`zip` → bsdtar `-a`(Git Bash 的 `tar` 是 GNU tar,
    要明指 `/c/Windows/System32/tar.exe`)→ 失敗並說資料夾已組好。設計只寫「壓成 zip」
+6. **加了 `.gitattributes`(`*.sh text eol=lf`)**。這台機器 `core.autocrlf` 開著,`check.sh` 的 working copy
+   已經是 CRLF;`release.sh` 是發佈入口,不能讓別人 clone 下來就因為 `` 跑不動。設計沒列,是收尾時
+   `git ls-files --eol` 看到的
 5. **`--version` 的 server 測試驗的是 `serverVersion` 字串,不是旗標接線**。`story-flow-serve` 的
    `pinfo` 住在 `app/Main.hs`,library 測試碰不到;把版本字串放進 library(`StoryFlow.Server.serverVersion`)
    讓格式可測,旗標本身以手動實跑驗證(三個執行檔都跑過)。`mcp` 同理:測 `wantsVersion` 與

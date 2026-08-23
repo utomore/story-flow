@@ -12,6 +12,7 @@ module AssetDB.Cli.Options
   , AiConn (..)
   , AiClassifyArgs (..)
   , AiVisionArgs (..)
+  , AiImportArgs (..)
   , AiListArgs (..)
   , AiDecideArgs (..)
   , AiApplyArgs (..)
@@ -36,6 +37,7 @@ import AssetDB.Cli.Ai
   , AiClassifyArgs (..)
   , AiConn (..)
   , AiDecideArgs (..)
+  , AiImportArgs (..)
   , AiListArgs (..)
   , AiQueryArgs (..)
   , AiVisionArgs (..)
@@ -77,6 +79,7 @@ data Command
   | CmdAiClassify AiConn AiClassifyArgs
   | CmdAiVision AiConn AiVisionArgs
   | CmdAiSuggestList AiListArgs
+  | CmdAiSuggestImport AiImportArgs
   | -- | confirm 與 reject 共用,以 'daDecision' 區分。
     CmdAiDecide AiDecideArgs
   | CmdAiApply AiApplyArgs
@@ -269,6 +272,19 @@ suggestP =
             )
             (progDesc "列出建議")
         )
+        -- 外部來源(Claude Code、腳本、人手)的建議入口。跟 classify 一樣不需要
+        -- --confirm:寫進暫存表本身就是預覽,閘門在 suggest confirm 與 ai apply。
+        <> command
+          "import"
+          ( info
+              ( CmdAiSuggestImport
+                  <$> ( AiImportArgs
+                          <$> strArgument (metavar "FILE" <> help "JSON Lines,每行一筆建議,鍵名同 ai_suggestions 欄位")
+                          <*> switch (long "dry-run" <> help "只驗證不寫入")
+                      )
+              )
+              (progDesc "從 JSONL 匯入外部建議(三層驗證,全有全無)")
+          )
         <> command "confirm" (info (CmdAiDecide <$> decideP "confirmed") (progDesc "確認建議"))
         <> command "reject" (info (CmdAiDecide <$> decideP "rejected") (progDesc "退回建議"))
     )

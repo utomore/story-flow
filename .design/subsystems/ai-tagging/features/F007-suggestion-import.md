@@ -3,7 +3,7 @@ id: F007
 type: feature
 title: suggestion-import
 description: 外部 JSONL 建議的三層驗證與全有全無寫入暫存表
-status: open
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F002, F005, G-E003, catalog/F004, catalog/F005]
@@ -161,13 +161,13 @@ runAiSuggestImport :: FilePath -> AiImportArgs -> IO ()
 
 ## TodoList
 
-- [ ] T1: `AssetDB.AI.Import` 骨架:型別、`defaultImportOptions`、UTF-8 嚴格解碼、切行與原始行號、空檔處理  `dep: -`
-- [ ] T2: 第 1 層形狀驗證(JSON 解析 + 七條規則,一行多問題全列)  `dep: T1`
-- [ ] T3: 第 2 層詞彙表驗證(`loadVocab` 一次、`lookupPath`)  `dep: T2, F002`
-- [ ] T4: 第 3 層目標存在驗證(blob / asset / pack 批次查詢;cluster 跳過)  `dep: T2`
-- [ ] T5: 全有全無閘門、dry-run、`upsertSuggestions` 寫入與 `guardedTry` 出口  `dep: T3, T4, F005`
-- [ ] T6: CLI `ai suggest import` 子指令:`Options.hs`、`Cli/Ai.hs`、`Main.hs`,含檔案讀取失敗的繁中出口  `dep: T5`
-- [ ] T7: 端到端:匯入中文標籤 → confirm → apply → reindexFts → 中文搜尋命中  `dep: T5`
+- [x] T1: `AssetDB.AI.Import` 骨架:型別、`defaultImportOptions`、UTF-8 嚴格解碼、切行與原始行號、空檔處理  `dep: -`
+- [x] T2: 第 1 層形狀驗證(JSON 解析 + 七條規則,一行多問題全列)  `dep: T1`
+- [x] T3: 第 2 層詞彙表驗證(`loadVocab` 一次、`lookupPath`)  `dep: T2, F002`
+- [x] T4: 第 3 層目標存在驗證(blob / asset / pack 批次查詢;cluster 跳過)  `dep: T2`
+- [x] T5: 全有全無閘門、dry-run、`upsertSuggestions` 寫入與 `guardedTry` 出口  `dep: T3, T4, F005`
+- [x] T6: CLI `ai suggest import` 子指令:`Options.hs`、`Cli/Ai.hs`、`Main.hs`,含檔案讀取失敗的繁中出口  `dep: T5`
+- [x] T7: 端到端:匯入中文標籤 → confirm → apply → reindexFts → 中文搜尋命中  `dep: T5`
 
 ## 1-to-1 測試對照表
 
@@ -188,4 +188,12 @@ CLI 解析在 `cli/test/AssetDB/Cli/ParserSpec.hs`。
 
 ## 實作備註
 
-(撰寫時留空)
+- **第 2、3 層對「所有解析得出 JSON 的行」執行,不只對通過第 1 層的行**。「實作方式」第 5 點寫的是
+  「通過前兩層的行」;實作改成只要 JSON 解得開就三層都跑,讓一行的形狀問題與目標不存在一次列完
+  (煙霧測試第 4 行同時印出 `facet 必填`、`confidence 出界`、`內容雜湊不存在` 三條)。對外行為只差
+  「問題清單更完整」,契約不變。
+- 對真實資料庫煙霧測試(2026-08-23):壞檔 6 個問題全列、exit 1;不存在的檔走 `renderUnexpected`
+  的繁中訊息;`--dry-run` 回「將寫入 1 筆」;實際匯入 `pack:magic-potions` 的 `藥水`(zh/theme)成為
+  建議 #1398,`pending`,`run_id` NULL。
+- 測試:`ai` 套件 46 → 60 examples(`ImportSpec` 14 條),`cli` 56 → 58(`ParserSpec` 2 條);
+  `cabal test all` 683 examples, 0 failures。

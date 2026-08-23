@@ -11,6 +11,7 @@ module AssetDB.Cli.Ai
   , AiClassifyArgs (..)
   , AiVisionArgs (..)
   , AiListArgs (..)
+  , AiImportArgs (..)
   , AiDecideArgs (..)
   , AiApplyArgs (..)
   , AiQueryArgs (..)
@@ -19,6 +20,7 @@ module AssetDB.Cli.Ai
   , runAiClassify
   , runAiVision
   , runAiSuggestList
+  , runAiSuggestImport
   , runAiDecide
   , runAiApply
   , runAiQuery
@@ -26,16 +28,20 @@ module AssetDB.Cli.Ai
   ) where
 
 import AssetDB.AI.Classify
+import AssetDB.AI.Import
 import AssetDB.AI.Llm
 import AssetDB.AI.Query
 import AssetDB.AI.Run (Progress (..), renderProgress)
 import AssetDB.AI.Suggest
 import AssetDB.AI.Vision
+import AssetDB.Guard (guardedTry)
 import AssetDB.Ingest.Cluster (Cluster (..), clusterKeyOf, clusterKeyText)
 import AssetDB.Ingest.ClusterDb (PackRef (..), listPacks, packClusters)
 import AssetDB.Store
+import AssetDB.Store.Errors (renderUnexpected)
 import AssetDB.Store.Index (reindexFts)
 import Control.Monad (forM, forM_, unless, when)
+import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
@@ -97,6 +103,11 @@ data AiApplyArgs = AiApplyArgs
 
 data AiQueryArgs = AiQueryArgs
   { qaText :: Text
+  }
+
+data AiImportArgs = AiImportArgs
+  { iaFile :: FilePath
+  , iaDryRun :: Bool
   }
 
 --------------------------------------------------------------------------------
@@ -231,6 +242,32 @@ runAiSuggestList dbPath AiListArgs {..} = withAi dbPath $ \c -> do
   forM_ counts $ \(st, n) -> TIO.putStrLn ("  " <> pad 12 st <> tshow n)
   where
     conf d = T.pack (show (fromIntegral (round (d * 100) :: Int) / 100 :: Double))
+
+-- | 外部建議匯入(F007)。跟 @classify@ 一樣不需要 @--confirm@:寫進暫存表本身就是預覽。
+--
+-- 檔案在這裡讀成位元組,解碼與驗證交給 ai-tagging —— 輸入格式是它的契約,不是 CLI 的。
+runAiSuggestImport :: FilePath -> AiImportArgs -> IO ()
+runAiSuggestImport dbPath AiImportArgs {..} = do
+  -- 讀不到檔案是使用者打錯路徑,不該變成頂層的 IOException(G-E003)。
+  bytes <-
+    guardedTry (BS.readFile iaFile) >>= \case
+      Left e -> TIO.putStrLn ("✗ 讀不到匯入檔 —— " <> renderUnexpected e) >> exitFailure
+      Right b -> pure b
+  withAi dbPath $ \c -> do
+    r <- importSuggestions c defaultImportOptions {ioDryRun = iaDryRun} bytes
+    case irProblems r of
+      [] ->
+        if iaDryRun
+          then TIO.putStrLn ("驗證通過,將寫入 " <> tshow (irLines r) <> " 筆(--dry-run,未寫入)")
+          else do
+            TIO.putStrLn ("已寫入 " <> tshow (irWritten r) <> " 筆(pending),下一步:assetdb ai suggest list")
+            counts <- countSuggestions c
+            forM_ counts $ \(st, n) -> TIO.putStrLn ("  " <> pad 12 st <> tshow n)
+      problems -> do
+        forM_ problems $ \(n, why) ->
+          TIO.putStrLn (if n == 0 then "檔案:" <> why else "第 " <> tshow n <> " 行:" <> why)
+        TIO.putStrLn ("✗ 共 " <> tshow (length problems) <> " 個問題,一筆都沒寫入(全有全無)")
+        exitFailure
 
 runAiDecide :: FilePath -> AiDecideArgs -> IO ()
 runAiDecide dbPath AiDecideArgs {..} = withAi dbPath $ \c -> do

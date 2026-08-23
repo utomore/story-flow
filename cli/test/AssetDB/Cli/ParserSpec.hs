@@ -150,6 +150,23 @@ spec = do
         Just (Invocation _ (CmdClusterRule _)) -> pure ()
         other -> unexpected other
 
+  describe "ai suggest import" $ do
+    it "--help 以成功結束並列出 --dry-run" $ do
+      helpExit ["ai", "suggest", "import", "--help"] `shouldBe` Just ExitSuccess
+      helpText ["ai", "suggest", "import", "--help"] `shouldSatisfy` ("--dry-run" `isInfixOf`)
+
+    it "檔案路徑是必填的位置參數,--dry-run 為選填" $ do
+      -- ai-tagging/F007 T6。沒有 --confirm:寫進暫存表本身就是預覽。
+      rejects ["ai", "suggest", "import"]
+      case parse ["ai", "suggest", "import", "picks.jsonl"] of
+        Just (Invocation _ (CmdAiSuggestImport a)) -> do
+          iaFile a `shouldBe` "picks.jsonl"
+          iaDryRun a `shouldBe` False
+        other -> unexpected other
+      case parse ["ai", "suggest", "import", "picks.jsonl", "--dry-run"] of
+        Just (Invocation _ (CmdAiSuggestImport a)) -> iaDryRun a `shouldBe` True
+        other -> unexpected other
+
   describe "project sync" $ do
     it "--help 以成功結束並列出全部旗標" $ do
       helpExit ["project", "sync", "--help"] `shouldBe` Just ExitSuccess
@@ -299,6 +316,7 @@ commandName = \case
   CmdAiClassify {} -> "CmdAiClassify"
   CmdAiVision {} -> "CmdAiVision"
   CmdAiSuggestList {} -> "CmdAiSuggestList"
+  CmdAiSuggestImport {} -> "CmdAiSuggestImport"
   CmdAiDecide {} -> "CmdAiDecide"
   CmdAiApply {} -> "CmdAiApply"
   CmdAiQuery {} -> "CmdAiQuery"

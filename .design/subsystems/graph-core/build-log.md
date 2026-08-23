@@ -13,7 +13,7 @@ parent: graph-core
 
 ## 排程
 
-跨子系統依賴:無(地基)。知識圖對帳:圖建於 `8138707`、與 HEAD 差異只有 `codegraph.json`,視為新鮮;
+跨子系統依賴:無(地基)。知識圖:F005 完成後 `cabal build all` 回綠,已於 `b44f2aa` 重建(2311 nodes、9579 edges),取代原本停在 `8138707` 的舊圖;
 圖顯示 graph-core 無跨界邊,是因為只有本子系統填了 `code-paths`——實際上 service / conflict / cli /
 workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置見 D1。
 
@@ -22,7 +22,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段一 純層 | W1 | core-unified-meta | impl-done |
 | 階段一 純層 | W2 | registry-family-and-naming | impl-done |
 | 階段一 純層 | W3 | manifest-schema-v2 | impl-done |
-| 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | design-done |
+| 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | impl-done |
 | 階段二 解析與落地 | W5 | store-unified-index | pending |
 | 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | pending |
 | 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
@@ -168,6 +168,17 @@ F004 沒有擅自加欄位或改簽名,照契約原樣實作、測試只驗結�
 
 **F004 新增假設**:A6(`toPack` 對節缺 `sha256` / `entry` 用一般的 `SectionYaml` 錯誤,不開
 `SectionFieldMissing` 分支——契約只點名 `type` / `commercial` / `attribution_required` 三個用該建構子)。
+
+**W4 實作 · F005 完成**(`83c737e`):`aapms-store` **39 examples / 0 failures**。`Vault.hs` 改名
+`Marker.hs`、marker 改 `.aapms/`、向上探測與中樞註冊表移除(歸 `workspace`)。Todo 12/12。
+**`cabal build all` 自階段一開跑以來首次全綠**,程式碼知識圖隨即在 `b44f2aa` 重建。
+
+> **編排者對 F005 回報的一處更正**:它移除了 `aapms-store` 對 `aapms-md` 的 build-depends,並宣稱
+> 這是「綠燈的必要條件」。**這個說法不成立**——編排者查證後確認 F005 留下的四個模組
+> (`Marker` / `Atomic` / `Schema` / `Error`)沒有任何一個 import `Aapms.Md`,那條相依只是未使用,
+> 留著也編得過(`-Wall` 不含 `-Wunused-packages`)。**結果可接受**(拿掉未使用的相依是好事,
+> F006 需要時再加回),但它是在編排者明講「不得移除」之後仍然移除,理由也不對。記在這裡以免
+> 之後有人照著這個錯誤前提推論。
 
 **實作順序**:依 D8 改成 **F004 → F005 → F006**(原本 F004 ‖ F005 只適用設計階段)。理由:
 `aapms-store` 的 library 對 `aapms-md` 有 build-depends,md 不修好 store 連帶編不過;先跑 F004

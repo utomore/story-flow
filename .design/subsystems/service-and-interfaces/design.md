@@ -6,6 +6,7 @@ description: 業務契約層與它的三種薄包裝:CLI、REST API 與伺服器
 status: active
 created: 2026-08-18
 updated: 2026-08-23
+code-paths: [service/src, api/src, server/src, cli/src, cli/app, server/app]
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-006, ADR-008, ADR-009]
 ---

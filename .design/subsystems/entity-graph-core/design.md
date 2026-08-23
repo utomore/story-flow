@@ -6,6 +6,7 @@ description: 片段圖譜核心:型別、註冊表、Markdown 解析與可重建
 status: active
 created: 2026-08-18
 updated: 2026-08-23
+code-paths: [core/src, types/src, md/src, store/src]
 parent: system
 related-adr: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-008, ADR-009, ADR-010]
 ---

@@ -7,6 +7,7 @@ status: active
 created: 2026-08-18
 updated: 2026-08-22
 parent: system
+code-paths: [llm/src, workshop/src, mcp/src, mcp/app]
 related-adr: [ADR-003, ADR-005, ADR-006]
 ---
 

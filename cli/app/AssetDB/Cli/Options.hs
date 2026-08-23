@@ -21,6 +21,7 @@ module AssetDB.Cli.Options
   , Invocation (..)
   , parseInvocation
   , invocationInfo
+  , versionText
   , findDbUpwards
   , resolveDbPathForQuery
   , resolveDbPathForInit
@@ -46,7 +47,9 @@ import AssetDB.Cli.Cluster (RuleArgs (..))
 import AssetDB.Cli.Search (SearchArgs (..))
 import AssetDB.Cli.Project (ProjectArgs (..), SyncArgs (..))
 import AssetDB.Cli.Notes (LinkArgs (..), NoteArgs (..))
+import Data.Version (showVersion)
 import Options.Applicative
+import Paths_assetdb_cli (version)
 import System.Directory (doesFileExist, getCurrentDirectory, makeAbsolute)
 import System.Exit (die)
 import System.FilePath (takeDirectory, (</>))
@@ -122,11 +125,20 @@ parseInvocation = execParser invocationInfo
 invocationInfo :: ParserInfo Invocation
 invocationInfo =
   info
-    (helper <*> (Invocation <$> globalP <*> commandP))
+    (helper <*> versioner <*> (Invocation <$> globalP <*> commandP))
     ( fullDesc
         <> progDesc "Alchbees 資源與專案管理系統"
         <> header "assetdb"
     )
+  where
+    -- 與 --help 同一類:印完就結束,結束碼 0。放在全域層,不需要子指令。
+    versioner = infoOption versionText (long "version" <> help "顯示版本號")
+
+-- | 版本字串,唯一來源是 @assetdb-cli.cabal@ 的 @version@ 欄位(經 cabal 產生的
+-- @Paths_assetdb_cli@)。PATH 上的舊副本與 repo 裡 @cabal run@ 的版本常常不同
+-- (delivery/E006),這是使用者分辨它們的唯一方法。
+versionText :: String
+versionText = "assetdb " <> showVersion version
 
 globalP :: Parser GlobalArgs
 globalP =

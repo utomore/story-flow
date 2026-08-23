@@ -4,7 +4,7 @@ import AssetDB.Console (setupConsole)
 import AssetDB.Guard (withTopLevel)
 import AssetDB.Server.App (runServer)
 import AssetDB.Store.Errors (renderUnexpected)
-import AssetDB.Server.Cli (CliCommand (..), parseArgs, usageText)
+import AssetDB.Server.Cli (CliCommand (..), parseArgs, usageText, versionText)
 import AssetDB.Server.TsTypes (tsDefinitions)
 import Data.ByteString qualified as BS
 import Data.Text.Encoding (encodeUtf8)
@@ -23,6 +23,7 @@ run = do
   case parseArgs args of
     Left err -> hPutStrLn stderr err >> exitFailure
     Right ShowUsage -> putStr usageText
+    Right ShowVersion -> putStrLn versionText
     Right (EmitTypes out) -> do
       -- 明確以 UTF-8 位元組寫檔。Data.Text.IO 用 locale 編碼,
       -- Windows 上會寫壞非 ASCII 內容。

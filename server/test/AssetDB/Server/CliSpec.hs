@@ -2,7 +2,7 @@ module AssetDB.Server.CliSpec (spec) where
 
 import AssetDB.Server.App (ServerConfig (..), defaultHost)
 import AssetDB.Server.Cli
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import System.FilePath ((</>))
 import Test.Hspec
 
@@ -53,6 +53,18 @@ spec = do
     it "--help 優先於「第一個參數是 db 路徑」" $ do
       parseArgs ["--help"] `shouldBe` Right ShowUsage
       parseArgs ["db.sqlite", "--help"] `shouldBe` Right ShowUsage
+
+    it "--version 優先於「第一個參數是 db 路徑」(delivery/E006)" $ do
+      parseArgs ["--version"] `shouldBe` Right ShowVersion
+      parseArgs ["db.sqlite", "--version"] `shouldBe` Right ShowVersion
+
+    it "usageText 列出 --version" $
+      usageText `shouldSatisfy` ("--version" `isInfixOf`)
+
+    it "versionText 含 .cabal 的版本號,前綴是執行檔名" $ do
+      -- 版本號只有一個來源:assetdb-server.cabal 的 version 欄位。
+      versionText `shouldSatisfy` ("assetdb-server " `isPrefixOf`)
+      versionText `shouldSatisfy` ("0.1.0.0" `isInfixOf`)
 
     it "--emit-types 帶輸出檔" $
       parseArgs ["--emit-types", "types.ts"] `shouldBe` Right (EmitTypes "types.ts")

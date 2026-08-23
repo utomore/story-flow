@@ -36,6 +36,8 @@ cabal install assetdb-cli assetdb-server --overwrite-policy=always
 ```
 
 裝好之後 `assetdb` 與 `assetdb-server` 都在 PATH 上(`C:\Users\User\.cabal\bin`)。
+`assetdb --version` / `assetdb-server --version` 可以確認裝到的是哪一版 —— PATH 上的副本
+與 repo 裡 `cabal run` 的常常不同,新指令「找不到」時先看這個。
 開發時也可以不安裝,直接 `cabal run assetdb -- <子指令>`。
 
 ### 外部工具
@@ -671,7 +673,7 @@ import Assets             -- 專案自己的素材 key 常數
 
 ```bash
 cabal build all
-cabal test all      # 683 examples, 0 failures(9 個 test suite,2026-08-23)
+cabal test all      # 689 examples, 0 failures(9 個 test suite,2026-08-23)
 ```
 
 | 套件 | 職責 | 測試 |

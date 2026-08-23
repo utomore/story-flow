@@ -115,8 +115,12 @@ HTTP 請求、瀏覽器上看得見的網格、以及最後落在遊戲專案目
 ```text
 assetdb-server <db 路徑> [port] [--host 位址] [--init]
 assetdb-server --emit-types <輸出檔>
+assetdb-server --version
 assetdb-server --help | -h
 ```
+
+- `--version` 印 `assetdb-server <版本>`,結束碼 0;與 `--help` 同樣優先於「第一個參數是
+  db 路徑」。版本號唯一來源是 `assetdb-server.cabal` 的 `version` 欄位(E006)。
 
 - `port` 預設 `defaultPort = 8787`,與 `web/vite.config.ts` 的 dev proxy 互相指涉
   (兩邊沒有共用設定來源,改一邊要同步另一邊)。非數字或超出 `1..65535` 是錯誤。
@@ -130,7 +134,8 @@ assetdb-server --help | -h
 
 ### 3. `assetdb` 命令列
 
-全域選項 `--db PATH`(預設 `./.assetdb/assetdb.sqlite`,並會逐層往上尋找)。
+全域選項 `--db PATH`(預設 `./.assetdb/assetdb.sqlite`,並會逐層往上尋找)與 `--version`
+(印 `assetdb <版本>` 即結束,版本號唯一來源是 `assetdb-cli.cabal` 的 `version` 欄位,E006)。
 
 | 指令 | 用途 | 子系統 |
 |---|---|---|

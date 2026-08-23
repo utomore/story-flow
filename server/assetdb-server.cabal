@@ -17,6 +17,10 @@ library
         AssetDB.Server.App
         AssetDB.Server.Cli
         AssetDB.Server.TsTypes
+    other-modules:
+        Paths_assetdb_server
+    autogen-modules:
+        Paths_assetdb_server
     hs-source-dirs:   src
     build-depends:
         , assetdb-core

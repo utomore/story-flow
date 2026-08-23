@@ -32,6 +32,18 @@ spec = do
     it "子指令也有自己的說明" $
       helpExit ["ai", "--help"] `shouldBe` Just ExitSuccess
 
+    it "說明裡列出 --version" $
+      helpText ["--help"] `shouldSatisfy` ("--version" `isInfixOf`)
+
+  describe "--version" $ do
+    it "以成功結束,不需要子指令(delivery/E006)" $
+      helpExit ["--version"] `shouldBe` Just ExitSuccess
+
+    it "輸出是執行檔名加 .cabal 的版本號" $ do
+      -- 版本號只有一個來源:assetdb-cli.cabal 的 version 欄位。
+      helpText ["--version"] `shouldSatisfy` ("assetdb 0.1.0.0" `isInfixOf`)
+      versionText `shouldBe` "assetdb 0.1.0.0"
+
   describe "全域選項" $ do
     it "--db 收得到,而且是全域的(位置在子指令之前)" $
       case parse ["--db", "X.sqlite", "doctor"] of

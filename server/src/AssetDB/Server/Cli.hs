@@ -9,10 +9,13 @@ module AssetDB.Server.Cli
   , extractHost
   , defaultPort
   , usageText
+  , versionText
   ) where
 
 import AssetDB.Server.App (ServerConfig (..), defaultHost)
 import Data.List (partition)
+import Data.Version (showVersion)
+import Paths_assetdb_server (version)
 import System.FilePath (takeDirectory, (</>))
 import Text.Read (readMaybe)
 
@@ -25,16 +28,22 @@ defaultPort = 8787
 
 data CliCommand
   = ShowUsage
+  | ShowVersion
   | EmitTypes FilePath
   | RunServer ServerConfig
   deriving stock (Eq, Show)
 
+-- | 版本字串,唯一來源是 @assetdb-server.cabal@ 的 @version@ 欄位(delivery/E006)。
+versionText :: String
+versionText = "assetdb-server " <> showVersion version
+
 -- | 解析參數。失敗時回傳給使用者看的訊息,而不是拋例外。
 parseArgs :: [String] -> Either String CliCommand
 parseArgs args
-  -- @--help@ 必須在「第一個參數是 db 路徑」之前比對。否則它會被當成資料庫檔名,
-  -- 伺服器直接啟動並阻塞 —— 一個想看用法的人得到的是一個掛住的終端機。
+  -- @--help@ / @--version@ 必須在「第一個參數是 db 路徑」之前比對。否則它會被當成
+  -- 資料庫檔名,伺服器直接啟動並阻塞 —— 一個想看用法的人得到的是一個掛住的終端機。
   | any (`elem` ["--help", "-h"]) args = Right ShowUsage
+  | "--version" `elem` args = Right ShowVersion
   | otherwise = do
       (mHost, rest') <- extractHost args
       let (initFlags, positional) = partition (== "--init") rest'
@@ -94,6 +103,7 @@ usageText =
     [ "用法:assetdb-server <db 路徑> [port] [--host 位址] [--init]"
     , "                                              預設 port " <> show defaultPort <> "、host " <> defaultHost
     , "     assetdb-server --emit-types <輸出檔>       產生前端的 TypeScript 型別"
+    , "     assetdb-server --version                   顯示版本號"
     , ""
     , "--init  對不存在的路徑建立新資料庫。不加時找不到檔案就是錯誤,"
     , "        不會靜默建出一個查詢全回 0 筆的空庫。"

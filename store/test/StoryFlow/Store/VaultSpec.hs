@@ -9,8 +9,8 @@ import qualified Data.Text.Encoding as TE
 import StoryFlow.Store.Error (StoreError (..), renderStoreError)
 import StoryFlow.Store.Fixtures (withTempVault)
 import StoryFlow.Store.Vault
-import System.Directory (createDirectoryIfMissing, doesFileExist)
-import System.FilePath ((</>))
+import System.Directory (createDirectoryIfMissing, doesFileExist, withCurrentDirectory)
+import System.FilePath (isAbsolute, normalise, (</>))
 import Test.Hspec
 import qualified TOML
 
@@ -51,6 +51,27 @@ spec = describe "T1 Vault 定位" $ do
     withTempVault $ \dir -> do
       r <- resolveVaultWith (noRegistry dir) (Just "不存在的庫") dir
       r `shouldBe` Left (VaultNotFound "不存在的庫")
+
+  -- entity-graph-core/B001:中文 Vault 名寫進全域註冊表後要讀得回來。
+  -- 2026-08-22 實測:registerVaultIn 寫出「測試世界 = "."」——TOML 的裸 key 只准
+  -- [A-Za-z0-9_-],下一次 load 直接解析失敗,而且壞的是全域檔,所有 Vault 一起讀不到。
+  it "中文 Vault 名登記後,註冊表讀得回來(B001 重現)" $
+    withTempVault $ \dir -> do
+      let reg = dir </> "vaults.toml"
+      registerVaultIn reg "測試世界" dir `shouldReturn` Right ()
+      r <- loadVaultRegistryFrom reg
+      fmap M.keys r `shouldBe` Right ["測試世界"]
+
+  -- entity-graph-core/B002:initVault 收到相對路徑時,Vault 的 root 與寫進全域註冊表的
+  -- 路徑都要是絕對的。「.」在別的目錄下毫無意義,--vault <名稱> 定址會指到錯的地方。
+  it "initVault 給相對路徑 → vaultRoot 是絕對路徑(B002 重現)" $
+    withTempVault $ \dir -> do
+      r <- withCurrentDirectory dir (initVault "." "relworld")
+      case r of
+        Left e -> expectationFailure (T.unpack (renderStoreError e))
+        Right v -> do
+          isAbsolute (vaultRoot v) `shouldBe` True
+          normalise (vaultRoot v) `shouldBe` normalise dir
 
   it "註冊表檔案不存在時是空註冊表,不是錯誤" $
     withTempVault $ \dir ->

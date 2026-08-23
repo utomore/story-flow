@@ -52,7 +52,7 @@ import StoryFlow.Core.Link (Link (..), LinkKind, isCoreKind, renderLinkKind, sug
 import StoryFlow.Service
 import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (..))
-import System.IO (Handle, hFlush, stderr, stdin, stdout)
+import System.IO (Handle, hFlush, hIsTerminalDevice, hSetEncoding, stderr, stdin, stdout, utf8)
 
 -- 輸出去向 ---------------------------------------------------------------------
 
@@ -79,15 +79,21 @@ runCli = runCliWith defaultCliIO
 -- 引數錯誤__不走信封__:@--json@ 這個旗標本身可能就是打錯的那一個,
 -- 這時候假裝解析成功地印一個 JSON 出來只會更難查。
 runCliWith :: CliIO -> [String] -> IO ExitCode
-runCliWith io args = case parseCli args of
-  Success (g, c) -> dispatch io g c
-  CompletionInvoked cr -> do
-    msg <- execCompletion cr "story-flow"
-    TIO.hPutStr (cliOut io) (T.pack msg)
-    pure ExitSuccess
-  Failure f -> case renderFailure f "story-flow" of
-    (msg, ExitSuccess) -> TIO.hPutStrLn (cliOut io) (T.pack msg) >> pure ExitSuccess
-    (msg, _) -> TIO.hPutStrLn (cliErr io) (T.pack msg) >> pure (ExitFailure 2)
+runCliWith io args = do
+  -- service-and-interfaces/B002:人類模式的輸出__導向檔案或管線時__要是 UTF-8。
+  -- 終端機留給它自己的 codec(Windows 主控台是 cp950 時,繁中要交給它才顯示得出來);
+  -- 不是終端機就沒有「顯示」這回事,接收端是另一個程式,而那邊的共同語言是 UTF-8。
+  -- --json 那條路徑(jsonLine)本來就自己編 UTF-8,不受這裡影響。
+  mapM_ utf8UnlessTerminal [cliOut io, cliErr io]
+  case parseCli args of
+    Success (g, c) -> dispatch io g c
+    CompletionInvoked cr -> do
+      msg <- execCompletion cr "story-flow"
+      TIO.hPutStr (cliOut io) (T.pack msg)
+      pure ExitSuccess
+    Failure f -> case renderFailure f "story-flow" of
+      (msg, ExitSuccess) -> TIO.hPutStrLn (cliOut io) (T.pack msg) >> pure ExitSuccess
+      (msg, _) -> TIO.hPutStrLn (cliErr io) (T.pack msg) >> pure (ExitFailure 2)
 
 -- 派送 -------------------------------------------------------------------------
 
@@ -328,10 +334,16 @@ failCode e = ExitFailure (if isUsageError e then 2 else 1)
 warn :: CliIO -> Text -> IO ()
 warn io t = line (cliErr io) ("警告:" <> t)
 
--- | 人類可讀的輸出走 handle 自己的編碼:Windows 主控台是 cp950 時,繁中要交給
--- 它的 codec 才顯示得出來。
+-- | 人類可讀的輸出走 handle 自己的編碼。那個編碼在 runCliWith 一開始就被定好了:
+-- 終端機維持主控台的 codec(cp950 要交給它才顯示得出來),非終端機一律 UTF-8(B002)。
 line :: Handle -> Text -> IO ()
 line = TIO.hPutStrLn
+
+-- | 非終端機的 handle 設成 UTF-8;終端機不動。
+utf8UnlessTerminal :: Handle -> IO ()
+utf8UnlessTerminal h = do
+  tty <- hIsTerminalDevice h
+  unless tty (hSetEncoding h utf8)
 
 -- | @--json@ 的那一行__一律寫成 UTF-8 位元組__,繞過 handle 的 codec。
 --

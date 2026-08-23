@@ -101,6 +101,7 @@ test-suite storyflow-cli-test
         StoryFlow.Cli.WorkshopCmdSpec
         StoryFlow.Cli.DoctorSpec
         StoryFlow.Cli.ReleaseScriptSpec
+        StoryFlow.Cli.EncodingSpec
     build-depends:
         , aeson
         , base

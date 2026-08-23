@@ -48,6 +48,7 @@ import System.Directory
   , createDirectoryIfMissing
   , doesDirectoryExist
   , doesFileExist
+  , makeAbsolute
   , getXdgDirectory
   )
 import System.FilePath (makeRelative, normalise, takeDirectory, (</>))
@@ -241,7 +242,10 @@ registerVaultIn regFile name root =
                 <> ";請換一個 Vault 名稱,或先手動修掉這一行"
       Nothing -> do
         createDirectoryIfMissing True (takeDirectory regFile)
-        appendMissingLines regFile [name <> " = " <> quote (T.pack (toSlash root))]
+        -- key 也要引號(entity-graph-core/B001):TOML 的裸 key 只准 [A-Za-z0-9_-],
+        -- 中文名寫成裸 key 會讓整份全域註冊表下一次就解析失敗。quote 做的逃逸
+        -- 對 key 與 value 是同一套
+        appendMissingLines regFile [quote name <> " = " <> quote (T.pack (toSlash root))]
 
 -- 初始化 ----------------------------------------------------------------------
 
@@ -251,7 +255,10 @@ vaultSubdirs = ["characters", "lore", "items", "dialogues", "levels"]
 
 -- | 建立 Vault 骨架。已經有 Vault 時回 'VaultAlreadyExists' 且__不覆寫任何東西__。
 initVault :: FilePath -> Text -> IO (Either StoreError Vault)
-initVault root name = do
+initVault givenRoot name = do
+  -- 先轉絕對路徑(entity-graph-core/B002):呼叫端常給「.」,而這個 root 會被寫進
+  -- 全域註冊表、被 --vault <名稱> 從任何目錄拿來定址——相對路徑在那裡毫無意義
+  root <- makeAbsolute givenRoot
   exists <- doesFileExist (configPath root)
   if exists
     then pure (Left (VaultAlreadyExists root))

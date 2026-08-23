@@ -3,16 +3,16 @@ id: ADR-011
 type: adr
 title: interface-layer-downstream-of-all-subsystems
 description: 契約層單向向下,介面包裝層是所有子系統的下游
-status: accepted
+status: superseded
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-23
 ---
 
 # ADR-011: 契約層單向、介面包裝層全面下游
 
 ## 狀態(Status)
 
-accepted
+superseded by ADR-015(2026-08-23):合併 assetdb 後業務領域從一個變成四個,「只有一個業務契約層」的前提不成立,`shell` 拆為獨立子系統。
 
 ## 背景(Context)
 

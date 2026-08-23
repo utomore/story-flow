@@ -3,7 +3,7 @@ id: G-E001
 type: enhance
 title: split-service-and-interfaces
 description: service-and-interfaces 橫跨依賴順序兩端,子系統層級的循環偵測因此失真;拆成契約層與介面包裝層兩個子系統
-status: open
+status: closed
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: []
@@ -123,3 +123,8 @@ ADR-011 選擇「文字講清楚」而不是「改結構」,代價就是架構�
 
 (撰寫時留空。立案依據:2026-08-23 knot `codegraph.json` @ `b5e31ac`,`scan-graph.mjs`
 輸出與五條邊的原始碼複查;`StoryFlow.Service` 遞移依賴 34 個 module 無一越界。)
+
+## 結案(2026-08-23)
+
+由 ADR-015 承接:合併 assetdb 的主架構重構(system.md 2026-08-23 版)把 `service` 與 `shell`
+拆成兩個獨立子系統,本文提議的拆分成為新架構的一部分,不另開實作任務。

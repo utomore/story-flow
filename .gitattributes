@@ -1,0 +1,2 @@
+# bash 腳本永遠 LF:Windows 的 core.autocrlf 會把它們轉成 CRLF,bash 讀到  就炸(G-E002)
+*.sh text eol=lf

@@ -6,7 +6,16 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple
 import Aapms.Core.Id (IdPrefix (PEnt), renderIdPrefix)
-import Aapms.Store (StoreError, VaultKind (StoryVault), initVaultAt, openVault, renderStoreError)
+import Aapms.Store
+  ( StoreError
+  , VaultKind (StoryVault)
+  , emptyNodeFilter
+  , initVaultAt
+  , listNodes
+  , openVault
+  , rebuildIndex
+  , renderStoreError
+  )
 import Aapms.Store.Fixtures (testRegistry)
 import System.Directory (doesFileExist)
 import System.IO.Temp (withSystemTempDirectory)
@@ -38,23 +47,24 @@ spec = do
             IO [Only Text]
         rows `shouldBe` []
 
-  describe "graph-core/F005 cabal 範圍" $
-    it "aapms-store.cabal 原始碼不再列出移出範圍的模組與 aapms-md 依賴" $ do
+  describe "graph-core/F006 cabal 範圍" $ do
+    it "aapms-store.cabal 原始碼加回 Index/Query/Row 與 aapms-md 依賴" $ do
       src <- readUtf8Source "aapms-store.cabal"
       mapM_
-        (\bad -> (bad `T.isInfixOf` src) `shouldBe` False)
-        [ "Aapms.Store.Index"
-        , "Aapms.Store.Write"
-        , "Aapms.Store.Create"
-        , "Aapms.Store.Query"
-        , "Aapms.Store.Node"
-        , "Aapms.Store.Edit"
-        , "Aapms.Store.Row"
-        , "aapms-md"
-        ]
+        (\present -> (present `T.isInfixOf` src) `shouldBe` True)
+        ["Aapms.Store.Index", "Aapms.Store.Query", "Aapms.Store.Row", "aapms-md"]
 
-  describe "graph-core/F005 門面模組" $
-    it "從 Aapms.Store(而非個別子模組)可以 import 並呼叫 openVault/initVaultAt" $
+    -- D8:Create/Edit/Node/Write 留給 graph-core/F008,本 feature 不加回。
+    -- 用換行收尾比對(而非裸子字串),避免 "Aapms.Store.Node" 誤中
+    -- "Aapms.Store.NodeSpec"(本 feature 的測試模組)。
+    it "aapms-store.cabal 原始碼仍不列出 F008 範圍的模組" $ do
+      src <- T.filter (/= '\r') <$> readUtf8Source "aapms-store.cabal"
+      mapM_
+        (\bad -> ((bad <> "\n") `T.isInfixOf` src) `shouldBe` False)
+        ["Aapms.Store.Write", "Aapms.Store.Create", "Aapms.Store.Node", "Aapms.Store.Edit"]
+
+  describe "graph-core/F005+F006 門面模組" $
+    it "從 Aapms.Store(而非個別子模組)可以 import 並呼叫 openVault/initVaultAt/rebuildIndex/listNodes" $
       withSystemTempDirectory "aapms-store-facade" $ \dir -> do
         initResult <- initVaultAt dir StoryVault "facade"
         case initResult of
@@ -62,7 +72,13 @@ spec = do
           Right _marker -> pure ()
         openResult <- openVault testRegistry dir
         case openResult of
-          Right (_handle, _issues) -> pure ()
+          Right (_handle, _issues) -> do
+            rebuildResult <- rebuildIndex _handle
+            case rebuildResult of
+              Left e -> expectationFailure (T.unpack (renderStoreError (e :: StoreError)))
+              Right _issues -> pure ()
+            _metas <- listNodes _handle emptyNodeFilter
+            pure ()
           Left e -> expectationFailure (T.unpack (renderStoreError (e :: StoreError)))
 
 -- | 建立一張裝了測試內容的 FTS5 trigram 表。

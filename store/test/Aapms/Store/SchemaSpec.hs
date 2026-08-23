@@ -1,11 +1,16 @@
--- | graph-core\/F005:@meta_info@-only schema、PRAGMA 設定、
--- @schema_version@ 重建與 'IndexIssue'、vault 身分寫入。
+-- | graph-core\/F005:PRAGMA 設定、@schema_version@ 重建與 'IndexIssue'、
+-- vault 身分寫入。graph-core\/F006(T1)擴充:12 張表全建齊、三個新
+-- 'IndexIssue' 建構子的 'renderIndexIssue'。
 module Aapms.Store.SchemaSpec (spec) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 import Database.SQLite.Simple
+import Aapms.Core.Asset (LogicalName (..))
 import Aapms.Core.Id (VaultId (..))
-import Aapms.Store.Fixtures (orDie, withTempVault)
+import Aapms.Core.Meta (MetaWarning (..), TypeKey (..))
+import Aapms.Md.Error (MdError (..), MdErrorKind (..))
+import Aapms.Store.Fixtures (idOf, orDie, withTempVault)
 import Aapms.Store.Schema
 import System.FilePath ((</>))
 import Test.Hspec
@@ -13,15 +18,47 @@ import Test.Hspec
 testVaultId :: VaultId
 testVaultId = VaultId "vlt-7f3b2a91"
 
+-- | design.md「索引結構」段落的 12 張表(不含兩張 FTS 表與 fts_map)。
+-- | SQLite 回傳依 sqlite_master.name 字母序,不是 'indexTables' 的建表順序。
+expectedTables :: [Text]
+expectedTables =
+  [ "assets"
+  , "files"
+  , "levels"
+  , "licenses"
+  , "links"
+  , "meta_info"
+  , "node_aliases"
+  , "node_tags"
+  , "nodes"
+  , "packs"
+  , "tree_node_entities"
+  , "tree_nodes"
+  ]
+
 spec :: Spec
 spec = describe "graph-core/F005 schema" $ do
-  it "只建 meta_info 一張表,schemaVersion 寫入其中" $
+  it "T1: 12 張表全建齊,schemaVersion(2)寫入 meta_info" $
     withTempVault $ \dir -> do
       (conn, _issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
       tables <- tableNames conn
-      tables `shouldBe` ["meta_info"]
+      tables `shouldBe` expectedTables
+      schemaVersion `shouldBe` 2
       currentVersion conn `shouldReturn` Just schemaVersion
       closeIndex conn
+
+  it "T1: renderIndexIssue 對三個新建構子輸出非空、含中文、指出檔案路徑" $ do
+    let fp = "story/broken.md"
+        parseIssue = renderIndexIssue (ParseFailed fp (MdError 3 NoFrontmatter))
+        treeIssue = renderIndexIssue (TreeInvalid fp [])
+        dupIssue = renderIndexIssue (DuplicateAssetName fp (LogicalName "ui_gui_panel_001"))
+        warnIssue =
+          renderIndexIssue
+            (MetaWarningsFound fp (idOf "ent-00000001") [UnknownNodeType (TypeKey "character")])
+    mapM_
+      (`shouldSatisfy` (not . T.null))
+      [parseIssue, treeIssue, dupIssue, warnIssue]
+    mapM_ (`shouldSatisfy` T.isInfixOf (T.pack fp)) [parseIssue, treeIssue, dupIssue, warnIssue]
 
   it "foreign_keys / journal_mode / busy_timeout 三個 PRAGMA 符合預期" $
     withTempVault $ \dir -> do

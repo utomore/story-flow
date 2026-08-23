@@ -1,419 +1,450 @@
--- | 條件查詢、關聯查詢、FTS5 檢索。
+-- | 條件查詢、關聯查詢、單一 vault 查詢出口(graph-core\/F006,不含全文檢索
+-- ——那是 #7 的範圍)。
 --
 -- 'linksTo' 是索引存在的主要理由之一:關聯只存在來源端(ADR-002),檔案裡
 -- 查不到「誰指向我」,只有索引做得到反向查詢。
 --
--- 'lookupEntity' 的 @body@ __回讀檔案__而不從索引拿:正文可能很長,不該在
--- 可丟棄的索引裡再存一份權威副本。索引只需要能__搜到__它。
+-- 'lookupNode' 的 body 一律__回讀檔案__而不從索引拿:正文可能很長,不該在
+-- 可丟棄的索引裡再存一份權威副本;design.md 明寫「@body@ 進 FTS 但不進
+-- @nodes@」。
 module Aapms.Store.Query
   ( -- * 過濾條件
-    EntityFilter (..)
-  , emptyFilter
+    NodeFilter (..)
+  , emptyNodeFilter
 
     -- * 查詢
-  , lookupEntity
-  , listEntities
-  , lookupLevel
-  , listLevels
+  , lookupNode
+  , lookupByName
+  , listNodes
+  , childrenOf
 
     -- * 關聯
   , linksFrom
   , linksTo
   , loadLinkGraph
-
-    -- * 檢索
-  , searchEntities
-  , normalizeBm25
   ) where
 
+import Data.Maybe (listToMaybe, mapMaybe)
 import qualified Data.Map.Strict as M
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
+import Aapms.Core.AnyNode (AnyNode (..))
+import Aapms.Core.Asset (Asset (..), LogicalName (..))
 import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Graph (LinkGraph)
-import Aapms.Core.Id (Id, Ref (..), parseId, parseRef, renderId)
+import Aapms.Core.Id
+  ( Id
+  , IdPrefix (..)
+  , Ref (..)
+  , VaultId (..)
+  , idPrefix
+  , parseId
+  , parseRef
+  , renderId
+  , renderIdPrefix
+  , renderRef
+  )
 import Aapms.Core.Level (Level (..), Node (..), parseNodeKind)
-import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Meta (..), Status, renderStatus)
-import Aapms.Md
+import Aapms.Core.License (License (..))
+import Aapms.Core.Link (Link (..), LinkGraph)
+import Aapms.Core.Meta (Meta (..), Status (..), TypeKey (..), renderStatus)
+import Aapms.Core.Pack (Pack (..))
+import Aapms.Md.Document (Document, docKind, DocKind (..))
+import Aapms.Md.Parse (parseDocument, toPack, toTopic)
 import Aapms.Store.Atomic (readTextFile)
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Row
-import Aapms.Store.Schema (vaultRootOf)
 import System.FilePath ((</>))
 
-data EntityFilter = EntityFilter
-  { efType :: Maybe Text
-  , efStatus :: Maybe Status
-  , efTag :: Maybe Text
-  , efLimit :: Maybe Int
+--------------------------------------------------------------------------------
+-- 過濾條件(契約 F)
+
+data NodeFilter = NodeFilter
+  { nfPrefixes :: [IdPrefix]
+  , nfTypes :: [TypeKey]
+  , nfStatus :: [Status]
+  , nfTags :: [Text]
+  , nfOwner :: Maybe Id
+  , nfLicense :: Maybe Ref
+  , nfNamedOnly :: Bool
+  , nfIncludeReference :: Bool
+  , nfLimit :: Int
+  , nfOffset :: Int
   }
   deriving stock (Show, Eq)
 
-emptyFilter :: EntityFilter
-emptyFilter = EntityFilter Nothing Nothing Nothing Nothing
+-- | 全部欄位取最寬鬆的預設值(待確認假設 A9:'nfLimit' 給一個大但有限的值,
+-- 契約 F 沒有逐字列出這個輔助值,比照 F005 對 'Aapms.Store.Schema.IndexIssue'
+-- 「契約給骨架、由後續 feature 依需要擴充」的精神補上)。
+emptyNodeFilter :: NodeFilter
+emptyNodeFilter =
+  NodeFilter
+    { nfPrefixes = []
+    , nfTypes = []
+    , nfStatus = []
+    , nfTags = []
+    , nfOwner = Nothing
+    , nfLicense = Nothing
+    , nfNamedOnly = False
+    , nfIncludeReference = False
+    , nfLimit = 1000
+    , nfOffset = 0
+    }
 
--- 條件組裝 ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- WHERE 子句組裝
 
--- | 過濾條件 → SQL 片段 + 參數。@e@ 是 @entities@ 在該查詢裡的別名。
---
--- 一律走參數化查詢:@efTag@ 之類的值可能來自 CLI 或 API,字串拼接就是注入。
-whereOf :: Text -> EntityFilter -> (Text, [SQLData])
-whereOf alias EntityFilter {..} = (T.concat (map fst parts), concatMap snd parts)
+-- | 'NodeFilter' → SQL 片段 + 參數。base 查詢固定是
+-- @nodes n LEFT JOIN assets a ON a.id = n.id LEFT JOIN packs p ON p.id = n.id@
+-- ——'nfLicense'\/'nfNamedOnly'\/reference 排除都要用到 @a@\/@p@。
+whereOf :: NodeFilter -> (Text, [SQLData])
+whereOf NodeFilter {..} = (T.concat (map fst parts), concatMap snd parts)
   where
-    col c = alias <> "." <> c
     parts =
       concat
-        [ [(" AND " <> col "type" <> " = ?", [sText t]) | Just t <- [efType]]
-        , [(" AND " <> col "status" <> " = ?", [sText (renderStatus s)]) | Just s <- [efStatus]]
-        ,
-          [ ( " AND EXISTS (SELECT 1 FROM entity_tags g WHERE g.entity_id = "
-                <> col "id"
-                <> " AND g.tag = ?)"
-            , [sText tag]
-            )
-          | Just tag <- [efTag]
-          ]
+        [ [inClause "n.prefix" (map renderIdPrefix nfPrefixes) | not (null nfPrefixes)]
+        , [inClause "n.type" (map unTypeKey nfTypes) | not (null nfTypes)]
+        , [statusClause]
+        , [tagClause t | t <- nfTags]
+        , [ownerClause]
+        , [licenseClause]
+        , [namedOnlyClause]
+        , [referenceClause | not nfIncludeReference]
         ]
 
-limitOf :: EntityFilter -> (Text, [SQLData])
-limitOf EntityFilter {..} = case efLimit of
-  Just n -> (" LIMIT ?", [sInt n])
-  Nothing -> ("", [])
+    unTypeKey (TypeKey t) = t
 
--- 查詢 ------------------------------------------------------------------------
+    inClause col vals = (" AND " <> col <> " IN " <> inList (length vals), map sText vals)
 
--- | 不含 body。清單畫面不需要正文,也不該為了列表把每一份檔案都讀一遍。
-listEntities :: Connection -> EntityFilter -> IO [Meta]
-listEntities conn filt = do
-  let (cond, condArgs) = whereOf "e" filt
-      (lim, limArgs) = limitOf filt
+    -- 契約 F:nfStatus = [] 表示全部但排除 missing;非空時 IN (...)。
+    statusClause
+      | null nfStatus = (" AND n.status <> ?", [sText (renderStatus Missing)])
+      | otherwise = inClause "n.status" (map renderStatus nfStatus)
+
+    tagClause t =
+      ( " AND EXISTS (SELECT 1 FROM node_tags nt WHERE nt.node_id = n.id AND nt.tag = ?)"
+      , [sText t]
+      )
+
+    ownerClause = case nfOwner of
+      Just o -> (" AND n.owner = ?", [sText (renderId o)])
+      Nothing -> ("", [])
+
+    licenseClause = case nfLicense of
+      Just ref -> (" AND (a.license = ? OR p.license = ?)", [sText (renderRef ref), sText (renderRef ref)])
+      Nothing -> ("", [])
+
+    namedOnlyClause
+      | nfNamedOnly = (" AND a.name IS NOT NULL", [])
+      | otherwise = ("", [])
+
+    -- nfIncludeReference = False(預設)時排除是 reference 的 pack 本身,以及
+    -- owner 指向該 pack 的節點(待確認假設 A3)。p.is_reference 對非 pack 節點
+    -- 是 NULL(LEFT JOIN),所以用 IS NULL OR = 0 而非 NOT(...) = 1,避免
+    -- NULL 在 WHERE 子句被當成 false 誤刪全部非 pack 節點。
+    referenceClause =
+      ( " AND (p.is_reference IS NULL OR p.is_reference = 0)\
+        \ AND (n.owner IS NULL OR n.owner NOT IN (SELECT id FROM packs WHERE is_reference = 1))"
+      , []
+      )
+
+baseFrom :: Text
+baseFrom =
+  "FROM nodes n\
+  \ LEFT JOIN assets a ON a.id = n.id\
+  \ LEFT JOIN packs p ON p.id = n.id"
+
+--------------------------------------------------------------------------------
+-- listNodes / childrenOf(不含 body 的批次查詢)
+
+listNodes :: VaultHandle -> NodeFilter -> IO [Meta]
+listNodes vh filt = do
+  let (cond, args) = whereOf filt
+      sql = "SELECT n.id " <> baseFrom <> " WHERE 1 = 1" <> cond <> " ORDER BY n.id LIMIT ? OFFSET ?"
   ids <-
-    query
-      conn
-      (Query ("SELECT e.id FROM entities e WHERE 1 = 1" <> cond <> " ORDER BY e.id" <> lim))
-      (condArgs ++ limArgs) ::
+    query (vhConn vh) (Query sql) (args ++ [sInt (nfLimit filt), sInt (nfOffset filt)]) ::
       IO [Only Text]
-  metasInOrder conn [t | Only t <- ids]
+  metasFor vh [t | Only t <- ids]
 
--- | 含 body。'section_anchor' 決定要拿檔案層主體還是某一節。
-lookupEntity :: Connection -> Id -> IO (Maybe Entity)
-lookupEntity conn i = do
+childrenOf :: VaultHandle -> Id -> IO [Meta]
+childrenOf vh i = do
+  ids <-
+    query (vhConn vh) "SELECT id FROM nodes WHERE owner = ? ORDER BY rowid" (Only (renderId i)) ::
+      IO [Only Text]
+  metasFor vh [t | Only t <- ids]
+
+-- | 依給定的 id 順序取回 'Meta'(含 tags\/aliases\/links)。一次把 nodes 與
+-- 三張附屬表都撈回來再分組,而不是每筆各查三次——典型的 N+1 避免。
+metasFor :: VaultHandle -> [Text] -> IO [Meta]
+metasFor _ [] = pure []
+metasFor vh ids = do
+  let conn = vhConn vh
+      vid = vmId (vhMarker vh)
   rows <-
     query
       conn
-      "SELECT file_path, section_anchor FROM entities WHERE id = ?"
-      (Only (renderId i)) ::
-      IO [(Text, Maybe Text)]
-  case rows of
-    [] -> pure Nothing
-    ((fp, anchor) : _) ->
-      vaultRootOf conn >>= \case
-        Nothing -> pure Nothing
-        Just root ->
-          readTextFile (root </> T.unpack fp) >>= \case
-            Left _ -> pure Nothing
-            Right txt -> pure (pick anchor (T.unpack fp) txt)
-  where
-    pick anchor rel txt = do
-      doc <- ok (parseDocument rel txt)
-      (ef, _) <- ok (parseEntityFile doc)
-      case anchor of
-        Nothing -> Just (efMain ef)
-        Just _ -> case [e | e <- efFragments ef, metaId (entMeta e) == i] of
-          (e : _) -> Just e
-          [] -> Nothing
-
-    ok :: Either [MdError] a -> Maybe a
-    ok = either (const Nothing) Just
-
--- | Level 與它的全部 Node,依文件順序。
-lookupLevel :: Connection -> Id -> IO (Maybe (Level, [Node]))
-lookupLevel conn i = do
-  rows <-
-    query
-      conn
-      (Query ("SELECT " <> metaColumns <> ", root, file_path FROM levels WHERE id = ?"))
-      (Only (renderId i)) ::
-      IO [LevelRow]
-  case rows of
-    [] -> pure Nothing
-    (LevelRow mr root _ : _) -> do
-      meta <- hydrate conn mr
-      nodeRows <-
-        query
-          conn
-          ( Query
-              ( "SELECT "
-                  <> metaColumns
-                  <> ", level_id, parent_id, order_idx, kind, file_path, section_anchor\
-                     \ FROM nodes WHERE level_id = ? ORDER BY rowid"
-              )
-          )
-          (Only (renderId i)) ::
-          IO [NodeRow]
-      nodes <- mapM (toNode conn) nodeRows
-      pure $ do
-        m <- meta
-        r <- idOf root
-        pure (Level m r, mapMaybe id nodes)
-  where
-    idOf t = either (const Nothing) (Just . snd) (parseId t)
-
--- | 列出 Level 的 'Meta'(不含 Node)。
---
--- 'lookupLevel' 只能依 id 單查,「這個 Vault 有哪些場景」在 entity-graph-core/F004 之後
--- 沒有任何函式回答得了——P2 的 @aapms level list@ 就卡在這裡。
---
--- 沿用 'EntityFilter' 的 'efStatus' 與 'efLimit';'efType' 與 'efTag' 對 Level
--- __無意義因此忽略__:Level 的 @type@ 恆為 @level@,而 @entity_tags@ 的外鍵
--- 指向 @entities@,拿它去過濾 Level 只會得到空集合——那是靜默的錯誤答案,
--- 比明講「這兩個條件不適用」糟得多。
-listLevels :: Connection -> EntityFilter -> IO [Meta]
-listLevels conn filt = do
-  let (cond, condArgs) = case efStatus filt of
-        Just s -> (" AND l.status = ?", [sText (renderStatus s)])
-        Nothing -> ("", [])
-      (lim, limArgs) = limitOf filt
-  rows <-
+      (Query ("SELECT " <> nodeColumns <> " FROM nodes WHERE id IN " <> inList (length ids)))
+      (map sText ids) ::
+      IO [NodeRow]
+  aliases <- grouped conn "SELECT node_id, alias FROM node_aliases WHERE node_id IN "
+  tags <- grouped conn "SELECT node_id, tag FROM node_tags WHERE node_id IN "
+  linkRows <-
     query
       conn
       ( Query
-          ( "SELECT "
-              <> metaColumns
-              <> ", root, file_path FROM levels l WHERE 1 = 1"
-              <> cond
-              <> " ORDER BY l.id"
-              <> lim
+          ( "SELECT src, dst_vault, dst, kind, note FROM links WHERE src IN "
+              <> inList (length ids)
+              <> " ORDER BY rowid"
           )
       )
-      (condArgs ++ limArgs) ::
-      IO [LevelRow]
-  mapMaybe id <$> mapM (\(LevelRow mr _ _) -> hydrate conn mr) rows
-
-toNode :: Connection -> NodeRow -> IO (Maybe Node)
-toNode conn (NodeRow mr levelId parentId order kind _ _) = do
-  meta <- hydrate conn mr
-  refs <-
-    query
-      conn
-      "SELECT entity_id FROM node_entities WHERE node_id = ? ORDER BY rowid"
-      (Only (mrId mr)) ::
-      IO [Only Text]
-  pure $ do
-    m <- meta
-    lvl <- idOf levelId
-    k <- either (const Nothing) Just (parseNodeKind kind)
-    pure
-      Node
-        { nodMeta = m
-        , nodLevel = lvl
-        , nodParent = parentId >>= idOf
-        , nodOrder = order
-        , nodKind = k
-        , nodEntities = mapMaybe (refOf . fromOnly) refs
-        }
+      (map sText ids) ::
+      IO [LinkRow]
+  let linksByNode = groupPairs [(renderId s, [l]) | (s, l) <- mapMaybe toLink linkRows]
+      byId =
+        M.fromList
+          [ (nrId r, m)
+          | r <- rows
+          , Just m <-
+              [ rowToMeta
+                  vid
+                  r
+                  (M.findWithDefault [] (nrId r) aliases)
+                  (M.findWithDefault [] (nrId r) tags)
+                  (M.findWithDefault [] (nrId r) linksByNode)
+              ]
+          ]
+  pure (mapMaybe (`M.lookup` byId) ids)
   where
-    idOf t = either (const Nothing) (Just . snd) (parseId t)
-    refOf t = either (const Nothing) Just (parseRef t)
+    grouped conn sql = do
+      rs <- query conn (Query (sql <> inList (length ids))) (map sText ids) :: IO [(Text, Text)]
+      pure (groupPairs [(k, [v]) | (k, v) <- rs])
 
--- 關聯 ------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- lookupNode(依 prefix 分七支)
 
-linksFrom :: Connection -> Id -> IO [Link]
-linksFrom conn i = do
+-- | 依 id 撈回一列 'NodeRow'(15 欄全撈),找不到回 'Nothing'。
+lookupNodeRow :: VaultHandle -> Id -> IO (Maybe NodeRow)
+lookupNodeRow vh i = do
   rows <-
     query
-      conn
+      (vhConn vh)
+      (Query ("SELECT " <> nodeColumns <> " FROM nodes WHERE id = ?"))
+      (Only (renderId i)) ::
+      IO [NodeRow]
+  pure (listToMaybe rows)
+
+readDocOf :: VaultHandle -> Text -> IO (Maybe Document)
+readDocOf vh relPath = do
+  txtR <- readTextFile (vhRoot vh </> T.unpack relPath)
+  pure $ case txtR of
+    Left _ -> Nothing
+    Right txt -> case parseDocument txt of
+      Left _ -> Nothing
+      Right doc -> Just doc
+
+lookupNode :: VaultHandle -> Id -> IO (Maybe AnyNode)
+lookupNode vh i = case idPrefix i of
+  PEnt -> fmap NEntity <$> lookupEntityNode vh i
+  PAst -> fmap NAsset <$> lookupAssetNode vh i
+  PPck -> fmap NPack <$> lookupPackNode vh i
+  PLic -> fmap NLicense <$> lookupLicenseNode vh i
+  PLvl -> fmap NLevel <$> lookupLevelNode vh i
+  PNod -> fmap NNode <$> lookupTreeNode vh i
+  PVlt -> pure Nothing
+  PPrj -> pure Nothing
+
+-- | @docKind@ 判定文件身分後只有 'TopicDoc' 有片段清單,只有 'PackDoc' 有
+-- asset 清單。主體(section_anchor 為 'Nothing')與片段共用一個 body 查詢。
+lookupEntityNode :: VaultHandle -> Id -> IO (Maybe Entity)
+lookupEntityNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+      docM <- readDocOf vh (nrFilePath row)
+      let bodyM = docM >>= \doc -> case docKind doc of
+            TopicDoc -> case toTopic doc of
+              Left _ -> Nothing
+              Right (mainE, frags) -> case nrSectionAnchor row of
+                Nothing -> Just (entBody mainE)
+                Just _ -> entBody <$> listToMaybe (filter ((== i) . metaId . entMeta) frags)
+            _ -> Nothing
+      pure (Entity meta <$> bodyM)
+
+lookupAssetNode :: VaultHandle -> Id -> IO (Maybe Asset)
+lookupAssetNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      arRows <-
+        query
+          (vhConn vh)
+          (Query ("SELECT " <> assetColumns <> " FROM assets WHERE id = ?"))
+          (Only (nrId row)) ::
+          IO [AssetRow]
+      case arRows of
+        [] -> pure Nothing
+        (ar : _) -> do
+          meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+          docM <- readDocOf vh (nrFilePath row)
+          let bodyM = docM >>= \doc -> case docKind doc of
+                PackDoc -> case toPack doc of
+                  Left _ -> Nothing
+                  Right (_, assets) -> astBody <$> listToMaybe (filter ((== i) . metaId . astMeta) assets)
+                _ -> Nothing
+          pure (assetFromRow meta ar <$> bodyM)
+
+lookupPackNode :: VaultHandle -> Id -> IO (Maybe Pack)
+lookupPackNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      prRows <-
+        query
+          (vhConn vh)
+          (Query ("SELECT " <> packColumns <> " FROM packs WHERE id = ?"))
+          (Only (nrId row)) ::
+          IO [PackRow]
+      case prRows of
+        [] -> pure Nothing
+        (pr : _) -> do
+          meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+          docM <- readDocOf vh (nrFilePath row)
+          let bodyM = docM >>= \doc -> case docKind doc of
+                PackDoc -> either (const Nothing) (Just . pckBody . fst) (toPack doc)
+                _ -> Nothing
+          pure (packFromRow meta pr <$> bodyM)
+
+lookupLicenseNode :: VaultHandle -> Id -> IO (Maybe License)
+lookupLicenseNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      lrRows <-
+        query
+          (vhConn vh)
+          (Query ("SELECT " <> licenseColumns <> " FROM licenses WHERE id = ?"))
+          (Only (nrId row)) ::
+          IO [LicenseRow]
+      case listToMaybe lrRows of
+        Nothing -> pure Nothing
+        Just lr -> do
+          meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+          pure (Just (licenseFromRow meta lr))
+
+lookupLevelNode :: VaultHandle -> Id -> IO (Maybe Level)
+lookupLevelNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      lvRows <-
+        query
+          (vhConn vh)
+          (Query ("SELECT " <> levelColumns <> " FROM levels WHERE id = ?"))
+          (Only (nrId row)) ::
+          IO [LevelRow]
+      case listToMaybe lvRows of
+        Nothing -> pure Nothing
+        Just (LevelRow rootText) -> case parseId rootText of
+          Left _ -> pure Nothing
+          Right (_, rootId) -> do
+            meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+            pure (Just (Level meta rootId))
+
+lookupTreeNode :: VaultHandle -> Id -> IO (Maybe Node)
+lookupTreeNode vh i = do
+  mRow <- lookupNodeRow vh i
+  case mRow of
+    Nothing -> pure Nothing
+    Just row -> do
+      tnRows <-
+        query
+          (vhConn vh)
+          (Query ("SELECT " <> treeNodeColumns <> " FROM tree_nodes WHERE id = ?"))
+          (Only (nrId row)) ::
+          IO [TreeNodeRow]
+      case listToMaybe tnRows of
+        Nothing -> pure Nothing
+        Just tn -> do
+          refRows <-
+            query
+              (vhConn vh)
+              "SELECT ref FROM tree_node_entities WHERE node_id = ? ORDER BY rowid"
+              (Only (nrId row)) ::
+              IO [Only Text]
+          meta <- hydrateMeta (vmId (vhMarker vh)) (vhConn vh) row
+          pure $ do
+            (_, lvlId) <- either (const Nothing) Just (parseId (tnrLevelId tn))
+            kind <- either (const Nothing) Just (parseNodeKind (tnrKind tn))
+            parentId <- case tnrParentId tn of
+              Nothing -> Just Nothing
+              Just p -> case parseId p of
+                Left _ -> Nothing
+                Right (_, pid) -> Just (Just pid)
+            pure
+              Node
+                { nodMeta = meta
+                , nodLevel = lvlId
+                , nodParent = parentId
+                , nodOrder = tnrOrderIdx tn
+                , nodKind = kind
+                , nodEntities = mapMaybe (either (const Nothing) Just . parseRef . fromOnly) refRows
+                }
+
+lookupByName :: VaultHandle -> LogicalName -> IO (Maybe Asset)
+lookupByName vh (LogicalName nm) = do
+  rows <- query (vhConn vh) "SELECT id FROM assets WHERE name = ?" (Only nm) :: IO [Only Text]
+  case rows of
+    [] -> pure Nothing
+    (Only idText : _) -> case parseId idText of
+      Left _ -> pure Nothing
+      Right (_, i) -> lookupAssetNode vh i
+
+--------------------------------------------------------------------------------
+-- 關聯
+
+linksFrom :: VaultHandle -> Id -> IO [Link]
+linksFrom vh i = do
+  rows <-
+    query
+      (vhConn vh)
       "SELECT src, dst_vault, dst, kind, note FROM links WHERE src = ? ORDER BY rowid"
       (Only (renderId i)) ::
       IO [LinkRow]
   pure (map snd (mapMaybe toLink rows))
 
--- | 反向查詢:誰指向我。
---
--- 本 Vault 的參照在索引時已把 @dst_vault@ 正規化成 @NULL@,所以查本地 id
--- 用 @IS NULL@ 而不是等於自己的 vault 名稱。
-linksTo :: Connection -> Ref -> IO [(Id, Link)]
-linksTo conn (Ref mv i) = do
+-- | 契約 E 的簽名回傳 @[(Meta, Link)]@,不是舊版的 @[(Id, Link)]@——每個來源
+-- 都要 hydrate 出完整 'Meta'(待確認假設 A7:照契約做,沒有偏離空間)。
+linksTo :: VaultHandle -> Ref -> IO [(Meta, Link)]
+linksTo vh (Ref mv i) = do
   rows <- case mv of
     Nothing ->
       query
-        conn
+        (vhConn vh)
         "SELECT src, dst_vault, dst, kind, note FROM links\
         \ WHERE dst = ? AND dst_vault IS NULL ORDER BY rowid"
-        (Only (renderId i))
-    Just vname ->
+        (Only (renderId i)) ::
+        IO [LinkRow]
+    Just (VaultId vname) ->
       query
-        conn
+        (vhConn vh)
         "SELECT src, dst_vault, dst, kind, note FROM links\
         \ WHERE dst = ? AND dst_vault = ? ORDER BY rowid"
-        (renderId i, vname)
-  pure (mapMaybe toLink (rows :: [LinkRow]))
+        (renderId i, vname) ::
+        IO [LinkRow]
+  let pairs = mapMaybe toLink rows
+  metas <- metasFor vh (map (renderId . fst) pairs)
+  let byId = M.fromList [(renderId (metaId m), m) | m <- metas]
+  pure [(m, l) | (s, l) <- pairs, Just m <- [M.lookup (renderId s) byId]]
 
--- | 整張關聯圖,餵給 @core@ 的 'Aapms.Core.Graph' 純函式。
---
--- 直接由 @links@ 表組,不經過 'Meta':Entity / Level / Node 的關聯都在同一張
--- 表裡,一次查完比先撈三種實體再合併簡單得多。
-loadLinkGraph :: Connection -> IO LinkGraph
-loadLinkGraph conn = do
+loadLinkGraph :: VaultHandle -> IO LinkGraph
+loadLinkGraph vh = do
   rows <-
-    query_ conn "SELECT src, dst_vault, dst, kind, note FROM links ORDER BY rowid" ::
+    query_ (vhConn vh) "SELECT src, dst_vault, dst, kind, note FROM links ORDER BY rowid" ::
       IO [LinkRow]
   pure (M.fromListWith (flip (++)) [(s, [l]) | (s, l) <- mapMaybe toLink rows])
-
--- 檢索 ------------------------------------------------------------------------
-
--- | FTS5 檢索,回傳 (Meta, 命中片段, 相關度)。
---
--- 兩條路徑:
---
--- * 三個字元以上走 trigram MATCH。使用者輸入被包成 phrase query 並跳脫內部的
---   雙引號,@OR@ \/ @NEAR@ \/ @*@ 因此是字面而不是語法
--- * __兩個字元以下走 LIKE 掃描__。trigram 以三字元為索引單位,「織紋」這種
---   二字詞 MATCH 一定不命中(entity-graph-core/F001 已驗證這個限制),而角色名與道具名
---   常常就是兩個字——這是本層必須自己補的那一段
---
--- __相關度只有 MATCH 路徑給得出來__(@bm25()@ 經 'normalizeBm25' 壓到 0–1)。
--- LIKE 那條是 @ORDER BY e.id@,連名次都不是相關度名次,合成一個分數只會讓兩種
--- 完全不同的東西在型別上長得一模一樣,所以一律 'Nothing'
--- (conflict-detection/F003 T1)。
---
--- 兩條路徑因此共用同一個 row 型別 @(Text, Text, Maybe Double)@ ——@likeQuery@ 在
--- 對應位置 @SELECT NULL@,'run' 不必分岔。
-searchEntities :: Connection -> Text -> EntityFilter -> IO [(Meta, Text, Maybe Double)]
-searchEntities conn raw filt
-  | T.null needle = pure []
-  | T.length needle >= 3 = run ftsQuery [sText (phrase needle)]
-  | otherwise = run likeQuery (replicate 5 (sText likePattern))
-  where
-    needle = T.strip raw
-
-    (cond, condArgs) = whereOf "e" filt
-    (lim, limArgs) = limitOf filt
-
-    run sql args = do
-      rows <- query conn (Query sql) (args ++ condArgs ++ limArgs) :: IO [(Text, Text, Maybe Double)]
-      metas <- metasInOrder conn [i | (i, _, _) <- rows]
-      let byId = M.fromList [(renderId (metaId m), m) | m <- metas]
-      pure
-        [ (m, snip, normalizeBm25 <$> score)
-        | (i, snip, score) <- rows
-        , Just m <- [M.lookup i byId]
-        ]
-
-    ftsQuery =
-      "SELECT m.entity_id, snippet(entities_fts, -1, '[', ']', '…', 12),\
-      \ bm25(entities_fts)\
-      \ FROM entities_fts\
-      \ JOIN fts_map m ON m.rowid = entities_fts.rowid\
-      \ JOIN entities e ON e.id = m.entity_id\
-      \ WHERE entities_fts MATCH ?"
-        <> cond
-        <> " ORDER BY rank"
-        <> lim
-
-    -- LIKE 走的是全表掃描,但只有二字詞會落到這裡,而索引本來就是單機規模
-    likeQuery =
-      "SELECT m.entity_id,\
-      \ CASE WHEN f.title LIKE ? ESCAPE '\\' THEN f.title\
-      \      WHEN f.summary LIKE ? ESCAPE '\\' THEN f.summary\
-      \      WHEN f.body LIKE ? ESCAPE '\\' THEN f.body\
-      \      WHEN f.aliases LIKE ? ESCAPE '\\' THEN f.aliases\
-      \      ELSE f.tags END,\
-      \ NULL\
-      \ FROM entities_fts f\
-      \ JOIN fts_map m ON m.rowid = f.rowid\
-      \ JOIN entities e ON e.id = m.entity_id\
-      \ WHERE (f.title || ' ' || f.summary || ' ' || f.body || ' ' || f.aliases\
-      \        || ' ' || f.tags) LIKE ? ESCAPE '\\'"
-        <> cond
-        <> " ORDER BY e.id"
-        <> lim
-
-    likePattern = "%" <> escapeLike needle <> "%"
-
--- | @bm25()@(負值、越負越相關)→ @(0,1)@ 的單調遞增壓縮:
--- @rel = max 0 (negate raw)@,結果是 @rel \/ (1 + rel)@。
---
--- __刻意不用「結果集內 min-max」__:那會讓每一次查詢的最高分都恰好是 @1.0@,
--- 不同查詢之間的分數就完全不可比。而衝突偵測第 2 層要把多個關鍵詞的結果__合併
--- 排序__,那正需要跨查詢可比。@rel \/ (1 + rel)@ 是純函式、與結果集無關、保序,
--- 且永遠落在開區間 @(0,1)@。
-normalizeBm25 :: Double -> Double
-normalizeBm25 x = rel / (1 + rel)
-  where
-    rel = max 0 (negate x)
-
--- | 包成 phrase query。FTS5 的雙引號字串裡,字面雙引號寫成兩個。
-phrase :: Text -> Text
-phrase t = "\"" <> T.replace "\"" "\"\"" t <> "\""
-
-escapeLike :: Text -> Text
-escapeLike =
-  T.replace "%" "\\%" . T.replace "_" "\\_" . T.replace "\\" "\\\\"
-
--- 組裝 ------------------------------------------------------------------------
-
--- | 依給定的 id 順序取回 'Meta'(含 tags \/ aliases \/ links)。
---
--- 一次把三張附屬表都撈回來再分組,而不是每個 Entity 各查三次——後者就是
--- 典型的 N+1。
-metasInOrder :: Connection -> [Text] -> IO [Meta]
-metasInOrder _ [] = pure []
-metasInOrder conn ids = do
-  rows <-
-    query
-      conn
-      (Query ("SELECT " <> metaColumns <> ", file_path, section_anchor FROM entities WHERE id IN " <> inList (length ids)))
-      (map sText ids) ::
-      IO [EntityRow]
-  tags <- grouped "SELECT entity_id, tag FROM entity_tags WHERE entity_id IN "
-  aliases <- grouped "SELECT entity_id, alias FROM entity_aliases WHERE entity_id IN "
-  linkRows <-
-    query
-      conn
-      (Query ("SELECT src, dst_vault, dst, kind, note FROM links WHERE src IN " <> inList (length ids) <> " ORDER BY rowid"))
-      (map sText ids) ::
-      IO [LinkRow]
-  let links = groupPairs [(renderId s, [l]) | (s, l) <- mapMaybe toLink linkRows]
-      byId =
-        M.fromList
-          [ (mrId mr, m)
-          | EntityRow mr _ _ <- rows
-          , Just m <-
-              [ toMeta
-                  mr
-                  (M.findWithDefault [] (mrId mr) tags)
-                  (M.findWithDefault [] (mrId mr) aliases)
-                  (M.findWithDefault [] (mrId mr) links)
-              ]
-          ]
-  pure (mapMaybe (`M.lookup` byId) ids)
-  where
-    grouped sql = do
-      rows <- query conn (Query (sql <> inList (length ids) <> " ORDER BY rowid")) (map sText ids)
-      pure (groupPairs [(k, [v]) | (k, v) <- rows])
-
--- | 單一 'MetaRow' 的附屬欄位補齊。給 Level \/ Node 用——它們一次只查一筆。
-hydrate :: Connection -> MetaRow -> IO (Maybe Meta)
-hydrate conn mr = do
-  tags <- col "SELECT tag FROM entity_tags WHERE entity_id = ?"
-  aliases <- col "SELECT alias FROM entity_aliases WHERE entity_id = ?"
-  linkRows <-
-    query
-      conn
-      "SELECT src, dst_vault, dst, kind, note FROM links WHERE src = ? ORDER BY rowid"
-      (Only (mrId mr)) ::
-      IO [LinkRow]
-  pure (toMeta mr tags aliases (map snd (mapMaybe toLink linkRows)))
-  where
-    col sql = do
-      rows <- query conn (Query sql) (Only (mrId mr)) :: IO [Only Text]
-      pure (map fromOnly rows)
-
-groupPairs :: [(Text, [a])] -> M.Map Text [a]
-groupPairs = foldl' (\m (k, v) -> M.insertWith (flip (++)) k v m) M.empty
-
-inList :: Int -> Text
-inList n = "(" <> T.intercalate ", " (replicate n "?") <> ")"

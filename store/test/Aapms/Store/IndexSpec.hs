@@ -1,123 +1,251 @@
--- | T5:單檔索引是整檔替換,而且包在一個 transaction 裡。
+-- | graph-core\/F006:T3(檔案掃描)、T4(單檔索引 indexOne,經 'indexFile' 測試
+-- ——兩者對單檔的行為完全一致,見 "Aapms.Store.Index" 的說明)、T5('indexFile'
+-- 覆寫、'unindexFile' 級聯與冪等)、T14(fixture 健檢)。
 module Aapms.Store.IndexSpec (spec) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 import Database.SQLite.Simple
-import Aapms.Store.Error (StoreError (..))
+import Aapms.Core.Asset (LogicalName (..))
+import Aapms.Md.Document (DocKind (..), docKind)
+import Aapms.Md.Parse (parseDocument, toLevel, toLicenses, toPack, toTopic)
 import Aapms.Store.Fixtures
 import Aapms.Store.Index
+import Aapms.Store.Marker (VaultHandle, vhConn, vhRoot)
+import Aapms.Store.Schema (IndexIssue (..))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>))
 import Test.Hspec
 
 spec :: Spec
-spec = describe "T5 indexFile" $ do
-  it "一份含 2 個片段的 Entity 檔進索引後是 1 主體 + 2 片段" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v linda lindaMd
-      orDie =<< indexFile conn v linda
+spec = describe "graph-core/F006 Index" $ do
+  describe "T3: vaultMarkdownFiles" $
+    it "略過 . 開頭目錄與非 .md 檔,只回排序後的 .md 相對路徑" $
+      withTempVault $ \dir -> do
+        createDirectoryIfMissing True (dir </> ".aapms")
+        createDirectoryIfMissing True (dir </> ".git")
+        writeFile (dir </> ".aapms" </> "config.toml") "id = \"vlt-1\"\n"
+        writeFile (dir </> ".git" </> "HEAD") "ref: refs/heads/main\n"
+        writeFile (dir </> "foo.txt") "not markdown"
+        writeFile (dir </> "bar.md") "---\n---\n"
+        files <- vaultMarkdownFiles dir
+        files `shouldBe` ["bar.md"]
 
-      countRows conn "entities" `shouldReturn` 3
-      textsOf conn "SELECT id FROM entities ORDER BY id" ()
-        `shouldReturn` ["ent-7f3a", "ent-7f3b", "ent-7f3c"]
-      -- 主體沒有 section_anchor:它的 meta 在 frontmatter,不屬於任何一節
-      textsOf conn "SELECT id FROM entities WHERE section_anchor IS NULL" ()
-        `shouldReturn` ["ent-7f3a"]
+  describe "T14: fixture 健檢" $
+    it "story vault 與 asset vault 的全部檔案能被 parseDocument + 對應 to* 成功解析" $ do
+      mapM_ (assertParses . snd) storyVaultFiles
+      mapM_ (assertParses . snd) assetVaultFiles
 
-  it "aliases / tags / links 依繼承規則進表" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v linda lindaMd
-      orDie =<< indexFile conn v linda
+  describe "T4: indexOne(經 indexFile 驗證,兩者對單檔行為一致)" $ do
+    it "story vault 的主題檔索引後,nodes 有主體(owner NULL)+ 片段(owner = 主體 id)" $
+      withStoryVault $ \vh -> do
+        issuesR <- indexFile vh "characters/test-character.md"
+        case issuesR of
+          Left e -> expectationFailure (show e)
+          Right _issues -> pure ()
+        mainOwner <- ownerOf vh "ent-00000001"
+        fragOwner <- ownerOf vh "ent-00000002"
+        mainOwner `shouldBe` Nothing
+        fragOwner `shouldBe` Just "ent-00000001"
 
-      -- aliases 不繼承:只有主體有
-      textsOf conn "SELECT alias FROM entity_aliases" ()
-        `shouldReturn` ["小琳", "第七織手"]
-      textsOf conn "SELECT entity_id FROM entity_aliases" ()
-        `shouldReturn` ["ent-7f3a", "ent-7f3a"]
-      -- tags 是檔案層與節層的聯集,這份檔案的檔案層沒有 tags
-      countRows conn "entity_tags" `shouldReturn` 3
-      -- links 也不繼承:1 + 3 筆,全部掛在片段身上
-      countRows conn "links" `shouldReturn` 4
-      textsOf conn "SELECT kind FROM links WHERE src = 'ent-7f3c'" ()
-        `shouldReturn` ["contradicts", "occursIn", "partOf"]
-      -- 備註原樣保留
-      textsOf conn "SELECT note FROM links WHERE kind = 'contradicts'" ()
-        `shouldReturn` ["對雙親死因的敘述不一致"]
+    it "asset vault 的 pack.md 索引後,nodes/assets 有 pack(owner NULL)+ 全部 asset\
+       \(owner = pack id),含 status = missing 的那筆" $
+      withAssetVault $ \vh -> do
+        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
+        pckOwner <- ownerOf vh "pck-00000001"
+        astOwner <- ownerOf vh "ast-00000001"
+        pckOwner `shouldBe` Nothing
+        astOwner `shouldBe` Just "pck-00000001"
+        statusOf vh "ast-00000002" `shouldReturn` Just "missing"
 
-  it "FTS 查得到剛索引進去的內容" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v linda lindaMd
-      orDie =<< indexFile conn v linda
-      hits <-
-        textsOf
-          conn
-          -- MATCH 的左邊只能是 FTS 表本身的名字,別名不行
-          "SELECT m.entity_id FROM entities_fts JOIN fts_map m ON m.rowid = entities_fts.rowid\
-          \ WHERE entities_fts MATCH ?"
-          (Only ("埃提亞" :: Text))
-      hits `shouldContain` ["ent-7f3a"]
+    it "父節點不存在的 Level fixture 索引結果含 TreeInvalid,nodes 沒有該檔案的殘留" $
+      -- toLevel 本身的 structure/rootId 已經把「跳級」「root 與第一節不符」
+      -- 等情況攔在 MdError 那一層(buildTree 收到的 [Node] 因此永遠是「由標題
+      -- 巢狀結構長出來」的合法樹,ParseFailed 而非 TreeInvalid 才是那些情況的
+      -- 正確結果——見上一條測試)。要讓 buildTree 本身失敗,只剩「frontmatter
+      -- 宣告了 root,但檔案裡一個 Node 都沒有」這條路徑合法卻能通過 toLevel:
+      -- rootId 對 (Just root, []) 直接放行,buildTree [] 才真正回報 NoRoot。
+      withStoryVault $ \vh -> do
+        let badLevel =
+              T.unlines
+                [ "---"
+                , "id: lvl-00000002"
+                , "vault: liftgame"
+                , "type: level"
+                , "title: 壞掉的場景"
+                , "status: canon"
+                , "source: human"
+                , "revision: 1"
+                , "created: 2026-08-16"
+                , "updated: 2026-08-16"
+                , "root: nod-00000099"
+                , "---"
+                , ""
+                , "沒有任何 Node,frontmatter 宣告的 root 不存在。"
+                ]
+        writeFiles (vhRoot vh) [("levels/broken.md", badLevel)]
+        result <- orDie =<< indexFile vh "levels/broken.md"
+        case result of
+          [TreeInvalid _ _] -> pure ()
+          other -> expectationFailure ("預期 [TreeInvalid _ _],得到 " <> show other)
+        rows <-
+          query (vhConn vh) "SELECT count(*) FROM nodes WHERE file_path = ?" (Only ("levels/broken.md" :: Text)) ::
+            IO [Only Int]
+        rows `shouldBe` [Only 0]
 
-  it "同一份檔案改成只剩 1 個片段後重新索引,舊記錄全部消失" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v linda lindaMd
-      orDie =<< indexFile conn v linda
-      writeVaultFile v linda lindaOneFragmentMd
-      orDie =<< indexFile conn v linda
+    it "YAML 壞掉的檔案索引結果含 ParseFailed,nodes 沒有殘留" $
+      withStoryVault $ \vh -> do
+        let broken = "---\nid: [this is not\n---\n"
+        writeFiles (vhRoot vh) [("characters/broken.md", broken)]
+        result <- orDie =<< indexFile vh "characters/broken.md"
+        case result of
+          [ParseFailed _ _] -> pure ()
+          other -> expectationFailure ("預期 [ParseFailed _ _],得到 " <> show other)
+        rows <-
+          query
+            (vhConn vh)
+            "SELECT count(*) FROM nodes WHERE file_path = ?"
+            (Only ("characters/broken.md" :: Text)) ::
+            IO [Only Int]
+        rows `shouldBe` [Only 0]
 
-      countRows conn "entities" `shouldReturn` 2
-      textsOf conn "SELECT id FROM entities ORDER BY id" ()
-        `shouldReturn` ["ent-7f3a", "ent-7f3b"]
-      -- 不留孤兒:aliases / tags / links / FTS 一起走
-      countRows conn "entity_tags" `shouldReturn` 1
-      countRows conn "links" `shouldReturn` 1
-      countRows conn "fts_map" `shouldReturn` 2
-      countRows conn "entities_fts" `shouldReturn` 2
-      countRows conn "files" `shouldReturn` 1
+    it "兩個不同檔案的 asset 撞同一個 name,後索引的整檔回滾並回 DuplicateAssetName,\
+       \先索引的保留" $
+      withAssetVault $ \vh -> do
+        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
+        let dupPack =
+              T.unlines
+                [ "---"
+                , "id: pck-00000099"
+                , "vault: liftgame-assets"
+                , "type: asset-pack"
+                , "title: 撞名 Pack"
+                , "status: canon"
+                , "source: scan"
+                , "revision: 1"
+                , "created: 2026-08-10"
+                , "updated: 2026-08-10"
+                , "---"
+                , ""
+                , "撞名測試。"
+                , ""
+                , "## dup.png {#ast-00000099}"
+                , ""
+                , "```meta"
+                , "type: asset-image"
+                , "name: ui_gui_panel_001"
+                , "entry: PNG/dup.png"
+                , "sha256: \"9999999999999999999999999999999999999999999999999999999999999999\""
+                , "```"
+                ]
+        writeFiles (vhRoot vh) [("packs/dup/pack.md", dupPack)]
+        result <- orDie =<< indexFile vh "packs/dup/pack.md"
+        case result of
+          [DuplicateAssetName _ (LogicalName "ui_gui_panel_001")] -> pure ()
+          other -> expectationFailure ("預期 DuplicateAssetName,得到 " <> show other)
+        -- 先索引的那個(ast-00000001)保留
+        owner <- ownerOf vh "ast-00000001"
+        owner `shouldBe` Just "pck-00000001"
+        -- 後索引的檔案整檔沒進去
+        rows <-
+          query
+            (vhConn vh)
+            "SELECT count(*) FROM nodes WHERE file_path = ?"
+            (Only ("packs/dup/pack.md" :: Text)) ::
+            IO [Only Int]
+        rows `shouldBe` [Only 0]
 
-  it "Level 檔的 levels / nodes / node_entities 正確" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v classroom classroomMd
-      orDie =<< indexFile conn v classroom
+  describe "T5: indexFile / unindexFile" $ do
+    it "對已索引的檔案改內容後重新 indexFile,舊記錄被整檔替換而非疊加" $
+      withStoryVault $ \vh -> do
+        _ <- orDie =<< indexFile vh "characters/test-character.md"
+        countFragments vh `shouldReturn` 2
+        let changed = T.replace "外貌片段" "改過的外貌片段" storyLindaMdForTest
+        writeFiles (vhRoot vh) [("characters/test-character.md", changed)]
+        _ <- orDie =<< indexFile vh "characters/test-character.md"
+        countFragments vh `shouldReturn` 2
+        summary <- summaryOf vh "ent-00000002"
+        summary `shouldBe` Just "改過的外貌片段"
 
-      countRows conn "levels" `shouldReturn` 1
-      textsOf conn "SELECT root FROM levels" () `shouldReturn` ["nod-0001"]
-      textsOf conn "SELECT id FROM nodes ORDER BY id" ()
-        `shouldReturn` ["nod-0001", "nod-0002", "nod-0003", "nod-0004"]
-      -- 標題階層即樹:parent 與 order 由層級與文件順序推導
-      textsOf conn "SELECT parent_id FROM nodes WHERE id = 'nod-0004'" ()
-        `shouldReturn` ["nod-0002"]
-      scalarInt conn "SELECT order_idx FROM nodes WHERE id = 'nod-0003'" ()
-        `shouldReturn` 2
-      -- Node 指向的 Entity 由 involves / references 推導
-      countRows conn "node_entities" `shouldReturn` 3
-      textsOf conn "SELECT entity_id FROM node_entities WHERE node_id = 'nod-0002'" ()
-        `shouldReturn` ["ent-7f3a", "ent-8b20"]
+    it "unindexFile 後該檔案的 nodes/assets/links/node_tags 等全部記錄消失,files 也消失" $
+      withAssetVault $ \vh -> do
+        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
+        _ <- orDie =<< unindexFile vh "packs/test-vendor/pack.md"
+        nodesLeft <-
+          query
+            (vhConn vh)
+            "SELECT count(*) FROM nodes WHERE file_path = ?"
+            (Only ("packs/test-vendor/pack.md" :: Text)) ::
+            IO [Only Int]
+        assetsLeft <-
+          query (vhConn vh) "SELECT count(*) FROM assets WHERE id = ?" (Only ("ast-00000001" :: Text)) ::
+            IO [Only Int]
+        filesLeft <-
+          query
+            (vhConn vh)
+            "SELECT count(*) FROM files WHERE path = ?"
+            (Only ("packs/test-vendor/pack.md" :: Text)) ::
+            IO [Only Int]
+        nodesLeft `shouldBe` [Only 0]
+        assetsLeft `shouldBe` [Only 0]
+        filesLeft `shouldBe` [Only 0]
 
-  it "unindexFile 之後這份檔案的記錄一筆不剩" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v linda lindaMd
-      orDie =<< indexFile conn v linda
-      unindexFile conn linda
-      mapM_
-        (\t -> countRows conn t `shouldReturn` 0)
-        ["files", "entities", "entity_aliases", "entity_tags", "links", "fts_map", "entities_fts"]
+    it "對不存在的路徑呼叫 unindexFile 不報錯" $
+      withStoryVault $ \vh -> do
+        result <- unindexFile vh "characters/never-existed.md"
+        case result of
+          Right () -> pure ()
+          Left e -> expectationFailure (show e)
 
-  -- 索引中途拋錯時 transaction 必須整批回滾,不能留下「舊記錄刪了、新記錄沒進去」
-  -- 的半殘索引。這裡用「另一份檔案的第二個片段與既有 id 相撞」造出中途失敗。
-  it "寫入中途失敗時整批回滾,索引維持原狀" $
-    withVaultIndex $ \v conn -> do
-      writeVaultFile v dao daoMd
-      orDie =<< indexFile conn v dao
-      writeVaultFile v clash duplicateIdMd
-      r <- indexFile conn v clash
-      case r of
-        Left (SqliteError _) -> pure ()
-        other -> expectationFailure ("預期 SqliteError,得到 " <> show other)
+--------------------------------------------------------------------------------
+-- 輔助
 
-      textsOf conn "SELECT path FROM files" () `shouldReturn` ["items/織紋刀.md"]
-      countRows conn "entities" `shouldReturn` 2
-      textsOf conn "SELECT file_path FROM entities WHERE id = 'ent-1001'" ()
-        `shouldReturn` ["items/織紋刀.md"]
-  where
-    linda = "characters/琳達.md"
-    dao = "items/織紋刀.md"
-    clash = "items/撞號.md"
-    classroom = "levels/教室.md"
+storyLindaMdForTest :: Text
+storyLindaMdForTest = case lookup "characters/test-character.md" storyVaultFiles of
+  Just t -> t
+  Nothing -> error "fixture 缺少 characters/test-character.md"
+
+assertParses :: Text -> IO ()
+assertParses txt = case parseDocument txt of
+  Left e -> expectationFailure ("parseDocument 失敗:" <> show e)
+  Right doc -> do
+    let attempt = case docKind doc of
+          TopicDoc -> either (Left . show) (const (Right ())) (toTopic doc)
+          LevelDoc -> either (Left . show) (const (Right ())) (toLevel doc)
+          PackDoc -> either (Left . show) (const (Right ())) (toPack doc)
+          LicenseDoc -> either (Left . show) (const (Right ())) (toLicenses doc)
+    case attempt of
+      Left msg -> expectationFailure msg
+      Right () -> pure ()
+
+ownerOf :: VaultHandle -> Text -> IO (Maybe Text)
+ownerOf vh nodeId = do
+  rows <- query (vhConn vh) "SELECT owner FROM nodes WHERE id = ?" (Only nodeId) :: IO [Only (Maybe Text)]
+  pure $ case rows of
+    (Only o : _) -> o
+    [] -> Nothing
+
+statusOf :: VaultHandle -> Text -> IO (Maybe Text)
+statusOf vh nodeId = do
+  rows <- query (vhConn vh) "SELECT status FROM nodes WHERE id = ?" (Only nodeId) :: IO [Only Text]
+  pure $ case rows of
+    (Only s : _) -> Just s
+    [] -> Nothing
+
+summaryOf :: VaultHandle -> Text -> IO (Maybe Text)
+summaryOf vh nodeId = do
+  rows <- query (vhConn vh) "SELECT summary FROM nodes WHERE id = ?" (Only nodeId) :: IO [Only Text]
+  pure $ case rows of
+    (Only s : _) -> Just s
+    [] -> Nothing
+
+countFragments :: VaultHandle -> IO Int
+countFragments vh = do
+  rows <-
+    query_
+      (vhConn vh)
+      "SELECT count(*) FROM nodes WHERE prefix = 'ent' AND owner IS NOT NULL" ::
+      IO [Only Int]
+  pure $ case rows of
+    (Only n : _) -> n
+    [] -> 0

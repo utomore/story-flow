@@ -26,9 +26,13 @@ library
         Aapms.Store
         Aapms.Store.Atomic
         Aapms.Store.Error
+        Aapms.Store.Index
         Aapms.Store.Marker
+        Aapms.Store.Query
+        Aapms.Store.Row
         Aapms.Store.Schema
     build-depends:
+        , aeson
         , base          >=4.14 && <5
         , bytestring
         , containers
@@ -37,6 +41,7 @@ library
         , filepath
         , sqlite-simple
         , aapms-core
+        , aapms-md
         , text
         , time
         , toml-reader
@@ -50,10 +55,17 @@ test-suite aapms-store-test
         Aapms.Store.AtomicSpec
         Aapms.Store.ErrorSpec
         Aapms.Store.Fixtures
+        Aapms.Store.IndexSpec
         Aapms.Store.MarkerSpec
+        Aapms.Store.NodeSpec
+        Aapms.Store.QuerySpec
+        Aapms.Store.RebuildSpec
+        Aapms.Store.RowSpec
         Aapms.Store.SchemaSpec
+        Aapms.Store.StaleSpec
         Aapms.StoreSpec
     build-depends:
+        , aeson
         , base
         , bytestring
         , containers
@@ -62,6 +74,7 @@ test-suite aapms-store-test
         , hspec
         , sqlite-simple
         , aapms-core
+        , aapms-md
         , aapms-store
         , temporary
         , text

@@ -109,9 +109,10 @@ spec = describe "graph-core/F005 vault marker" $ do
         (\bad -> (bad `T.isInfixOf` src) `shouldBe` False)
         ["XdgConfig", "getXdgDirectory", "searchUp", "vaults.toml", "AAPMS_HOME"]
 
-  describe "indexTables 目前只有 meta_info(F006 之前)" $
-    it "F005 只建 meta_info 一張表" $
-      indexTables `shouldBe` ["meta_info"]
+  describe "indexTables(graph-core/F006 擴充後)" $
+    it "12 張表,meta_info 仍是第一張" $ do
+      length indexTables `shouldBe` 12
+      take 1 indexTables `shouldBe` ["meta_info"]
 
 -- | 手寫一份 marker 檔(略過 initVaultAt),驗證 'readMarker' 對壞欄位的訊息。
 expectInvalidField :: FilePath -> Text -> Text -> IO ()

@@ -503,7 +503,7 @@ fts_map(rowid PK, node_id)
 |---|---------|-----------|------|------|-----|
 | 4 | md-unified-sections | 分節引擎改接統一 `Meta`;`PackDoc` / `LicenseDoc` 的解析與寫回;四種文件的繼承規則 | 分節引擎、文件轉換 | #1, #2 | F004-md-unified-sections.md |
 | 5 | store-vault-handle | marker 讀寫、`initVaultAt` / `openVault` / `closeVault`,schema 不符重建、過時刷新 | Marker、Atomic、Schema | #1 | F005-store-vault-handle.md |
-| 6 | store-unified-index | 一份 schema(`nodes` + 專屬表 + `owner`)、`files` 過時偵測、整檔替換、`rebuildIndex`、單 vault 查詢(不含 FTS) | Schema、Index、Query | #4, #5 | F006-store-unified-index.md |
+| 6 | store-unified-index | 一份 schema(`nodes` + 專屬表 + `owner`)、`files` 過時偵測、整檔替換、`rebuildIndex`、單 vault 查詢(不含 FTS) | Schema、Index、Query | #1, #4, #5 | F006-store-unified-index.md |
 
 ### 階段三:檢索與寫入
 

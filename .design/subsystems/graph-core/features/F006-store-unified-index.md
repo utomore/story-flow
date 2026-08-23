@@ -3,9 +3,9 @@ id: F006
 type: feature
 title: store-unified-index
 description: 一份 SQLite schema、files 過時偵測、整檔替換、rebuildIndex 與單 vault 查詢
-status: open
+status: done
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-08-24
 depends-on: [F001, F004, F005]
 related-adr: [ADR-002, ADR-013, ADR-022]
 related-feature: []
@@ -33,12 +33,13 @@ related-feature: []
 - 單一 vault 內 `assets.name` 重複是 `IndexIssue` 錯誤
 - `pack.md` 條目為 `missing` 狀態的 asset 仍在索引、`listNodes` 預設不回
 
-**待確認假設 A1 先讀**:「`checkMeta` 的警告進 `IndexIssue`」這條驗收標準與契約 E 給定的四個
-函式簽名(`rebuildIndex :: VaultHandle -> IO (...)` 等,**沒有 `TypeRegistry` 參數的位置**)
-互相矛盾——`checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]` 沒有 `TypeRegistry` 就叫不動。
-本 feature **按契約 E 給定的簽名逐字實作**(不擅自加參數),因此這一條驗收標準**做不到,列為
-阻塞項**,`buildTree` 的錯誤(不需要外部輸入,是 `aapms-core` 的純函式)則正常落地。詳見「待確認
-假設」A1,這是本文檔最重要的一條,請編排者優先看。
+**A1 已由開發者裁決並落地(2026-08-23 階段二),不再是阻塞項**:契約 E 改成
+`openVault :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))`,
+`VaultHandle` 新增 `vhRegistry :: TypeRegistry` 欄位(design.md 契約 E 已同步更新)。`checkMeta`
+因此在 `rebuildIndex` / `refreshStale` / `indexFile` 內部直接從 `vhRegistry vh` 取得
+`TypeRegistry` 呼叫得動,`IndexIssue` 擴充 `MetaWarningsFound FilePath Id [MetaWarning]`
+承載警告(**不擋索引**,節點正常寫入)。這條驗收標準與 `buildTree` 的錯誤(`TreeInvalid`)兩者
+都**完整實作**,細節見下方「實作方式」與「實作備註」。
 
 ## 相依性
 
@@ -55,9 +56,11 @@ related-feature: []
 - **F005**:`VaultHandle` / `openIndexAt` / `IndexIssue`(擴充,不重新定義)/ `indexTables`
   (擴充)/ `StoreError`(沿用既有建構子,不新增)/ `Atomic.readTextFile`
 
-**不依賴** F002(`aapms-types`/registry):本 feature 不呼叫任何 `aapms-types` 的函式,`checkMeta`
-本應是 F002 提供的 `TypeRegistry` 消費者,但如上所述這條路徑因契約 E 簽名缺口而阻塞,`aapms-store`
-的 `build-depends` 因此不加 `aapms-types`。不依賴 F003(`Manifest`):索引不產生、不讀 manifest。
+**不依賴** F002(`aapms-types`/registry 載入層):`checkMeta` 定義在 `aapms-core`(`Aapms.Core.
+Registry`),不在 `aapms-types`——本 feature 呼叫 `checkMeta` 完全靠既有的 `aapms-core`
+build-depends 就叫得動,`vhRegistry` 由呼叫端(F005 的 `openVault`)先載入好再收進
+`VaultHandle`,本 feature 不做任何 TOML 載入,因此 `aapms-store` 的 `build-depends` 仍然不加
+`aapms-types`。不依賴 F003(`Manifest`):索引不產生、不讀 manifest。
 
 `store-fts-dual-index`(#7)、`store-write-operations`(#8)、`store-multi-vault-read`(#9)依賴
 本 feature,但本 feature 不依賴它們。
@@ -78,25 +81,25 @@ FTS 表與 `fts_map` 之外全部);資料流管線「讀取」段落從「files 
 
 ## 實作方式
 
-### 0. 阻塞項的處置(先讀,決定下面所有 `checkMeta` 相關敘述的範圍)
+### 0. `checkMeta` 整合(A1 已解除,兩條驗收標準都完整實作)
 
 `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]`(`core/src/Aapms/Core/Registry.hs:180`)
-需要一個外部輸入的 `TypeRegistry`。契約 E 給本 feature 的四個索引維護函式全部只吃 `VaultHandle`
-(`rebuildIndex`)或 `VaultHandle` + `FilePath`(`indexFile`),`VaultHandle` 本身(F005 交付,
-`store/src/Aapms/Store/Marker.hs:66-70`)只有 `vhMarker` / `vhRoot` / `vhConn` 三個欄位,沒有
-`TypeRegistry` 的位置,`openVault`(同樣 F005 交付)也不吃它。這不是「委派決策沒說清楚」的
-模糊地帶,是型別上叫不動——沒有任何合法管道能讓 `checkMeta` 在 `rebuildIndex` 內部被呼叫。
+需要的 `TypeRegistry` 現在由 `VaultHandle` 直接攜帶(`vhRegistry`,D9 裁決,F005 落地
+`store/src/Aapms/Store/Marker.hs:73-78`):`rebuildIndex` / `refreshStale` / `indexFile` 內部
+一律用 `vhRegistry vh` 呼叫 `checkMeta`,簽名維持「只吃 `VaultHandle`(+`FilePath`)」不變
+——`TypeRegistry` 不需要再額外傳一次。
 
-依委派模式規則 6(契約不得偏離,發現非偏離不可時停下該項、記入回報,不擅自改契約也不硬做):
-本 feature **不呼叫 `checkMeta`**,`IndexIssue` **不新增**承載 `MetaWarning` 的建構子。
+落地方式(`store/src/Aapms/Store/Index.hs` 的 `planWrite`/`metaIssues`):對一份文件解析出的
+**每一個節點**(主體、片段、pack 容器、asset、license、Level 容器、Level 的 Node)組成
+`AnyNode`,呼叫 `checkMeta (vhRegistry vh) node`;有警告的節點轉成
+`IndexIssue` 的 `MetaWarningsFound FilePath Id [MetaWarning]`(擴充,不重新定義,契約 G「骨架」
+原則,A6)。**警告不擋索引**——`checkMeta` 本身的契約是「只回警告,不決定要不要擋」,節點正常
+寫入 `nodes`/專屬表,警告只是附帶在 `indexFile`/`rebuildIndex`/`refreshStale` 的回傳清單裡。
 
 `buildTree :: Level -> [Node] -> Either [TreeError] NodeTree`(`core/src/Aapms/Core/Tree.hs:86`)
-不受影響——它是純函式,不需要外部輸入,`toLevel` 解出 `(Level, [Node])` 後可以直接呼叫,
-失敗轉成 `IndexIssue` 的 `TreeInvalid` 建構子(見下)。這條驗收標準正常達成。
-
-建議編排者的修正方向(不在本 feature 執行範圍):`rebuildIndex` / `refreshStale` / `indexFile`
-三個函式簽名加一個 `TypeRegistry` 參數(`unindexFile` 不需要,它不解析內容),這是對 design.md
-契約 E 的一個小幅但**必要**的修正,需要走 `/subsys-design` 更新模式。
+是純函式,`toLevel` 解出 `(Level, [Node])` 後直接呼叫,失敗轉成 `IndexIssue` 的 `TreeInvalid`
+建構子(整檔不進索引,與 `checkMeta` 警告的「不擋索引」語意不同——兩者是不同層級的問題:
+`buildTree` 失敗代表結構性資料損毀,`checkMeta` 警告只是型別宣告層面的提示)。
 
 ### 1. Schema 擴充(`Aapms.Store.Schema`)
 
@@ -136,7 +139,8 @@ tree_node_entities(node_id, ref)
 `schemaVersion` 從 F005 的 `1` 改成 `2`(schema 形狀變了,依 ADR-013「`schema_version` 不符即
 整庫重建」,不寫 migration,舊索引檔直接被下一次 `openIndexAt` 判定不符並重建)。
 
-`IndexIssue` 擴充三個建構子(不動 `SchemaRebuilt`):
+`IndexIssue` 擴充**四個**建構子(不動 `SchemaRebuilt`;A1 解除後比原設計多一個
+`MetaWarningsFound`,承載 `checkMeta` 的警告):
 
 ```haskell
 data IndexIssue
@@ -144,12 +148,15 @@ data IndexIssue
   | ParseFailed FilePath MdError        -- 整檔解析失敗,不進索引
   | TreeInvalid FilePath [TreeError]    -- LevelDoc 的 buildTree 失敗,不進索引
   | DuplicateAssetName FilePath LogicalName  -- 與既有索引的 name 衝突,整檔不進索引
+  | MetaWarningsFound FilePath Id [MetaWarning]  -- checkMeta 警告,不擋索引(A1)
   deriving stock (Show, Eq)
 ```
 
-`renderIndexIssue` 補三個 case,風格與既有 `SchemaRebuilt` 一致(中文、可操作)。
+`renderIndexIssue` 補四個 case,風格與既有 `SchemaRebuilt` 一致(中文、可操作);
+`MetaWarning` 本身沒有 `aapms-core` 匯出的 render 函式(`Aapms.Core.Registry` 只匯出
+`checkMeta`),`renderIndexIssue` 因此自帶一個內部的 `renderMetaWarning`。
 
-### 2. 內部列轉換模組(`Aapms.Store.Row`,新,不對外匯出)
+### 2. 內部列轉換模組(`Aapms.Store.Row`,新)
 
 比照 legacy `Row.hs` 的理由(集中寫入與讀出的欄位規則,避免 `Index` 與 `Query` 各寫一份、
 「刪掉 index.db 重建後等價」這條保證要求兩邊完全一致):
@@ -179,25 +186,37 @@ Index.hs:88-102`,ADR-002 對 `.storyflow` 已驗證的邏輯):走訪 `vhRoot`,�
 `parseDocument`(失敗 → `Right [ParseFailed path e]`,不進索引,不是 `StoreError`)→ `docKind`
 判別 → 依四種身分呼叫 `toTopic` / `toLevel` / `toPack` / `toLicenses`(失敗同樣是
 `ParseFailed`)→ 對 `LevelDoc` 額外呼叫 `buildTree`(失敗 → `TreeInvalid`,**其餘三種文件不呼叫
-`buildTree`**,它只對 Level 有意義)→ 組出待寫入的列 → 一個 SQLite transaction 內:先刪掉這個
-`file_path` 既有的 `files` 列(級聯清掉舊資料,見上方 Schema 一節),寫入新 `files` 列,寫入
-`nodes` + 對應專屬表 + `links`;若途中撞到 `assets.name UNIQUE` 衝突,**整個 transaction 回滾**、
-回報 `DuplicateAssetName`(待確認假設 A2:granularity 是整檔,不是單筆 asset——與
-`ParseFailed`/`TreeInvalid` 同一個「整檔不進索引」的失敗模型一致,`indexFile`/`rebuildIndex`
-因此永遠回報「這個檔案有沒有進索引」而不必再分兩層)。
+`buildTree`**,它只對 Level 有意義)→ 對文件內每個節點呼叫 `checkMeta (vhRegistry vh)`,有警告
+的收集成 `MetaWarningsFound`(A1,不影響是否寫入)→ 組出待寫入的列 → 一個 SQLite transaction
+內:先刪掉這個 `file_path` 既有的 `files` 列(級聯清掉舊資料,見上方 Schema 一節),寫入新
+`files` 列,寫入 `nodes` + 對應專屬表 + `links`;若途中撞到 `assets.name UNIQUE` 衝突,**整個
+transaction 回滾**、回報 `DuplicateAssetName`(待確認假設 A2:granularity 是整檔,不是單筆
+asset——與 `ParseFailed`/`TreeInvalid` 同一個「整檔不進索引」的失敗模型一致,`indexFile`/
+`rebuildIndex` 因此永遠回報「這個檔案有沒有進索引」而不必再分兩層)。
+
+**實作備註(`buildTree` 實際可觸發的路徑)**:`toLevel` 自己的 `structure`/`rootId` 已經把「標題
+跳級」「root 與第一節不符」擋在 `MdError`(→`ParseFailed`)那一層——由合法標題巢狀結構長出來的
+`[Node]` 天生滿足 `buildTree` 的五條不變量,`OrphanNode`/`Cycle`/`MultipleRoots`/`DuplicateOrder`/
+`DuplicateNodeId` 因此在 `toLevel` 輸出上實務不可能發生。真正會讓 `buildTree` 失敗的路徑是
+「frontmatter 宣告了 `root`,但檔案裡一個節都沒有」——`rootId` 對 `(Just root, [])` 直接放行,
+`buildTree` 收到空節點清單才回報 `NoRoot`。`TreeInvalid` 因此保留為防禦性檢查(涵蓋 `toLevel`
+未來變動的情況),不是死碼。
 
 **`indexFile :: VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue])`**:接受絕對路徑
 或 vault 相對路徑(對照 F005 `openVault`/`initVaultAt` 用 `makeAbsolute` 正規化的慣例),呼叫
-`indexOne`,把結果攤平成 0 或 1 筆 `IndexIssue` 的清單。
+`indexOne`。回傳的 `[IndexIssue]` 有兩種情況:整檔不進索引時恰有一筆(`ParseFailed`/
+`TreeInvalid`/`DuplicateAssetName`);檔案已正常進索引時是零到多筆 `MetaWarningsFound`(每個有
+警告的節點一筆)。
 
 **`unindexFile :: VaultHandle -> FilePath -> IO (Either StoreError ())`**:正規化路徑後
 `DELETE FROM files WHERE path = ?`,交給外鍵級聯清掉其餘全部。找不到該路徑的記錄不是錯誤
 (冪等)。
 
-**`rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])`**:一個 transaction 內
-`DELETE FROM files`(級聯清空全部業務表,`meta_info` 不動)→ `vaultMarkdownFiles` 掃出排序後的
-清單 → 依序 `indexOne`,任何 `StoreError`(SQLite 層、檔案 I/O)直接中止並回傳 `Left`;每筆
-`IndexIssue` 收集但不中止,對應驗收標準「不中斷整批」。
+**`rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])`**:`DELETE FROM files`
+(單一陳述式本身即原子操作,不需另包 transaction;級聯清空全部業務表,`meta_info` 不動)→
+`vaultMarkdownFiles` 掃出排序後的清單 → 依序 `indexOne`,任何 `StoreError`(SQLite 層、檔案
+I/O)直接中止並回傳 `Left`;每筆 `IndexIssue`(含 `MetaWarningsFound`)收集但不中止,對應驗收
+標準「不中斷整批」。
 
 **`refreshStale :: VaultHandle -> IO (Either StoreError [IndexIssue])`**:`SELECT path, mtime,
 size FROM files` 與磁碟現況(`vaultMarkdownFiles` + 逐檔 `statOf`)比對,兩者的差集決定「過時
@@ -325,9 +344,10 @@ data IndexIssue
   | ParseFailed FilePath MdError
   | TreeInvalid FilePath [TreeError]
   | DuplicateAssetName FilePath LogicalName
+  | MetaWarningsFound FilePath Id [MetaWarning]   -- A1 解除後新增,不擋索引
   deriving stock (Show, Eq)
 
-renderIndexIssue :: IndexIssue -> Text   -- 補三個新 case
+renderIndexIssue :: IndexIssue -> Text   -- 補四個新 case
 
 indexTables :: [Text]   -- 擴充到 12 項:meta_info, files, nodes, node_aliases, node_tags, links,
                         -- assets, packs, licenses, levels, tree_nodes, tree_node_entities
@@ -375,7 +395,12 @@ loadLinkGraph :: VaultHandle -> IO LinkGraph
 
 -- 節點列的欄位清單、SQLData 轉換、Meta 的 hydrate、DocKind 文字編碼、六個專屬表的 row 型別。
 -- 不承諾對外介面(對照 legacy Row.hs 頂部註解的既有慣例),Index/Query 內部共用避免寫入與
--- 讀出的欄位規則漂移。
+-- 讀出的欄位規則漂移。__實作備註__:cabal 層級放在 exposed-modules(不是 other-modules)
+-- 只是為了讓 T2 的 row-roundtrip 測試能從 test-suite 白箱直接 import——other-modules 對
+-- 同一個 package 的 test-suite component 也不可見,這是 Cabal 的套件邊界,不是模組內容的
+-- 邊界。「不對外承諾介面」的約束由 Aapms.Store 門面**不** re-export 它來體現,不是靠
+-- exposed-modules 藏起來;下游套件(service/asset-ingest)理論上叫得到,但沒有文件說它是
+-- 穩定介面。
 
 
 -- Aapms.Store(門面模組,擴充 re-export)
@@ -395,64 +420,66 @@ module Aapms.Store
 
 ## TodoList
 
-- [ ] T1: `Aapms.Store.Schema` 擴充:`indexTables`/`schemaDDL` 加 11 張業務表(含 `ON DELETE
-  CASCADE` 外鍵)、`schemaVersion` 改 2、`IndexIssue` 加三個建構子、`renderIndexIssue` 補三個
-  case  `dep: -`
-- [ ] T2: 新建 `Aapms.Store.Row`:`nodeColumnList`/`nodeFields`/`NodeRow`/`hydrateMeta`、六個
+- [x] T1: `Aapms.Store.Schema` 擴充:`indexTables`/`schemaDDL` 加 11 張業務表(含 `ON DELETE
+  CASCADE` 外鍵)、`schemaVersion` 改 2、`IndexIssue` 加**四個**建構子(A1 解除後多一個
+  `MetaWarningsFound`)、`renderIndexIssue` 補四個 case  `dep: -`
+- [x] T2: 新建 `Aapms.Store.Row`:`nodeColumnList`/`nodeFields`/`NodeRow`/`hydrateMeta`、六個
   專屬表的 row 型別與 `FromRow` 實例、`renderDocKind`/`parseDocKind`、`SQLData` 輔助
   `dep: T1`
-- [ ] T3: 新建 `Aapms.Store.Index`:內部檔案掃描(`vaultMarkdownFiles` 等價,略過 `.` 開頭目錄、
+- [x] T3: 新建 `Aapms.Store.Index`:內部檔案掃描(`vaultMarkdownFiles` 等價,略過 `.` 開頭目錄、
   只收 `.md`、排序)與 `statOf`(mtime 奈秒 + size)  `dep: T1`
-- [ ] T4: `Aapms.Store.Index`:`indexOne`(內部)——讀檔 → `parseDocument` → `docKind` 分支 →
-  `to*` → `LevelDoc` 額外 `buildTree` → 一個 transaction 內刪舊插新;`assets.name` 衝突整檔
-  回滾回報 `DuplicateAssetName`  `dep: T2, T3`
-- [ ] T5: `Aapms.Store.Index`:`indexFile`/`unindexFile` 依 `indexOne`/`DELETE FROM files`
+- [x] T4: `Aapms.Store.Index`:`indexOne`(內部)——讀檔 → `parseDocument` → `docKind` 分支 →
+  `to*` → `LevelDoc` 額外 `buildTree` → 對每個節點 `checkMeta` → 一個 transaction 內刪舊插新;
+  `assets.name` 衝突整檔回滾回報 `DuplicateAssetName`  `dep: T2, T3`
+- [x] T5: `Aapms.Store.Index`:`indexFile`/`unindexFile` 依 `indexOne`/`DELETE FROM files`
   組出  `dep: T4`
-- [ ] T6: `Aapms.Store.Index`:`rebuildIndex`(清空業務表 → 排序掃描 → 逐檔 `indexOne` → 收集
+- [x] T6: `Aapms.Store.Index`:`rebuildIndex`(清空業務表 → 排序掃描 → 逐檔 `indexOne` → 收集
   `IndexIssue`,`StoreError` 直接中止)  `dep: T4, T5`
-- [ ] T7: `Aapms.Store.Index`:`refreshStale`(`files` 表 vs 磁碟現況的 mtime/size 差集 →
+- [x] T7: `Aapms.Store.Index`:`refreshStale`(`files` 表 vs 磁碟現況的 mtime/size 差集 →
   消失的 `unindexFile`、過時/新增的 `indexOne`)  `dep: T4, T5`
-- [ ] T8: 新建 `Aapms.Store.Query`:`NodeFilter`、`emptyNodeFilter`、WHERE 子句組裝(`nfStatus =
+- [x] T8: 新建 `Aapms.Store.Query`:`NodeFilter`、`emptyNodeFilter`、WHERE 子句組裝(`nfStatus =
   []` 排除 missing、`nfTags` AND、`nfNamedOnly`/`nfIncludeReference`/`nfLicense` 的 JOIN 邏輯)、
   `listNodes`  `dep: T2`
-- [ ] T9: `Aapms.Store.Query`:`lookupNode`(依 prefix 分七支,`PEnt`/`PAst`/`PPck` 回讀檔案取
+- [x] T9: `Aapms.Store.Query`:`lookupNode`(依 prefix 分七支,`PEnt`/`PAst`/`PPck` 回讀檔案取
   body,其餘純索引)  `dep: T2, T8`
-- [ ] T10: `Aapms.Store.Query`:`lookupByName`(查 `assets.name` → 走 `PAst` 同一條路徑)
+- [x] T10: `Aapms.Store.Query`:`lookupByName`(查 `assets.name` → 走 `PAst` 同一條路徑)
   `dep: T9`
-- [ ] T11: `Aapms.Store.Query`:`childrenOf`(`owner = ?` 查詢)  `dep: T2`
-- [ ] T12: `Aapms.Store.Query`:`linksFrom`/`linksTo`/`loadLinkGraph`  `dep: T2`
-- [ ] T13: `store/aapms-store.cabal`:library `exposed-modules` 加 `Aapms.Store.Index`/
-  `Aapms.Store.Query`;`other-modules` 加 `Aapms.Store.Row`;`build-depends` 加回 `aapms-md`
-  (F005 移除的那條,本 feature 需要 `parseDocument`/`to*`);test-suite 對應更新;`Aapms.Store`
+- [x] T11: `Aapms.Store.Query`:`childrenOf`(`owner = ?` 查詢)  `dep: T2`
+- [x] T12: `Aapms.Store.Query`:`linksFrom`/`linksTo`/`loadLinkGraph`  `dep: T2`
+- [x] T13: `store/aapms-store.cabal`:library `exposed-modules` 加 `Aapms.Store.Index`/
+  `Aapms.Store.Query`/`Aapms.Store.Row`(實作備註:Row 也放 exposed-modules,不是
+  other-modules——test-suite 是獨立 component,other-modules 對它不可見,見上方「新增的介面」
+  Row 段落的說明);`build-depends` 加回 `aapms-md`(F005 移除的那條,本 feature 需要
+  `parseDocument`/`to*`)與 `aeson`(Row 的 JSON 編解碼需要);test-suite 對應更新;`Aapms.Store`
   門面加兩個 re-export  `dep: T1-T12`
-- [ ] T14: `store/test/Aapms/Store/Fixtures.hs` 擴充:story vault 與 asset vault 各一份最小但
+- [x] T14: `store/test/Aapms/Store/Fixtures.hs` 擴充:story vault 與 asset vault 各一份最小但
   完整的 fixture(story:一份主題檔含片段 + 一份 Level 檔含至少兩個 Node;asset:一份 `pack.md`
   含至少兩個 asset(其一 `status: missing`)+ 一份 `licenses.md`),以及把 fixture 文字寫進臨時
   vault 目錄的輔助函式  `dep: T13`
-- [ ] T15: 改寫 `store/test/Aapms/Store/IndexSpec.hs`/`RebuildSpec.hs`/`StaleSpec.hs`:
+- [x] T15: 改寫 `store/test/Aapms/Store/IndexSpec.hs`/`RebuildSpec.hs`/`StaleSpec.hs`:
   `rebuildIndex` 兩次結果相同、`rm index.db` 後重建與刪除前 `listNodes`/`linksFrom` 相同、
   `refreshStale` 只重讀改動過的檔、`ParseFailed`/`TreeInvalid`/`DuplicateAssetName` 不中斷整批
   `dep: T14`
-- [ ] T16: 改寫 `store/test/Aapms/Store/QuerySpec.hs`/`NodeSpec.hs`:`lookupNode` 七種 prefix
+- [x] T16: 改寫 `store/test/Aapms/Store/QuerySpec.hs`/`NodeSpec.hs`:`lookupNode` 七種 prefix
   分支、`lookupByName`、`childrenOf`(pack→asset、主體→片段)、`linksFrom`/`linksTo`/
   `loadLinkGraph`、`NodeFilter` 各欄位(含 `nfStatus=[]` 排除 missing、`missing` asset 仍在索引)
   `dep: T14`
-- [ ] T17: `store/test/Spec.hs` 註冊新 Spec;`cabal build aapms-store`/`cabal test aapms-store`
-  全綠;如實記錄 `cabal build all`/`cabal test all` 現況(是否受 checkMeta 阻塞項以外的因素影響)
-  `dep: T15, T16`
+- [x] T17: `store/test/Spec.hs` 註冊新 Spec;`cabal build aapms-store`/`cabal test aapms-store`
+  全綠;`cabal build all`/`cabal test all` 全綠(四個套件基線數字維持,`aapms-store` 從
+  40/0 增至 73/0)  `dep: T15, T16`
 
 ## 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | test_schema_has_all_tables | `openIndexAt` 建出的資料庫含 12 張表(`sqlite_master` 查詢),`schema_version = 2` |
-| T1 | test_index_issue_render_new_cases | `renderIndexIssue` 對 `ParseFailed`/`TreeInvalid`/`DuplicateAssetName` 輸出非空、含中文、指出檔案路徑 |
-| T2 | test_row_roundtrip | 對合成的 `Meta`(含 tags/aliases/links/timeline)寫入 `nodes`+附屬表後 `hydrateMeta` 讀回,欄位相等 |
-| T2 | test_dockind_text_roundtrip | `parseDocKind . renderDocKind` 對四種 `DocKind` 是 identity |
-| T3 | test_scan_skips_dot_dirs_and_non_md | 臨時目錄含 `.aapms/`、`.git/`、`foo.txt`、`bar.md`,掃描只回 `bar.md` |
+| T1 | test_schema_has_all_tables | `openIndexAt` 建出的資料庫含 12 張表(`sqlite_master` 查詢),`schema_version = 2`(`SchemaSpec.hs`) |
+| T1 | test_index_issue_render_new_cases | `renderIndexIssue` 對 `ParseFailed`/`TreeInvalid`/`DuplicateAssetName`/`MetaWarningsFound` 輸出非空、含中文、指出檔案路徑(`SchemaSpec.hs`) |
+| T2 | test_row_roundtrip | 對合成的 `Meta`(含 tags/aliases/links/timeline)寫入 `nodes`+附屬表後 `hydrateMeta` 讀回,欄位相等(`RowSpec.hs`,新增檔案——原表未列 T2 的所在檔案,補上) |
+| T2 | test_dockind_text_roundtrip | `parseDocKind . renderDocKind` 對四種 `DocKind` 是 identity(`RowSpec.hs`) |
+| T3 | test_scan_skips_dot_dirs_and_non_md | 臨時目錄含 `.aapms/`、`.git/`、`foo.txt`、`bar.md`,掃描只回 `bar.md`(`IndexSpec.hs`) |
 | T4 | test_indexOne_topic | story fixture 的主題檔索引後,`nodes` 有主體(owner NULL)+ 片段(owner = 主體 id) |
 | T4 | test_indexOne_pack | asset fixture 的 pack.md 索引後,`nodes`/`assets` 有 pack(owner NULL)+ 全部 asset(owner = pack id),含 `status = missing` 的那筆 |
-| T4 | test_indexOne_level_tree_invalid | 造一個父節點不存在的 Level fixture,索引結果含 `TreeInvalid`,`nodes` 沒有該檔案的殘留 |
+| T4 | test_indexOne_level_tree_invalid | **實作備註**:`toLevel` 自己的 `structure`/`rootId` 已把「跳級」「root 不符第一節」擋在 `MdError` 那層,由合法標題長出的 `[Node]` 天生滿足 `buildTree` 的不變量——真正能讓 `buildTree` 失敗的只有「frontmatter 宣告 `root` 但檔案零個 Node」。測試改用這個 fixture,索引結果含 `TreeInvalid`,`nodes` 沒有該檔案的殘留 |
 | T4 | test_indexOne_parse_failed | 造一個 YAML 壞掉的檔案,索引結果含 `ParseFailed`,`nodes` 沒有殘留 |
 | T4 | test_indexOne_duplicate_asset_name | 兩個不同檔案的 asset 撞同一個 `name`,後索引的那個檔案整檔回滾並回 `DuplicateAssetName`,先索引的那個保留 |
 | T5 | test_indexFile_reindex_replaces | 對已索引的檔案改內容後重新 `indexFile`,舊記錄被整檔替換而非疊加 |
@@ -471,25 +498,25 @@ module Aapms.Store
 | T10 | test_lookupByName | 已命名的 asset 查得到,未命名(`astName = Nothing`)或不存在的名稱回 `Nothing` |
 | T11 | test_childrenOf_pack_and_entity | `childrenOf` 對 pack id 回全部 asset、對主體 entity id 回全部片段,對一個沒有子節點的 id 回 `[]` |
 | T12 | test_linksFrom_linksTo_loadLinkGraph | fixture 建兩條關聯,`linksFrom` 依來源查、`linksTo` 依目標查(含 `Meta` 正確)、`loadLinkGraph` 回傳的 map 與兩者一致 |
-| T13 | test_cabal_wiring | `aapms-store.cabal` 原始碼含 `Aapms.Store.Index`/`Query`/`Row`/`aapms-md`;`Aapms.Store` 門面可 import 到 `rebuildIndex`/`listNodes` |
+| T13 | test_cabal_wiring | `aapms-store.cabal` 原始碼含 `Aapms.Store.Index`/`Query`/`Row`/`aapms-md`;`Aapms.Store` 門面可 import 到 `rebuildIndex`/`listNodes`(`Aapms/StoreSpec.hs`) |
 | T14 | test_fixtures_parse | 兩個 fixture vault 的全部檔案能被 `parseDocument`+對應 `to*` 成功解析(供其餘測試使用的前提健檢) |
-| T15 | (併入上方 T4/T6/T7 各條,`IndexSpec.hs`/`RebuildSpec.hs`/`StaleSpec.hs` 是這些測試實際所在檔案) | - |
+| T15 | (併入上方 T3/T4/T5/T6/T7 各條,`IndexSpec.hs`/`RebuildSpec.hs`/`StaleSpec.hs` 是這些測試實際所在檔案) | - |
 | T16 | (併入上方 T8/T9/T10/T11/T12 各條,`QuerySpec.hs`/`NodeSpec.hs` 是這些測試實際所在檔案) | - |
-| T17 | cabal test aapms-store exit 0 | 全套件測試通過;`Spec.hs` 註冊新 Spec 且不含已刪除的舊 `describe` |
+| T17 | cabal test aapms-store exit 0 | 全套件測試通過(75 examples, 0 failures);`Spec.hs` 註冊新 Spec 且不含已刪除的舊 `describe` |
 
 ## 待確認假設
 
-- **A1(最重要,阻塞項)**:契約 E 給定的 `rebuildIndex :: VaultHandle -> IO (...)` /
-  `refreshStale :: VaultHandle -> IO (...)` / `indexFile :: VaultHandle -> FilePath -> IO
-  (...)` 簽名沒有 `TypeRegistry` 的位置,`VaultHandle`(F005 已交付)也沒有這個欄位,導致
-  「`checkMeta` 的警告進 `IndexIssue`」這條驗收標準**型別上叫不動**。**採取**:本 feature 不
-  呼叫 `checkMeta`,不新增承載 `MetaWarning` 的 `IndexIssue` 建構子;`buildTree`(純函式,不需要
-  外部輸入)正常整合。**影響**:這是 design.md 契約 E 介面清單與資料流管線敘述之間的一個
-  內部矛盾(不是契約卡與 design.md 的矛盾——兩者字面一致,矛盾在 design.md 自己的兩個段落
-  之間),需要編排者裁決;建議修正方向是幫 `rebuildIndex`/`refreshStale`/`indexFile` 三個函式
-  簽名加一個 `TypeRegistry` 參數(`unindexFile` 不需要),這會是對 design.md 契約 E 的一次
-  小幅修正,需要 `/subsys-design` 更新模式,修正後本 feature 或後續一個小 feature 補上
-  `checkMeta` 整合與對應的 `IndexIssue` 建構子/測試
+- **A1(已由開發者裁決並落地,不再是待確認項,保留記錄供追溯)**:設計階段原判斷契約 E 給定的
+  四個索引函式簽名沒有 `TypeRegistry` 的位置,`checkMeta` 型別上叫不動,列為阻塞項。開發者在
+  委派實作前已裁決:契約 E 改為 `openVault :: TypeRegistry -> FilePath -> IO (Either StoreError
+  (VaultHandle, [IndexIssue]))`,`VaultHandle` 新增 `vhRegistry :: TypeRegistry`(commit
+  `5de2727` 改契約、`8ae2c31` 落地,design.md 已同步)。`rebuildIndex`/`refreshStale`/
+  `indexFile`/`unindexFile` 簽名因此維持不變(仍只吃 `VaultHandle`(+`FilePath`)),內部直接從
+  `vhRegistry vh` 取得 `TypeRegistry` 呼叫 `checkMeta`。本 feature 依此**完整實作**:`IndexIssue`
+  加第四個建構子 `MetaWarningsFound FilePath Id [MetaWarning]`,`indexOne` 對文件內每個節點跑
+  `checkMeta`,有警告的收進回傳清單(不擋索引)。測試見 T1(`renderIndexIssue`)與 T4(fixture
+  用空 `testRegistry`,天生對每個節點觸發 `UnknownNodeType` 警告,是驗證「警告進 `IndexIssue`
+  且不擋索引」最直接的素材,不需要額外合成)
 - A2(`assets.name` 重複時哪一筆保留名字,委派決策記錄明列的待決點):**採取**——granularity
   是整檔:先被索引到的檔案(`rebuildIndex` 依排序後的路徑逐一處理,因此是路徑字母序最先者)
   保留 `name`,之後任何檔案的 asset 撞到同一個 `name` 時,那個檔案的整個 `indexOne` transaction
@@ -538,7 +565,54 @@ module Aapms.Store
   由後續 feature 依需要擴充」的精神,這是最小夠用的補充,不是新的公開資料結構。**影響**:若
   `/arch-audit feature` 認為這個輔助值超出契約 F 逐字範圍,把它改成非 export 的測試專用工具
   函式(只留在 `Fixtures.hs`),不影響 `NodeFilter` 本身的形狀
+- A10(design.md「索引結構」的 `nodes` 表 15 欄裡沒有 `vault` 欄,但 `Meta.metaVault` 是必填
+  欄位,`hydrateMeta`/`listNodes`/`lookupNode` 讀回 `Meta` 時要填什麼):**採取**——不逐列存
+  `vault`,一律用呼叫端手上那個 `VaultHandle` 自己的身分(`vmId (vhMarker vh)`,零額外 IO,永遠
+  可得)回填每一筆 hydrate 出來的 `Meta.metaVault`。依據:design.md 的 `nodeColumnList`/`nodes`
+  表逐欄都沒有 `vault`,F006 doc 自己的 Row 段落也白紙黑字寫 15 欄不含它,這不是我自由選的形狀,
+  是既有文檔的既定欄位清單;而 md fixture(`Aapms.Md.Fixtures.vaultOf`)已經明寫「frontmatter 的
+  `vault:` 只是自由文字標籤,不強制等於 vault 自己的 `vlt-` id」,兩者本來就是不同概念,用
+  vault 自己的穩定身分填,兩次 rebuild(含 `rm index.db` 後)永遠一致,P0 契約測試因此不受影響。
+  **影響**:若之後某 feature 需要「這個節點檔案 frontmatter 當初宣告的 vault 標籤」(而非它
+  實際所在的 vault),要幫 `nodes` 表加回一欄,是純 schema 擴充,不影響本 feature 其餘介面;
+  細節見 `Aapms.Store.Row` 模組頂端的 Haddock
 
 ## 實作備註
 
-(實作階段填寫)
+**檔案清單**(新增\/大改):
+- `store/src/Aapms/Store/Schema.hs`(擴充:12 表 DDL、`schemaVersion=2`、`IndexIssue` 4 個新建構子)
+- `store/src/Aapms/Store/Row.hs`(改寫:節點列轉換,`vault` 欄位處理見待確認假設 A10)
+- `store/src/Aapms/Store/Index.hs`(改寫:`indexFile`/`unindexFile`/`rebuildIndex`/`refreshStale`
+  + `checkMeta`/`buildTree` 整合)
+- `store/src/Aapms/Store/Query.hs`(改寫:`NodeFilter`/`emptyNodeFilter`/`lookupNode` 七支/
+  `lookupByName`/`listNodes`/`childrenOf`/`linksFrom`/`linksTo`/`loadLinkGraph`)
+- `store/src/Aapms/Store.hs`(門面擴充 re-export `Index`/`Query`)
+- `store/aapms-store.cabal`(`exposed-modules` 加 `Index`/`Query`/`Row`;`build-depends` 加
+  `aeson`/`aapms-md`;test-suite `other-modules` 加 6 個新 Spec)
+- `store/test/Aapms/Store/Fixtures.hs`(擴充:story vault\/asset vault 範例檔案組、
+  `withStoryVault`\/`withAssetVault`\/`withIndexedStoryVault`\/`withIndexedAssetVault`、`typeOf`)
+- 新增測試:`IndexSpec.hs`(T3/T4/T5/T14)、`RebuildSpec.hs`(T6)、`StaleSpec.hs`(T7)、
+  `QuerySpec.hs`(T8/T12)、`NodeSpec.hs`(T9/T10/T11)、`RowSpec.hs`(T2,原表未列所在檔案,
+  補一個新檔)
+- 改動既有測試:`store/test/Aapms/Store/MarkerSpec.hs`(`indexTables` 的舊斷言「只有
+  `meta_info`」改成「12 張表」)、`store/test/Aapms/StoreSpec.hs`(cabal 範圍斷言反過來:F006
+  加回的模組改成「應該出現」,F008 範圍的模組仍「不應該出現」;門面測試補 `rebuildIndex`/
+  `listNodes`)、`store/test/Spec.hs`(註冊 6 個新 Spec)
+
+**與文檔的偏差**(均在實作自主權範圍內,記錄供追溯,不需要回頭改 design.md):
+- `Aapms.Store.Row` 放進 cabal 的 `exposed-modules`(文檔原寫 `other-modules`)——原因是
+  `other-modules` 對同一個套件的 test-suite component 也不可見,T2 的白箱測試需要直接
+  `import Aapms.Store.Row`。`Aapms.Store` 門面依然不 re-export 它,「不對外承諾介面」的約束靠
+  這一點體現,不是靠 Cabal 可見性
+- `Row.hs` 的 `hydrateMeta` 簽名是 `VaultId -> Connection -> NodeRow -> IO Meta`(文檔原寫
+  `Connection -> NodeRow -> IO Meta`),多一個 `VaultId` 參數——見待確認假設 A10,`nodes` 表不存
+  `vault` 欄,hydrate 時要有個來源填 `Meta.metaVault`。`Row` 是內部模組,此簽名改動在實作自主權
+  範圍內
+
+**測試結果**:`cabal test aapms-store`——**75 examples, 0 failures**(基線 40 → 75,新增 35
+筆測試,含 T2 的 `RowSpec.hs` 2 筆是文檔對照表沒有原列的新增檔案)。`cabal build all`/
+`cabal test all` 全綠:`aapms-core` 224/0、`aapms-types` 42/0、`aapms-md` 239/0(三者基線數字
+維持不變,未受影響)。
+
+**未實作\/延後項目**:無。TodoList 17 項全數完成,契約卡兩條驗收標準(`checkMeta` 警告與
+`buildTree` 錯誤都進 `IndexIssue`)均已落地並有對應測試。

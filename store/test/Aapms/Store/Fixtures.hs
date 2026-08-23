@@ -1,25 +1,39 @@
--- | 測試共用的臨時目錄與小工具(graph-core\/F005 起瘦身)。
+-- | 測試共用的臨時目錄、小工具,與 graph-core\/F006 起的「story vault \/
+-- asset vault」範例檔案組。
 --
 -- 落地層的測試一律在 'System.IO.Temp.withSystemTempDirectory' 建立的臨時目錄
 -- 裡跑,測完即刪,不碰使用者真正的 vault。
---
--- 本檔曾經有一整組「臨時 Vault + 範例 Markdown」的輔助函式,相依已移出本
--- feature 範圍的舊 @Vault@\/@Registry@ API(graph-core\/F006\/F008 的重寫範圍);
--- 依委派決策記錄 D8 全數移除,只留下與 marker\/schema 無關、任何 feature 都會
--- 用到的最小共用工具。
 module Aapms.Store.Fixtures
   ( withTempVault
   , orDie
   , idOf
   , refOf
+  , typeOf
   , testRegistry
+
+    -- * F006:story vault / asset vault 範例檔案組
+  , storyVaultFiles
+  , assetVaultFiles
+  , writeFiles
+  , withStoryVault
+  , withAssetVault
+  , withIndexedStoryVault
+  , withIndexedAssetVault
   ) where
 
+import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import Aapms.Core.Id (Id, Ref, parseId, parseRef)
+import Aapms.Core.Meta (TypeKey (..))
 import Aapms.Core.Registry (TypeRegistry, buildRegistry)
 import Aapms.Store.Error (StoreError, renderStoreError)
+import Aapms.Store.Index (rebuildIndex)
+import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault)
+import Aapms.Store.Schema (VaultKind (..))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
 -- | 一個還沒有任何 marker 的臨時目錄。
@@ -30,14 +44,16 @@ withTempVault = withSystemTempDirectory "aapms-vault"
 orDie :: Either StoreError a -> IO a
 orDie = either (fail . T.unpack . renderStoreError) pure
 
--- | 空的型別註冊表,供 D9 之後 @openVault@ 的呼叫端測試使用。
+-- | 空的型別註冊表,供 @openVault@ 的呼叫端測試使用。
 --
 -- 刻意__不__讀 @types\/registry\/@ 的實檔、也不引入 @aapms-types@:那是
 -- @aapms-types@\/@Aapms.Types.Loader@ 的測試範圍(IO 載入層),落地層的測試不
--- 該因為別人改了一份 TOML 而變紅——與舊 @VaultSpec.hs@ 時代的 @testRegistry@
--- 同一個理由(見 graph-core\/F005 實作備註)。'buildRegistry' 對空清單一定
--- 成功('Aapms.Core.Registry' 的驗證規則全部是「對已有宣告的檢查」),因此
--- 這裡的 'error' 分支不會真的被打到。
+-- 該因為別人改了一份 TOML 而變紅。__副作用__:本檔全部 fixture 用到的 @type@
+-- (@character@\/@character-fragment@\/@asset-image@ 等)都不在這個空註冊表
+-- 內,所以 'rebuildIndex' 對本檔 fixture 一定會回報一批
+-- 'Aapms.Store.Schema.MetaWarningsFound'(@UnknownNodeType@)——這正好是
+-- 「@checkMeta@ 警告進 'Aapms.Store.Schema.IndexIssue' 且不擋索引」這條驗收
+-- 標準最自然的測試素材,不需要另外合成。
 testRegistry :: TypeRegistry
 testRegistry = case buildRegistry [] of
   Right r -> r
@@ -52,3 +68,246 @@ refOf :: Text -> Ref
 refOf t = case parseRef t of
   Right r -> r
   Left e -> error ("測試裡的 ref 不合法:" <> show e)
+
+typeOf :: Text -> TypeKey
+typeOf = TypeKey
+
+--------------------------------------------------------------------------------
+-- F006 fixture:story vault(主題檔 + Level 檔)
+
+-- | 主題檔:主體 'ent-00000001' + 兩個片段('ent-00000002'\/'ent-00000003',
+-- 後者關聯回主體)。
+storyLindaMd :: Text
+storyLindaMd =
+  T.unlines
+    [ "---"
+    , "id: ent-00000001"
+    , "vault: liftgame"
+    , "type: character"
+    , "title: 測試角色"
+    , "summary: F006 fixture 用的角色主體"
+    , "status: canon"
+    , "source: human"
+    , "revision: 1"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "主體內文。"
+    , ""
+    , "## 外貌 {#ent-00000002}"
+    , ""
+    , "```meta"
+    , "type: character-fragment"
+    , "summary: 外貌片段"
+    , "tags: [外觀]"
+    , "aliases: [小測]"
+    , "```"
+    , ""
+    , "外貌內文。"
+    , ""
+    , "## 背景 {#ent-00000003}"
+    , ""
+    , "```meta"
+    , "type: character-fragment"
+    , "summary: 背景片段"
+    , "tags: [背景]"
+    , "links:"
+    , "  - {kind: partOf, target: ent-00000001}"
+    , "```"
+    , ""
+    , "背景內文。"
+    ]
+
+-- | Level 檔:根 'nod-00000001' 底下一個子節點 'nod-00000002'(至少兩個
+-- Node,滿足 T14 的要求),子節點關聯回主題檔的主體。
+storyClassroomMd :: Text
+storyClassroomMd =
+  T.unlines
+    [ "---"
+    , "id: lvl-00000001"
+    , "vault: liftgame"
+    , "type: level"
+    , "title: 測試場景"
+    , "summary: F006 fixture 用的場景"
+    , "status: canon"
+    , "source: human"
+    , "revision: 1"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "場景整體說明。"
+    , ""
+    , "## 開場 {#nod-00000001}"
+    , ""
+    , "```meta"
+    , "kind: scene"
+    , "summary: 開場"
+    , "```"
+    , ""
+    , "### 出場人物 {#nod-00000002}"
+    , ""
+    , "```meta"
+    , "kind: cast"
+    , "links:"
+    , "  - {kind: involves, target: ent-00000001}"
+    , "```"
+    ]
+
+-- | story vault 的完整範例檔案組(vault 相對路徑, 內容)。
+storyVaultFiles :: [(FilePath, Text)]
+storyVaultFiles =
+  [ ("characters/test-character.md", storyLindaMd)
+  , ("levels/test-classroom.md", storyClassroomMd)
+  ]
+
+--------------------------------------------------------------------------------
+-- F006 fixture:asset vault(pack.md × 2 + licenses.md)
+
+-- | 授權登記檔,'lic-0000000a' 供 pack 的 @license@ 欄位參照。
+assetLicensesMd :: Text
+assetLicensesMd =
+  T.unlines
+    [ "---"
+    , "id: lic-00000001"
+    , "vault: liftgame-assets"
+    , "type: asset-license"
+    , "title: 授權登記"
+    , "status: canon"
+    , "source: human"
+    , "created: 2026-08-10"
+    , "updated: 2026-08-10"
+    , "---"
+    , ""
+    , "本檔登記授權條款。"
+    , ""
+    , "## CC0 {#lic-0000000a}"
+    , ""
+    , "```meta"
+    , "commercial: true"
+    , "attribution_required: false"
+    , "```"
+    ]
+
+-- | 主要 pack.md:兩個 asset,其一 @status: missing@(T14 要求)。
+assetPackMd :: Text
+assetPackMd =
+  T.unlines
+    [ "---"
+    , "id: pck-00000001"
+    , "vault: liftgame-assets"
+    , "type: asset-pack"
+    , "title: 測試 Pack"
+    , "vendor: test-vendor"
+    , "license: lic-0000000a"
+    , "status: canon"
+    , "source: scan"
+    , "revision: 1"
+    , "created: 2026-08-10"
+    , "updated: 2026-08-10"
+    , "---"
+    , ""
+    , "Pack 說明。"
+    , ""
+    , "## panel.png {#ast-00000001}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "name: ui_gui_panel_001"
+    , "entry: PNG/panel.png"
+    , "sha256: \"1111111111111111111111111111111111111111111111111111111111111111\""
+    , "tags: [gui]"
+    , "```"
+    , ""
+    , "## missing.png {#ast-00000002}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "entry: PNG/missing.png"
+    , "sha256: \"2222222222222222222222222222222222222222222222222222222222222222\""
+    , "status: missing"
+    , "```"
+    ]
+
+-- | 位於 @library\/reference\/@ 之下的 pack.md,供 'nfIncludeReference' 測試用
+-- (design.md:「是 reference」由 pack.md 的路徑決定)。
+assetReferencePackMd :: Text
+assetReferencePackMd =
+  T.unlines
+    [ "---"
+    , "id: pck-00000002"
+    , "vault: liftgame-assets"
+    , "type: asset-pack"
+    , "title: 參考資料"
+    , "status: canon"
+    , "source: scan"
+    , "revision: 1"
+    , "created: 2026-08-10"
+    , "updated: 2026-08-10"
+    , "---"
+    , ""
+    , "參考資料說明,索引時不該預設出現在查詢結果裡。"
+    , ""
+    , "## temple.jpg {#ast-00000003}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "entry: JPG/temple.jpg"
+    , "sha256: \"3333333333333333333333333333333333333333333333333333333333333333\""
+    , "```"
+    ]
+
+-- | asset vault 的完整範例檔案組。
+assetVaultFiles :: [(FilePath, Text)]
+assetVaultFiles =
+  [ ("packs/test-vendor/pack.md", assetPackMd)
+  , ("licenses.md", assetLicensesMd)
+  , ("library/reference/temple/pack.md", assetReferencePackMd)
+  ]
+
+--------------------------------------------------------------------------------
+-- 寫檔 / 開 vault 輔助
+
+-- | 把一組 (vault 相對路徑, 內容) 寫進指定的 vault 根目錄,自動建立子目錄。
+writeFiles :: FilePath -> [(FilePath, Text)] -> IO ()
+writeFiles root = mapM_ writeOne
+  where
+    writeOne (rel, content) = do
+      let fp = root </> rel
+      createDirectoryIfMissing True (takeDirectory fp)
+      BS.writeFile fp (TE.encodeUtf8 content)
+
+-- | 建一個全新的臨時 vault:@initVaultAt@ → 寫入 'storyVaultFiles' → @openVault@
+-- (__不__自動 rebuild——'Aapms.Store.Index.rebuildIndex'\/'Aapms.Store.Index.refreshStale'
+-- 是契約 E 的獨立函式,呼叫端自己決定何時索引,測試過時偵測\/rebuild 兩次等
+-- 情境需要控制這個時機點)。收尾自動 'closeVault'。
+withStoryVault :: (VaultHandle -> IO a) -> IO a
+withStoryVault act = withTempVault $ \dir -> do
+  _ <- orDie =<< initVaultAt dir StoryVault "story-fixture"
+  writeFiles dir storyVaultFiles
+  (h, _issues) <- orDie =<< openVault testRegistry dir
+  result <- act h
+  closeVault h
+  pure result
+
+withAssetVault :: (VaultHandle -> IO a) -> IO a
+withAssetVault act = withTempVault $ \dir -> do
+  _ <- orDie =<< initVaultAt dir AssetVault "asset-fixture"
+  writeFiles dir assetVaultFiles
+  (h, _issues) <- orDie =<< openVault testRegistry dir
+  result <- act h
+  closeVault h
+  pure result
+
+-- | 'withStoryVault' \/ 'withAssetVault' 再加一次 'rebuildIndex',給只關心
+-- 「已經索引好的 vault」的查詢測試用。
+withIndexedStoryVault :: (VaultHandle -> IO a) -> IO a
+withIndexedStoryVault act = withStoryVault $ \h -> do
+  _ <- orDie =<< rebuildIndex h
+  act h
+
+withIndexedAssetVault :: (VaultHandle -> IO a) -> IO a
+withIndexedAssetVault act = withAssetVault $ \h -> do
+  _ <- orDie =<< rebuildIndex h
+  act h

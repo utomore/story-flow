@@ -1,12 +1,12 @@
--- | SQLite 索引的 schema 與連線開啟(graph-core\/F005)。
+-- | SQLite 索引的 schema 與連線開啟(graph-core\/F005、擴充自 graph-core\/F006)。
 --
 -- ADR-013\/ADR-002:索引是__衍生物__,任何時候可以刪掉重建。'schemaVersion' 與
 -- @meta_info@ 裡記的值不符時,'openIndexAt' 直接把所有表砍掉重建——schema
 -- 變更不寫遷移程式。
 --
--- 本 feature 只建 @meta_info@ 一張表;業務表(@nodes@ 等)屬
--- graph-core\/F006(store-unified-index),擴充 'indexTables' 這份清單時一併
--- 擴充 'schemaDDL',不是另開一份。
+-- graph-core\/F006 把業務表(@nodes@ 等 11 張)接上,'schemaVersion' 因此從
+-- F005 的 1 改成 2(shape 變了,依 ADR-013 不寫 migration)。擴充
+-- 'indexTables'\/'schemaDDL' 時繼續在這份清單上加,不另開一份。
 module Aapms.Store.Schema
   ( -- * VaultKind
     VaultKind (..)
@@ -38,7 +38,11 @@ import Control.Monad (forM_, void)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
-import Aapms.Core.Id (VaultId (..))
+import Aapms.Core.Asset (LogicalName (..))
+import Aapms.Core.Id (Id, VaultId (..), renderId)
+import Aapms.Core.Meta (MetaWarning (..), TypeKey (..))
+import Aapms.Core.Tree (TreeError, renderTreeError)
+import Aapms.Md.Error (MdError, renderMdError)
 import Aapms.Store.Error (StoreError, trySqlite)
 
 -- | 一個 vault 主要裝什麼(ADR-017)。運維分界,不是資料模型分界。
@@ -55,19 +59,33 @@ parseVaultKind "asset" = Just AssetVault
 parseVaultKind "story" = Just StoryVault
 parseVaultKind _ = Nothing
 
--- | 本 feature 起算的新 schema(只有 @meta_info@),與合併前 entity-graph-core
--- 的舊值 1 語意不同——舊索引一律視為需要重建,不是「相容」。
+-- | graph-core\/F006 把業務表接上,shape 變了(1 → 2),依 ADR-013 舊索引一律
+-- 視為需要重建,不寫 migration。
 schemaVersion :: Int
-schemaVersion = 1
+schemaVersion = 2
 
--- | 索引重建時回報的問題。目前只有一種建構子:'schemaVersion' 不符觸發整庫
--- 重建。graph-core\/F006 依 design.md「模組間公開介面」擴充__加__建構子
--- (如過時偵測、@checkMeta@ 警告),不得整個重新定義。
-data IndexIssue = SchemaRebuilt
-  { irOldVersion :: Maybe Int
-  -- ^ @meta_info@ 讀到的舊值;'Nothing' 代表全新索引檔(表都還不存在)
-  , irNewVersion :: Int
-  }
+-- | 索引重建\/索引時回報的問題。graph-core\/F005 只有 'SchemaRebuilt';
+-- graph-core\/F006__擴充__加三個建構子(不重新定義,契約 G「骨架」原則):
+-- 單檔解析\/驗證失敗時「整檔不進索引」的三種理由。
+data IndexIssue
+  = SchemaRebuilt
+      { irOldVersion :: Maybe Int
+      -- ^ @meta_info@ 讀到的舊值;'Nothing' 代表全新索引檔(表都還不存在)
+      , irNewVersion :: Int
+      }
+  | -- | 檔案、'Aapms.Md.Error.MdError'。@parseDocument@ 或 @to*@ 解析失敗,
+    -- 整檔不進索引
+    ParseFailed FilePath MdError
+  | -- | 檔案、'Aapms.Core.Tree.TreeError' 清單。@LevelDoc@ 的 @buildTree@
+    -- 驗證失敗,整檔不進索引
+    TreeInvalid FilePath [TreeError]
+  | -- | 檔案、撞名的 'LogicalName'。@assets.name UNIQUE@ 與既有索引衝突,
+    -- 整個 @indexOne@ transaction 回滾,整檔不進索引
+    DuplicateAssetName FilePath LogicalName
+  | -- | 檔案、節點 id、'Aapms.Core.Registry.checkMeta' 的警告清單。__不__讓
+    -- 該節點不進索引('checkMeta' 本身的契約是「只回警告,不決定要不要擋」)
+    -- ——節點正常寫入,警告只是附帶回報,供上層(@service@)決定怎麼辦
+    MetaWarningsFound FilePath Id [MetaWarning]
   deriving stock (Show, Eq)
 
 renderIndexIssue :: IndexIssue -> Text
@@ -76,10 +94,49 @@ renderIndexIssue (SchemaRebuilt old new) =
     <> maybe "(全新索引檔)" (T.pack . show) old
     <> " 變成 "
     <> T.pack (show new)
+renderIndexIssue (ParseFailed fp e) =
+  T.pack fp <> ": 解析失敗,不進索引 —— " <> renderMdError e
+renderIndexIssue (TreeInvalid fp es) =
+  T.pack fp
+    <> ": Level 場景樹不合法,不進索引 —— "
+    <> T.intercalate "; " (map renderTreeError es)
+renderIndexIssue (DuplicateAssetName fp (LogicalName nm)) =
+  T.pack fp <> ": asset 名稱 `" <> nm <> "` 與既有索引重複,整檔不進索引"
+renderIndexIssue (MetaWarningsFound fp nodeId ws) =
+  T.pack fp
+    <> ": 節點 "
+    <> renderId nodeId
+    <> " 的型別檢查警告(不擋索引)—— "
+    <> T.intercalate "; " (map renderMetaWarning ws)
 
--- | 全部的表,順序固定。graph-core\/F006 加業務表時擴充這份清單,不是另開一份。
+-- | 本模組自己的 'MetaWarning' 文字化——"Aapms.Core.Registry" 只匯出
+-- 'checkMeta' 本身,沒有匯出對應的 render 函式(只有型別 'MetaWarning (..)'
+-- 公開),索引層要顯示訊息只能自己寫一份。
+renderMetaWarning :: MetaWarning -> Text
+renderMetaWarning = \case
+  MissingRequiredField (TypeKey k) f -> "型別 " <> k <> " 缺少必填欄位 `" <> f <> "`"
+  LinkNotAllowed (TypeKey k) kind -> "型別 " <> k <> " 不允許關聯 `" <> kind <> "`"
+  UnknownNodeType (TypeKey k) -> "型別 `" <> k <> "` 不在註冊表內"
+  NameKindNotAllowed (TypeKey k) kind ->
+    "型別 " <> k <> " 的命名第一段 `" <> kind <> "` 不在允許的 name_kinds 內"
+
+-- | 全部的表,順序固定(依外鍵相依順序:@files@ → @nodes@ → 其餘)。
+-- 之後的 feature 加業務表時擴充這份清單,不是另開一份。
 indexTables :: [Text]
-indexTables = ["meta_info"]
+indexTables =
+  [ "meta_info"
+  , "files"
+  , "nodes"
+  , "node_aliases"
+  , "node_tags"
+  , "links"
+  , "assets"
+  , "packs"
+  , "licenses"
+  , "levels"
+  , "tree_nodes"
+  , "tree_node_entities"
+  ]
 
 -- | 開啟指定路徑的索引:開連線 → PRAGMA → schema_version 判斷(不符即重建)→
 -- 寫入 vault 身分,全部收在同一個 'trySqlite' 區塊內。
@@ -179,10 +236,91 @@ setVaultInfo conn vid kind name = do
     put k val =
       execute conn "INSERT OR REPLACE INTO meta_info(key, value) VALUES (?, ?)" (k :: Text, val)
 
--- | 目前只有 @meta_info@ 一張表;graph-core\/F006 加業務表時擴充這份清單。
+-- | 12 張表的建表語句,順序與 'indexTables' 一致。
+--
+-- 外鍵全部 @ON DELETE CASCADE@,以 @nodes.file_path@\/@links.file_path@
+-- @REFERENCES files(path)@ 為根(design.md「索引結構」):刪一筆 @files@
+-- 連帶砍光該檔的 @nodes@ 與全部專屬表\/@links@\/@node_aliases@\/@node_tags@;
+-- @assets@\/@packs@\/@licenses@\/@levels@\/@tree_nodes@ 的 @id@ 是外鍵指向
+-- @nodes(id)@,@tree_node_entities@ 掛在 @tree_nodes(id)@ 底下。
 schemaDDL :: [Text]
 schemaDDL =
   [ "CREATE TABLE meta_info(\
     \  key TEXT PRIMARY KEY,\
     \  value TEXT NOT NULL)"
+  , "CREATE TABLE files(\
+    \  path TEXT PRIMARY KEY,\
+    \  mtime INTEGER NOT NULL,\
+    \  size INTEGER NOT NULL,\
+    \  doc_kind TEXT NOT NULL)"
+  , "CREATE TABLE nodes(\
+    \  id TEXT PRIMARY KEY,\
+    \  prefix TEXT NOT NULL,\
+    \  type TEXT NOT NULL,\
+    \  title TEXT NOT NULL,\
+    \  summary TEXT NOT NULL,\
+    \  status TEXT NOT NULL,\
+    \  timeline TEXT,\
+    \  timeline_order INTEGER,\
+    \  source TEXT NOT NULL,\
+    \  revision INTEGER NOT NULL,\
+    \  created TEXT NOT NULL,\
+    \  updated TEXT NOT NULL,\
+    \  file_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,\
+    \  section_anchor TEXT,\
+    \  owner TEXT)"
+  , "CREATE TABLE node_aliases(\
+    \  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  alias TEXT NOT NULL)"
+  , "CREATE TABLE node_tags(\
+    \  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  tag TEXT NOT NULL)"
+  , "CREATE TABLE links(\
+    \  src TEXT NOT NULL,\
+    \  dst_vault TEXT,\
+    \  dst TEXT NOT NULL,\
+    \  kind TEXT NOT NULL,\
+    \  note TEXT,\
+    \  file_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE)"
+  , "CREATE TABLE assets(\
+    \  id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  name TEXT UNIQUE,\
+    \  sha256 TEXT NOT NULL,\
+    \  entry TEXT NOT NULL,\
+    \  ext TEXT,\
+    \  meta_json TEXT NOT NULL,\
+    \  license TEXT,\
+    \  author TEXT)"
+  , "CREATE TABLE packs(\
+    \  id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  vendor TEXT,\
+    \  archive TEXT,\
+    \  sha256 TEXT,\
+    \  license TEXT,\
+    \  author_json TEXT,\
+    \  source_url TEXT,\
+    \  ai_disclosure TEXT NOT NULL,\
+    \  is_reference INTEGER NOT NULL)"
+  , "CREATE TABLE licenses(\
+    \  id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  commercial INTEGER NOT NULL,\
+    \  attribution_required INTEGER NOT NULL,\
+    \  credit_text TEXT,\
+    \  modification_allowed INTEGER,\
+    \  redistribution_allowed INTEGER,\
+    \  resale_allowed INTEGER,\
+    \  nft_allowed INTEGER,\
+    \  source_url TEXT)"
+  , "CREATE TABLE levels(\
+    \  id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  root TEXT NOT NULL)"
+  , "CREATE TABLE tree_nodes(\
+    \  id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,\
+    \  level_id TEXT NOT NULL,\
+    \  parent_id TEXT,\
+    \  order_idx INTEGER NOT NULL,\
+    \  kind TEXT NOT NULL)"
+  , "CREATE TABLE tree_node_entities(\
+    \  node_id TEXT NOT NULL REFERENCES tree_nodes(id) ON DELETE CASCADE,\
+    \  ref TEXT NOT NULL)"
   ]

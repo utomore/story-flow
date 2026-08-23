@@ -23,7 +23,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段一 純層 | W2 | registry-family-and-naming | impl-done |
 | 階段一 純層 | W3 | manifest-schema-v2 | impl-done |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | impl-done |
-| 階段二 解析與落地 | W5 | store-unified-index | pending |
+| 階段二 解析與落地 | W5 | store-unified-index | design-done |
 | 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | pending |
 | 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
 
@@ -62,7 +62,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | impl-done |
 | md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | impl-done |
 | store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | impl-done |
-| store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | pending |
+| store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | design-done |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | sonnet | sonnet | pending |
 | store-write-operations | F008 | F008-store-write-operations.md | sonnet | sonnet | pending |
 | store-multi-vault-read | F009 | F009-store-multi-vault-read.md | sonnet | sonnet | pending |

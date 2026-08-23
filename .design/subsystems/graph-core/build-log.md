@@ -22,7 +22,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段一 純層 | W1 | core-unified-meta | impl-done |
 | 階段一 純層 | W2 | registry-family-and-naming | impl-done |
 | 階段一 純層 | W3 | manifest-schema-v2 | impl-done |
-| 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | pending |
+| 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | design-done |
 | 階段二 解析與落地 | W5 | store-unified-index | pending |
 | 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | pending |
 | 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
@@ -40,6 +40,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | D4 | F007 驗收「6,783 筆 asset 的索引體積」沒有 fixture | **等 P2 真資料**,P1 不合成大 fixture;契約卡已改註。F004 的「1,693 節末尾追加」仍由測試內產生器合成(便宜) | F007(一條驗收標 pending)、F004 |
 | D5 | `naming.toml` 初始詞彙與八種 asset 型別的 `name_kinds` 來源 | 從 `legacy/assetdb/core/src/AssetDB/Naming.hs` 的 `defaultVocab` 原樣落成 TOML,不增不減;`name_kinds` 依原 `AssetKind` 對應 | F002 |
 | D6 | `core/` `md/` `store/` 現有單元測試的處置 | 隨模組重寫、舊的刪(ADR-018 第二條);各 feature 依自己的 1-to-1 測試表寫新 Spec,被取代的舊 Spec 刪掉,不留編不過的檔 | 全部 feature |
+| D8 | F005 設計回報:`aapms-store` 的 12 個模組裡有 7 個(`Create` / `Edit` / `Index` / `Node` / `Query` / `Row` / `Write`)已編不過(import 已刪的 `Aapms.Core.Graph`、已改名的 `mkId`、已換 API 的 `validateRegistry`),它們分屬 F006 / F008 / F009,F005 卻因此拿不到綠燈 | **編排者裁決**:`aapms-store` 以**模組為單位**逐步復原——F005 只把 `Marker` / `Atomic` / `Schema` / `Error` 留在 `.cabal` 的 `exposed-modules`,其餘 7 個**檔案留在磁碟當素材、暫時移出 cabal**,由 F006 / F008 / F009 各自改寫後加回。這是 D1(套件層凍結)的同一個作法降到模組層,ADR-018「重建核心,舊程式碼當素材搬」也是這個意思。**F005 不得移除 `aapms-md` 的 build-depends**——實作順序改成 F004 先跑,md 修好後 store 就有可用的相依 | F005 / F006 / F008 / F009 |
 | D7 | F001 設計回報:契約 C 把 `TypeRegistry` 放 `aapms-types`,但 `checkMeta`(core)要吃它而 types 已依賴 core → 相依環 | **編排者裁決(未經開發者,閘門再確認)**:純型別 `Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` / `lookupType` 定義在 `aapms-core`,`aapms-types` 只有 `locateRegistry` / `loadRegistry` 與 TOML 解析並 re-export。與「內部模組劃分」表和現有程式碼一致,已回寫契約 C | F001 / F002 |
 
 **澄清後仍懸著、交給 subagent 當待確認假設的點**(開發者已知):
@@ -59,8 +60,8 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | pending |
-| store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | pending |
+| md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | design-done |
+| store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | design-done |
 | store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | pending |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | sonnet | sonnet | pending |
 | store-write-operations | F008 | F008-store-write-operations.md | sonnet | sonnet | pending |
@@ -135,7 +136,28 @@ A6(`checkMeta` 無 `NamingVocab` 參數,`badNameKind` 直接切第一段文字�
 
 ### 階段二 解析與落地
 
-(未開始)
+**W4 設計**:F004(16 Todo、16 條測試對照、5 條待確認假設)與 F005(12 Todo、22 條測試對照、
+6 條待確認假設)平行完成。
+
+**F004 的待確認假設**(下個閘門一併裁決):A1(移除既有 `MdWarning` 通道——契約 D 的 `to*` 沒有
+警告參數,design.md 讀取管線也明寫警告唯一來源是 `checkMeta`)、A2(`parseDocument` 只回報第一個
+錯誤,對齊契約的 `Either MdError`,不再回 `[MdError]`)、A3(`MdError` / `Document` 拿掉檔案路徑,
+由 `aapms-store` 自己接——驗收只要求指出**行號**)、A4(`licenses.md` 節層 `type` 繼承,與主題檔
+同列)、A5(`overrideAt` 原本不在契約 D 逐字清單內——**編排者已回填進契約 D**,因為
+`store/src/Aapms/Store/Write.hs:99,152` 真的在呼叫它,屬模組間公開介面而非內部細節)。
+
+F004 另查出比原估更廣的改動面:`md/src/Aapms/Md/Render.hs` 有 6 處序列化會把 newtype 直接 `show`
+(會印成 `Revision 4` 而不是 `4`),不只 `Inherit.hs` 的 12 處型別不符。
+
+**F005 的待確認假設**(下個閘門一併裁決):A1(cabal 模組清單瘦身——已由編排者升級成 D8)、
+A2(`Vault.hs` 改名 `Marker.hs` 對齊模組表)、A3(`VaultHandle` / `openVault` / `closeVault` 併入
+Marker 模組)、A4(`initVaultAt` 不建業務子目錄與 `.gitignore`,留給 `workspace`)、
+A5(vault id 不做碰撞重試——沒有中樞註冊表可查,`salt=0`)、A6(`IndexIssue` 只給一個建構子,
+F006 必須**擴充**而非重新定義)。
+
+**實作順序**:依 D8 改成 **F004 → F005 → F006**(原本 F004 ‖ F005 只適用設計階段)。理由:
+`aapms-store` 的 library 對 `aapms-md` 有 build-depends,md 不修好 store 連帶編不過;先跑 F004
+就不必為了讓 F005 綠燈而暫時拔掉那條相依。
 
 ### 階段三 檢索與寫入
 

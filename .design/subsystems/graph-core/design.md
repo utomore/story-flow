@@ -214,6 +214,7 @@ toLicenses :: Document -> Either MdError [License]
 -- 寫回方向:只重新序列化被改的區塊(ADR-010)
 renderDocument    :: Document -> Text
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
+overrideAt        :: Id -> Document -> Either MdError MetaOverride   -- 讀出某節目前的 override(store 樂觀鎖比對用)
 updateSection     :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
 updateSectionBody :: Id -> Text -> Document -> Either MdError Document
 appendSection     :: NewSection -> Document -> Either MdError Document
@@ -491,8 +492,8 @@ fts_map(rowid PK, node_id)
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 4 | md-unified-sections | 分節引擎改接統一 `Meta`;`PackDoc` / `LicenseDoc` 的解析與寫回;四種文件的繼承規則 | 分節引擎、文件轉換 | #1, #2 | - |
-| 5 | store-vault-handle | marker 讀寫、`initVaultAt` / `openVault` / `closeVault`,schema 不符重建、過時刷新 | Marker、Atomic、Schema | #1 | - |
+| 4 | md-unified-sections | 分節引擎改接統一 `Meta`;`PackDoc` / `LicenseDoc` 的解析與寫回;四種文件的繼承規則 | 分節引擎、文件轉換 | #1, #2 | F004-md-unified-sections.md |
+| 5 | store-vault-handle | marker 讀寫、`initVaultAt` / `openVault` / `closeVault`,schema 不符重建、過時刷新 | Marker、Atomic、Schema | #1 | F005-store-vault-handle.md |
 | 6 | store-unified-index | 一份 schema(`nodes` + 專屬表 + `owner`)、`files` 過時偵測、整檔替換、`rebuildIndex`、單 vault 查詢(不含 FTS) | Schema、Index、Query | #4, #5 | - |
 
 ### 階段三:檢索與寫入

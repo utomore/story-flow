@@ -30,6 +30,10 @@ library
         AssetDB.Cli.Project
         AssetDB.Cli.Notes
         AssetDB.Cli.Ai
+    other-modules:
+        Paths_assetdb_cli
+    autogen-modules:
+        Paths_assetdb_cli
     hs-source-dirs:   app
     build-depends:
         , assetdb-ai

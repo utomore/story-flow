@@ -5,7 +5,7 @@ title: service-and-interfaces
 description: 業務契約層與它的三種薄包裝:CLI、REST API 與伺服器
 status: active
 created: 2026-08-18
-updated: 2026-08-22
+updated: 2026-08-23
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-006, ADR-008, ADR-009]
 ---
@@ -43,7 +43,7 @@ CLI、REST server 與未來的 MCP adapter 全部是同一份契約的薄包裝�
 
 | 元件 | 職責 | 關鍵約束 |
 |---|---|---|
-| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;27 個業務操作(其中 `linkGraph` / `aliasIndex` / `vaultConfig` / `vaultRoot` 只有內嵌出口);`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
+| `storyflow-service` | `ServiceM = ReaderT Env (ExceptT ServiceError IO)`;28 個業務操作(其中 `linkGraph` / `aliasIndex` / `vaultConfig` / `vaultRoot` / `locateVault` 只有內嵌出口);`ServiceError` 與 `errorCode` / `renderServiceError`;View 與請求型別;集中的 aeson 實例 | 不含 HTTP 與終端輸出,`build-depends` 就是那條界線的證明 |
 | `storyflow-api` | **只有** servant API 型別、`FromHttpApiData` / `ToHttpApiData`、`ToSchema`、`storyFlowOpenApi` | 不含 `servant-server` / `servant-client` / `warp` ——它是兩個消費端共用的契約 |
 | `storyflow-server` | servant handler(每個一行)、`MVar Env` 序列化、Bearer token middleware、warp 啟動;執行檔 `story-flow-serve` | 不 import `storyflow-store`;handler 內無業務判斷 |
 | `storyflow-cli` | optparse 指令樹、`Backend` 抽象(內嵌 / 遠端)、渲染器、統一信封;執行檔 `story-flow` | 不 import `storyflow-store`、`storyflow-server` 與 `warp` |
@@ -65,7 +65,7 @@ newtype ServiceM a
 openEnv    :: Maybe Text -> FilePath -> IO (Either ServiceError (Env, [IndexIssue]))
 runService :: Env -> ServiceM a -> IO (Either ServiceError a)
 
--- 27 個業務操作,例如:
+-- 28 個業務操作,例如:
 createEntity :: NewEntityReq -> ServiceM EntityView
 updateEntity :: Id -> Int -> EntityPatch -> ServiceM EntityView   -- expected revision 必填
 addNode      :: Id -> Id -> Int -> NewNodeReq -> ServiceM LevelView
@@ -91,6 +91,12 @@ vaultConfig :: ServiceM VaultConfig                   -- 本 Vault 的 .storyflo
 -- 不沿用 vaultInfo:它為了 vvEntityCount 會 listEntities 全表掃描,而快照每一
 -- step 寫一次——付一次全表掃描去換一個馬上被丟掉的數字。
 vaultRoot :: ServiceM FilePath                        -- 含 .storyflow/ 的那一層
+
+-- 2026-08-23 由 /enhance-design 加入(G-E002)。CLI 的 doctor 要報告「Vault 在哪、
+-- [llm] 段有沒有」但刻意不開索引——開索引會觸發過時掃描,而診斷指令不該有副作用。
+-- 這是 IO 而非 ServiceM:它在 Env 存在之前就要能跑(找不到 Vault 也是它要報告的事)。
+-- 同樣只開內嵌出口,不上 REST:它診斷的是這台機器,跨 HTTP 沒有意義。
+locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, VaultConfig))
 ```
 
 **REST(供外部 Agent 與 `llm-workshop-mcp` 的 MCP adapter)**
@@ -101,7 +107,9 @@ OpenAPI 3 文件由同一份型別推導:`story-flow-serve --openapi > openapi.j
 
 **CLI(供作者)**
 
-`story-flow [--vault <名稱>|--remote <url>] [--json] <名詞> <動詞>`,25 個葉子子指令(其中 `context` 與 `conflict check` 屬 `conflict-detection`)。
+`story-flow [--vault <名稱>|--remote <url>] [--json] [--version] <名詞> <動詞>`,29 個葉子子指令(其中 `context` 與 `conflict check` 屬 `conflict-detection`;`workshop start` / `step` / `commit` 屬 `llm-workshop-mcp`;`doctor` 是本機診斷,不開 Vault、不上 REST)。
+
+> 2026-08-23 更正:此處 F004 加了三個 `workshop` 子指令後漏更新(25 → 28),G-E002 再加 `doctor`(→ 29)與全域旗標 `--version`。
 
 > 2026-08-20 更正:此處原記 21,與程式碼長期不符(`Cli.Options` 的 `Command` 建構子在 `context`
 > 加入前已有 23 個)。沒有任何測試釘住這個數字,所以它一路漂著;現已由 `OptionsSpec` 涵蓋。
@@ -149,7 +157,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
                          │                              │
                          │  ServiceM = ReaderT Env      │  Env = Vault+Conn+Registry
                          │             (ExceptT Err IO) │
-                         │  27 個業務操作                │  型別驗證在這裡被呼叫
+                         │  28 個業務操作                │  型別驗證在這裡被呼叫
                          │  ServiceError / errorCode    │  錯誤語彙的唯一來源
                          └───┬──────────────────────┬───┘
                              │                      │
@@ -256,7 +264,7 @@ CLI 參數(optparse)/ REST 請求 body(servant)
 - **階段**:階段一(P2 業務契約與內嵌 CLI)
 - **負責模組**:`storyflow-service`
 - **實作的 Level 2 介面**:「對外契約」的內嵌那一組——`Env`、`ServiceM`、`openEnv`、
-  `runService`、27 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
+  `runService`、28 個業務操作(`createEntity` / `updateEntity` / `addNode` …)、
   `errorCode` / `renderServiceError`,以及 View 與請求型別
 - **資料流管線段落**:管線中段——「自 Env 取出相依 → 業務驗證 → 委派 store 落地 → 組 View」,
   兩端的解碼與渲染不屬於本項

@@ -159,6 +159,11 @@ lookupType     :: TypeRegistry -> TypeKey -> Maybe TypeDecl
 載入失敗讓程序失敗,**不退回空註冊表**。`asset-pack`、`asset-license`、`level` 是保留鍵,
 註冊表出現它們是錯誤。
 
+**套件歸屬**(2026-08-23 釐清,避免相依環):`Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` /
+`lookupType` 與純驗證錯誤是**純型別,定義在 `aapms-core`**(與「內部模組劃分」的「Registry 純驗證」一致,
+`checkMeta` 才能吃它們);`aapms-types` 只有 `locateRegistry` / `loadRegistry` 兩個 IO 入口與 TOML 解析,
+並 re-export 上述型別。`aapms-types → aapms-core` 單向。
+
 ### D. Markdown(`aapms-md`)
 
 ```haskell
@@ -446,7 +451,7 @@ fts_map(rowid PK, node_id)
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 1 | core-unified-meta | 統一 `Meta`、`Asset` / `Pack` / `License` / `AnyNode` 型別、八種 id prefix、`Ref`、`uses` / `depicts`、aeson 編碼規則 | Meta 與節點型別、Id、Tree、Json | - | - |
+| 1 | core-unified-meta | 統一 `Meta`、`Asset` / `Pack` / `License` / `AnyNode` 型別、八種 id prefix、`Ref`、`uses` / `depicts`、aeson 編碼規則 | Meta 與節點型別、Id、Tree、Json | - | F001-core-unified-meta.md |
 | 2 | registry-family-and-naming | 註冊表 `family`、asset 族八項、`naming.toml` 詞彙、`name_kinds`;命名文法改吃注入詞彙;`checkMeta` 涵蓋 asset | Registry 載入、Registry 純驗證、Naming | #1 | - |
 | 3 | manifest-schema-v2 | `Manifest` v2 與 `StoryManifest` 型別、JSON 編碼、`AssetKey`、kind 專屬 meta 型別化 | Manifest | #1, #2 | - |
 

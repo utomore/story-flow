@@ -19,7 +19,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
-| 階段一 純層 | W1 | core-unified-meta | pending |
+| 階段一 純層 | W1 | core-unified-meta | design-done |
 | 階段一 純層 | W2 | registry-family-and-naming | pending |
 | 階段一 純層 | W3 | manifest-schema-v2 | pending |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | pending |
@@ -40,6 +40,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | D4 | F007 驗收「6,783 筆 asset 的索引體積」沒有 fixture | **等 P2 真資料**,P1 不合成大 fixture;契約卡已改註。F004 的「1,693 節末尾追加」仍由測試內產生器合成(便宜) | F007(一條驗收標 pending)、F004 |
 | D5 | `naming.toml` 初始詞彙與八種 asset 型別的 `name_kinds` 來源 | 從 `legacy/assetdb/core/src/AssetDB/Naming.hs` 的 `defaultVocab` 原樣落成 TOML,不增不減;`name_kinds` 依原 `AssetKind` 對應 | F002 |
 | D6 | `core/` `md/` `store/` 現有單元測試的處置 | 隨模組重寫、舊的刪(ADR-018 第二條);各 feature 依自己的 1-to-1 測試表寫新 Spec,被取代的舊 Spec 刪掉,不留編不過的檔 | 全部 feature |
+| D7 | F001 設計回報:契約 C 把 `TypeRegistry` 放 `aapms-types`,但 `checkMeta`(core)要吃它而 types 已依賴 core → 相依環 | **編排者裁決(未經開發者,閘門再確認)**:純型別 `Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` / `lookupType` 定義在 `aapms-core`,`aapms-types` 只有 `locateRegistry` / `loadRegistry` 與 TOML 解析並 re-export。與「內部模組劃分」表和現有程式碼一致,已回寫契約 C | F001 / F002 |
 
 **澄清後仍懸著、交給 subagent 當待確認假設的點**(開發者已知):
 
@@ -55,7 +56,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
-| core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | pending |
+| core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | design-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | pending |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | pending |
 | md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | pending |
@@ -71,7 +72,9 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 | 來源 | 假設 | 採取的判斷 | 閘門裁決 |
 |---|---|---|---|
-| (尚無) | | | |
+| F001 A1 | `MetaWarning` 建構子清單(`MissingRequiredField` / `LinkNotAllowed` / `UnknownNodeType` / `NameKindNotAllowed`)依 F002 契約卡驗收文字反推 | 先定最小形狀,`checkMeta` 由 F002 實作 | 待閘門 |
+| F001 A2 | 舊 `Aapms.Core.Graph` 的 `buildGraph` / `follow` / `supersededSet` / `contradictionPairs` 不在契約 B | 只留 `LinkGraph` 型別,四個函式與 GraphSpec 刪除;P5 conflict 若要再回契約 B 補 | 待閘門 |
+| F001 A3 | `CabalSpec` 禁用清單 | 逐字抄「使用的技術」節 8 個套件名,不推理分類 | 待閘門 |
 
 ## 階段結果
 

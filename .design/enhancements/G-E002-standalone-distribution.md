@@ -230,9 +230,9 @@ locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, Vau
 - [x] T5: `story-flow --version`(`infoOption` 掛 `pinfo`),輸出 `story-flow <版本>`  `dep: T4`
 - [x] T6: `story-flow-serve --version`,同格式  `dep: T4`
 - [x] T7: `story-flow-mcp --version`,手刻掃描多認一個旗標,JSON-RPC 迴圈之前印出並 exit 0  `dep: T4`
-- [ ] T8: `Command` 加 `Doctor`、`Options.hs` 加 `doctor` 子指令、`dispatch` 走 `direct`;`--remote` 併用時回 `CliUsage`  `dep: T3, T5`
-- [ ] T9: `doctor` 五項診斷的組裝與 `DoctorReport` 型別;退出碼規則  `dep: T1, T8`
-- [ ] T10: `doctor` 的兩種輸出:`--json` 信封(snake_case 五鍵)與給人看的 `[ok]` / `[!!]` / `[--]` 行  `dep: T9`
+- [x] T8: `Command` 加 `Doctor`、`Options.hs` 加 `doctor` 子指令、`dispatch` 走 `direct`;`--remote` 併用時回 `CliUsage`  `dep: T3, T5`
+- [x] T9: `doctor` 五項診斷的組裝與 `DoctorReport` 型別;退出碼規則  `dep: T1, T8`
+- [x] T10: `doctor` 的兩種輸出:`--json` 信封(snake_case 五鍵)與給人看的 `[ok]` / `[!!]` / `[--]` 行  `dep: T9`
 - [ ] T11: `scripts/release.ps1` 與 `release.sh`:安裝三個執行檔、複製 `registry/`、寫 README、壓 zip;不吞 stderr  `dep: T5, T6, T7`
 - [ ] T12: 回寫 `entity-graph-core/design.md`(模組表與架構圖的定位描述)與 `service-and-interfaces/design.md`(`locateVault` 內嵌出口、葉子指令數、對外形式表加 `doctor` 與 `--version`)  `dep: T3, T8`
 - [ ] T13: 全套驗收:`cabal build all` 零 warning、`cabal test all` suites 不變且 examples 不減、`cabal.project` 的 `git diff` 為空  `dep: T10, T11, T12`

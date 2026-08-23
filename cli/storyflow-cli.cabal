@@ -25,6 +25,7 @@ library
     exposed-modules:
         StoryFlow.Cli
         StoryFlow.Cli.Backend
+        StoryFlow.Cli.Doctor
         StoryFlow.Cli.Error
         StoryFlow.Cli.Options
         StoryFlow.Cli.Render
@@ -98,6 +99,7 @@ test-suite storyflow-cli-test
         StoryFlow.Cli.TreeSpec
         StoryFlow.Cli.VaultCmdSpec
         StoryFlow.Cli.WorkshopCmdSpec
+        StoryFlow.Cli.DoctorSpec
     build-depends:
         , aeson
         , base

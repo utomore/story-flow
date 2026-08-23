@@ -37,6 +37,17 @@ module StoryFlow.Service
   , VaultConfig (..)
   , LlmSection (..)
 
+    -- ** 沿用 @types@ 的定義(不重造)
+    --
+    -- G-E002:CLI 的 @doctor@ 要說出註冊表從哪一層載入。CLI 不依賴 @storyflow-types@,
+    -- 與它不依賴 @storyflow-store@ 同一條紀律——所有讀取經本門面。
+  , RegistrySource (..)
+  , locateRegistry
+  , loadRegistry
+  , renderLoadError
+  , registryEnvVar
+  , registryBesideExecutable
+
     -- * Vault
   , createVault
   , listVaults
@@ -117,6 +128,14 @@ import StoryFlow.Store hiding
   )
 import qualified StoryFlow.Store as S
 import StoryFlow.Store.Edit (Located (..), locate, locateNode)
+import StoryFlow.Types.Loader
+  ( RegistrySource (..)
+  , loadRegistry
+  , locateRegistry
+  , registryBesideExecutable
+  , registryEnvVar
+  , renderLoadError
+  )
 
 -- Vault ------------------------------------------------------------------------
 

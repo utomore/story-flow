@@ -126,6 +126,8 @@ data Command
     WorkshopStep Text BodySource
   | -- | @workshop commit \<session-id\>@。
     WorkshopCommit Text
+  | -- | @doctor@:五項讀不連的本機診斷(G-E002)。不開 Vault,不上 REST。
+    Doctor
   deriving stock (Show, Eq)
 
 -- 進入點 -----------------------------------------------------------------------
@@ -187,6 +189,7 @@ commandP =
         <> cmd "context" contextP "撈出與一段草稿相關的既有片段(只跑前兩層,不做矛盾判斷)"
         <> grp "conflict" conflictP "三層合流的衝突報告"
         <> grp "workshop" workshopP "階段式引導工作坊"
+        <> cmd "doctor" (pure Doctor) "本機診斷:版本、型別註冊表、Vault、全域註冊表、[llm] 段(讀不連)"
     )
 
 -- | 名詞層:再包一層動詞的 @hsubparser@。

@@ -27,6 +27,7 @@ module StoryFlow.Cli
 
 import Control.Exception (IOException, try)
 import Control.Monad (unless)
+import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (ToJSON (..), Value (..), fromJSON)
 import qualified Data.Aeson as A
@@ -39,6 +40,7 @@ import qualified Data.Text.IO as TIO
 import Options.Applicative (ParserResult (..), execCompletion, renderFailure)
 import StoryFlow.Api (WorkshopStepResp (wssReply))
 import StoryFlow.Cli.Backend
+import StoryFlow.Cli.Doctor
 import StoryFlow.Cli.Error
 import StoryFlow.Cli.Options
 import StoryFlow.Cli.Render
@@ -48,6 +50,7 @@ import StoryFlow.Conflict.Types (Draft (..))
 import StoryFlow.Core.Id (Id, renderId, renderRef)
 import StoryFlow.Core.Link (Link (..), LinkKind, isCoreKind, renderLinkKind, suggestCoreKind)
 import StoryFlow.Service
+import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.IO (Handle, hFlush, stderr, stdin, stdout)
 
@@ -94,6 +97,15 @@ dispatch :: CliIO -> GlobalOpts -> Command -> IO ExitCode
 dispatch io g cmd = case cmd of
   VaultInit dir name | Nothing <- goRemote g -> direct (vaultCreated <$> createVaultB Nothing dir name)
   VaultList | Nothing <- goRemote g -> direct (listed <$> listVaultsB Nothing)
+  -- G-E002:doctor 診斷的是這台機器,不走 Backend、不開索引;
+  -- 退出碼不由 emit 決定——報告永遠印得出來,但註冊表找不到就是 1。
+  Doctor
+    | Just _ <- goRemote g -> emit io g (Left (CliUsage "doctor 診斷本機,不能與 --remote 併用"))
+    | otherwise -> do
+        cwd <- getCurrentDirectory
+        r <- runDoctor (T.pack cliVersion) (goVault g) cwd
+        _ <- emit io g (Right (plain (renderDoctor r) r))
+        pure (if doctorPasses r then ExitSuccess else ExitFailure 1)
   _ -> withBackend g $ \case
     Left e -> emit io g (Left e)
     Right (b, issues) -> do
@@ -206,6 +218,8 @@ handle io b = \case
   WorkshopCommit sid -> do
     r <- commitStageB b sid
     pure (plain (renderWorkshopCommit r) r)
+  -- dispatch 在進 Backend 之前就攔下 Doctor;這一支只為了讓 pattern 完整
+  Doctor -> throwError (CliUsage "doctor 不走 Backend")
   where
     vaultCreated v = plain ("已建立 Vault " <> vvName v <> "(" <> T.pack (vvRoot v) <> ")") v
     updated v = "已更新 " <> renderId (evId v) <> "(revision " <> tshow (evRevision v) <> ")"

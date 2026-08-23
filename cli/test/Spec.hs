@@ -20,6 +20,7 @@ import qualified StoryFlow.Cli.ResolveSpec
 import qualified StoryFlow.Cli.RunCliSpec
 import qualified StoryFlow.Cli.TreeSpec
 import qualified StoryFlow.Cli.VaultCmdSpec
+import qualified StoryFlow.Cli.DoctorSpec
 import qualified StoryFlow.Cli.WorkshopCmdSpec
 import System.IO
 import Test.Hspec
@@ -55,3 +56,5 @@ main = do
     -- llm-workshop-mcp/F004:workshop 三指令(內嵌路徑;遠端與對照分別併進
     -- RemoteCmdSpec / ParitySpec)
     StoryFlow.Cli.WorkshopCmdSpec.spec
+    -- G-E002:doctor 本機診斷
+    StoryFlow.Cli.DoctorSpec.spec

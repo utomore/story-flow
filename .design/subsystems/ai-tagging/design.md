@@ -731,7 +731,7 @@ schema 的列舉出自同一個 `Vocab`,漂移不可能發生。
 | 4 | vision-tagging | 逐份內容的視覺標註批次 | `AssetDB.AI.Vision`、`AssetDB.AI.Image`、`AssetDB.AI.Run` | #1, #2, #5 | F004 |
 | 5 | suggestion-store-apply | 建議暫存表的讀寫、人工確認與套用扇出 | `AssetDB.AI.Suggest` | - | F005 |
 | 6 | nl-query-planning | 自然語句查詢規劃與推論服務離線時的降級 | `AssetDB.AI.Query` | #1, #2 | F006 |
-| 7 | suggestion-import | 外部 JSONL 建議的三層驗證與全有全無寫入暫存表 | `AssetDB.AI.Import` | #2, #5 | - |
+| 7 | suggestion-import | 外部 JSONL 建議的三層驗證與全有全無寫入暫存表 | `AssetDB.AI.Import` | #2, #5 | F007 |
 
 ## Feature 契約卡
 

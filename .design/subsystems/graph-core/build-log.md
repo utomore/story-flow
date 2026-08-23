@@ -60,7 +60,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | design-done |
+| md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | impl-done |
 | store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | design-done |
 | store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | pending |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | sonnet | sonnet | pending |

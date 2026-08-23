@@ -1,5 +1,7 @@
--- | T8:逐字寫回。位元組相等是結構上的保證(ADR-010),
--- 這裡拿風格各異的十份檔案把它釘死。
+-- | T8(舊編號,沿用):逐字寫回。位元組相等是結構上的保證(ADR-010),這裡拿
+-- 風格各異的檔案把它釘死;T2:純量欄位印出的是文字不是 newtype 的 derived
+-- 'Show';T7:'newDocument'(取代 @mkDocument@);T15:四種文件的完整 roundtrip
+-- (graph-core/F004)。
 module Aapms.Md.RenderSpec (spec) where
 
 import Data.Text (Text)
@@ -16,28 +18,28 @@ fullMeta :: Meta
 fullMeta =
   Meta
     { metaId = idOf "ent-7f3a"
-    , metaVault = "liftgame"
-    , metaType = "character"
+    , metaVault = vaultOf "liftgame"
+    , metaType = typeOf "character"
     , metaTitle = "琳達"
     , metaSummary = "埃提亞的第七織手"
     , metaTags = ["主角", "織手"]
     , metaStatus = Canon
-    , metaTimeline = Timeline (Just "埃提亞崩塌前") Nothing
+    , metaTimeline = Just (Timeline (Just "埃提亞崩塌前") Nothing)
     , metaAliases = ["小琳", "第七織手"]
     , metaLinks = [Link PartOf (refOf "ent-c41d") (Just "屬於埃提亞")]
     , metaSource = Human
-    , metaRevision = 3
+    , metaRevision = Revision 3
     , metaCreated = day0
     , metaUpdated = day0
     }
 
--- | 空值也照樣輸出的樣本。
+-- | 空值也照樣輸出的樣本;metaTimeline 用 Nothing 代表完全沒有時間軸概念。
 emptyishMeta :: Meta
 emptyishMeta =
   fullMeta
     { metaSummary = ""
     , metaTags = []
-    , metaTimeline = emptyTimeline
+    , metaTimeline = Nothing
     , metaAliases = []
     , metaLinks = []
     }
@@ -126,14 +128,18 @@ mixedEndingMd =
     <> "\n"
     <> crlf "\n## 一節 {#ent-000a}\n\n```meta\nsummary: 這一段是 CRLF\n```\n\n正文第一段。\n\n正文第二段。\n"
 
--- | 十份風格各異的測試檔。
+-- | T15:四種文件各一份風格各異的樣本 + 兩份原有的邊界情形。
 samples :: [(String, Text)]
 samples =
-  [ ("琳達範例檔(LF、檔尾有換行)", lindaMd)
+  [ ("琳達範例檔(LF、檔尾有換行,主題檔)", lindaMd)
   , ("琳達範例檔(CRLF)", crlf lindaMd)
   , ("琳達範例檔(檔尾無換行)", dropFinalNL lindaMd)
   , ("教室 Level 檔(LF)", classroomMd)
   , ("教室 Level 檔(CRLF)", crlf classroomMd)
+  , ("pack.md(LF)", packMd)
+  , ("pack.md(CRLF)", crlf packMd)
+  , ("licenses.md(LF)", licensesMd)
+  , ("licenses.md(CRLF)", crlf licensesMd)
   , ("YAML 含註解、縮排 4 空白、正文含程式碼區塊", commentedMd)
   , ("同上的 CRLF 版", crlf commentedMd)
   , ("preamble 為空", noPreambleMd)
@@ -143,11 +149,11 @@ samples =
 
 spec :: Spec
 spec = do
-  describe "renderDocument . parseDocument == id(位元組相等)" $
+  describe "T15:renderDocument . parseDocument == id(位元組相等,四種文件)" $
     mapM_
       ( \(name, src) ->
           it name $
-            renderDocument (docOf "sample.md" src) `shouldBe` src
+            renderDocument (docOf src) `shouldBe` src
       )
       samples
 
@@ -155,28 +161,28 @@ spec = do
     mapM_
       ( \(name, src) ->
           it name $
-            renderDocument (docOf "sample.md" (renderDocument (docOf "sample.md" src)))
+            renderDocument (docOf (renderDocument (docOf src)))
               `shouldBe` src
       )
       samples
 
   describe "切片的組成" $ do
     it "renderSection 是三段原始切片接起來" $ do
-      let s = firstSection (docOf "characters/琳達.md" lindaMd)
+      let s = firstSection (docOf lindaMd)
       renderSection s
         `shouldBe` (secHeadingRaw s <> maybe "" id (secMetaRaw s) <> secBodyRaw s)
 
     it "docFinalNL 反映原檔是否以換行結尾" $ do
-      docFinalNL (docOf "x.md" lindaMd) `shouldBe` True
-      docFinalNL (docOf "x.md" (dropFinalNL lindaMd)) `shouldBe` False
+      docFinalNL (docOf lindaMd) `shouldBe` True
+      docFinalNL (docOf (dropFinalNL lindaMd)) `shouldBe` False
 
     it "混合行尾檔的 docEnding 取多數,但寫回仍逐字保留兩種行尾" $ do
-      let d = docOf "x.md" mixedEndingMd
+      let d = docOf mixedEndingMd
       docEnding d `shouldBe` CRLF
       renderDocument d `shouldSatisfy` T.isInfixOf "updated: 2026-08-16\n---\n"
       renderDocument d `shouldSatisfy` T.isInfixOf "這一段是 CRLF\r\n"
 
-  -- entity-graph-core/F005 T1:renderFrontmatter 依固定順序輸出且 mkDocument 可被 parseDocument 讀回
+  -- entity-graph-core/F005 T1:renderFrontmatter 依固定順序輸出且 newDocument 可被 parseDocument 讀回
   describe "renderFrontmatter" $ do
     it "欄位順序等於 frontmatterFieldOrder" $
       map (T.takeWhile (/= ':')) (T.lines (renderFrontmatter emptyishMeta LF))
@@ -211,7 +217,18 @@ spec = do
       ls `shouldContain` ["tags: []"]
       ls `shouldContain` ["aliases: []"]
       ls `shouldContain` ["links: []"]
+      ls `shouldContain` ["timeline: null"]
       length ls `shouldBe` length frontmatterFieldOrder
+
+    -- T2:type / vault / revision 是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
+    it "type / vault / revision 是純量文字,不是 newtype 的 derived Show" $ do
+      let ls = T.lines (renderFrontmatter fullMeta LF)
+      ls `shouldContain` ["type: character"]
+      ls `shouldContain` ["vault: liftgame"]
+      ls `shouldContain` ["revision: 3"]
+      ls `shouldSatisfy` all (not . T.isInfixOf "TypeKey")
+      ls `shouldSatisfy` all (not . T.isInfixOf "VaultId")
+      ls `shouldSatisfy` all (not . T.isInfixOf "Revision ")
 
     it "含冒號 / 前導 - / 數字樣貌的 title 被正確加引號" $ do
       let titleLine m = case [l | l <- T.lines (renderFrontmatter m LF), "title:" `T.isPrefixOf` l] of
@@ -228,29 +245,40 @@ spec = do
     it "不含 --- 界線(那兩行由 renderDocument 重生)" $
       renderFrontmatter fullMeta LF `shouldSatisfy` (not . T.isInfixOf "---")
 
-  describe "mkDocument" $ do
-    it "產出的文字經 parseDocument → parseEntityFile 後 Meta 與輸入相等" $ do
-      let out = renderDocument (mkDocument LF fullMeta "# 琳達\n\n角色主體的概述。\n")
-          (ef, _) = entityFileOf (docOf "characters/琳達.md" out)
-      entMeta (efMain ef) `shouldBe` fullMeta
-      entBody (efMain ef) `shouldBe` "# 琳達\n\n角色主體的概述。"
+  -- T7:newDocument(取代 mkDocument)
+  describe "newDocument" $ do
+    it "產出的文字經 parseDocument → toTopic 後 Meta 與輸入相等" $ do
+      let out = renderDocument (newDocument TopicDoc fullMeta "# 琳達\n\n角色主體的概述。\n")
+          (main, _) = topicOf (docOf out)
+      entMeta main `shouldBe` fullMeta
+      entBody main `shouldBe` "# 琳達\n\n角色主體的概述。"
 
     it "空值的 Meta 也 round-trip 得回來" $ do
-      let out = renderDocument (mkDocument LF emptyishMeta "正文。\n")
-          (ef, _) = entityFileOf (docOf "x.md" out)
-      entMeta (efMain ef) `shouldBe` emptyishMeta
+      let out = renderDocument (newDocument TopicDoc emptyishMeta "正文。\n")
+          (main, _) = topicOf (docOf out)
+      entMeta main `shouldBe` emptyishMeta
 
-    it "型別是 level 時 documentKind 判為 Level" $ do
-      let out = renderDocument (mkDocument LF fullMeta {metaType = "level"} "")
-      documentKind (docOf "levels/x.md" out) `shouldBe` Right DocLevel
+    it "newDocument PackDoc meta body 建出的 Document,docKind 立即回 PackDoc" $
+      docKind (newDocument PackDoc fullMeta "") `shouldBe` PackDoc
+
+    it "renderDocument 產物能再被 parseDocument 解回、docKind 仍是 PackDoc" $ do
+      let out = renderDocument (newDocument PackDoc fullMeta {metaType = typeOf "asset-pack"} "")
+      docKind (docOf out) `shouldBe` PackDoc
+
+    it "型別是 level 時 docKind 判為 LevelDoc" $ do
+      let out = renderDocument (newDocument LevelDoc fullMeta {metaType = typeOf "level"} "")
+      docKind (docOf out) `shouldBe` LevelDoc
 
     it "三段切片依 renderDocument 的重組規則填" $ do
-      let d = mkDocument LF emptyishMeta "正文。\n"
+      let d = newDocument TopicDoc emptyishMeta "正文。\n"
       docSections d `shouldBe` []
       renderDocument d `shouldSatisfy` T.isPrefixOf "---\nid: ent-7f3a\n"
       renderDocument d `shouldSatisfy` T.isSuffixOf "---\n\n正文。\n"
 
-    it "CRLF 版整份都是 CRLF" $ do
-      let out = renderDocument (mkDocument CRLF emptyishMeta "正文。\r\n")
-      out `shouldSatisfy` (not . T.isInfixOf "\n\n")
-      renderDocument (docOf "x.md" out) `shouldBe` out
+    it "一律固定用 LF,不受呼叫端影響(design.md:CRLF 情境走 updateFrontmatter/updateSection 編輯路徑)" $ do
+      let d = newDocument TopicDoc emptyishMeta "正文。\n"
+      docEnding d `shouldBe` LF
+      renderDocument d `shouldSatisfy` T.isInfixOf "id: ent-7f3a\n"
+      -- roundtrip 穩定
+      let out = renderDocument d
+      renderDocument (docOf out) `shouldBe` out

@@ -1,4 +1,4 @@
--- | T2:逐行切塊。
+-- | T2:逐行切塊;T5:'parseDocument' 只回報第一個錯誤(graph-core/F004)。
 module Aapms.Md.LexerSpec (spec) where
 
 import Data.Text (Text)
@@ -6,13 +6,6 @@ import qualified Data.Text as T
 import Aapms.Md
 import Aapms.Md.Fixtures
 import Test.Hspec
-
--- | 取出解析錯誤的種類,方便斷言。
-kindsOf :: Either [MdError] a -> [MdErrorKind]
-kindsOf = either (map errKind) (const [])
-
-linesOf :: Either [MdError] a -> [Int]
-linesOf = either (map errLine) (const [])
 
 metaRawOf :: Section -> Text
 metaRawOf s = maybe (error "這一節應該要有 meta 區塊") id (secMetaRaw s)
@@ -52,7 +45,7 @@ fencedBodyMd =
 spec :: Spec
 spec = do
   describe "琳達範例檔的切塊" $ do
-    let doc = docOf "characters/琳達.md" lindaMd
+    let doc = docOf lindaMd
 
     it "frontmatter 切出 11 行內容(不含兩條 --- 界線)" $
       length (filter (not . T.null) (T.lines (docFrontRaw doc))) `shouldBe` 11
@@ -77,16 +70,16 @@ spec = do
 
   describe "frontmatter 的錯誤" $ do
     it "沒有 frontmatter → NoFrontmatter" $
-      kindsOf (parseDocument "x.md" "# 標題\n內文\n") `shouldBe` [NoFrontmatter]
+      leftKind (parseDocument "# 標題\n內文\n") `shouldBe` Just NoFrontmatter
 
     it "空檔 → NoFrontmatter" $
-      kindsOf (parseDocument "x.md" "") `shouldBe` [NoFrontmatter]
+      leftKind (parseDocument "") `shouldBe` Just NoFrontmatter
 
     it "只有開頭 --- → UnterminatedFrontmatter" $
-      kindsOf (parseDocument "x.md" "---\nid: ent-0001\n") `shouldBe` [UnterminatedFrontmatter]
+      leftKind (parseDocument "---\nid: ent-0001\n") `shouldBe` Just UnterminatedFrontmatter
 
-    it "frontmatter 層級的錯誤只回一筆,行號為 1" $
-      linesOf (parseDocument "x.md" "---\nid: ent-0001\n") `shouldBe` [1]
+    it "frontmatter 層級的錯誤行號為 1" $
+      leftLine (parseDocument "---\nid: ent-0001\n") `shouldBe` Just 1
 
   describe "meta 區塊" $ do
     it "```meta 未關閉 → UnterminatedMetaBlock,行號指向開頭 fence" $ do
@@ -106,11 +99,11 @@ spec = do
               , "```meta"
               , "summary: 沒有結尾"
               ]
-      kindsOf (parseDocument "x.md" src) `shouldBe` [UnterminatedMetaBlock]
-      linesOf (parseDocument "x.md" src) `shouldBe` [12]
+      leftKind (parseDocument src) `shouldBe` Just UnterminatedMetaBlock
+      leftLine (parseDocument src) `shouldBe` Just 12
 
     it "正文中的程式碼區塊不被誤判為 meta 區塊,也不被誤判為標題" $ do
-      let doc = docOf "x.md" fencedBodyMd
+      let doc = docOf fencedBodyMd
       map secTitle (docSections doc) `shouldBe` ["一節"]
       let raw = metaRawOf (firstSection doc)
       raw `shouldSatisfy` T.isInfixOf "真的 meta 區塊"
@@ -133,4 +126,51 @@ spec = do
               , ""
               , "只有正文"
               ]
-      map secMetaRaw (docSections (docOf "x.md" src)) `shouldBe` [Nothing]
+      map secMetaRaw (docSections (docOf src)) `shouldBe` [Nothing]
+
+  -- T5:兩個獨立的結構錯誤時,parseDocument 只回報行號最小的一個
+  describe "單一錯誤契約" $ do
+    it "標題缺 {#id}(第 5 行)與重複 id(第 10 行)同時存在時,回報第 5 行的那個" $ do
+      let src =
+            T.unlines
+              [ "---" --  1
+              , "id: ent-0001" --  2
+              , "vault: liftgame" --  3
+              , "type: lore" --  4
+              , "title: T" --  5(frontmatter 尚未結束,行號只是註記用)
+              , "created: 2026-08-16"
+              , "updated: 2026-08-16"
+              , "---" --  8
+              , "" --  9
+              , "## 一 {#ent-000a}" -- 10
+              , "" -- 11
+              , "```meta" -- 12
+              , "summary: 一" -- 13
+              , "```" -- 14
+              , "" -- 15
+              , "## 二" -- 16(缺 {#id})
+              , "" -- 17
+              , "```meta" -- 18
+              , "summary: 二" -- 19
+              , "```" -- 20
+              , "" -- 21
+              , "## 三 {#ent-000a}" -- 22(與第一節重複 id,晚於缺 id 的第 16 行)
+              , "" -- 23
+              , "```meta" -- 24
+              , "summary: 三" -- 25
+              , "```" -- 26
+              ]
+      leftKind (parseDocument src) `shouldBe` Just (HeadingWithoutId "二")
+      leftLine (parseDocument src) `shouldBe` Just 16
+
+    it "沒有 frontmatter 時只回一筆,不產生次生錯誤" $
+      leftKind (parseDocument "## 一 {#ent-000a}\n\n```meta\n壞: [\n```\n")
+        `shouldBe` Just NoFrontmatter
+
+    it "frontmatter 的 YAML 壞掉時只回一筆" $ do
+      let src = T.unlines ["---", "id: ent-0001", "  壞掉的縮排: 值", "---", "", "## 一 {#ent-000a}"]
+      case parseDocument src of
+        Right _ -> expectationFailure "應該失敗"
+        Left e -> case errKind e of
+          FrontmatterYaml _ -> pure ()
+          other -> expectationFailure ("預期 FrontmatterYaml,得到 " <> show other)

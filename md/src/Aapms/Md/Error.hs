@@ -1,36 +1,33 @@
--- | 解析錯誤與品質警告。
+-- | 解析錯誤(graph-core/F004)。
 --
--- 原則(entity-graph-core/F003):__任何無法還原資料的情況是錯誤,任何品質問題是警告__。
--- 作者手寫時漏一句 @summary@ 不該讓整個檔案讀不出來,但工具要講出來。
+-- 原則(entity-graph-core/F003,graph-core/F004 沿用):__任何無法還原資料的情況是錯誤__。
+-- 品質警告(缺 summary、自訂關聯……)已經整組移除('MdWarning' 通道退場,見
+-- F004 待確認假設 A1)——graph-core design.md 的讀取管線明寫警告的唯一來源是
+-- 'Aapms.Core.Meta.MetaWarning'(F002 的 @checkMeta@)。
 --
--- 所有錯誤都帶檔名與行號,'renderMdError' 輸出 @檔案:行號: 訊息@ ——
--- 與編譯器/linter 的慣例一致,編輯器可直接跳轉。
+-- 所有錯誤都帶行號,'renderMdError' 輸出 @第 <line> 行:<msg>@。graph-core/F004
+-- 拿掉了 __檔名__('errPath'):契約 D 的每一個函式簽名都沒有 'FilePath' 的
+-- 位置,@aapms-store@ 知道檔案路徑,要顯示給使用者時自己接上即可。
 module Aapms.Md.Error
   ( -- * 錯誤
     MdError (..)
   , MdErrorKind (..)
   , mdError
   , renderMdError
-
-    -- * 警告
-  , MdWarning (..)
-  , renderMdWarning
   ) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Aapms.Core.Id (Id, renderId)
-import Aapms.Core.Link (renderLinkKind, suggestCoreKind)
 
 data MdError = MdError
-  { errPath :: FilePath
-  , errLine :: Int
+  { errLine :: Int
   , errKind :: MdErrorKind
   }
   deriving stock (Show, Eq)
 
 -- | 建構子的參數順序常用形式。
-mdError :: FilePath -> Int -> MdErrorKind -> MdError
+mdError :: Int -> MdErrorKind -> MdError
 mdError = MdError
 
 data MdErrorKind
@@ -57,14 +54,17 @@ data MdErrorKind
     RootMismatch Id Id
   | -- | 檔案層缺必填欄位
     RequiredFieldMissing Text
+  | -- | 節缺少必填欄位(graph-core/F004:pack.md 的 @type@、licenses.md 的
+    -- @commercial@ / @attribution_required@)。節 id, 缺少的欄位名
+    SectionFieldMissing Id Text
   | -- | 編輯操作指定了不存在的節(entity-graph-core/F003 實作備註 5)
     UnknownSectionId Id
   deriving stock (Show, Eq)
 
--- | @檔案:行號: 訊息@。
+-- | @第 <line> 行:<訊息>@。
 renderMdError :: MdError -> Text
 renderMdError MdError {..} =
-  T.pack errPath <> ":" <> T.pack (show errLine) <> ": " <> renderMdErrorKind errKind
+  "第 " <> T.pack (show errLine) <> " 行:" <> renderMdErrorKind errKind
 
 renderMdErrorKind :: MdErrorKind -> Text
 renderMdErrorKind = \case
@@ -94,25 +94,10 @@ renderMdErrorKind = \case
     "frontmatter 宣告的 root " <> renderId declared <> " 與第一個節 " <> renderId actual <> " 不符"
   RequiredFieldMissing f ->
     "frontmatter 缺少必填欄位 " <> f
+  SectionFieldMissing i f ->
+    "節 " <> renderId i <> " 缺少必填欄位 " <> f
   UnknownSectionId i ->
     "找不到節 " <> renderId i
 
 hashes :: Int -> Text
 hashes n = T.replicate n "#"
-
-data MdWarning
-  = MissingSummary Id
-  | -- | 節 id, 自訂關聯字串
-    CustomLinkKind Id Text
-  | EmptyBody Id
-  deriving stock (Show, Eq)
-
-renderMdWarning :: MdWarning -> Text
-renderMdWarning = \case
-  MissingSummary i ->
-    "節 " <> renderId i <> " 沒有寫 summary;衝突偵測撈 context 會少一個主要輸入"
-  CustomLinkKind i k ->
-    "節 " <> renderId i <> " 使用了自訂關聯「" <> k <> "」,引擎不會對它做推論"
-      <> maybe "" (\c -> ";是否想寫 " <> renderLinkKind c <> "?") (suggestCoreKind k)
-  EmptyBody i ->
-    "節 " <> renderId i <> " 沒有正文"

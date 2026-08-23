@@ -14,19 +14,22 @@ module Aapms.Md.Render
 
     -- * 編輯
   , updateSection
-  , insertSection
+  , appendSection
   , removeSection
   , mkSection
-  , replaceSectionBody
+  , updateSectionBody
   , replacePreamble
   , renameSection
   , overrideAt
+
+    -- * 節的建構 DTO(graph-core/F004)
+  , NewSection (..)
 
     -- * 檔案層 frontmatter
   , updateFrontmatter
   , renderFrontmatter
   , frontmatterFieldOrder
-  , mkDocument
+  , newDocument
 
     -- * meta 區塊序列化
   , renderMetaBlock
@@ -38,7 +41,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (Day)
-import Aapms.Core.Id (Id, renderId, renderRef)
+import Aapms.Core.Id (Id, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (renderNodeKind)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta
@@ -49,7 +52,7 @@ import Aapms.Md.Lexer (lineTerm, metaBlockYaml, splitLinesKeep)
 import Aapms.Md.Yaml (decodeFrontmatter, decodeMeta)
 
 -- | 逐字重組。未經修改的 'Document' 保證
--- @renderDocument (parseDocument p t) == t@。
+-- @renderDocument (parseDocument t) == t@。
 renderDocument :: Document -> Text
 renderDocument Document {..} =
   "---" <> docFrontRaw <> "---" <> docPreamble <> T.concat (map renderSection docSections)
@@ -63,28 +66,31 @@ renderSection Section {..} = secHeadingRaw <> fromMaybe "" secMetaRaw <> secBody
 -- meta 區塊 YAML 壞掉(改不動不存在的東西)時回 'Left'。
 updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
 updateSection i f doc@Document {..} = case sectionById i doc of
-  Nothing -> Left (MdError docPath 1 (UnknownSectionId i))
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
   Just s -> do
-    old <- currentOverride docPath s
+    old <- currentOverride s
     let s' = s {secMetaRaw = Just (reserialize docEnding s (f old))}
     Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
 
 -- | 某一節目前的 @```meta@ 區塊解出來的覆寫;沒有區塊時是 'emptyOverride'。
 --
 -- 'updateSection' 內部已經做了同一件事,但呼叫端有時需要__先看過目前的值再
--- 決定要不要改__('Aapms.Store.Write.removeEntityLink' 一筆都沒命中時要
+-- 決定要不要改__(@Aapms.Store.Write.removeEntityLink@ 一筆都沒命中時要
 -- 中止而不是寫一份沒變的檔案)。把它公開出來,好過讓呼叫端自己去 decode
 -- 'secMetaRaw' ——那等於把 meta 區塊的解讀規則複製一份出去。
+--
+-- 沿用既有實作,不在契約 D 的逐字清單裡(F004 待確認假設 A5):
+-- @aapms-store@ 的 @Edit.hs@ 依賴它先看目前值再決定要不要改。
 overrideAt :: Id -> Document -> Either MdError MetaOverride
-overrideAt i doc@Document {..} = case sectionById i doc of
-  Nothing -> Left (MdError docPath 1 (UnknownSectionId i))
-  Just s -> currentOverride docPath s
+overrideAt i doc = case sectionById i doc of
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
+  Just s -> currentOverride s
 
-currentOverride :: FilePath -> Section -> Either MdError MetaOverride
-currentOverride path Section {..} = case secMetaRaw of
+currentOverride :: Section -> Either MdError MetaOverride
+currentOverride Section {..} = case secMetaRaw of
   Nothing -> Right emptyOverride
   Just raw -> case decodeMeta (snd (metaBlockYaml raw)) of
-    Left msg -> Left (MdError path secLine (SectionYaml secId msg))
+    Left msg -> Left (mdError secLine (SectionYaml secId msg))
     Right ov -> Right ov
 
 -- | 保留原本 meta 區塊之前的空行,只換掉 fence 之間的內容。
@@ -100,22 +106,38 @@ reserialize le Section {..} ov = lead <> trimTail (renderMetaBlock ov le)
       _ -> t
     isBlank l = T.all isSpace l
 
--- | 在指定節之後插入新節;@Nothing@ 表示插在最前面(preamble 之後)。
+-- | 新節的建構 DTO(graph-core/F004,取代舊 @insertSection@ 直接吃 'Section')。
 --
--- 「之後」是__該節本身__之後,不是它整棵子樹之後——Level 檔要插進子樹尾端時
--- 指定該子樹的最後一節即可。
-insertSection :: Maybe Id -> Section -> Document -> Either MdError Document
-insertSection mAfter new doc@Document {..} = case mAfter of
-  Nothing -> Right doc {docPreamble = blankTail docEnding docPreamble, docSections = new : docSections}
-  Just i
-    | not (any ((== i) . secId) docSections) -> Left (MdError docPath 1 (UnknownSectionId i))
-    | otherwise -> Right doc {docSections = go docSections}
-    where
-      go [] = []
-      go (s : rest)
-        | secId s == i = pad s : new : rest
-        | otherwise = s : go rest
-      pad s = s {secBodyRaw = blankTail docEnding (secBodyRaw s)}
+-- @nsId@ 由呼叫端(@aapms-store@ 的 @allocateId@)先配好再傳進來——本套件不
+-- 知道怎麼配 id。
+data NewSection = NewSection
+  { nsId :: Id
+  , nsLevel :: Int
+  , nsTitle :: Text
+  , nsMeta :: MetaOverride
+  , nsBody :: Text
+  }
+  deriving stock (Show, Eq)
+
+-- | 在文件__最後一節之後__插入新節,沒有任何節時插在最前面(preamble 之後)。
+-- 「1,693 節的文件末尾追加一節,前面 1,693 節位元組不變」——這是
+-- @insertSection@(entity-graph-core/F003)邏輯的一個特化,語意窄化成固定
+-- 「插在最後」以直接對上這條驗收標準。
+appendSection :: NewSection -> Document -> Either MdError Document
+appendSection NewSection {..} doc@Document {..}
+  | any ((== nsId) . secId) docSections = Left (mdError 1 (DuplicateSectionId nsId))
+  | otherwise = case docSections of
+      [] -> Right doc {docPreamble = blankTail docEnding docPreamble, docSections = [newSec]}
+      _ -> Right doc {docSections = go docSections}
+  where
+    newSec = mkSection docEnding nsLevel nsId nsTitle (Just nsMeta) nsBody
+
+    -- docSections 非空:接在最後一節之後,前面每一節原封不動
+    go [] = []
+    go [s] = [pad s, newSec]
+    go (s : rest) = s : go rest
+
+    pad s = s {secBodyRaw = blankTail docEnding (secBodyRaw s)}
 
 -- | 插入點之前那一段的結尾:__補到剛好隔一個空行__。
 --
@@ -138,16 +160,17 @@ blankTail le t
 -- | 刪除節,連同它的 meta 區塊與正文。
 removeSection :: Id -> Document -> Either MdError Document
 removeSection i doc@Document {..}
-  | not (any ((== i) . secId) docSections) = Left (MdError docPath 1 (UnknownSectionId i))
+  | not (any ((== i) . secId) docSections) = Left (mdError 1 (UnknownSectionId i))
   | otherwise = Right doc {docSections = filter ((/= i) . secId) docSections}
 
 -- | 只換某一節的正文:'secHeadingRaw' 與 'secMetaRaw' __一個位元組都不動__。
+-- 改名自 @replaceSectionBody@(entity-graph-core/F005 T3),邏輯不變。
 --
 -- 新正文不以行尾結尾、而它後面還有下一節時自動補一個——否則下一節的標題會
--- 黏在正文最後一行後面(與 'insertSection' 的 @padNL@ 同一個坑)。
-replaceSectionBody :: Id -> Text -> Document -> Either MdError Document
-replaceSectionBody i body doc@Document {..}
-  | not (any ((== i) . secId) docSections) = Left (MdError docPath 1 (UnknownSectionId i))
+-- 黏在正文最後一行後面(與 'appendSection' 的 'blankTail' 同一個坑)。
+updateSectionBody :: Id -> Text -> Document -> Either MdError Document
+updateSectionBody i body doc@Document {..}
+  | not (any ((== i) . secId) docSections) = Left (mdError 1 (UnknownSectionId i))
   | otherwise = Right doc {docSections = go docSections}
   where
     go [] = []
@@ -170,7 +193,7 @@ replaceSectionBody i body doc@Document {..}
 -- 只重寫標題那一行,'secMetaRaw' 與 'secBodyRaw' 一個位元組都不動。
 renameSection :: Id -> Text -> Document -> Either MdError Document
 renameSection i title doc@Document {..} = case sectionById i doc of
-  Nothing -> Left (MdError docPath 1 (UnknownSectionId i))
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
   Just s ->
     let s' =
           s
@@ -204,7 +227,7 @@ replacePreamble body doc@Document {..} = doc {docPreamble = lead <> nl <> core}
       | null docSections = stripped <> nl
       | otherwise = stripped <> nl <> nl
 
--- | 由零件組一個新的 'Section'(給 'insertSection' 用)。
+-- | 由零件組一個新的 'Section'(給 'appendSection' 用)。
 --
 -- @secLine@ 填 0:新節還不屬於任何檔案,行號要等重新 parse 才有意義。
 mkSection :: LineEnding -> Int -> Id -> Text -> Maybe MetaOverride -> Text -> Section
@@ -238,7 +261,7 @@ mkSection le level i title mOv body =
 -- frontmatter 的 YAML 壞掉時回 'Left' 且__不覆蓋__:改不動一份讀不懂的東西。
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
 updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
-  Left msg -> Left (MdError docPath 1 (FrontmatterYaml msg))
+  Left msg -> Left (mdError 1 (FrontmatterYaml msg))
   Right meta -> Right doc {docFrontRaw = lead <> renderFrontmatter (f meta) docEnding}
   where
     -- docFrontRaw 由開頭界線的行尾字元起算,那個字元要原樣留著
@@ -246,26 +269,30 @@ updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
       (l : _) | not (T.null (lineTerm l)) -> lineTerm l
       _ -> renderLineEnding docEnding
 
--- | 從零產生一份只有 frontmatter 與正文、還沒有任何節的 'Document'。
+-- | 從零產生一份只有 frontmatter 與正文、還沒有任何節的 'Document'
+-- (graph-core/F004,取代 @mkDocument@)。
 --
 -- 三段切片依 'renderDocument' 的重組規則填:@---@ 兩條界線由它重生,
 -- 因此 'docFrontRaw' 以行尾開頭、'docPreamble' 以「界線的行尾 + 一行空白」開頭。
 --
--- Entity 檔與 Level 檔共用同一個函式:Level 的 @root@ 由標題階層推導
--- (ADR-009)不寫進 frontmatter,兩者的差別只在 'metaType' 是不是 @level@。
+-- 一律固定用 'LF'——呼叫端要 'CRLF' 的情境(沿用既有檔案的風格)本來就是走
+-- 'updateFrontmatter' \/ 'updateSection' 之類的編輯路徑,不會呼叫本函式。
 --
--- @docPath@ 留空——新文件還不屬於任何檔案,要用於錯誤訊息時由呼叫端填。
-mkDocument :: LineEnding -> Meta -> Text -> Document
-mkDocument le meta body =
+-- @kind@ 存進 'Document' 的內部快取欄位,讓新建的 'Document' 呼叫
+-- 'Aapms.Md.Document.docKind' 立刻拿得到正確答案,不必先 'renderDocument' 再
+-- 'Aapms.Md.Parse.parseDocument' 繞一圈。
+newDocument :: DocKind -> Meta -> Text -> Document
+newDocument kind meta body =
   Document
-    { docPath = ""
-    , docFrontRaw = nl <> renderFrontmatter meta le
+    { docFrontRaw = nl <> renderFrontmatter meta le
     , docPreamble = nl <> nl <> body
     , docSections = []
     , docEnding = le
     , docFinalNL = not (T.null (lineTerm body))
+    , docKind = kind
     }
   where
+    le = LF
     nl = renderLineEnding le
 
 -- | frontmatter 的固定欄位順序。
@@ -297,6 +324,10 @@ frontmatterFieldOrder =
 -- 說明有哪些欄位。純量的引號規則與 @links@ \/ @timeline@ 的風格與
 -- 'renderMetaBlock' 共用同一組輔助函式,不複製一份——複製了兩處的跳脫規則
 -- 遲早分歧。
+--
+-- @type@ \/ @vault@ \/ @revision@(graph-core/F004)先解開 newtype
+-- ('TypeKey' \/ 'VaultId' \/ 'Revision') 再交給 'scalar' \/ 'show'——直接對
+-- newtype 呼叫衍生的 'Show' 會印成 @TypeKey "asset-pack"@,不是純量文字。
 renderFrontmatter :: Meta -> LineEnding -> Text
 renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFieldOrder]
   where
@@ -305,16 +336,20 @@ renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFie
     field :: Text -> [Text]
     field = \case
       "id" -> ["id: " <> renderId (metaId m)]
-      "type" -> ["type: " <> scalar (metaType m)]
-      "vault" -> ["vault: " <> scalar (metaVault m)]
+      "type" -> let TypeKey t = metaType m in ["type: " <> scalar t]
+      "vault" -> let VaultId t = metaVault m in ["vault: " <> scalar t]
       "title" -> ["title: " <> scalar (metaTitle m)]
       "summary" -> ["summary: " <> scalar (metaSummary m)]
       "tags" -> ["tags: " <> flowList (metaTags m)]
       "status" -> ["status: " <> renderStatus (metaStatus m)]
-      "timeline" -> [timelineLine (metaTimeline m)]
+      "timeline" ->
+        [ case metaTimeline m of
+            Nothing -> "timeline: null"
+            Just tl -> timelineLine tl
+        ]
       "aliases" -> ["aliases: " <> flowList (metaAliases m)]
       "source" -> ["source: " <> scalar (renderSource (metaSource m))]
-      "revision" -> ["revision: " <> T.pack (show (metaRevision m))]
+      "revision" -> let Revision r = metaRevision m in ["revision: " <> T.pack (show r)]
       "created" -> ["created: " <> T.pack (show (metaCreated m))]
       "updated" -> ["updated: " <> T.pack (show (metaUpdated m))]
       "links" -> case metaLinks m of
@@ -343,8 +378,9 @@ metaFieldOrder =
   , "links"
   ]
 
--- | 序列化成完整的 @```meta@ 區塊(含前後 fence 行與結尾行尾)。
--- 值為 @Nothing@ 的欄位不輸出。
+-- | @timeline@ 兩欄皆 'Nothing' 表示「未寫」的 sentinel 值,只有全域 'Just'
+-- 才是「這一欄有值」。序列化成完整的 @```meta@ 區塊(含前後 fence 行與結尾
+-- 行尾)。值為 'Nothing' 的欄位不輸出。
 renderMetaBlock :: MetaOverride -> LineEnding -> Text
 renderMetaBlock MetaOverride {..} le =
   "```meta" <> nl <> T.concat [l <> nl | l <- concatMap field metaFieldOrder] <> "```" <> nl
@@ -354,15 +390,15 @@ renderMetaBlock MetaOverride {..} le =
     field :: Text -> [Text]
     field = \case
       "kind" -> ["kind: " <> renderNodeKind k | Just k <- [moKind]]
-      "type" -> ["type: " <> scalar t | Just t <- [moType]]
-      "vault" -> ["vault: " <> scalar t | Just t <- [moVault]]
+      "type" -> ["type: " <> scalar t | Just (TypeKey t) <- [moType]]
+      "vault" -> ["vault: " <> scalar t | Just (VaultId t) <- [moVault]]
       "summary" -> ["summary: " <> scalar t | Just t <- [moSummary]]
       "tags" -> ["tags: " <> flowList ts | Just ts <- [moTags]]
       "status" -> ["status: " <> renderStatus s | Just s <- [moStatus]]
       "timeline" -> [timelineLine tl | Just tl <- [moTimeline]]
       "aliases" -> ["aliases: " <> flowList as | Just as <- [moAliases]]
       "source" -> ["source: " <> scalar (renderSource s) | Just s <- [moSource]]
-      "revision" -> ["revision: " <> T.pack (show r) | Just r <- [moRevision]]
+      "revision" -> ["revision: " <> T.pack (show r) | Just (Revision r) <- [moRevision]]
       "created" -> ["created: " <> day d | Just d <- [moCreated]]
       "updated" -> ["updated: " <> day d | Just d <- [moUpdated]]
       "links" -> linkLines

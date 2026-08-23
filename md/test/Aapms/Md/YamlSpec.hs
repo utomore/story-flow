@@ -33,7 +33,7 @@ spec :: Spec
 spec = do
   describe "meta 區塊的解析" $ do
     it "type / summary / tags 逐欄正確" $ do
-      moType decoded `shouldBe` Just "character-fragment"
+      moType decoded `shouldBe` Just (typeOf "character-fragment")
       moSummary decoded `shouldBe` Just "十四歲時因塔主徵召失去雙親,自此對議會抱持敵意"
       moTags decoded `shouldBe` Just ["動機", "仇恨"]
 
@@ -61,10 +61,10 @@ spec = do
       fmap moSummary (decodeMeta "summary: 一句話\n未來才有的欄位: 值\n")
         `shouldBe` Right (Just "一句話")
 
-    it "target 為 shared-lore:ent-1234 時解析為跨 Vault Ref" $ do
-      let ov = decodeMeta "links:\n  - {kind: references, target: shared-lore:ent-1234}\n"
+    it "target 為 vlt-a0c4e1f8:ent-1234 時解析為跨 Vault Ref(vault 段落須為合法 vlt- id,ADR-014)" $ do
+      let ov = decodeMeta "links:\n  - {kind: references, target: vlt-a0c4e1f8:ent-1234}\n"
       fmap (fmap (map linkTarget) . moLinks) ov
-        `shouldBe` Right (Just [Ref (Just "shared-lore") (idOf "ent-1234")])
+        `shouldBe` Right (Just [Ref (Just (vaultOf "vlt-a0c4e1f8")) (idOf "ent-1234")])
 
     it "未知的關聯字串成為 Custom,不報錯" $
       fmap (fmap (map linkKind) . moLinks) (decodeMeta "links:\n  - {kind: 師承於, target: ent-0001}\n")
@@ -83,18 +83,18 @@ spec = do
 
   describe "frontmatter 的解析" $ do
     it "琳達檔案層的 Meta 逐欄正確" $ do
-      let doc = docOf "characters/琳達.md" lindaMd
+      let doc = docOf lindaMd
       case decodeFrontmatter (docFrontRaw doc) of
         Left e -> expectationFailure (T.unpack e)
         Right m -> do
           metaId m `shouldBe` idOf "ent-7f3a"
-          metaVault m `shouldBe` "liftgame"
-          metaType m `shouldBe` "character"
+          metaVault m `shouldBe` vaultOf "liftgame"
+          metaType m `shouldBe` typeOf "character"
           metaTitle m `shouldBe` "琳達"
           metaStatus m `shouldBe` Canon
           metaAliases m `shouldBe` ["小琳", "第七織手"]
           metaSource m `shouldBe` Human
-          metaRevision m `shouldBe` 3
+          metaRevision m `shouldBe` Revision 3
           metaCreated m `shouldBe` day0
           metaUpdated m `shouldBe` day0
 
@@ -122,10 +122,11 @@ spec = do
               , "  壞掉的縮排: 值"
               , "```"
               ]
-          doc = docOf "x.md" src
-      case parseEntityFile doc of
+          doc = docOf src
+      case toTopic doc of
         Right _ -> expectationFailure "這份檔案的 meta 區塊應該解析失敗"
-        Left [MdError _ _ (SectionYaml i msg)] -> do
-          i `shouldBe` idOf "ent-000a"
-          msg `shouldSatisfy` (not . T.null)
-        Left es -> expectationFailure ("預期一筆 SectionYaml,實得:" <> show es)
+        Left e -> case errKind e of
+          SectionYaml i msg -> do
+            i `shouldBe` idOf "ent-000a"
+            msg `shouldSatisfy` (not . T.null)
+          other -> expectationFailure ("預期一筆 SectionYaml,實得:" <> show other)

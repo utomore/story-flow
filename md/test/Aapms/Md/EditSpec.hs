@@ -1,4 +1,6 @@
--- | T9:單節編輯與 meta 區塊序列化。
+-- | T9(舊編號,沿用):單節編輯與 meta 區塊序列化;T2:'renderFrontmatter' /
+-- 'renderMetaBlock' 印出的純量文字不是 newtype 的 derived 'Show'
+-- (graph-core/F004)。
 --
 -- 這一組測試守住 ADR-010 的第二條保證:__改一個欄位,git diff 只顯示那一行__。
 module Aapms.Md.EditSpec (spec) where
@@ -14,7 +16,7 @@ import Aapms.Md.Fixtures
 import Test.Hspec
 
 doc :: Document
-doc = docOf "characters/琳達.md" lindaMd
+doc = docOf lindaMd
 
 -- | 兩份文字逐行比對,回傳不同的 (原行, 新行)。
 diffLines :: Text -> Text -> [(Text, Text)]
@@ -29,15 +31,15 @@ fullOverride :: MetaOverride
 fullOverride =
   emptyOverride
     { moKind = Just KCamera
-    , moType = Just "character-fragment"
-    , moVault = Just "liftgame"
+    , moType = Just (typeOf "character-fragment")
+    , moVault = Just (vaultOf "liftgame")
     , moSummary = Just "一句話"
     , moTags = Just ["外觀", "主線"]
     , moStatus = Just Canon
     , moTimeline = Just (Timeline (Just "崩塌前") Nothing)
     , moAliases = Just ["小琳"]
     , moSource = Just (Agent "claude-code")
-    , moRevision = Just 3
+    , moRevision = Just (Revision 3)
     , moCreated = Just day0
     , moUpdated = Just day0
     , moLinks = Just [Link PartOf (refOf "ent-7f3a") (Just "屬於琳達")]
@@ -57,16 +59,16 @@ spec = do
       length (T.lines edited) `shouldBe` length (T.lines lindaMd)
 
     it "改完仍可再被 parseDocument 解析,且新值讀得回來" $ do
-      let (ef, _) = entityFileOf (docOf "characters/琳達.md" edited)
-      metaSummary (entMetaOf ef 0) `shouldBe` "銀灰短髮,左眼下方有新的織紋刺青"
+      let (_, frags) = topicOf (docOf edited)
+      metaSummary (entMeta (frags !! 0)) `shouldBe` "銀灰短髮,左眼下方有新的織紋刺青"
 
     it "另一節完全沒被碰到" $ do
-      let (ef, _) = entityFileOf (docOf "characters/琳達.md" edited)
-      metaSummary (entMetaOf ef 1) `shouldBe` "十四歲時因塔主徵召失去雙親,自此對議會抱持敵意"
+      let (_, frags) = topicOf (docOf edited)
+      metaSummary (entMeta (frags !! 1)) `shouldBe` "十四歲時因塔主徵召失去雙親,自此對議會抱持敵意"
 
     it "操作不存在的 id 回 Left" $
       case updateSection (idOf "ent-9999") id doc of
-        Left (MdError _ _ k) -> k `shouldBe` UnknownSectionId (idOf "ent-9999")
+        Left e -> errKind e `shouldBe` UnknownSectionId (idOf "ent-9999")
         Right _ -> expectationFailure "應該回 Left"
 
     it "原本沒有 meta 區塊的節會補上一個" $ do
@@ -85,7 +87,7 @@ spec = do
               , ""
               , "正文。"
               ]
-          d = docOf "x.md" src
+          d = docOf src
       case updateSection (idOf "ent-000a") (\ov -> ov {moSummary = Just "補上的總結"}) d of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
@@ -93,7 +95,7 @@ spec = do
           out `shouldSatisfy` T.isInfixOf "```meta\nsummary: 補上的總結\n```"
           out `shouldSatisfy` T.isInfixOf "正文。"
           -- 補完之後仍是合法文件
-          fmap (length . docSections) (parseDocument "x.md" out) `shouldBe` Right 1
+          fmap (length . docSections) (parseDocument out) `shouldBe` Right 1
 
   describe "renderMetaBlock" $ do
     it "欄位順序固定,且與 system.md 的範例一致" $
@@ -116,6 +118,16 @@ spec = do
                    , "```"
                    ]
 
+    -- T2:type / vault / revision 印出的是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
+    it "type / vault / revision 是純量文字,不是 newtype 的 derived Show" $ do
+      let ls = T.lines (renderMetaBlock fullOverride LF)
+      ls `shouldContain` ["type: character-fragment"]
+      ls `shouldContain` ["vault: liftgame"]
+      ls `shouldContain` ["revision: 3"]
+      ls `shouldSatisfy` all (not . T.isInfixOf "TypeKey")
+      ls `shouldSatisfy` all (not . T.isInfixOf "VaultId")
+      ls `shouldSatisfy` all (not . T.isInfixOf "Revision ")
+
     it "值為 Nothing 的欄位不輸出" $
       T.lines (renderMetaBlock (emptyOverride {moSummary = Just "只有這一欄"}) LF)
         `shouldBe` ["```meta", "summary: 只有這一欄", "```"]
@@ -130,7 +142,7 @@ spec = do
     it "需要跳脫的字串才加引號" $ do
       T.lines (renderMetaBlock (emptyOverride {moSummary = Just "冒號: 後面有空白"}) LF)
         `shouldBe` ["```meta", "summary: \"冒號: 後面有空白\"", "```"]
-      T.lines (renderMetaBlock (emptyOverride {moType = Just "true"}) LF)
+      T.lines (renderMetaBlock (emptyOverride {moType = Just (typeOf "true")}) LF)
         `shouldBe` ["```meta", "type: \"true\"", "```"]
 
     it "流式上下文裡的逗號會被引號保護" $
@@ -141,54 +153,6 @@ spec = do
       decodeMeta (T.unlines (init (drop 1 (T.lines (renderMetaBlock fullOverride LF)))))
         `shouldBe` Right fullOverride
 
-  describe "insertSection" $ do
-    it "在指定節之後插入,插完可再被 parseDocument 解析" $ do
-      let new =
-            mkSection
-              LF
-              2
-              (idOf "ent-7f3d")
-              "與議會的距離"
-              (Just (emptyOverride {moSummary = Just "她不信議會"}))
-              "\n她從不主動靠近議會。\n"
-      case insertSection (Just (idOf "ent-7f3b")) new doc of
-        Left e -> expectationFailure (T.unpack (renderMdError e))
-        Right d' -> do
-          let out = renderDocument d'
-          map secTitle (docSections (docOf "x.md" out))
-            `shouldBe` ["外貌", "與議會的距離", "與塔主的過節"]
-          out `shouldSatisfy` T.isInfixOf "## 與議會的距離 {#ent-7f3d}"
-
-    it "Nothing 表示插在最前面" $ do
-      let new = mkSection LF 2 (idOf "ent-7f3d") "序" Nothing "\n開頭。\n"
-      case insertSection Nothing new doc of
-        Left e -> expectationFailure (T.unpack (renderMdError e))
-        Right d' ->
-          map secTitle (docSections (docOf "x.md" (renderDocument d')))
-            `shouldBe` ["序", "外貌", "與塔主的過節"]
-
-    it "指定不存在的 id 回 Left" $ do
-      let new = mkSection LF 2 (idOf "ent-7f3d") "序" Nothing ""
-      case insertSection (Just (idOf "ent-9999")) new doc of
-        Left (MdError _ _ k) -> k `shouldBe` UnknownSectionId (idOf "ent-9999")
-        Right _ -> expectationFailure "應該回 Left"
-
-    it "原檔尾沒有換行時會補到剛好隔一個空行,新節不會黏在最後一行後面" $ do
-      let d = docOf "x.md" (dropFinalNL lindaMd)
-          new = mkSection LF 2 (idOf "ent-7f3d") "尾聲" Nothing ""
-      case insertSection (Just (idOf "ent-7f3c")) new d of
-        Left e -> expectationFailure (T.unpack (renderMdError e))
-        Right d' ->
-          renderDocument d' `shouldSatisfy` T.isInfixOf "那年她十四歲……\n\n## 尾聲 {#ent-7f3d}"
-
-    it "原檔尾已經有一個空行時不再多補" $ do
-      let d = docOf "x.md" (lindaMd <> "\n")
-          new = mkSection LF 2 (idOf "ent-7f3d") "尾聲" Nothing ""
-      case insertSection (Just (idOf "ent-7f3c")) new d of
-        Left e -> expectationFailure (T.unpack (renderMdError e))
-        Right d' ->
-          renderDocument d' `shouldSatisfy` T.isInfixOf "那年她十四歲……\n\n## 尾聲 {#ent-7f3d}"
-
   describe "removeSection" $ do
     it "移除節連同它的 meta 區塊與正文" $
       case removeSection (idOf "ent-7f3b") doc of
@@ -198,11 +162,11 @@ spec = do
           out `shouldSatisfy` (not . T.isInfixOf "外貌")
           out `shouldSatisfy` (not . T.isInfixOf "銀灰短髮")
           out `shouldSatisfy` T.isInfixOf "與塔主的過節"
-          map secTitle (docSections (docOf "x.md" out)) `shouldBe` ["與塔主的過節"]
+          map secTitle (docSections (docOf out)) `shouldBe` ["與塔主的過節"]
 
     it "移除不存在的 id 回 Left" $
       case removeSection (idOf "ent-9999") doc of
-        Left (MdError _ _ k) -> k `shouldBe` UnknownSectionId (idOf "ent-9999")
+        Left e -> errKind e `shouldBe` UnknownSectionId (idOf "ent-9999")
         Right _ -> expectationFailure "應該回 Left"
 
   -- entity-graph-core/F005 T2:updateFrontmatter 改標題後節層位元組不變
@@ -227,37 +191,40 @@ spec = do
       case updateFrontmatter (\m -> m {metaTitle = "小琳"}) doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
-          let (ef, _) = entityFileOf (docOf "characters/琳達.md" (renderDocument d'))
-          metaTitle (entMeta (efMain ef)) `shouldBe` "小琳"
+          let (main, frags) = topicOf (docOf (renderDocument d'))
+          metaTitle (entMeta main) `shouldBe` "小琳"
           -- 片段的 title 來自節標題,不受檔案層改名影響
-          map (metaTitle . entMeta) (efFragments ef) `shouldBe` ["外貌", "與塔主的過節"]
+          map (metaTitle . entMeta) frags `shouldBe` ["外貌", "與塔主的過節"]
 
     it "id 也改得動 —— 這正是 MetaOverride 表達不了、非用 Meta -> Meta 不可的欄位" $
       case updateFrontmatter (\m -> m {metaId = idOf "ent-abcd"}) doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> renderDocument d' `shouldSatisfy` T.isInfixOf "id: ent-abcd"
 
-    it "frontmatter YAML 壞掉時回 Left,且 renderDocument 結果與原檔相同" $ do
-      let broken = T.replace "summary: 埃提亞" "summary: [沒收尾的流式序列" lindaMd
-          d = docOf "x.md" broken
+    -- graph-core/F004:parseDocument 本身就要求 frontmatter YAML 可解(算 docKind
+    -- 用),所以壞掉的 frontmatter 走不到 docOf 這一關——這裡直接用記錄更新造一份
+    -- docFrontRaw 壞掉的 Document,單獨測 updateFrontmatter 自己的 Left 分支
+    it "frontmatter YAML 壞掉時回 Left,不覆寫、d 本身不受影響(純函式)" $ do
+      let brokenFront = T.replace "summary: 埃提亞" "summary: [沒收尾的流式序列" (docFrontRaw doc)
+          d = doc {docFrontRaw = brokenFront}
       case updateFrontmatter (\m -> m {metaTitle = "不該被寫進去"}) d of
         Right _ -> expectationFailure "YAML 壞掉時應該回 Left"
-        Left (MdError _ _ k) -> case k of
-          FrontmatterYaml _ -> renderDocument d `shouldBe` broken
+        Left e -> case errKind e of
+          FrontmatterYaml _ -> docFrontRaw d `shouldBe` brokenFront
           other -> expectationFailure ("預期 FrontmatterYaml,得到 " <> show other)
 
     it "CRLF 檔改寫後仍是 CRLF" $
-      case updateFrontmatter (\m -> m {metaTitle = "小琳"}) (docOf "x.md" (crlf lindaMd)) of
+      case updateFrontmatter (\m -> m {metaTitle = "小琳"}) (docOf (crlf lindaMd)) of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
           let out = renderDocument d'
           out `shouldSatisfy` T.isInfixOf "---\r\nid: ent-7f3a\r\n"
           out `shouldSatisfy` T.isInfixOf "title: 小琳\r\n"
 
-  -- entity-graph-core/F005 T3:replaceSectionBody 只動目標節的正文
-  describe "replaceSectionBody" $ do
+  -- entity-graph-core/F005 T3、graph-core/F004 T13:updateSectionBody(改名自 replaceSectionBody)
+  describe "updateSectionBody" $ do
     it "目標節的 secBodyRaw 換掉,secHeadingRaw 與 secMetaRaw 逐字不變" $
-      case replaceSectionBody (idOf "ent-7f3b") "\n改過的正文。\n" doc of
+      case updateSectionBody (idOf "ent-7f3b") "\n改過的正文。\n" doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
           let old = docSections doc !! 0
@@ -269,44 +236,44 @@ spec = do
           docSections d' !! 1 `shouldBe` docSections doc !! 1
 
     it "新正文不以行尾結尾時自動補,下一節的標題不黏連" $
-      case replaceSectionBody (idOf "ent-7f3b") "\n沒有結尾換行" doc of
+      case updateSectionBody (idOf "ent-7f3b") "\n沒有結尾換行" doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
           renderDocument d' `shouldSatisfy` T.isInfixOf "沒有結尾換行\n## 與塔主的過節"
-          map secTitle (docSections (docOf "x.md" (renderDocument d')))
+          map secTitle (docSections (docOf (renderDocument d')))
             `shouldBe` ["外貌", "與塔主的過節"]
 
     it "最後一節不補 —— 檔尾本來就可以沒有換行" $
-      case replaceSectionBody (idOf "ent-7f3c") "\n檔尾" doc of
+      case updateSectionBody (idOf "ent-7f3c") "\n檔尾" doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> renderDocument d' `shouldSatisfy` T.isSuffixOf "檔尾"
 
     it "改完仍可再被解析,entBody 是新值" $
-      case replaceSectionBody (idOf "ent-7f3b") "\n她把頭髮剪短了。\n" doc of
+      case updateSectionBody (idOf "ent-7f3b") "\n她把頭髮剪短了。\n" doc of
         Left e -> expectationFailure (T.unpack (renderMdError e))
         Right d' -> do
-          let (ef, _) = entityFileOf (docOf "x.md" (renderDocument d'))
-          map entBody (efFragments ef)
+          let (_, frags) = topicOf (docOf (renderDocument d'))
+          map entBody frags
             `shouldBe` ["她把頭髮剪短了。", "那年她十四歲……"]
 
     it "指定不存在的 id 回 Left" $
-      case replaceSectionBody (idOf "ent-9999") "x" doc of
-        Left (MdError _ _ k) -> k `shouldBe` UnknownSectionId (idOf "ent-9999")
+      case updateSectionBody (idOf "ent-9999") "x" doc of
+        Left e -> errKind e `shouldBe` UnknownSectionId (idOf "ent-9999")
         Right _ -> expectationFailure "應該回 Left"
 
   describe "replacePreamble" $ do
     it "只換主體正文,節一個位元組都沒動" $ do
       let d' = replacePreamble "# 琳達\n\n改過的概述。" doc
       docSections d' `shouldBe` docSections doc
-      let (ef, _) = entityFileOf (docOf "x.md" (renderDocument d'))
-      entBody (efMain ef) `shouldBe` "# 琳達\n\n改過的概述。"
+      let (main, _) = topicOf (docOf (renderDocument d'))
+      entBody main `shouldBe` "# 琳達\n\n改過的概述。"
 
     it "結尾界線的行尾被保留 —— 否則 --- 會與正文黏成一行" $ do
       let out = renderDocument (replacePreamble "新的概述。" doc)
       out `shouldSatisfy` T.isInfixOf "updated: 2026-08-16\n---\n\n新的概述。\n\n## 外貌"
 
     it "後面沒有節時不補多餘的空行" $ do
-      let d = docOf "x.md" (T.unlines ["---", "id: ent-0001", "vault: v", "type: lore", "title: T", "created: 2026-08-16", "updated: 2026-08-16", "---", "", "舊的。"])
+      let d = docOf (T.unlines ["---", "id: ent-0001", "vault: v", "type: lore", "title: T", "created: 2026-08-16", "updated: 2026-08-16", "---", "", "舊的。"])
       renderDocument (replacePreamble "新的。" d) `shouldSatisfy` T.isSuffixOf "---\n\n新的。\n"
 
     it "空正文時 preamble 只剩界線的行尾與一行空白" $ do
@@ -314,12 +281,8 @@ spec = do
       out `shouldSatisfy` T.isInfixOf "---\n\n## 外貌 {#ent-7f3b}"
 
     it "CRLF 檔換完仍是 CRLF" $ do
-      let out = renderDocument (replacePreamble "新的概述。" (docOf "x.md" (crlf lindaMd)))
+      let out = renderDocument (replacePreamble "新的概述。" (docOf (crlf lindaMd)))
       out `shouldSatisfy` T.isInfixOf "---\r\n\r\n新的概述。\r\n\r\n## 外貌"
-
--- | 取第 n 個片段的 Meta。
-entMetaOf :: EntityFile -> Int -> Meta
-entMetaOf ef n = entMeta (efFragments ef !! n)
 
 -- | 一節的三段原始切片。用來斷言「這一節一個位元組都沒動」。
 slices :: Section -> (Text, Maybe Text, Text)

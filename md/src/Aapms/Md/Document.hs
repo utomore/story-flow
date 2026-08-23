@@ -15,11 +15,22 @@
 --
 -- 這樣連「frontmatter 界線用 LF、正文用 CRLF」的混合檔,位元組相等也是
 -- __結構上保證__的,而不是靠 'docEnding' 猜。代價是界線行只接受剛好 @---@。
+--
+-- == 檔案身分('DocKind',graph-core/F004)
+--
+-- 四種文件(主題檔 / Level 檔 / pack.md / licenses.md)共用同一個 'Document'
+-- 型別,身分由檔案層 frontmatter 的 @type@ 判別('Aapms.Md.Parse.parseDocument'
+-- 在解析階段就算好存進 'docKind',見該函式的說明)。'Document' 因此__不再含__
+-- @docPath@——graph-core/F004 契約 D 的所有函式都沒有 'FilePath' 的位置,
+-- 檔名由呼叫端('aapms-store')自行接上。
 module Aapms.Md.Document
   ( -- * 行尾
     LineEnding (..)
   , renderLineEnding
   , detectLineEnding
+
+    -- * 檔案身分
+  , DocKind (..)
 
     -- * 文件
   , Document (..)
@@ -51,10 +62,14 @@ detectLineEnding t
     crlf = T.count "\r\n" t
     lf = T.count "\n" t - crlf
 
+-- | 檔案的四種身分,由檔案層 frontmatter 的 @type@ 判別
+-- ('Aapms.Md.Parse.parseDocument' 的說明):@level@ → 'LevelDoc'、
+-- @asset-pack@ → 'PackDoc'、@asset-license@ → 'LicenseDoc',其餘一律 'TopicDoc'。
+data DocKind = TopicDoc | LevelDoc | PackDoc | LicenseDoc
+  deriving stock (Show, Eq)
+
 data Document = Document
-  { docPath :: FilePath
-  -- ^ 僅用於錯誤訊息
-  , docFrontRaw :: Text
+  { docFrontRaw :: Text
   -- ^ frontmatter 原始內容(不含 @---@ 界線本身,含其行尾字元)
   , docPreamble :: Text
   -- ^ frontmatter 之後、第一個節標題之前的原始文字
@@ -62,7 +77,11 @@ data Document = Document
   , docEnding :: LineEnding
   -- ^ 全檔行尾風格,新產生的行沿用
   , docFinalNL :: Bool
-  -- ^ 原檔是否以換行結尾。'Aapms.Md.Render.insertSection' 在檔尾補節時需要
+  -- ^ 原檔是否以換行結尾。'Aapms.Md.Render.appendSection' 在檔尾補節時需要
+  , docKind :: DocKind
+  -- ^ 檔案身分的內部快取(graph-core/F004):由 'Aapms.Md.Parse.parseDocument'
+  -- 算好存入,不會、也不需要重新解析——這個欄位__就是__公開介面的
+  -- @docKind :: Document -> DocKind@ 存取器
   }
   deriving stock (Show, Eq)
 

@@ -5,8 +5,7 @@
 module Aapms.MdSpec (spec) where
 
 import Aapms.Core.Id (IdPrefix (PEnt), renderIdPrefix)
-import Aapms.Md (MdWarning (EmptyBody), renderMdWarning)
-import Aapms.Md.Fixtures (idOf)
+import Aapms.Md (MdError, mdError, renderMdError, MdErrorKind (NoFrontmatter))
 import System.IO
 import Test.Hspec
 
@@ -20,11 +19,11 @@ spec = do
     enc <- hGetEncoding stderr
     fmap show enc `shouldBe` Just "UTF-8"
 
-  -- entity-graph-core/F001 T4:依賴方向的驗證。entity-graph-core/F003 把佔位的 mdVersion 換成真正的
+  -- entity-graph-core/F001 T4:依賴方向的驗證。graph-core/F004 把佔位的 mdVersion 換成真正的
   -- 解析器,這裡改用實際的 md 函式與 core 函式各一,意義不變。
   it "可 import aapms-core,證明 md → core 的依賴方向已接上" $
     renderIdPrefix PEnt `shouldBe` "ent"
 
   it "md 的公開介面可由門面模組取得" $
-    renderMdWarning (EmptyBody (idOf "ent-0001"))
+    renderMdError (mdError 1 NoFrontmatter :: MdError)
       `shouldSatisfy` (not . null . show)

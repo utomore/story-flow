@@ -48,6 +48,7 @@ test-suite aapms-md-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Md.AppendSectionSpec
         Aapms.Md.DocumentSpec
         Aapms.Md.EditSpec
         Aapms.Md.ErrorSpec
@@ -57,6 +58,8 @@ test-suite aapms-md-test
         Aapms.Md.LexerSpec
         Aapms.Md.ParseEntitySpec
         Aapms.Md.ParseLevelSpec
+        Aapms.Md.ParseLicenseSpec
+        Aapms.Md.ParsePackSpec
         Aapms.Md.RenderSpec
         Aapms.Md.YamlSpec
         Aapms.MdSpec

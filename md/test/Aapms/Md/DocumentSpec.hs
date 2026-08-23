@@ -20,24 +20,24 @@ sampleSection =
 sampleDoc :: Document
 sampleDoc =
   Document
-    { docPath = "characters/琳達.md"
-    , docFrontRaw = "\nid: ent-7f3a\n"
+    { docFrontRaw = "\nid: ent-7f3a\n"
     , docPreamble = "\n\n# 琳達\n"
     , docSections = [sampleSection]
     , docEnding = LF
     , docFinalNL = True
+    , docKind = TopicDoc
     }
 
 spec :: Spec
 spec = do
   describe "Document / Section 欄位" $ do
     it "六個 Document 欄位都可建構且可取出" $ do
-      docPath sampleDoc `shouldBe` "characters/琳達.md"
       docFrontRaw sampleDoc `shouldBe` "\nid: ent-7f3a\n"
       docPreamble sampleDoc `shouldBe` "\n\n# 琳達\n"
       length (docSections sampleDoc) `shouldBe` 1
       docEnding sampleDoc `shouldBe` LF
       docFinalNL sampleDoc `shouldBe` True
+      docKind sampleDoc `shouldBe` TopicDoc
 
     it "七個 Section 欄位都可建構且可取出" $ do
       secLevel sampleSection `shouldBe` 2
@@ -56,7 +56,7 @@ spec = do
       sectionById (idOf "ent-9999") sampleDoc `shouldBe` Nothing
 
     it "對真實檔案的兩節都命中" $ do
-      let doc = docOf "characters/琳達.md" lindaMd
+      let doc = docOf lindaMd
       fmap secTitle (sectionById (idOf "ent-7f3c") doc) `shouldBe` Just "與塔主的過節"
 
   describe "detectLineEnding 取多數" $ do
@@ -77,3 +77,16 @@ spec = do
 
     it "沒有換行的單行檔取 LF" $
       detectLineEnding "只有一行" `shouldBe` LF
+
+  describe "docKind" $ do
+    it "主題檔(非保留 type)判為 TopicDoc" $
+      docKind (docOf lindaMd) `shouldBe` TopicDoc
+
+    it "type: level 判為 LevelDoc" $
+      docKind (docOf classroomMd) `shouldBe` LevelDoc
+
+    it "type: asset-pack 判為 PackDoc" $
+      docKind (docOf packMd) `shouldBe` PackDoc
+
+    it "type: asset-license 判為 LicenseDoc" $
+      docKind (docOf licensesMd) `shouldBe` LicenseDoc

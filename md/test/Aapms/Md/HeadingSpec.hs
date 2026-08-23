@@ -8,9 +8,6 @@ import Aapms.Md.Fixtures
 import Aapms.Md.Lexer (Heading (..), parseHeadingLine)
 import Test.Hspec
 
-kindsOf :: Either [MdError] a -> [MdErrorKind]
-kindsOf = either (map errKind) (const [])
-
 -- | 兩個節,第二個節的標題由呼叫端決定。
 twoSections :: Text -> Text -> Text
 twoSections first second =
@@ -64,29 +61,29 @@ spec = do
 
   describe "id 的錯誤" $ do
     it "第一個節之後的標題缺 {#id} → HeadingWithoutId" $
-      kindsOf (parseDocument "x.md" (twoSections "## 一 {#ent-000a}" "## 二"))
-        `shouldBe` [HeadingWithoutId "二"]
+      leftKind (parseDocument (twoSections "## 一 {#ent-000a}" "## 二"))
+        `shouldBe` Just (HeadingWithoutId "二")
 
     it "{#id} 不是合法 ID 時同樣是 HeadingWithoutId" $
-      kindsOf (parseDocument "x.md" (twoSections "## 一 {#ent-000a}" "## 二 {#zzz-0001}"))
-        `shouldBe` [HeadingWithoutId "二"]
+      leftKind (parseDocument (twoSections "## 一 {#ent-000a}" "## 二 {#zzz-0001}"))
+        `shouldBe` Just (HeadingWithoutId "二")
 
     it "同一份檔案兩節同 id → DuplicateSectionId" $
-      kindsOf (parseDocument "x.md" (twoSections "## 一 {#ent-000a}" "## 二 {#ent-000a}"))
-        `shouldBe` [DuplicateSectionId (idOf "ent-000a")]
+      leftKind (parseDocument (twoSections "## 一 {#ent-000a}" "## 二 {#ent-000a}"))
+        `shouldBe` Just (DuplicateSectionId (idOf "ent-000a"))
 
     it "Entity 檔的節用 {#nod-0001} → IdPrefixMismatch" $ do
-      let doc = docOf "x.md" (twoSections "## 一 {#ent-000a}" "## 二 {#nod-0001}")
-      kindsOf (parseEntityFile doc)
-        `shouldBe` [IdPrefixMismatch (idOf "nod-0001") "ent"]
+      let doc = docOf (twoSections "## 一 {#ent-000a}" "## 二 {#nod-0001}")
+      leftKind (toTopic doc)
+        `shouldBe` Just (IdPrefixMismatch (idOf "nod-0001") "ent")
 
     it "Level 檔的節用 {#ent-0001} → IdPrefixMismatch" $ do
       let bad = T.replace "{#nod-0003}" "{#ent-0003}" classroomMd
-          doc = docOf "levels/教室.md" bad
-      kindsOf (parseLevelFile doc)
-        `shouldBe` [IdPrefixMismatch (idOf "ent-0003") "nod"]
+          doc = docOf bad
+      leftKind (toLevel doc)
+        `shouldBe` Just (IdPrefixMismatch (idOf "ent-0003") "nod")
 
   describe "琳達範例檔的 id" $
     it "兩節的 id 分別是 ent-7f3b 與 ent-7f3c" $
-      map secId (docSections (docOf "characters/琳達.md" lindaMd))
+      map secId (docSections (docOf lindaMd))
         `shouldBe` [idOf "ent-7f3b", idOf "ent-7f3c"]

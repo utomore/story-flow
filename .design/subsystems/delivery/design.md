@@ -5,7 +5,7 @@ title: delivery
 description: 系統對人的四個入口:CLI、HTTP API、Web 前端與專案產出
 status: active
 created: 2026-08-19
-updated: 2026-08-22
+updated: 2026-08-23
 parent: system
 related-adr: [ADR-001]
 ---
@@ -146,7 +146,7 @@ assetdb-server --help | -h
 | `new-project` | 建立遊戲專案並放入選定素材 | delivery(`project`) |
 | `project sync` | 把符合條件的素材增量加入已登記的專案(預設預覽,`--confirm` 才寫入) | delivery(`project`) |
 | `note import` / `note list` / `link` | 知識建檔與關聯圖譜 | ingest |
-| `ai ping` / `classify` / `vision` / `suggest list` / `suggest confirm` / `suggest reject` / `apply` / `query` / `status` | 本機 LLM | ai-tagging |
+| `ai ping` / `classify` / `vision` / `suggest list` / `suggest import` / `suggest confirm` / `suggest reject` / `apply` / `query` / `status` | 本機 LLM 與外部建議匯入 | ai-tagging |
 
 三條跨指令的契約:
 

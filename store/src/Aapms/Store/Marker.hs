@@ -26,6 +26,7 @@ import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import Database.SQLite.Simple (Connection)
 import Aapms.Core.Id (IdPrefix (PVlt), VaultId (..), newId, parseId, renderId)
+import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Store.Atomic (atomicWriteText, readTextFile)
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Schema
@@ -61,12 +62,19 @@ data VaultMarker = VaultMarker
   }
   deriving stock (Show, Eq)
 
--- | 含 marker、根目錄、已開的索引連線。欄位全部匯出:graph-core\/F006 起的
--- 查詢\/寫入函式都要能直接拿 'vhConn' 操作索引、拿 'vhRoot' 組出檔案的絕對路徑。
+-- | 含 marker、根目錄、已開的索引連線、型別註冊表。欄位全部匯出:
+-- graph-core\/F006 起的查詢\/寫入函式都要能直接拿 'vhConn' 操作索引、拿
+-- 'vhRoot' 組出檔案的絕對路徑、拿 'vhRegistry' 跑 'Aapms.Core.Registry.checkMeta'。
+--
+-- 註冊表併入 'VaultHandle'(D9,取代原本「各索引函式加一個參數」的方案):
+-- @openVault@ 自己就要做過時刷新(graph-core\/F006),那條路徑同樣需要註冊表,
+-- 只補索引函式的參數會漏掉 @openVault@ 這一段;由 @openVault@ 收下也把「先載入
+-- 註冊表、再開 vault」這個順序用型別釘死。
 data VaultHandle = VaultHandle
   { vhMarker :: VaultMarker
   , vhRoot :: FilePath
   , vhConn :: Connection
+  , vhRegistry :: TypeRegistry
   }
 
 -- 讀 ---------------------------------------------------------------------------
@@ -167,15 +175,19 @@ quote t = "\"" <> T.concatMap esc t <> "\""
 -- 開關 ---------------------------------------------------------------------------
 
 -- | 讀取管線「openVault:讀 marker → 開索引 → schema 判斷」的完整落地。
-openVault :: FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
-openVault givenRoot = do
+--
+-- 型別註冊表由呼叫端先載入好再給(D9):本函式只是把它收進 'VaultHandle',
+-- 不在這裡載入——載入是 IO 且有自己的錯誤型別(契約 C 的 'RegistryError'),
+-- 屬 @aapms-types@\/呼叫端的責任,不是 @openVault@ 的責任。
+openVault :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
+openVault registry givenRoot = do
   root <- makeAbsolute givenRoot
   readMarker root >>= \case
     Left e -> pure (Left e)
     Right marker ->
       openIndexAt (indexDbPath root) (vmId marker) (vmKind marker) (vmName marker) >>= \case
         Left e -> pure (Left e)
-        Right (conn, issues) -> pure (Right (VaultHandle marker root conn, issues))
+        Right (conn, issues) -> pure (Right (VaultHandle marker root conn registry, issues))
 
 closeVault :: VaultHandle -> IO ()
 closeVault = closeIndex . vhConn

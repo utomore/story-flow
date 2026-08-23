@@ -7,8 +7,9 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple (Only (..), execute_, query_)
 import Aapms.Core.Id (VaultId (..))
+import Aapms.Core.Registry (listTypes)
 import Aapms.Store.Error (StoreError (..), renderStoreError)
-import Aapms.Store.Fixtures (orDie, withTempVault)
+import Aapms.Store.Fixtures (orDie, testRegistry, withTempVault)
 import Aapms.Store.Marker
 import Aapms.Store.Schema (VaultKind (..), indexTables)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
@@ -77,11 +78,11 @@ spec = describe "graph-core/F005 vault marker" $ do
       withTempVault $ \dir ->
         expectInvalidField dir "id = \"vlt-7f3b2a91\"\nkind = \"asset\"\nrefs = []\n" "name"
 
-  describe "openVault / closeVault" $
+  describe "openVault / closeVault" $ do
     it "對合法 marker 開起 handle,關閉後連線失效" $
       withTempVault $ \dir -> do
         marker <- orDie =<< initVaultAt dir StoryVault "liftgame"
-        (handle, _issues) <- orDie =<< openVault dir
+        (handle, _issues) <- orDie =<< openVault testRegistry dir
         vhMarker handle `shouldBe` marker
         vhRoot handle `shouldSatisfy` (\r -> not (null r))
 
@@ -91,6 +92,15 @@ spec = describe "graph-core/F005 vault marker" $ do
 
         closeVault handle
         execute_ (vhConn handle) "SELECT 1" `shouldThrow` anyException
+
+    -- D9:註冊表併入 VaultHandle,由呼叫端經 openVault 的第一個參數傳入,
+    -- 不是 openVault 自己載入的——這裡只驗證「原樣收下、原樣放進 vhRegistry」。
+    it "openVault 把呼叫端給的 TypeRegistry 原樣放進 vhRegistry(D9)" $
+      withTempVault $ \dir -> do
+        _ <- orDie =<< initVaultAt dir StoryVault "liftgame"
+        (handle, _issues) <- orDie =<< openVault testRegistry dir
+        listTypes (vhRegistry handle) `shouldBe` listTypes testRegistry
+        closeVault handle
 
   describe "沒有任何程式路徑探測或讀中樞註冊表(驗收標準 6)" $
     it "Marker.hs 原始碼不含探測相關字串" $ do

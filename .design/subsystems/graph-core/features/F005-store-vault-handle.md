@@ -55,14 +55,20 @@ Schema 三個(`aapms-store`)。
 
 ### 契約 E(部分,依契約卡指定)
 
+**2026-08-23 補述(D9,編排者已在 commit `5de2727` 改好 `design.md` 契約 E,以下同步):**
+`VaultHandle` 多帶一個型別註冊表欄位,`openVault` 改成先收 `TypeRegistry`。理由:F006 設計時
+發現 `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]` 在索引管線(含 `openVault` 自己的
+過時刷新)處處要用到註冊表,「各索引函式加參數」補不到 `openVault` 這條路徑,故改為「由
+`openVault` 收下、存進 `VaultHandle`」,把「先載入註冊表、再開 vault」的順序用型別釘死。
+
 ```haskell
 data VaultKind   = AssetVault | StoryVault
 data VaultMarker = VaultMarker { vmId :: VaultId, vmKind :: VaultKind, vmName :: Text, vmRefs :: [VaultId] }
-data VaultHandle                                              -- 含 marker、根目錄、索引連線
+data VaultHandle                                              -- 含 marker、根目錄、索引連線、型別註冊表
 
 readMarker  :: FilePath -> IO (Either StoreError VaultMarker)
 initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)
-openVault   :: FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
+openVault   :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
 closeVault  :: VaultHandle -> IO ()
 ```
 
@@ -273,17 +279,19 @@ data VaultMarker = VaultMarker
   }
   deriving stock (Show, Eq)
 
--- | 含 marker、根目錄、已開的索引連線。欄位全部匯出:#6 起的查詢/寫入函式都要能直接拿
--- vhConn 操作索引、拿 vhRoot 組出檔案的絕對路徑。
+-- | 含 marker、根目錄、已開的索引連線、型別註冊表(D9)。欄位全部匯出:#6 起的查詢/寫入
+-- 函式都要能直接拿 vhConn 操作索引、拿 vhRoot 組出檔案的絕對路徑、拿 vhRegistry 跑 checkMeta。
 data VaultHandle = VaultHandle
-  { vhMarker :: VaultMarker
-  , vhRoot   :: FilePath
-  , vhConn   :: Connection
+  { vhMarker   :: VaultMarker
+  , vhRoot     :: FilePath
+  , vhConn     :: Connection
+  , vhRegistry :: TypeRegistry
   }
 
 readMarker  :: FilePath -> IO (Either StoreError VaultMarker)
 initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)
-openVault   :: FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
+-- | D9:TypeRegistry 由呼叫端先載入好再給,openVault 只是收下存進 VaultHandle,不在這裡載入。
+openVault   :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))
 closeVault  :: VaultHandle -> IO ()
 
 markerDir   :: FilePath -> FilePath   -- root </> ".aapms"
@@ -374,6 +382,13 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
   不含 `Aapms.Store.Index`/`Write`/`Create`/`Query`/`Node`/`Edit`/`Row` 模組項與 `aapms-md`
   依賴項;②`Aapms.Store` 門面模組可實際 import 並呼叫到 `openVault`/`initVaultAt`(間接證明
   T6 的 re-export 生效) `dep: T6, T1`
+- [x] T13(2026-08-23 補做,D9 契約裁決):`Aapms.Store.Marker` 的 `VaultHandle` 加欄位
+  `vhRegistry :: TypeRegistry`,`openVault` 簽名改成 `TypeRegistry -> FilePath -> IO (...)`;
+  `readMarker`/`initVaultAt`/`closeVault` 不動。`store/aapms-store.cabal` 查證後**不需要新增
+  `build-depends`**——`TypeRegistry` 定義在 `Aapms.Core.Registry`(`aapms-core`),library 與
+  test-suite 本來就已經相依 `aapms-core`。測試新增 `Aapms.Store.Fixtures.testRegistry`
+  (`buildRegistry []` 建出的空註冊表,理由見「實作備註」),`MarkerSpec.hs`/`StoreSpec.hs`
+  呼叫 `openVault` 的地方改傳入 `testRegistry` `dep: T4, T6`
 
 ## 1-to-1 測試對照表
 
@@ -400,6 +415,7 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
 | T10 | (併入上方 T2,`ErrorSpec.hs` 是測試實際所在的檔案) | - |
 | T11 | test_spec_registration | `store/test/Spec.hs` 的 `describe`/import 清單含 `MarkerSpec`,不含已刪除的模組 |
 | T12 | test_cabal_excludes_out_of_scope_modules、test_facade_reexports | 見上方 T1、T6 |
+| T13 | test_openvault_threads_registry_into_handle | `openVault testRegistry dir` 開出的 `vhRegistry handle` 與傳入的 `testRegistry` 一致(`MarkerSpec.hs`「D9」條);`test_facade_reexports`(T12)與門面模組呼叫 `openVault` 的測試同步改傳 `testRegistry`,原本的斷言不變仍綠 |
 
 ## 待確認假設
 
@@ -453,3 +469,39 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
 - `Aapms.Store.Fixtures` 依 T7 瘦身後只剩 `withTempVault`/`orDie`/`idOf`/`refOf`;
   `MarkerSpec.hs`/`SchemaSpec.hs` 需要的臨時目錄與手寫 marker 檔改為各自在測試檔內用
   `System.Directory`/`ByteString` 組裝,對照舊 `VaultSpec.hs` 的手法(未新增回 Fixtures)
+- **更正(編排者查證,2026-08-23)**:上面第一輪回報把「移除 `aapms-md` 的
+  `build-depends`」寫成「綠燈的必要條件」(待確認假設 A1),編排者查證後確認**不是**——本
+  feature 留下的四個模組(`Marker`/`Atomic`/`Schema`/`Error`)沒有任何一個 import
+  `Aapms.Md.*`,未使用的 `build-depends` 不會讓建置失敗。結果(移除該依賴)本身仍然合理
+  (F006 需要 `aapms-md` 時會自己加回,契約卡也沒有要求 F005 保留它),但理由不成立;下一輪
+  (T13,D9)不再用「移除某依賴才能綠燈」這種推論,已改成先查證再動 cabal
+
+## D9(2026-08-23):`TypeRegistry` 併入 `VaultHandle`
+
+- **背景**:F006 設計時發現 `design.md` 內部矛盾——資料流管線與模組間公開介面都寫「索引時跑
+  `checkMeta` 產生警告」,但 `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]` 需要註冊表,
+  契約 E 的索引函式與 `VaultHandle` 都拿不到。開發者裁決:註冊表放進 `VaultHandle`,不是各函式
+  加參數(理由:`openVault` 自己的過時刷新路徑同樣要用到,只補索引函式會漏掉這一段;由
+  `openVault` 收下也把「先載入註冊表、再開 vault」的順序用型別釘死)。編排者已把 `design.md`
+  契約 E 改成這個形狀(commit `5de2727`),本 feature 的契約 E 引用段落與「新增的介面」一節已
+  同步更新
+- **改動範圍**:只有 `Aapms.Store.Marker`——`VaultHandle` 加 `vhRegistry :: TypeRegistry` 欄位,
+  `openVault` 簽名改成 `TypeRegistry -> FilePath -> IO (...)`。`readMarker`/`initVaultAt`/
+  `closeVault` 不動(`initVaultAt` 只寫 marker 與空索引,不需要註冊表;這與「明確不做」清單
+  一致,沒有新增業務邏輯,只是把已載入好的值存進 handle)
+- **`aapms-store.cabal` 查證結果:不需要新增 `build-depends`**。`TypeRegistry` 依 D7 定義在
+  `Aapms.Core.Registry`(`aapms-core`;`core/src/Aapms/Core/Registry.hs:24-27` 的匯出清單),
+  library 與 test-suite 原本就已相依 `aapms-core`,直接 `import Aapms.Core.Registry
+  (TypeRegistry)` 即可——不需要 `aapms-types`(那是 IO 載入層 `Aapms.Types.Loader`,見下一點)
+- **測試用的 `TypeRegistry` 怎麼來(選擇與理由)**:在 `Aapms.Store.Fixtures` 新增
+  `testRegistry :: TypeRegistry`,以 `Aapms.Core.Registry.buildRegistry []` 建一個空註冊表,
+  __不__引入 `aapms-types`、也__不__真的讀 `types/registry/*.toml`。理由與舊
+  `VaultSpec.hs`/`Fixtures.hs` 時代的 `testRegistry`(依賴 `EntityTypeSpec`/`validateRegistry`,
+  已在 D8 隨七個模組移出範圍)同一個:讀取層(`Aapms.Types.Loader`)的載入邏輯是
+  `aapms-types` 自己的測試範圍,落地層的測試不該因為別人改了一份 TOML、或多引入一個套件的
+  `data-files`/`Paths_*` 機制而變紅或變重。`buildRegistry []` 的驗證規則全部是「對已有宣告的
+  檢查」(重複鍵、保留鍵、未知欄位……),對空清單一定回 `Right`,`error` 分支只是防禦性寫法不會
+  真的被打到——這一點已在型別上被 T13 的測試（`openVault` 把傳入值原樣放進 `vhRegistry`）間接
+  驗證過(拿得到、放得回去)
+- **範圍界線**:`vhRegistry` 目前__只是存放__,`Marker` 模組沒有任何函式讀取或使用它——
+  `checkMeta` 的呼叫點在索引管線(F006),不在本 feature

@@ -7,6 +7,7 @@ import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple
 import Aapms.Core.Id (IdPrefix (PEnt), renderIdPrefix)
 import Aapms.Store (StoreError, VaultKind (StoryVault), initVaultAt, openVault, renderStoreError)
+import Aapms.Store.Fixtures (testRegistry)
 import System.Directory (doesFileExist)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -59,7 +60,7 @@ spec = do
         case initResult of
           Left e -> expectationFailure (T.unpack (renderStoreError (e :: StoreError)))
           Right _marker -> pure ()
-        openResult <- openVault dir
+        openResult <- openVault testRegistry dir
         case openResult of
           Right (_handle, _issues) -> pure ()
           Left e -> expectationFailure (T.unpack (renderStoreError (e :: StoreError)))

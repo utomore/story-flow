@@ -12,11 +12,13 @@ module Aapms.Store.Fixtures
   , orDie
   , idOf
   , refOf
+  , testRegistry
   ) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Aapms.Core.Id (Id, Ref, parseId, parseRef)
+import Aapms.Core.Registry (TypeRegistry, buildRegistry)
 import Aapms.Store.Error (StoreError, renderStoreError)
 import System.IO.Temp (withSystemTempDirectory)
 
@@ -27,6 +29,19 @@ withTempVault = withSystemTempDirectory "aapms-vault"
 -- | 測試裡的前置動作失敗時直接爆掉,並印出人看得懂的訊息。
 orDie :: Either StoreError a -> IO a
 orDie = either (fail . T.unpack . renderStoreError) pure
+
+-- | 空的型別註冊表,供 D9 之後 @openVault@ 的呼叫端測試使用。
+--
+-- 刻意__不__讀 @types\/registry\/@ 的實檔、也不引入 @aapms-types@:那是
+-- @aapms-types@\/@Aapms.Types.Loader@ 的測試範圍(IO 載入層),落地層的測試不
+-- 該因為別人改了一份 TOML 而變紅——與舊 @VaultSpec.hs@ 時代的 @testRegistry@
+-- 同一個理由(見 graph-core\/F005 實作備註)。'buildRegistry' 對空清單一定
+-- 成功('Aapms.Core.Registry' 的驗證規則全部是「對已有宣告的檢查」),因此
+-- 這裡的 'error' 分支不會真的被打到。
+testRegistry :: TypeRegistry
+testRegistry = case buildRegistry [] of
+  Right r -> r
+  Left es -> error ("空型別註冊表不該失敗:" <> show es)
 
 idOf :: Text -> Id
 idOf t = case parseId t of

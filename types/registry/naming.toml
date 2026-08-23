@@ -1,0 +1,9 @@
+# 命名文法(ADR-019)的詞彙表。kinds 是全系統合法的「kind」分段值(命名文法第一段),
+# 逐字取自 legacy/assetdb/core/src/AssetDB/Types.hs 的 KindPrefix(12 個)。
+# domains 刻意留空——ADR-019 明說 domain 不比對任何詞彙表,這裡不引入新的限制;
+# 保留欄位是為了與 kinds 對稱、供未來 CLI 提示使用。
+#
+# 這個檔案不是型別宣告,載入時(Aapms.Types.Loader)特別排除,不當成
+# TypeDecl 解析。
+kinds   = ["spr", "tex", "atlas", "ui", "fnt", "sfx", "bgm", "vo", "lvl", "shd", "src", "doc"]
+domains = []

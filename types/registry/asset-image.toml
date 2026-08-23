@@ -1,0 +1,14 @@
+# 圖片素材 —— sprite、tileset、圖集、UI 元件圖(legacy AssetKind.KImage)
+key    = "asset-image"
+name   = "圖片素材"
+family = "asset"
+
+allowed_links = []
+
+# 命名文法第一段的合法值,對應 legacy KindPrefix 的 kindPrefixes KImage
+name_kinds = ["spr", "tex", "atlas", "ui"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個素材的用途或畫面內容"

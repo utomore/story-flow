@@ -3,7 +3,7 @@ id: F002
 type: feature
 title: registry-family-and-naming
 description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙、命名文法改吃注入詞彙
-status: open
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F001]
@@ -475,38 +475,38 @@ domains = []
 
 ## TodoList
 
-- [ ] T1: `aapms-core`:新增 `Naming.hs`(`Segment` / `NameParts` / `NamingVocab` / `NameError` /
+- [x] T1: `aapms-core`:新增 `Naming.hs`(`Segment` / `NameParts` / `NamingVocab` / `NameError` /
   `mkLogicalName` / `parseLogicalName` / `validateLogicalName` / `renderParts` /
   `maxLogicalNameLength` / `indexSegment` / `isIndexShaped`)  `dep: F001`
-- [ ] T2: `aapms-core`:重寫 `Registry.hs`(`Family` / `FieldDecl` / `TypeDecl` / `TypeRegistry` /
+- [x] T2: `aapms-core`:重寫 `Registry.hs`(`Family` / `FieldDecl` / `TypeDecl` / `TypeRegistry` /
   `buildRegistry` / `lookupType` / `listTypes` / `lookupDir` / `reservedTypeKeys` 擴充 /
   `RegistryError`)  `dep: T1, F001`
-- [ ] T3: `aapms-core`:`Registry.hs` 加 `checkMeta`(`missingFields` / `badLinks` /
+- [x] T3: `aapms-core`:`Registry.hs` 加 `checkMeta`(`missingFields` / `badLinks` /
   `badNameKind`)  `dep: T2`
-- [ ] T4: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Naming`  `dep: T1`
-- [ ] T5: `aapms-types`:重寫 `Loader.hs`(`locateRegistry` / `loadRegistry` 新簽名、`naming.toml`
+- [x] T4: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Naming`  `dep: T1`
+- [x] T5: `aapms-types`:重寫 `Loader.hs`(`locateRegistry` / `loadRegistry` 新簽名、`naming.toml`
   排除與解析、`family` / `name_kinds` 解析、`topLevelKeys` 擴充、re-export)  `dep: T2, T3`
-- [ ] T6: `types/registry/naming.toml`(新):`kinds`(12 項)、`domains`(空)  `dep: -`
-- [ ] T7: `types/registry/asset-{image,audio,font,level,shader,doc,source,archive}.toml`
+- [x] T6: `types/registry/naming.toml`(新):`kinds`(12 項)、`domains`(空)  `dep: -`
+- [x] T7: `types/registry/asset-{image,audio,font,level,shader,doc,source,archive}.toml`
   (新,8 份):`family = "asset"`、對照表填 `name_kinds`(`asset-archive` 留空陣列)、
   `allowed_links = []`  `dep: -`
-- [ ] T8: `types/registry/{character-fragment,dialogue,item-fragment,lore-fragment,
+- [x] T8: `types/registry/{character-fragment,dialogue,item-fragment,lore-fragment,
   plot-fragment}.toml`(改,5 份):各加一行 `family = "entity"`  `dep: -`
-- [ ] T9: `core/test/Aapms/Core/NamingSpec.hs`(新):`Segment` 規則、位置式 `parseLogicalName`
+- [x] T9: `core/test/Aapms/Core/NamingSpec.hs`(新):`Segment` 規則、位置式 `parseLogicalName`
   演算法、`mkLogicalName` 的 `nvKinds` 檢查、`renderParts`  `dep: T1`
-- [ ] T10: `core/test/Aapms/Core/NamingCasesSpec.hs`(新):讀
+- [x] T10: `core/test/Aapms/Core/NamingCasesSpec.hs`(新):讀
   `contract/fixtures/naming-cases.txt`,逐行以新 `parseLogicalName` + `mkLogicalName`(用
   T6 的 `naming.toml` 詞彙)驗證 ok/bad  `dep: T1, T6, T9`
-- [ ] T11: `core/test/Aapms/Core/RegistrySpec.hs`(重寫):`family` 驗證、
+- [x] T11: `core/test/Aapms/Core/RegistrySpec.hs`(重寫):`family` 驗證、
   `reservedTypeKeys` 三項、`buildRegistry` 錯誤彙整(`RegistryErrors`)、`checkMeta`
   對 entity 與 asset 兩族  `dep: T2, T3`
-- [ ] T12: `types/test/Aapms/Types/LoaderSpec.hs`(重寫):新簽名、`naming.toml` 缺漏 /
+- [x] T12: `types/test/Aapms/Types/LoaderSpec.hs`(重寫):新簽名、`naming.toml` 缺漏 /
   格式錯誤、`family` 缺漏或非法值、13 份真實 TOML(5 entity + 8 asset)整批可載入、
   `locateRegistry` 的 `RegistryNotFound` 情境  `dep: T5, T6, T7, T8`
-- [ ] T13: `types/test/Aapms/Types/LoaderSpec.hs` 加一個整合測試:對
+- [x] T13: `types/test/Aapms/Types/LoaderSpec.hs` 加一個整合測試:對
   `types/registry/`(專案實檔目錄)跑 `loadRegistry`,驗收標準「含原五種 entity 族 + 八種
   asset 族 + `naming.toml`」直接對真實檔案斷言  `dep: T12`
-- [ ] T14: `core/test/Spec.hs` 與 `types/test/Spec.hs` 的 `describe` 清單補上新 Spec
+- [x] T14: `core/test/Spec.hs` 與 `types/test/Spec.hs` 的 `describe` 清單補上新 Spec
   `dep: T9, T10, T11, T13`
 
 ## 1-to-1 測試對照表
@@ -561,4 +561,26 @@ domains = []
 
 ## 實作備註
 
-(留空)
+- `core/test/Aapms/Core/CabalSpec.hs`(F001 產出)原本斷言 `exposed-modules` __不含__
+  `Aapms.Core.Registry`;本 feature 依契約 C 重建該模組是既定契約(design.md「內部模組劃分」
+  一開始就把「Registry 純驗證」與「Naming」都歸在 `aapms-core`),因此把這條斷言改成
+  `Registry` __應該__出現、只有 `Graph`(F001 的待確認假設 A2,確認不沿用)永久不該出現。
+  這不是重寫被取代的整份 Spec(D6 的範圍),只調整其中一個 `it` 的斷言方向,原檔案其餘測試
+  (禁用套件、Asset/Pack/License/AnyNode 存在)不動。
+- 8 份 asset TOML(T7)與 `naming.toml`(T6)都加了一個 `[[fields]] summary` 區塊 / 註解,
+  這在契約卡與驗收標準之外,是實作自主權範圍內的選擇(對照既有 5 份 entity TOML 都有
+  `summary` 必填欄位的慣例,讓 asset 族的型別宣告也一致地引導作者/AI 該寫什麼)。
+- `aapms-types` 的 `Aapms.Types.Loader` 用 `module Aapms.Core.Registry` /
+  `module Aapms.Core.Naming` 整段模組 re-export(而非逐一列名),對應 design.md 契約 C
+  「並 re-export 上一項的全部型別」的字面意思——呼叫端只需 `import Aapms.Types.Loader`
+  就拿到全部純型別、純驗證與載入 IO。
+- `loadRegistryFrom` 的第二個參數(`naming.toml` 路徑)由呼叫端明確給,`loadRegistry`
+  內部固定組成 `dir </> "naming.toml"`,符合契約卡「第二個 FilePath 是 naming.toml 的路徑」
+  的簽名描述。
+- `locateRegistry`/`locateRegistryWith` 的 `RegistryNotFound` 在「環境變數指向不存在目錄」
+  情境下只列出那一個查過的路徑(不繼續查執行檔旁與 data-files,沿用舊版「不往下退」的行為);
+  在「環境變數未設定、執行檔旁與 data-files 都沒有」情境下列出兩個查過的路徑。專案的
+  `cabal test` 環境裡 `data-files` 一定存在(`registry/*.toml` 隨套件裝好),因此「三層都真的
+  查無」的完整情境無法在不 mock `getDataDir` 的前提下於本機測試重現,`LoaderSpec` 對這條
+  只測了「環境變數指到不存在目錄」與「執行檔旁缺、退到 data-files 成功」兩段,合起來涵蓋
+  `RegistryNotFound` 的建構與訊息列路徑的行為,但沒有一個測試案例是三層同時失敗。

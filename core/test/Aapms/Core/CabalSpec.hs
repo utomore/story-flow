@@ -34,7 +34,7 @@ spec = describe "aapms-core.cabal —— graph-core/F001 契約卡驗收" $ do
     deps <- dependencyLines <$> readCabal
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden
 
-  it "exposed-modules 含 Asset / Pack / License / AnyNode" $ do
+  it "exposed-modules 含 Asset / Pack / License / AnyNode / Naming / Registry" $ do
     txt <- readCabal
     mapM_
       (\m -> (m, m `isInfixOf` txt) `shouldBe` (m, True))
@@ -42,13 +42,15 @@ spec = describe "aapms-core.cabal —— graph-core/F001 契約卡驗收" $ do
       , "Aapms.Core.Pack"
       , "Aapms.Core.License"
       , "Aapms.Core.AnyNode"
+      , "Aapms.Core.Naming"
+      , "Aapms.Core.Registry"
       ]
 
-  it "exposed-modules 不含已刪除的 Registry / Graph" $ do
+  -- graph-core/F002:'Aapms.Core.Registry' 由本 feature 重建(新形狀,見
+  -- design.md 契約 C),F001 當時的斷言已過時,只有 'Graph' 仍是永久刪除。
+  it "exposed-modules 不含已刪除的 Graph" $ do
     txt <- readCabal
-    mapM_
-      (\m -> (m, m `isInfixOf` txt) `shouldBe` (m, False))
-      ["Aapms.Core.Registry", "Aapms.Core.Graph"]
+    ("Aapms.Core.Graph", "Aapms.Core.Graph" `isInfixOf` txt) `shouldBe` ("Aapms.Core.Graph", False)
 
 -- | 以 UTF-8 讀,不走系統預設編碼:@.cabal@ 裡有繁中註解,Windows 的預設
 -- code page 會在讀到第一個中文字時直接丟 InvalidArgument。測試可能從專案

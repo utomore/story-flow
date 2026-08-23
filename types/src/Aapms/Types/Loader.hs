@@ -1,11 +1,17 @@
 -- | 型別註冊表的載入層。__本套件唯一的 IO 就是讀檔__。
 --
--- 掃描目錄下所有 @*.toml@,逐檔解析,彙整後交給 "Aapms.Core.Registry" 的純
--- 驗證函式。單檔解析失敗__不中斷__,繼續讀其餘檔案,最後一次回報全部問題——
--- 作者一次改好幾份型別宣告時,修一個跑一次太慢。
+-- 掃描目錄下所有 @*.toml@(排除 @naming.toml@,那份是命名文法詞彙表,不是型別
+-- 宣告),逐檔解析,彙整後交給 "Aapms.Core.Registry" 的純驗證函式。單檔解析
+-- 失敗__不中斷__,繼續讀其餘檔案,最後一次回報全部問題——作者一次改好幾份
+-- 型別宣告時,修一個跑一次太慢。
 --
 -- 所有錯誤訊息一律帶檔名。ADR-005 明說型別宣告寫錯只能在載入時檢查並報錯,
--- 而沒有檔名的錯誤訊息在 5 個以上型別檔時等於沒有。
+-- 而沒有檔名的錯誤訊息在多個型別檔時等於沒有。
+--
+-- __套件歸屬__(design.md 契約 C,2026-08-23 釐清):純型別('Family' /
+-- 'TypeDecl' / 'TypeRegistry' / 'NamingVocab' / 'lookupType' 與純驗證錯誤)定義
+-- 在 "Aapms.Core.Registry" / "Aapms.Core.Naming",本模組只有 'locateRegistry' \/
+-- 'loadRegistry' 兩個 IO 入口與 TOML 解析,並 re-export 上述型別。
 module Aapms.Types.Loader
   ( -- * 執行期定位
     RegistrySource (..)
@@ -18,10 +24,16 @@ module Aapms.Types.Loader
     -- * 載入
   , loadRegistry
   , loadRegistryFrom
-  , LoadError (..)
-  , renderLoadError
+
+    -- * re-export:aapms-core 的純型別與純驗證(契約 C)
+  , module Aapms.Core.Registry
+  , module Aapms.Core.Naming
   ) where
 
+import Aapms.Core.Link (LinkKind (Depicts), parseLinkKind)
+import Aapms.Core.Meta (TypeKey (..))
+import Aapms.Core.Naming
+import Aapms.Core.Registry
 import Control.Exception (IOException, try)
 import qualified Data.ByteString as BS
 import Data.Either (partitionEithers)
@@ -30,15 +42,7 @@ import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import Aapms.Core.Link (parseLinkKind)
-import Aapms.Core.Registry
-  ( EntityTypeSpec (..)
-  , FieldSpec (..)
-  , RegistryError
-  , TypeRegistry
-  , validateRegistry
-  )
-import System.Directory (doesDirectoryExist, listDirectory)
+import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
 import System.Environment (getExecutablePath, lookupEnv)
 import System.FilePath (takeDirectory, takeExtension, (</>))
 import qualified TOML
@@ -51,6 +55,9 @@ import Paths_aapms_types (getDataDir)
 --
 -- 常數放在這裡而不是各呼叫端各寫一份字串:錯字不會被編譯器擋下來,而
 -- 「設了環境變數卻沒生效」是最難查的那種設定問題。
+--
+-- __不改名__:P0 進度明寫 @STORYFLOW_*@ 環境變數是刻意留到 P3 由 @workspace@
+-- 依 ADR-017 改的執行期名稱,graph-core 不碰。
 registryEnvVar :: String
 registryEnvVar = "STORYFLOW_REGISTRY"
 
@@ -77,13 +84,12 @@ data RegistrySource
 --    cabal 安裝時,zip 解開的那份要用自己帶的註冊表
 -- 3. cabal 的 @data-files@(見 @aapms-types.cabal@)
 --
--- __找到的目錄必須真的存在__,否則往下一層找;三層都沒有就回 'Nothing'。回一個
--- 不存在的路徑只會讓錯誤延後到 'loadRegistry' 才爆,而且訊息會變成「目錄不存在」
--- 而不是「你的環境變數指錯地方」。
+-- __找到的目錄必須真的存在__,否則往下一層找;三層都沒有就回
+-- 'RegistryNotFound',列出查過的路徑。
 --
 -- __例外是第一層__:環境變數指向不存在的目錄時__不往下退__——那會讓一個打錯的
--- 環境變數靜默地載入另一份註冊表。
-locateRegistry :: IO (Maybe (RegistrySource, FilePath))
+-- 環境變數靜默地載入另一份註冊表;錯誤訊息只列出那一個查過的路徑。
+locateRegistry :: IO (Either RegistryError (FilePath, RegistrySource))
 locateRegistry = locateRegistryWith getExecutablePath
 
 -- | 「執行檔旁」那一層__會去查__的路徑,不管它存不存在。
@@ -97,85 +103,88 @@ registryBesideExecutable = (</> "registry") . takeDirectory <$> getExecutablePat
 --
 -- 測試要驗「執行檔旁」這一層,而測試執行檔旁邊不會真的有 @registry\/@;
 -- 把 'getExecutablePath' 換成指向臨時目錄的動作就測得到。
-locateRegistryWith :: IO FilePath -> IO (Maybe (RegistrySource, FilePath))
+locateRegistryWith :: IO FilePath -> IO (Either RegistryError (FilePath, RegistrySource))
 locateRegistryWith exePath =
   lookupEnv registryEnvVar >>= \case
-    Just p | not (null p) -> fmap (FromEnv,) <$> existing p
+    Just p | not (null p) -> do
+      found <- existing p
+      pure $ case found of
+        Just d -> Right (d, FromEnv)
+        Nothing -> Left (RegistryNotFound [p])
     _ -> do
-      beside <- existing . (</> "registry") . takeDirectory =<< exePath
-      case beside of
-        Just d -> pure (Just (BesideExecutable, d))
+      besideDir <- (</> "registry") . takeDirectory <$> exePath
+      besideFound <- existing besideDir
+      case besideFound of
+        Just d -> pure (Right (d, BesideExecutable))
         Nothing -> do
-          base <- try getDataDir :: IO (Either IOException FilePath)
-          fmap (FromDataDir,) <$> either (const (pure Nothing)) (existing . (</> "registry")) base
+          baseE <- try getDataDir :: IO (Either IOException FilePath)
+          case baseE of
+            Left e ->
+              pure (Left (RegistryNotFound [besideDir, "(cabal data-files 目錄無法定位:" <> show e <> ")"]))
+            Right base -> do
+              let dataDir = base </> "registry"
+              dataFound <- existing dataDir
+              pure $ case dataFound of
+                Just d -> Right (d, FromDataDir)
+                Nothing -> Left (RegistryNotFound [besideDir, dataDir])
   where
     existing p = do
       ok <- doesDirectoryExist p
       pure (if ok then Just p else Nothing)
 
--- | 'locateRegistry' 的投影:只要目錄,不問來源。簽名自 P1 起沒變。
+-- | 'locateRegistry' 的投影:只要目錄,不問來源、不問失敗原因。
 defaultRegistryDir :: IO (Maybe FilePath)
-defaultRegistryDir = fmap snd <$> locateRegistry
+defaultRegistryDir = either (const Nothing) (Just . fst) <$> locateRegistry
 
-data LoadError
-  = -- | 檔名 + 解析器訊息
-    TomlParseError FilePath Text
-  | -- | 檔名 + 缺少的必填鍵
-    MissingField FilePath Text
-  | -- | 檔名 + 欄位名 + 期望的型別
-    BadFieldType FilePath Text Text
-  | -- | 檔名 + 認不得的鍵。__不容忍未知鍵__:TOML 的表頭語意讓
-    -- @allowed_links@ 寫在 @[[fields]]@ 之後就會靜默變成 field 的子鍵,
-    -- 而 ADR-005 的立場是宣告寫錯要當場報錯,不是默默少一半設定
-    UnknownKey FilePath Text
-  | -- | 註冊表目錄不存在(空目錄是合法的,不存在不是)
-    RegistryDirMissing FilePath
-  | RegistryInvalid RegistryError
-  deriving stock (Show, Eq)
+-- 載入 ------------------------------------------------------------------------
 
-renderLoadError :: LoadError -> Text
-renderLoadError = \case
-  TomlParseError fp msg -> pack fp <> ": TOML 解析失敗 —— " <> msg
-  MissingField fp k -> pack fp <> ": 缺少必填鍵 `" <> k <> "`"
-  BadFieldType fp k want ->
-    pack fp <> ": 鍵 `" <> k <> "` 的型別不對,應為" <> want
-  UnknownKey fp k ->
-    pack fp
-      <> ": 認不得的鍵 `"
-      <> k
-      <> "`。注意 TOML 的表頭語意——寫在 [[fields]] 之後的鍵會變成該 field 的子鍵,"
-      <> "allowed_links 與 stages 必須放在所有 [[fields]] __之前__"
-  RegistryDirMissing fp -> pack fp <> ": 型別註冊表目錄不存在"
-  RegistryInvalid e -> "型別宣告不合法 —— " <> pack (show e)
-  where
-    pack = T.pack
+-- | 命名文法詞彙表的檔名。載入時特別排除,不當成型別宣告解析。
+namingFileName :: FilePath
+namingFileName = "naming.toml"
 
--- | 掃描目錄下所有 @*.toml@ 並建成註冊表。空目錄回傳空註冊表,不是錯誤。
-loadRegistry :: FilePath -> IO (Either [LoadError] TypeRegistry)
+-- | 掃描目錄下所有 @*.toml@(排除 'namingFileName')並建成註冊表 +
+-- 詞彙表。空目錄(扣掉 @naming.toml@ 之後沒有任何型別宣告)仍是合法的空
+-- 註冊表,不是錯誤;缺 @naming.toml@ 才是錯誤('NamingFileMissing')。
+loadRegistry :: FilePath -> IO (Either RegistryError (TypeRegistry, NamingVocab))
 loadRegistry dir = do
   ok <- doesDirectoryExist dir
   if not ok
-    then pure (Left [RegistryDirMissing dir])
+    then pure (Left (RegistryDirMissing dir))
     else do
       names <- listDirectory dir
-      let files = sort [dir </> n | n <- names, takeExtension n == ".toml"]
-      loadRegistryFrom files
+      let files = sort [dir </> n | n <- names, takeExtension n == ".toml", n /= namingFileName]
+      loadRegistryFrom files (dir </> namingFileName)
 
--- | 由明確的檔案清單載入。供測試與未來的「內建 + Vault 覆蓋」兩層註冊表使用。
-loadRegistryFrom :: [FilePath] -> IO (Either [LoadError] TypeRegistry)
-loadRegistryFrom files = do
-  results <- mapM readSpec files
-  let (errss, specs) = partitionEithers results
-      errs = concat errss
+-- | 由明確的型別宣告檔清單 + 明確的 @naming.toml@ 路徑載入。供測試指定臨時
+-- 目錄,與未來「內建 + Vault 覆蓋」兩層註冊表使用。
+loadRegistryFrom :: [FilePath] -> FilePath -> IO (Either RegistryError (TypeRegistry, NamingVocab))
+loadRegistryFrom typeFiles namingPath = do
+  declResults <- mapM readSpec typeFiles
+  namingExists <- doesFileExist namingPath
+  vocabResult <-
+    if namingExists
+      then readNamingToml namingPath
+      else pure (Left [NamingFileMissing namingPath])
+  let (declErrss, decls) = partitionEithers declResults
+      declErrs = concat declErrss
+      (vocabErrs, mVocab) = case vocabResult of
+        Left es -> (es, Nothing)
+        Right v -> ([], Just v)
+      parseErrs = declErrs ++ vocabErrs
   pure $
-    if not (null errs)
-      then Left errs
-      else case validateRegistry specs of
-        Left res -> Left (map RegistryInvalid res)
-        Right reg -> Right reg
+    if not (null parseErrs)
+      then Left (aggregate parseErrs)
+      else case (buildRegistry decls, mVocab) of
+        (Left es, _) -> Left (aggregate es)
+        (Right reg, Just vocab) -> Right (reg, vocab)
+        (Right _, Nothing) -> Left (aggregate [NamingFileMissing namingPath])
+
+aggregate :: [RegistryError] -> RegistryError
+aggregate [e] = e
+aggregate es = RegistryErrors es
 
 -- | 讀一個檔並解析成一份型別宣告。回傳該檔的__全部__問題。
-readSpec :: FilePath -> IO (Either [LoadError] EntityTypeSpec)
+readSpec :: FilePath -> IO (Either [RegistryError] TypeDecl)
 readSpec fp = do
   raw <- try (BS.readFile fp) :: IO (Either IOException BS.ByteString)
   pure $ case raw of
@@ -187,75 +196,129 @@ readSpec fp = do
         Right (TOML.Table tbl) -> parseSpec fp tbl
         Right _ -> Left [TomlParseError fp "檔案的最上層不是 TOML 表"]
 
-parseSpec :: FilePath -> TOML.Table -> Either [LoadError] EntityTypeSpec
+parseSpec :: FilePath -> TOML.Table -> Either [RegistryError] TypeDecl
 parseSpec fp tbl =
   case (errs, mspec) of
     ([], Just s) -> Right s
     _ -> Left errs
   where
-    ekey = reqString fp tbl "key"
+    ekey = TypeKey <$> reqString fp tbl "key"
     ename = reqString fp tbl "name"
+    efamily = reqString fp tbl "family" >>= parseFamilyField
     efields = optArray fp tbl "fields" >>= traverse (fieldSpec fp)
-    elinks = fmap (map parseLinkKind) (optStrings fp tbl "allowed_links")
+    elinksRaw = optStrings fp tbl "allowed_links"
     estages = optStrings fp tbl "stages"
-    edir = optMaybeString fp tbl "dir"
-    eowner = optMaybeString fp tbl "owner_type"
+    edir = fmap T.unpack <$> optMaybeString fp tbl "dir"
+    eowner = fmap TypeKey <$> optMaybeString fp tbl "owner_type"
+    enameKinds = optStrings fp tbl "name_kinds" >>= traverse (toSegment fp "name_kinds")
+
+    -- asset 族即使留空,載入器也會補上 depicts(契約卡)。
+    elinks = do
+      fam <- efamily
+      raw <- elinksRaw
+      let ks = map parseLinkKind raw
+      pure $ case fam of
+        FAsset | Depicts `notElem` ks -> ks ++ [Depicts]
+        _ -> ks
 
     unknownErrs =
       [UnknownKey fp k | k <- M.keys tbl, k `notElem` topLevelKeys]
+
+    parseFamilyField t = case parseFamily t of
+      Just f -> Right f
+      Nothing -> Left [UnknownFamily fp t]
 
     errs =
       concat
         [ lefts1 ekey
         , lefts1 ename
+        , lefts1 efamily
         , lefts1 efields
-        , lefts1 elinks
+        , lefts1 elinksRaw
         , lefts1 estages
         , lefts1 edir
         , lefts1 eowner
+        , lefts1 enameKinds
         , unknownErrs
         ]
 
     mspec =
-      EntityTypeSpec
+      TypeDecl
         <$> toMaybe ekey
         <*> toMaybe ename
-        <*> toMaybe efields
-        <*> toMaybe elinks
-        <*> toMaybe estages
+        <*> toMaybe efamily
         <*> toMaybe edir
         <*> toMaybe eowner
+        <*> toMaybe elinks
+        <*> toMaybe estages
+        <*> toMaybe efields
+        <*> toMaybe enameKinds
 
 -- | 型別宣告的最上層允許的鍵。
 --
--- @dir@ 與 @owner_type@ 是 entity-graph-core/F005 補的,__兩個都是選配__:既有的宣告在
--- 補上它們之前必須仍能載入。
+-- @family@ \/ @name_kinds@ 是 graph-core\/F002 新增的兩個鍵(前者必填,後者
+-- 只有 asset 族需要)。@dir@ \/ @owner_type@ 沿用既有的選配慣例。
 topLevelKeys :: [Text]
-topLevelKeys = ["key", "name", "fields", "allowed_links", "stages", "dir", "owner_type"]
+topLevelKeys =
+  ["key", "name", "family", "fields", "allowed_links", "stages", "dir", "owner_type", "name_kinds"]
 
 -- | 每個 @[[fields]]@ 表允許的鍵。
 fieldKeys :: [Text]
 fieldKeys = ["name", "required", "hint"]
 
-fieldSpec :: FilePath -> TOML.Value -> Either [LoadError] FieldSpec
+fieldSpec :: FilePath -> TOML.Value -> Either [RegistryError] FieldDecl
 fieldSpec fp v = case v of
   TOML.Table t ->
     let unknown = [UnknownKey fp ("fields[]." <> k) | k <- M.keys t, k `notElem` fieldKeys]
      in case (reqString fp t "fields[].name", optBool fp t "required", optString fp t "hint") of
           (Right n, Right r, Right h)
-            | null unknown -> Right (FieldSpec n r h)
+            | null unknown -> Right (FieldDecl n r h)
           (a, b, c) -> Left (concat [lefts1 a, lefts1 b, lefts1 c, unknown])
   _ -> Left [BadFieldType fp "fields[]" "表(每個 [[fields]] 都是一個表)"]
 
+-- naming.toml -----------------------------------------------------------------
+
+-- | 讀 @naming.toml@:@kinds@(強制詞彙,命名文法第一段的合法值)與
+-- @domains@(不強制,只為與 @kinds@ 對稱)兩個字串陣列。
+readNamingToml :: FilePath -> IO (Either [RegistryError] NamingVocab)
+readNamingToml fp = do
+  raw <- try (BS.readFile fp) :: IO (Either IOException BS.ByteString)
+  pure $ case raw of
+    Left e -> Left [TomlParseError fp (T.pack (show e))]
+    Right bytes -> case TE.decodeUtf8' bytes of
+      Left e -> Left [TomlParseError fp ("檔案不是合法的 UTF-8:" <> T.pack (show e))]
+      Right txt -> case TOML.decode txt of
+        Left e -> Left [TomlParseError fp (TOML.renderTOMLError e)]
+        Right (TOML.Table tbl) -> parseNaming fp tbl
+        Right _ -> Left [TomlParseError fp "檔案的最上層不是 TOML 表"]
+
+parseNaming :: FilePath -> TOML.Table -> Either [RegistryError] NamingVocab
+parseNaming fp tbl =
+  case (errs, mvocab) of
+    ([], Just v) -> Right v
+    _ -> Left errs
+  where
+    eKinds = optStrings fp tbl "kinds" >>= traverse (toSegment fp "kinds")
+    eDomains = optStrings fp tbl "domains" >>= traverse (toSegment fp "domains")
+    unknownErrs = [UnknownKey fp k | k <- M.keys tbl, k `notElem` ["kinds", "domains"]]
+    errs = concat [lefts1 eKinds, lefts1 eDomains, unknownErrs]
+    mvocab = NamingVocab <$> toMaybe eKinds <*> toMaybe eDomains
+
+-- | 字串轉命名文法分段,失敗時帶欄位名的 'BadFieldType'。
+toSegment :: FilePath -> Text -> Text -> Either [RegistryError] Segment
+toSegment fp field t = case mkSegment t of
+  Right s -> Right s
+  Left _ -> Left [BadFieldType fp field "命名文法分段(^[a-z0-9]+(-[a-z0-9]+)*$)"]
+
 -- 取值輔助 -------------------------------------------------------------------
 
-reqString :: FilePath -> TOML.Table -> Text -> Either [LoadError] Text
+reqString :: FilePath -> TOML.Table -> Text -> Either [RegistryError] Text
 reqString fp t k = case M.lookup (baseKey k) t of
   Nothing -> Left [MissingField fp k]
   Just (TOML.String s) -> Right s
   Just _ -> Left [BadFieldType fp k "字串"]
 
-optString :: FilePath -> TOML.Table -> Text -> Either [LoadError] Text
+optString :: FilePath -> TOML.Table -> Text -> Either [RegistryError] Text
 optString fp t k = case M.lookup k t of
   Nothing -> Right ""
   Just (TOML.String s) -> Right s
@@ -263,25 +326,25 @@ optString fp t k = case M.lookup k t of
 
 -- | 沒寫與寫了空字串是__不同的兩件事__(前者「這個型別沒宣告目錄」,
 -- 後者「宣告放在 Vault 根」),所以不能沿用 'optString' 的空字串預設值。
-optMaybeString :: FilePath -> TOML.Table -> Text -> Either [LoadError] (Maybe Text)
+optMaybeString :: FilePath -> TOML.Table -> Text -> Either [RegistryError] (Maybe Text)
 optMaybeString fp t k = case M.lookup k t of
   Nothing -> Right Nothing
   Just (TOML.String s) -> Right (Just s)
   Just _ -> Left [BadFieldType fp k "字串"]
 
-optBool :: FilePath -> TOML.Table -> Text -> Either [LoadError] Bool
+optBool :: FilePath -> TOML.Table -> Text -> Either [RegistryError] Bool
 optBool fp t k = case M.lookup k t of
   Nothing -> Right False
   Just (TOML.Boolean b) -> Right b
   Just _ -> Left [BadFieldType fp k "布林值"]
 
-optArray :: FilePath -> TOML.Table -> Text -> Either [LoadError] [TOML.Value]
+optArray :: FilePath -> TOML.Table -> Text -> Either [RegistryError] [TOML.Value]
 optArray fp t k = case M.lookup k t of
   Nothing -> Right []
   Just (TOML.Array xs) -> Right xs
   Just _ -> Left [BadFieldType fp k "陣列"]
 
-optStrings :: FilePath -> TOML.Table -> Text -> Either [LoadError] [Text]
+optStrings :: FilePath -> TOML.Table -> Text -> Either [RegistryError] [Text]
 optStrings fp t k = optArray fp t k >>= traverse str
   where
     str (TOML.String s) = Right s
@@ -293,8 +356,8 @@ baseKey k = case T.splitOn "." k of
   [] -> k
   parts -> last parts
 
-lefts1 :: Either [LoadError] a -> [LoadError]
+lefts1 :: Either [RegistryError] a -> [RegistryError]
 lefts1 = either id (const [])
 
-toMaybe :: Either [LoadError] a -> Maybe a
+toMaybe :: Either [RegistryError] a -> Maybe a
 toMaybe = either (const Nothing) Just

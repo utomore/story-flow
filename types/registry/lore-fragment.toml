@@ -1,6 +1,7 @@
 # 世界觀片段 —— 歷史、地理、勢力、規則。粒度是「某一段描述」,不是整份世界觀
-key  = "lore-fragment"
-name = "世界觀片段"
+key    = "lore-fragment"
+name   = "世界觀片段"
+family = "entity"
 
 dir        = "lore"
 owner_type = "lore"

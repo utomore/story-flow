@@ -1,6 +1,7 @@
 # 劇情片段 —— 敘事的一個轉折或事件。衝突偵測最常面對的型別
-key  = "plot-fragment"
-name = "劇情片段"
+key    = "plot-fragment"
+name   = "劇情片段"
+family = "entity"
 
 # 劇情片段與世界觀片段同放 lore/:兩者都是「世界的敘事層」,分兩個目錄
 # 只會讓作者猶豫該開哪一個。owner_type 不同,所以不算 ConflictingOwnerDir。

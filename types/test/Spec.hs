@@ -9,4 +9,4 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $
-    describe "T10+T11 Aapms.Types.Loader" Aapms.Types.LoaderSpec.spec
+    describe "graph-core/F002 T12+T13 Aapms.Types.Loader" Aapms.Types.LoaderSpec.spec

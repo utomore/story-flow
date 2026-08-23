@@ -1,0 +1,14 @@
+# 文件素材 —— Markdown / PDF,會餵進 notes(legacy AssetKind.KDoc)
+key    = "asset-doc"
+name   = "文件素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KDoc
+name_kinds = ["doc"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這份文件的內容"

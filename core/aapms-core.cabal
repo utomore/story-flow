@@ -32,7 +32,9 @@ library
         Aapms.Core.License
         Aapms.Core.Link
         Aapms.Core.Meta
+        Aapms.Core.Naming
         Aapms.Core.Pack
+        Aapms.Core.Registry
         Aapms.Core.Tree
     build-depends:
         , aeson
@@ -58,7 +60,10 @@ test-suite aapms-core-test
         Aapms.Core.LicenseSpec
         Aapms.Core.LinkSpec
         Aapms.Core.MetaSpec
+        Aapms.Core.NamingCasesSpec
+        Aapms.Core.NamingSpec
         Aapms.Core.PackSpec
+        Aapms.Core.RegistrySpec
         Aapms.Core.TreeSpec
         Aapms.CoreSpec
     build-depends:

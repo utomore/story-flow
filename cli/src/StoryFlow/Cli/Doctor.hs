@@ -152,7 +152,7 @@ checkRegistry =
                   , dgPath = Just dir
                   , dgTypes = n
                   , dgErrors = []
-                  , dgMessage = count n "個型別" <> ",來自" <> sourceLabel src <> " " <> T.pack dir
+                  , dgMessage = count n "個型別" <> ",來自 " <> sourceLabel src <> " " <> T.pack dir
                   }
 
 sourceName :: RegistrySource -> Text

@@ -21,7 +21,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 |---|---|---|---|
 | 階段一 純層 | W1 | core-unified-meta | design-done |
 | 階段一 純層 | W2 | registry-family-and-naming | design-done |
-| 階段一 純層 | W3 | manifest-schema-v2 | pending |
+| 階段一 純層 | W3 | manifest-schema-v2 | design-done |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | pending |
 | 階段二 解析與落地 | W5 | store-unified-index | pending |
 | 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | pending |
@@ -58,7 +58,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 |---|---|---|---|---|---|
 | core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | design-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | design-done |
-| manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | pending |
+| manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | design-done |
 | md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | pending |
 | store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | pending |
 | store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | pending |
@@ -78,6 +78,10 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | F002 A1 **(要裁決)** | 契約 B 的 `parseLogicalName :: Text -> Either NameError NameParts` 沒有 `NamingVocab` 參數;契約 C 的 `NamingVocab {nvKinds, nvDomains}` 與 legacy `defaultVocab {nvStates, nvVariants}`(**編排者已回原始碼確認** legacy/assetdb/core/src/AssetDB/Naming.hs:209)是不同的兩組欄位,legacy「用 state/variant 詞彙從右往左剝」在新簽名下做不出來 | 改純位置式解析,`npVariant` / `npState` 併成 `npModifiers :: [Segment]`;逐案代 `contract/fixtures/naming-cases.txt` 13 案全過(含 legacy 演算法反而誤拒的 `spr_char_hero_attack-01_up`) | 待閘門 |
 | F002 A2 | `validateLogicalName` 收 `TypeKey` 但不用它做型別專屬過濾 | 型別專屬的 `name_kinds` 檢查留在 `checkMeta`(只警告) | 待閘門 |
 | F002 A3 | `asset-archive` 依 D5 對照表算出 `tdNameKinds` 剛好是空清單(legacy `KindPrefix` 無值對應 `KArchive`) | 比照 `allowed_links` 空清單慣例,視為「未宣告限制」 | 待閘門 |
+| F003 A1 | `imageMeta` / `audioMeta` 簽名由 `ManifestAsset -> Maybe X` 改 `Value -> Maybe X` | 當通用函式(同時吃 `ManifestAsset.meta` 與 `Asset.astKindMeta`),歸 F003 | 待閘門 |
+| F003 A2 **(影響 JSON 形狀)** | `ManifestAsset.pack` / `license` 用 `Maybe Id`(同 vault 短 id)而非 `Maybe Ref` | 專案產出後素材已複製進專案,pack / license 必同 vault | 待閘門 |
+| F003 A3 **(影響 JSON 形狀)** | `Manifest` 頂層補 `packs` / `licenses` 去重清單(契約卡未提) | 依 system.md「專案目錄」的授權描述與舊版慣例補上 | 待閘門 |
+| F003 A4 | `StoryManifest` 給獨立 `schemaVersion` 與版本拒絕邏輯(schema 1 時代此檔不存在) | 先給,與 assets manifest 對稱 | 待閘門 |
 | 編排者(D5 前提修正) | D5 說「`naming.toml` 的 kinds / domains 從 `defaultVocab` 原樣落成」,但 `defaultVocab` 實際上是 states / variants,沒有 kinds / domains | kinds 由 legacy `KindPrefix` 列舉推出、domains 由 legacy 說明中的開放詞彙處理;與 A1 同一個根,閘門一起裁決 | 待閘門 |
 
 ## 階段結果

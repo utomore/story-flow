@@ -453,7 +453,7 @@ fts_map(rowid PK, node_id)
 |---|---------|-----------|------|------|-----|
 | 1 | core-unified-meta | 統一 `Meta`、`Asset` / `Pack` / `License` / `AnyNode` 型別、八種 id prefix、`Ref`、`uses` / `depicts`、aeson 編碼規則 | Meta 與節點型別、Id、Tree、Json | - | F001-core-unified-meta.md |
 | 2 | registry-family-and-naming | 註冊表 `family`、asset 族八項、`naming.toml` 詞彙、`name_kinds`;命名文法改吃注入詞彙;`checkMeta` 涵蓋 asset | Registry 載入、Registry 純驗證、Naming | #1 | F002-registry-family-and-naming.md |
-| 3 | manifest-schema-v2 | `Manifest` v2 與 `StoryManifest` 型別、JSON 編碼、`AssetKey`、kind 專屬 meta 型別化 | Manifest | #1, #2 | - |
+| 3 | manifest-schema-v2 | `Manifest` v2 與 `StoryManifest` 型別、JSON 編碼、`AssetKey`、kind 專屬 meta 型別化 | Manifest | #1, #2 | F003-manifest-schema-v2.md |
 
 ### 階段二:解析與落地
 

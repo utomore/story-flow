@@ -9,6 +9,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import StoryFlow.Cli.Fixtures
+import StoryFlow.Cli.Options (cliVersion)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -34,6 +35,15 @@ spec = describe "runCli 的外框" $ do
     r <- capture ["--help"]
     crExit r `shouldBe` ExitSuccess
     crOut r `shouldContainT` "story-flow"
+
+  -- G-E002 T5:--version 恰好一行,與 cliVersion 逐字相同,不需要 Vault。
+  it "--version 回 ExitSuccess,stdout 恰好一行 cliVersion" $ do
+    r <- capture ["--version"]
+    crExit r `shouldBe` ExitSuccess
+    T.lines (crOut r) `shouldBe` [T.pack cliVersion]
+    T.words (T.pack cliVersion) `shouldSatisfy` \case
+      [name, _] -> name == "story-flow"
+      _ -> False
 
   it "--json 模式下業務錯誤仍是合法信封、仍是 exit 1" $ withCliVault $ \_ -> do
     r <- capture ["--vault", "liftgame", "--json", "entity", "show", "ent-00000000"]

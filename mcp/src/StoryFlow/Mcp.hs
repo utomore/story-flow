@@ -4,10 +4,12 @@ module StoryFlow.Mcp
   ( -- * 連線設定
     Config (..)
   , resolveConfig
+  , mcpVersion
+  , wantsVersion
 
     -- * 伺服器
   , runServer
   ) where
 
-import StoryFlow.Mcp.Config (Config (..), resolveConfig)
+import StoryFlow.Mcp.Config (Config (..), mcpVersion, resolveConfig, wantsVersion)
 import StoryFlow.Mcp.Server (runServer)

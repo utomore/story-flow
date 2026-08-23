@@ -16,6 +16,12 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "套件邊界" $ do
+
+  -- G-E002 T4:--version 從 cabal 自動產生的 Paths_ 模組讀版本,它要登記在 autogen-modules。
+  it "autogen-modules 含 Paths_storyflow_server(G-E002)" $ do
+    src <- readCabal
+    ("Paths_storyflow_server" `isInfixOf` src) `shouldBe` True
+    ("autogen-modules" `isInfixOf` src) `shouldBe` True
   it "build-depends 不含落地層" $ do
     deps <- dependencyLines <$> readCabal
     mapM_ (\p -> (p, any (p `isInfixOf`) deps) `shouldBe` (p, False)) forbidden

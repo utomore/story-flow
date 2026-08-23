@@ -3,7 +3,7 @@ id: G-E002
 type: enhance
 title: standalone-distribution
 description: 執行檔可獨立發佈:--version、執行檔旁的 registry/ 查找、doctor 診斷、發佈 zip
-status: open
+status: in-progress
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [entity-graph-core/F002, entity-graph-core/F004, service-and-interfaces/F001, service-and-interfaces/F002, service-and-interfaces/F003, llm-workshop-mcp/F001, llm-workshop-mcp/F005]
@@ -223,13 +223,13 @@ locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, Vau
 
 ## TodoList
 
-- [ ] T1: `Types.Loader` 新增 `RegistrySource` 與 `locateRegistry`,查找順序 env → 執行檔旁 → data 目錄;`defaultRegistryDir` 改為投影,簽名不變  `dep: -`
-- [ ] T2: `service` 的 `registryHint` 改講三個地方,結尾建議不再提原始碼樹  `dep: T1`
-- [ ] T3: `service` 新增內嵌出口 `locateVault`,門面逐項列舉匯出;`service` 的 `CabalSpec` 逐字清單**不動**  `dep: -`
-- [ ] T4: 三個套件的 `.cabal` 加 `Paths_<pkg>` 進 `other-modules` / `autogen-modules`;三份 `CabalSpec` 逐字清單同步(若有釘住 modules)  `dep: -`
-- [ ] T5: `story-flow --version`(`infoOption` 掛 `pinfo`),輸出 `story-flow <版本>`  `dep: T4`
-- [ ] T6: `story-flow-serve --version`,同格式  `dep: T4`
-- [ ] T7: `story-flow-mcp --version`,手刻掃描多認一個旗標,JSON-RPC 迴圈之前印出並 exit 0  `dep: T4`
+- [x] T1: `Types.Loader` 新增 `RegistrySource` 與 `locateRegistry`,查找順序 env → 執行檔旁 → data 目錄;`defaultRegistryDir` 改為投影,簽名不變  `dep: -`
+- [x] T2: `service` 的 `registryHint` 改講三個地方,結尾建議不再提原始碼樹  `dep: T1`
+- [x] T3: `service` 新增內嵌出口 `locateVault`,門面逐項列舉匯出;`service` 的 `CabalSpec` 逐字清單**不動**  `dep: -`
+- [x] T4: 三個套件的 `.cabal` 加 `Paths_<pkg>` 進 `other-modules` / `autogen-modules`;三份 `CabalSpec` 逐字清單同步(若有釘住 modules)  `dep: -`
+- [x] T5: `story-flow --version`(`infoOption` 掛 `pinfo`),輸出 `story-flow <版本>`  `dep: T4`
+- [x] T6: `story-flow-serve --version`,同格式  `dep: T4`
+- [x] T7: `story-flow-mcp --version`,手刻掃描多認一個旗標,JSON-RPC 迴圈之前印出並 exit 0  `dep: T4`
 - [ ] T8: `Command` 加 `Doctor`、`Options.hs` 加 `doctor` 子指令、`dispatch` 走 `direct`;`--remote` 併用時回 `CliUsage`  `dep: T3, T5`
 - [ ] T9: `doctor` 五項診斷的組裝與 `DoctorReport` 型別;退出碼規則  `dep: T1, T8`
 - [ ] T10: `doctor` 的兩種輸出:`--json` 信封(snake_case 五鍵)與給人看的 `[ok]` / `[!!]` / `[--]` 行  `dep: T9`

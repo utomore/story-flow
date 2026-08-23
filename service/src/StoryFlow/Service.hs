@@ -43,6 +43,7 @@ module StoryFlow.Service
   , vaultInfo
   , vaultConfig
   , vaultRoot
+  , locateVault
   , reindex
   , refreshIndex
 
@@ -179,6 +180,20 @@ vaultConfig = asks (vaultCfg . envVault)
 -- 而快照每一 step 就要寫一次,不值得每次都付一次全表掃描的代價。
 vaultRoot :: ServiceM FilePath
 vaultRoot = asks (S.vaultRoot . envVault)
+
+-- | 找到 Vault 但__不開索引__:只回名稱、根目錄與 @.storyflow\/config.toml@ 的內容。
+--
+-- __只開內嵌出口__(G-E002)。CLI 的 @doctor@ 要報告「Vault 在哪、@[llm]@ 段有沒有」,
+-- 而 'openEnv' 會順手開索引、觸發過時掃描——診斷指令不該有副作用。這是 'IO' 而非
+-- 'ServiceM':它在 'Env' 存在之前就要能跑,找不到 Vault 也是它要報告的事。
+--
+-- 'vvEntityCount' 一律 'Nothing':沒開索引就數不出來,給 0 是說謊(同 'listVaults')。
+locateVault :: Maybe Text -> FilePath -> IO (Either ServiceError (VaultView, VaultConfig))
+locateVault mName cwd = do
+  regFile <- vaultsFile
+  resolveVaultWith regFile mName cwd >>= \case
+    Left e -> pure (Left (StoreFailed e))
+    Right v -> pure (Right (VaultView (vaultName v) (S.vaultRoot v) Nothing, vaultCfg v))
 
 -- | 全量重建索引。ADR-002 的「刪掉 index.db 也回得來」就是這一條。
 reindex :: ServiceM IndexReport

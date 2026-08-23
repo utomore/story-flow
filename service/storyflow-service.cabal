@@ -67,6 +67,7 @@ test-suite storyflow-service-test
         StoryFlow.Service.TypesSpec
         StoryFlow.Service.ValidateSpec
         StoryFlow.Service.VaultConfigSpec
+        StoryFlow.Service.LocateSpec
         StoryFlow.Service.VaultRootSpec
         StoryFlow.Service.VaultSpec
     build-depends:

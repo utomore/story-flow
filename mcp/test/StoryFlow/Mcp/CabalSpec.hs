@@ -18,6 +18,12 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
+
+  -- G-E002 T4:--version 從 cabal 自動產生的 Paths_ 模組讀版本,它要登記在 autogen-modules。
+  it "autogen-modules 含 Paths_storyflow_mcp(G-E002)" $ do
+    src <- readCabal
+    ("Paths_storyflow_mcp" `isInfixOf` src) `shouldBe` True
+    ("autogen-modules" `isInfixOf` src) `shouldBe` True
   describe "build-depends" $ do
     it "逐字等於設計裡的三份清單(library / executable / test-suite)" $ do
       deps <- map trim . dependencyLines <$> readCabal

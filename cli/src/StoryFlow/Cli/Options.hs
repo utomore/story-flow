@@ -20,6 +20,7 @@ module StoryFlow.Cli.Options
 
     -- * 解析
   , parseCli
+  , cliVersion
   , mkSelector
 
     -- * 供測試與 'StoryFlow.Cli' 共用
@@ -28,7 +29,9 @@ module StoryFlow.Cli.Options
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Version (showVersion)
 import Options.Applicative
+import Paths_storyflow_cli (version)
 import StoryFlow.Conflict.Types (ConflictOpts (..), defaultConflictOpts)
 import StoryFlow.Core.Id (Id, Ref, parseId, parseRef)
 import StoryFlow.Core.Level (NodeKind, allNodeKinds, parseNodeKind, renderNodeKind)
@@ -130,14 +133,23 @@ data Command
 parseCli :: [String] -> ParserResult (GlobalOpts, Command)
 parseCli = execParserPure defaultPrefs pinfo
 
+-- | @--version@ 印的那一行。格式與 @story-flow-serve@ / @story-flow-mcp@ 相同:
+-- 執行檔名、一個空白、版本。版本來自 cabal 的 @version@ 欄,程式碼裡不寫第二份。
+cliVersion :: String
+cliVersion = "story-flow " <> showVersion version
+
 pinfo :: ParserInfo (GlobalOpts, Command)
 pinfo =
   info
-    (helper <*> ((,) <$> globalP <*> commandP))
+    (helper <*> versionOpt <*> ((,) <$> globalP <*> commandP))
     ( fullDesc
         <> header "story-flow —— 故事設定的片段圖譜與場景樹"
         <> progDesc "以片段為最小單位管理故事設定;每個子指令都支援 --json"
     )
+
+-- | 用 infoOption 而不是 @simpleVersioner@:前者每個 optparse 版本都有。
+versionOpt :: Parser (a -> a)
+versionOpt = infoOption cliVersion (long "version" <> help "印出版本後結束")
 
 globalP :: Parser GlobalOpts
 globalP =

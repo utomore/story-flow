@@ -13,6 +13,7 @@ module StoryFlow.Server
   , runServer
   , validateServeOpts
   , isLoopback
+  , serverVersion
 
     -- * WAI
   , app
@@ -22,6 +23,8 @@ module StoryFlow.Server
   , module StoryFlow.Server.Error
   ) where
 
+import Data.Version (showVersion)
+import Paths_storyflow_server (version)
 import Control.Exception (finally)
 import Control.Monad.IO.Class (liftIO)
 import Data.String (fromString)
@@ -255,3 +258,8 @@ acquireLlmClient =
   llmConfig >>= \case
     Left e -> pure (Left (WsLlmFailed e))
     Right cfg -> Right <$> liftIO (newLlmClient cfg)
+
+-- | @--version@ 印的那一行,格式與 @story-flow@ / @story-flow-mcp@ 相同(G-E002)。
+-- 住在 library 而不是 @app/Main.hs@,測試才碰得到。
+serverVersion :: String
+serverVersion = "story-flow-serve " <> showVersion version

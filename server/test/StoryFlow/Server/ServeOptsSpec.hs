@@ -14,6 +14,15 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "啟動選項" $ do
+  -- G-E002 T6:--version 那一行。版本數字不寫死——它來自 cabal 的 version 欄。
+  describe "serverVersion" $
+    it "是「story-flow-serve <版本>」,版本只含數字與點" $ do
+      case words serverVersion of
+        [name, v] -> do
+          name `shouldBe` "story-flow-serve"
+          v `shouldSatisfy` all (`elem` ("0123456789." :: String))
+        ws -> expectationFailure ("應恰好兩個字,實得 " <> show ws)
+
   describe "isLoopback" $ do
     it "回到本機的位址都算" $
       mapM_ (\b -> (b, isLoopback b) `shouldBe` (b, True)) ["127.0.0.1", "127.0.0.53", "localhost", "::1", "[::1]"]

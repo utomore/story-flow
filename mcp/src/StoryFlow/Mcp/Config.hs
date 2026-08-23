@@ -7,10 +7,16 @@
 module StoryFlow.Mcp.Config
   ( Config (..)
   , resolveConfig
+
+    -- * 版本(G-E002)
+  , mcpVersion
+  , wantsVersion
   ) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Version (showVersion)
+import Paths_storyflow_mcp (version)
 import System.Environment (lookupEnv)
 
 -- | 已解析的連線設定。
@@ -54,3 +60,13 @@ stripTrailingSlash :: Text -> Text
 stripTrailingSlash t = case T.stripSuffix "/" t of
   Just t' -> stripTrailingSlash t'
   Nothing -> t
+
+-- | @--version@ 印的那一行,格式與 @story-flow@ / @story-flow-serve@ 相同(G-E002)。
+mcpVersion :: Text
+mcpVersion = "story-flow-mcp " <> T.pack (showVersion version)
+
+-- | argv 裡有沒有 @--version@。手刻掃描與 resolveConfig 同一個理由(A7):
+-- 一個旗標不值得整套 optparse。在 resolveConfig __之前__判斷——@--version@
+-- 不需要 URL,也不該進 JSON-RPC 迴圈。
+wantsVersion :: [Text] -> Bool
+wantsVersion = elem "--version"

@@ -49,7 +49,7 @@ import StoryFlow.Store
   , registryPath
   , resolveVaultWith
   )
-import StoryFlow.Types.Loader (defaultRegistryDir, loadRegistry, registryEnvVar)
+import StoryFlow.Types.Loader (defaultRegistryDir, loadRegistry, registryBesideExecutable, registryEnvVar)
 import System.Environment (lookupEnv)
 
 -- | 一次業務呼叫需要的全部外部狀態。三樣都在 'openEnv' 一次張羅好,
@@ -128,6 +128,9 @@ loadTypeRegistry =
     Just d -> either (Left . RegistryLoadFailed) Right <$> loadRegistry d
 
 -- | 註冊表找不到時,訊息要說出__去哪裡找過__。
+--
+-- 三層都要講(G-E002):環境變數、執行檔旁、cabal 安裝目錄。拿到 zip 的人沒有
+-- 原始碼樹,所以結尾的建議是「把 registry/ 放到執行檔旁邊」,不是「指向原始碼樹」。
 registryHint :: IO Text
 registryHint =
   lookupEnv registryEnvVar >>= \case
@@ -139,11 +142,17 @@ registryHint =
               <> " 指向 "
               <> T.pack p
               <> ",但那個目錄不存在"
-    _ ->
+    _ -> do
+      beside <- registryBesideExecutable
       pure $
-        "隨執行檔安裝的 registry/ 目錄不在,而環境變數 "
+        "找過三個地方都沒有型別註冊表:環境變數 "
           <> T.pack registryEnvVar
-          <> " 也沒有設定;請把它指向原始碼樹的 types/registry/"
+          <> " 沒有設定;執行檔旁的 "
+          <> T.pack beside
+          <> " 不存在;cabal 安裝時的 data-files 目錄也不在。"
+          <> "請把 registry/ 資料夾放到執行檔旁邊,或設 "
+          <> T.pack registryEnvVar
+          <> " 指向它"
 
 closeEnv :: Env -> IO ()
 closeEnv = closeIndex . envConn

@@ -88,7 +88,33 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 ### 階段一 純層
 
-(未開始)
+**完成**:F001 / F002 / F003 三個 feature 全部 `status: done`,Todo 41/41(18 + 14 + 9)。
+commit:`d5a9564`(F001)、`25de0e8`(F002)、`1a7c934`(F003),設計三筆在 `6a0c54b` / `b827bd1` / `2cc2076`。
+
+**測試**(編排者獨立重跑,非採信回報):`cabal test aapms-core` **216 examples / 0 failures**、
+`cabal test aapms-types` **41 / 0**。每個 feature 都沒有打破前一個的測試(150 → 197 → 216)。
+
+**arch-audit subsys graph-core 發現**:
+
+1. (中)`cabal build all` 目前**紅**:`md/` 與 `store/` 仍在 `cabal.project` 內,`Aapms.Md.Inherit`
+   有 12 處 `Meta` 欄位型別不符。這是 D1 凍結範圍外的預期後果(F004 接手),但代表**階段一結束時
+   全樹不是可建置狀態**,與 system.md「每期結束都是可建置狀態」的措辭有出入(P1 尚未結束,
+   屬期中狀態)
+2. (中)P0 契約測試(ADR-018 的安全網)在 D1 凍結期間**完全不跑**——CLI 信封、索引等價、
+   OpenAPI golden 到 P3 才會回來。P1 期間唯一的網是 graph-core 自己的 257 個測試
+3. (低)`design.md` 契約 C 的標題仍是「註冊表(`aapms-types`)」,但依 D7 型別已歸 `aapms-core`
+   (段落內文已註明)。建議閘門後把標題改成「註冊表(型別在 `aapms-core`,載入在 `aapms-types`)」
+4. (低)F001 在 `CabalSpec` 立了「`Aapms.Core.Registry` 不得存在」的斷言,F002 依契約 C 正當地
+   重建該模組並改掉斷言。兩個 feature 的契約卡都沒預告這件事,屬契約卡顆粒度問題,不是缺陷
+
+**契約符合度對帳**:契約 A 的 `Meta` 十四欄、五個 newtype 純量、`AiDisclosure` 四值、
+`Asset` / `Pack` / `License` 欄位,與契約 B / C 的 14 條函式簽名**逐條與 design.md 相符**,無漂移;
+`aapms-core` 的 `build-depends` 維持 `aeson / base / bytestring / containers / text / time`,零 IO 相依。
+
+**程式碼知識圖**:未更新——`knot extract` 需要 `cabal build all` 成功,目前紅(見發現 1)。
+`codegraph.json` 仍停在 `8138707`,**描述的是改名後、重建前的程式碼**,本次閘門未採信它的任何結論。
+
+**閘門結論**:(待開發者裁決)
 
 ### 階段二 解析與落地
 

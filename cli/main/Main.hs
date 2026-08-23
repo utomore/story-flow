@@ -8,6 +8,7 @@ import AssetDB.Cli.Ai
   , runAiPing
   , runAiQuery
   , runAiStatus
+  , runAiSuggestImport
   , runAiSuggestList
   , runAiVision
   )
@@ -66,6 +67,7 @@ run = do
     CmdAiClassify c a -> forQuery >>= \db -> runAiClassify db c a
     CmdAiVision c a -> forQuery >>= \db -> runAiVision db c a
     CmdAiSuggestList a -> forQuery >>= \db -> runAiSuggestList db a
+    CmdAiSuggestImport a -> forQuery >>= \db -> runAiSuggestImport db a
     CmdAiDecide a -> forQuery >>= \db -> runAiDecide db a
     CmdAiApply a -> forQuery >>= \db -> runAiApply db a
     CmdAiQuery c a -> forQuery >>= \db -> runAiQuery db c a

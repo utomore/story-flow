@@ -26,6 +26,7 @@ library
         AssetDB.AI.Prompt
         AssetDB.AI.Image
         AssetDB.AI.Suggest
+        AssetDB.AI.Import
         AssetDB.AI.Run
         AssetDB.AI.Classify
         AssetDB.AI.Vision
@@ -63,6 +64,7 @@ test-suite assetdb-ai-test
         AssetDB.AI.SchemaSpec
         AssetDB.AI.PromptSpec
         AssetDB.AI.SuggestSpec
+        AssetDB.AI.ImportSpec
         AssetDB.AI.RunSpec
     hs-source-dirs:   test
     build-depends:

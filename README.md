@@ -474,6 +474,29 @@ assetdb ai query -q "中世紀風格的藥水圖示"
 
 把一句話翻成搜尋條件再執行;推論服務離線時降級為字面搜尋。
 
+**⑦ 不用 LLM 也能餵建議**(`ai suggest import`)
+
+建議暫存表不只收本機模型的輸出。任何能看檔名與縮圖的東西 —— 在終端機裡的 Claude Code、
+一支腳本、你自己手寫 —— 都能以 JSON Lines 把建議餵進同一張表,之後走**同一道**閘門
+(④ 的 `suggest confirm` → `apply`)。每行一個物件,鍵名就是 `ai_suggestions` 的欄位名:
+
+```jsonl
+{"target_type":"pack","target_key":"magic-potions","field":"tag","value":"藥水","facet":"theme","lang":"zh","confidence":0.95}
+{"target_type":"cluster","target_key":"animal-icons|other|wN|.png","field":"category","value":"icon/animal","lang":"en"}
+{"target_type":"blob","target_key":"<sha256>","field":"subject","value":"一瓶藍色藥水","lang":"zh","rationale":"看縮圖"}
+```
+
+```bash
+assetdb ai suggest import picks.jsonl --dry-run   # 只驗證:列出每一行的問題
+assetdb ai suggest import picks.jsonl             # 寫入 pending;不需要 --confirm
+```
+
+三層驗證、**全有全無**:形狀(列舉值、`tag` 必帶 `facet`、`confidence` 在 0–1)、詞彙表
+(`category` 必須是 `categories` 表裡的路徑,跟 GBNF 對模型做的事一樣)、目標存在
+(`blob` 的 sha、`asset` 的 ULID、`pack` 的 slug 要在資料庫裡;`cluster` 鍵不驗)。任何一行
+有問題就一筆都不寫,把所有問題連行號一起列出來,改完重跑即可。匯入的建議 `run_id` 是
+NULL,`ai status` 的批次紀錄看不到它(ADR-010)。
+
 **出事時**
 
 | 症狀 | 意思 | 怎麼辦 |
@@ -648,7 +671,7 @@ import Assets             -- 專案自己的素材 key 常數
 
 ```bash
 cabal build all
-cabal test all      # 558 examples, 0 failures(9 個 test suite,2026-08-20)
+cabal test all      # 683 examples, 0 failures(9 個 test suite,2026-08-23)
 ```
 
 | 套件 | 職責 | 測試 |

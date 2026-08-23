@@ -5,9 +5,9 @@ title: ai-tagging
 description: 以本機 LLM 離線批次分類與標註素材,結果先進暫存表待人工確認
 status: active
 created: 2026-08-19
-updated: 2026-08-22
+updated: 2026-08-23
 parent: system
-related-adr: [ADR-007]
+related-adr: [ADR-007, ADR-010]
 ---
 
 # AI Tagging 子系統架構
@@ -31,6 +31,9 @@ ai-tagging 是 AssetDB 的**離線語意層**。素材庫裡 27 個商業素材�
 - **逐份內容視覺標註**(含縮圖):工作單位是 blob(sha256),不是 asset。
 - 把上述輸出一律寫進 `ai_suggestions` 暫存表(狀態 `pending`),並提供讀取、人工確認/退回、
   以及**套用扇出**到 `tags` / `asset_tags` / `asset_categories`。
+- **接受外部來源的建議**:任何不經本機 LLM 的程序(在終端機裡看檔名與縮圖的 Claude Code、
+  一支腳本、人手寫的檔案)都能以 JSONL 把建議餵進同一張暫存表,之後走同一道人工閘門。
+  推論服務不是產生建議的唯一途徑,只是其中一條(ADR-010)。
 - 自然語句 → 搜尋條件的規劃(額外入口,非主要搜尋路徑)。
 
 ### 明確不做
@@ -186,6 +189,50 @@ decideSuggestions  :: Connection -> [Int] -> Text -> Text -> IO Int
 
 `decideSuggestions` 回傳實際更動的列數;只有 `pending` 的列會被更動。
 
+### 5b. 外部建議匯入(`AssetDB.AI.Import`)
+
+```haskell
+data ImportOptions = ImportOptions { ioDryRun :: Bool }
+defaultImportOptions :: ImportOptions          -- ioDryRun = False
+
+data ImportReport = ImportReport
+  { irLines    :: Int             -- 讀到的非空白行數
+  , irWritten  :: Int             -- 實際寫入(新增或更新)筆數;dry-run 或有任何問題時為 0
+  , irProblems :: [(Int, Text)] } -- (行號, 原因);行號 0 代表整個檔案層級的問題
+
+importSuggestions :: Connection -> ImportOptions -> ByteString -> IO ImportReport
+```
+
+**輸入格式是本子系統的對外契約**:UTF-8 的 JSON Lines,每行一個物件,鍵名與
+`ai_suggestions` 的欄位名**完全相同**(`target_type` `target_key` `field` `value` `facet`
+`lang` `confidence` `rationale`),`facet` / `confidence` / `rationale` 可省略或為 `null`,
+其餘必填。空白行略過。範例:
+
+```json
+{"target_type":"blob","target_key":"<sha256>","field":"tag","value":"藥水","facet":"theme","lang":"zh","confidence":0.9,"rationale":"檔名 Blue Potion"}
+{"target_type":"cluster","target_key":"animal-icons|other|wN|.png","field":"category","value":"icon/animal","lang":"en"}
+```
+
+驗證分三層,任一層失敗都進 `irProblems`:
+
+1. **形狀**:JSON 可解析;`target_type` ∈ blob/cluster/asset/pack;`field` ∈ category/tag/subject;
+   `lang` ∈ en/zh;`field='tag'` ⇔ `facet` 非空且 ∈ style/theme/palette/free;`confidence`
+   若有則在 0–1;`value` 非空白。
+2. **詞彙表**:`field='category'` 的 `value` 必須是 `Vocab` 認得的路徑(`lookupPath`)。這就是
+   GBNF 對模型做的那件事 —— 詞彙表外的分類值進不了暫存表,不論來源。
+3. **目標存在**:`blob` 的 sha256 要在 `blobs`、`asset` 的 ULID 要在 `assets`、`pack` 的 slug
+   要在 `packs`。`cluster` 的鍵**不驗**(反查在 ingest,本子系統刻意不相依),照收;套用時
+   解析不到會計入 `arUnresolved`。
+
+**全有全無**:三層全部跑完、`irProblems` 非空 → 一筆都不寫,`irWritten = 0`。手寫或生成的
+檔案改完重跑即可,`upsertSuggestions` 本身是冪等的。寫入走 `upsertSuggestions`,語意相同:
+已被人工決定的列不會被洗回 `pending`,`irWritten` 是實際寫入筆數。
+
+**`run_id` 為 NULL**,不寫 `ai_runs`(ADR-010)。`ai status` 的批次紀錄看不到匯入;要溯源時的
+路徑寫在該 ADR。
+
+資料庫錯誤與檔案解碼失敗不拋例外,以行號 0 進 `irProblems`。
+
 ### 6. 套用與 `aoResolveCluster` 注入點(`AssetDB.AI.Suggest`)
 
 ```haskell
@@ -267,6 +314,7 @@ renderProgress :: Progress -> Text
 | `AssetDB.AI.Image` | 縮圖檔 → `data:` URL。re-export catalog 的 `ThumbSize` / `thumbPath` | 有(讀檔) |
 | `AssetDB.AI.Run` | 批次驅動器:記帳、續跑、中斷語意、進度與 ETA | 有(寫 DB) |
 | `AssetDB.AI.Suggest` | `ai_suggestions` 讀寫、人工決定、套用扇出。**無 HTTP 相依** | 有(寫 DB) |
+| `AssetDB.AI.Import` | 外部 JSONL → 三層驗證 → `Suggest` 寫入。**無 HTTP 相依** | 有(讀 DB 驗目標、寫 DB) |
 | `AssetDB.AI.Classify` | 叢集層分類的組裝 | 有 |
 | `AssetDB.AI.Vision` | 逐份內容視覺標註的組裝 | 有 |
 | `AssetDB.AI.Query` | 自然語句 → 搜尋條件 | 有 |
@@ -274,7 +322,7 @@ renderProgress :: Progress -> Text
 分層(下層不認識上層):
 
 ```text
-第 4 層  Classify   Vision   Query        ← 對外進入點(組裝)
+第 4 層  Classify   Vision   Query   Import   ← 對外進入點(組裝)
 第 3 層  Run        Suggest               ← 批次機制 / 暫存與套用
 第 2 層  Prompt     Image                 ← 提示詞契約 / 影像編碼
 第 1 層  Llm        Schema     Vocab      ← 傳輸層 / 文法 / 詞彙
@@ -282,8 +330,8 @@ renderProgress :: Progress -> Text
 
 兩個刻意的隔離:
 
-- **`Suggest` 不認識 `Llm`。** 確認與套用必須在推論服務關掉的情況下照常運作——昨天跑出來
-  的建議,今天不該因為模型沒開就看不了。
+- **`Suggest` 與 `Import` 不認識 `Llm`。** 確認、套用與匯入必須在推論服務關掉的情況下照常
+  運作——昨天跑出來的建議,今天不該因為模型沒開就看不了;外部來源的建議更不該需要模型在場。
 - **`Prompt` 是純函式。** 提示詞的迴歸可以直接用字串斷言測,不需要模型。
 
 ## 資料流管線(Data Flow Pipeline)
@@ -375,6 +423,23 @@ ai_suggestions(pending)
   → 載入 Vocab → querySystem + queryUser + querySchema → chatJson
   → Right:關鍵字去空白取上限、category='unknown' → Nothing → QueryPlan
   → Left :呼叫端降級為字面搜尋(不是錯誤畫面)
+```
+
+### 管線 E:外部建議匯入(`importSuggestions`)
+
+這一段**完全不碰 LLM**,是管線 A/B 之外進入暫存表的第三個入口,之後接回管線 C。
+
+```text
+JSONL 位元組(呼叫端讀檔;本子系統不碰檔案系統)
+  → UTF-8 解碼(失敗 → 行號 0 問題)
+  → 逐行 JSON 解析 + 形狀驗證            ← 第 1 層
+  → 載入 Vocab → category 值查 lookupPath  ← 第 2 層(只對 field='category')
+  → blob/asset/pack 的目標存在查詢          ← 第 3 層(cluster 不驗)
+  → irProblems 非空 → 一筆都不寫,回報全部問題(全有全無)
+  → ioDryRun → 回報將寫入筆數,不寫
+  → upsertSuggestions(run_id = NULL)      ← 單一交易;只有 execute
+  → ImportReport
+  → 接管線 C(listSuggestions → decideSuggestions → applySuggestions)
 ```
 
 ## 模組間公開介面(Module Interfaces)
@@ -561,11 +626,18 @@ driveItems
 標記狀態的資料列(`name_clusters` 只存已確認的命名規則),所以續跑改看「這個
 `(pack_slug, shape)` 已經有建議了嗎」。少一組欄位,也少一個會腐爛的鏡像。
 
+### `AssetDB.AI.Import` 消費的介面
+
+`Import` 只消費、不提供模組間介面:`AssetDB.AI.Suggest` 的 `Suggestion` 三個建構子與
+`upsertSuggestions`;`AssetDB.AI.Vocab` 的 `loadVocab` / `lookupPath`(驗證分類值時使用
+完整詞彙,不限 `visionScopes`,因為匯入的目標不限於圖片)。
+
 ## 架構圖
 
 ```text
 ┌───────────────────────────── delivery(cli) ─────────────────────────────┐
 │  assetdb ai ping / classify / vision / suggest / apply / query / status  │
+│  assetdb ai suggest import <jsonl>  ──► JSONL 位元組                     │
 │                                                                          │
 │   ClusterTarget 清單 ─┐                    ┌─ aoResolveCluster           │
 │   (由 ingest 分群)    │                    │  "<slug>|<shape>" → [id]    │
@@ -573,11 +645,11 @@ driveItems
                         │  注入              │  注入
 ╔═══════════════════════▼════════════════════▼═════════ ai-tagging ════════╗
 ║                                                                          ║
-║  第 4 層  ┌──────────┐   ┌────────┐   ┌───────┐                          ║
-║           │ Classify │   │ Vision │   │ Query │                          ║
-║           └────┬─────┘   └───┬────┘   └───┬───┘                          ║
-║                │             │            │                              ║
-║  第 3 層  ┌────▼─────────────▼──┐   ┌─────▼──────────────────┐           ║
+║  第 4 層  ┌──────────┐   ┌────────┐   ┌───────┐   ┌────────┐             ║
+║           │ Classify │   │ Vision │   │ Query │   │ Import │             ║
+║           └────┬─────┘   └───┬────┘   └───┬───┘   └───┬────┘             ║
+║                │             │            │           │ ✗ 不認識 Llm     ║
+║  第 3 層  ┌────▼─────────────▼──┐   ┌─────▼───────────▼──────┐           ║
 ║           │        Run          │   │       Suggest          │           ║
 ║           │ driveItems / RunId  │   │ upsert / decide / apply│           ║
 ║           │ StepOutcome 語意    │   │  ✗ 不認識 Llm          │           ║
@@ -644,7 +716,7 @@ schema 的列舉出自同一個 `Vocab`,漂移不可能發生。
 
 ### 內部階段二:批次與套用
 
-把地基變成真的會改到索引的批次。涵蓋 F003–F006。
+把地基變成真的會改到索引的批次。涵蓋 F003–F007。
 
 驗收:132 個叢集的分類批次可續跑;6,238 份唯一內容的標註批次中斷後佇列不毀;確認後的
 中文標籤經套用與 `reindexFts` 之後,中文搜尋確實命中。
@@ -659,6 +731,7 @@ schema 的列舉出自同一個 `Vocab`,漂移不可能發生。
 | 4 | vision-tagging | 逐份內容的視覺標註批次 | `AssetDB.AI.Vision`、`AssetDB.AI.Image`、`AssetDB.AI.Run` | #1, #2, #5 | F004 |
 | 5 | suggestion-store-apply | 建議暫存表的讀寫、人工確認與套用扇出 | `AssetDB.AI.Suggest` | - | F005 |
 | 6 | nl-query-planning | 自然語句查詢規劃與推論服務離線時的降級 | `AssetDB.AI.Query` | #1, #2 | F006 |
+| 7 | suggestion-import | 外部 JSONL 建議的三層驗證與全有全無寫入暫存表 | `AssetDB.AI.Import` | #2, #5 | F007 |
 
 ## Feature 契約卡
 
@@ -727,3 +800,14 @@ schema 的列舉出自同一個 `Vocab`,漂移不可能發生。
 | **資料流管線段落** | 管線 D 全段 |
 | **驗收標準** | ① 空白輸入回傳空計畫且**不打推論服務**;② 關鍵字去除空白項並取上限 8;③ `category == "unknown"` → `Nothing`,不是字串 `"unknown"`;④ `qpExplain` 帶回模型的理解說明;⑤ 推論失敗回傳 `Left`,呼叫端據此**降級為字面搜尋**而不是顯示錯誤;⑥ 全程不寫任何資料庫表 |
 | **明確不做** | 不執行搜尋(只產生條件);不寫 `ai_suggestions` 或 `ai_runs`;不快取;不綁在打字事件上(單次約 3 秒);不是主要搜尋路徑——中文搜尋的主力是離線寫進索引的中文標籤 |
+
+### suggestion-import
+
+| 欄位 | 內容 |
+|---|---|
+| **階段** | 內部階段二:批次與套用 |
+| **負責模組** | `AssetDB.AI.Import` |
+| **實作的 Level 2 介面** | 對外契約 §5b「外部建議匯入」(`ImportOptions`、`defaultImportOptions`、`ImportReport`、`importSuggestions`,以及 JSONL 輸入格式);消費對外契約 §5 的 `tagSuggestion` / `categorySuggestion` / `subjectSuggestion` / `upsertSuggestions` 與模組間介面「`AssetDB.AI.Vocab`」的 `loadVocab` / `lookupPath`。delivery 側新增 `assetdb ai suggest import <檔案> [--dry-run]` 子指令(見 `delivery/design.md` 指令表) |
+| **資料流管線段落** | 管線 E 全段(從 JSONL 位元組到 `ImportReport`),出口接回管線 C 的起點 |
+| **驗收標準** | ① 合法的 JSONL 寫入後 `listSuggestions` 看得到,狀態 `pending`,`run_id` 為 NULL;② `irWritten` 等於 `upsertSuggestions` 實際寫入筆數,已被人工決定的列不計入也不被洗回;③ 形狀錯(未知 `target_type` / `field` / `lang`、`tag` 缺 `facet`、非 `tag` 帶 `facet`、`confidence` 出界、`value` 空白、JSON 壞掉)逐行列出行號與原因;④ `category` 值不在 `Vocab` 時被擋下,理由說得出「不在詞彙表」;⑤ 不存在的 blob sha / asset ULID / pack slug 被擋下;`cluster` 鍵不驗、照收;⑥ **任一行有問題則一筆都不寫**,`irWritten = 0`,`irProblems` 含全部問題而不是第一個;⑦ `ioDryRun` 時回報筆數但不寫入;⑧ 空檔案 / 只有空白行 → `irLines = 0`、無問題、不寫;⑨ 非 UTF-8 位元組 → 行號 0 的問題,不拋例外;⑩ 寫入用單一交易,交易內只有 `execute`;⑪ 整條路徑不需要推論服務在場(不相依 `Llm`);⑫ 匯入後走 `decideSuggestions` → `applySuggestions` → `reindexFts`,中文標籤能被搜尋命中(與 F005 驗收 ⑬ 同一條路) |
+| **明確不做** | 不寫 `ai_runs`、不記來源(ADR-010);不驗 `cluster` 鍵、不相依 ingest;不讀檔案系統(呼叫端讀檔,本子系統吃位元組);不接受 JSONL 以外的格式(CSV、YAML);不做逐行「壞的跳過、好的照寫」;不自動確認或套用(閘門仍在人手上);不碰 `tags` / `asset_tags` / `asset_categories`;不重建全文索引 |

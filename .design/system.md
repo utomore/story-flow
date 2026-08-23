@@ -5,7 +5,7 @@ title: assetdb
 description: 工作室素材庫的索引、檢索與專案素材配置系統
 status: active
 created: 2026-08-16
-updated: 2026-08-22
+updated: 2026-08-23
 subsystems: [catalog, ingest, ai-tagging, delivery]
 ---
 
@@ -63,8 +63,8 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 `assetdb <指令> [選項]`,指令群:`scan`、`tools`、`pack`、`reorganize`、`cluster`、`search`、
 `index`、`thumbs`、`new-project`、`project`(`sync`)、`note`、`link`、`doctor`、
-`ai`(`ping` / `classify` / `vision` / `suggest`(`list` / `confirm` / `reject`)/ `apply` /
-`query` / `status`)。子指令的完整文法見 `delivery/design.md` 的指令表。
+`ai`(`ping` / `classify` / `vision` / `suggest`(`list` / `import` / `confirm` / `reject`)/
+`apply` / `query` / `status`)。子指令的完整文法見 `delivery/design.md` 的指令表。
 
 契約原則:
 
@@ -238,8 +238,9 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
      (`ai suggest confirm`/`reject`、`ai apply`)、改動既有專案的動作(`project sync`)、
      搬移或刪除檔案的動作(`reorganize`,模式旗標互斥且無預設值,不可回退的階段另需獨立旗標)。
      **不適用**於輸入本身就是版控檔案的動作(`pack apply` 讀 `data/packs.toml`、
-     `note import` 讀 Markdown 目錄)與只建立新目錄的動作(`new-project`,目標目錄必須
-     不存在或為空)。
+     `note import` 讀 Markdown 目錄)、只建立新目錄的動作(`new-project`,目標目錄必須
+     不存在或為空),以及**只寫暫存表**的動作(`ai classify` / `vision` / `suggest import`
+     —— 暫存表後面還有 `suggest confirm` 與 `ai apply` 兩道閘門,寫進去的東西碰不到索引)。
   4. **寫交易的持有時間必須以毫秒計。** 任何檔案讀寫、影像解碼、雜湊計算、子程序呼叫與
      網路請求**一律在交易之外完成**,交易內只剩已經算好的值的寫入。這條規則是可稽核的:
      看一眼交易區塊內有沒有 IO 或重運算就知道違不違規,不必判斷「算不算長時間」。

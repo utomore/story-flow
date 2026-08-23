@@ -33,9 +33,13 @@ Vite/React 前端 + SQLite。**壓縮檔是唯一真相,其餘皆為衍生物**:
 
 ## 架構硬規則
 
-- 套件依賴嚴格單向:`core` + `store`(catalog)← `archive` + `ingest` + `reorg`(ingest)←
-  `ai`(ai-tagging)← `cli` + `server` + `web` + `project`(delivery)。**`server` 只准依賴
-  `core` + `store`**;`cli` 是唯一的組合根,跨子系統的協作在那裡組裝。
+- 套件依賴嚴格單向:`core` + `store`(catalog)← `workspace` / `archive` + `ingest` +
+  `reorg`(ingest)← `ai`(ai-tagging)← `cli` + `server` + `web` + `project`(delivery)。
+  **`server` 只准依賴 `core` + `store` + `workspace`**(workspace 刻意輕量,伺服器仍然
+  不背影像解碼 / zip / LLM);`cli` 是唯一的組合根,跨子系統的協作在那裡組裝。
+- **工具是全局的**:狀態分兩層 —— 全局中樞(`config.toml`,認得有哪些 vault 與專案)與
+  嵌入式 vault(`<vault>/.assetdb/assetdb.sqlite`,自帶完整索引)。身分一律 ULID,
+  路徑只是「現在在哪」(ADR-011)。**讀跨全部 vault,寫必須 `--vault` 指定單一**(ADR-012)。
 - 子系統邊界回 `Either` / `Maybe`,例外不穿越邊界;給使用者看的訊息用繁體中文。
 - 會改狀態的指令預設只預覽,`--confirm` 才寫入;不可逆操作另需獨立旗標。
   查詢類指令找不到資料庫時拒絕自動建檔。

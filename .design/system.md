@@ -6,7 +6,7 @@ description: 工作室素材庫的索引、檢索與專案素材配置系統
 status: active
 created: 2026-08-16
 updated: 2026-08-23
-subsystems: [catalog, ingest, ai-tagging, delivery]
+subsystems: [workspace, catalog, ingest, ai-tagging, delivery]
 ---
 
 # AssetDB(Alchbees Asset & Project Management System)系統主架構
@@ -36,8 +36,21 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 - 建立新遊戲專案時,從素材庫挑選並正規化複製,產生型別安全的 `Assets.hs`
 - 授權閘門:非商用素材無法進入商業專案
 - 離線 AI 分類與標註(本機 LLM),把中文標籤寫進索引供純 SQLite 查詢
+- **把任意資料夾納管成 vault,並在一次查詢裡看遍所有 vault**
 
 使用者:單人工作室(目前),schema 已為多人協作預留欄位但不實作即時協作。
+
+### 為什麼需要「全局工具」(2026-08-23 修訂)
+
+初版把整個系統設計成**單一素材庫**的工具:狀態只存在於素材庫內的 `.assetdb/`,
+指令從當前目錄逐層往上找它 —— 這是 git 的 `.git` 探測模式。
+
+那個模式在 git 成立,是因為 git 的每個操作都是「對我 cd 進去的那個 repo」。但素材庫的
+核心用途是「**在所有素材裡**找一張書本風格的 GUI 框」—— 借來的模式把「局部視角就夠了」
+這個假設一起帶了進來,而它在這裡不成立。第二個素材庫一出現,工具就沒有任何辦法同時看到兩邊。
+
+因此本次修訂把狀態分成兩層:**全局中樞**(認得有哪些 vault 與專案)與**嵌入式 vault**
+(每個素材庫自帶完整索引)。見 ADR-011、ADR-012。
 
 ## 技術棧與環境
 
@@ -57,20 +70,67 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 ## 系統對外介面(External I/O Contract)
 
-系統有四個對外邊界,全部由 `delivery` 子系統守門。
+系統有四個對外邊界,全部由 `delivery` 子系統守門;其中 CLI 的**生命週期指令群**
+由 `workspace` 提供實作。
+
+### 0. 全局狀態與生命週期(workspace)
+
+工具是**全局的**,不隸屬於任何一個資料夾。它在使用者層級有一個設定目錄
+(Windows `%APPDATA%\assetdb\`,其他平台依 XDG),內容:
+
+```text
+<全局設定目錄>/
+├── config.toml          ← 中樞:全局設定 + vault 與專案的註冊表(人可讀可編輯)
+└── cache/thumbs/        ← 全局縮圖快取,內容定址,跨 vault 共用
+```
+
+`config.toml` 記的是 **ULID → 目前路徑** 的對映,不是以路徑為鍵:
+
+- **vault 的身分是它自己索引裡的 ULID,路徑只是「它現在在哪」。** 搬動 vault 只要重新指
+  路徑,身分不變、索引不失聯。以路徑為身分會讓「東西一搬就變成另一個東西」,那正是本次
+  一併修掉的缺陷(見 `ingest` 的 pack 身分)。
+- 專案同樣以 ULID 註冊(ADR-003 的「對外識別一律 ULID」在這裡一路貫穿到中樞)。
+
+生命週期指令:
+
+| 指令 | 作用 |
+|---|---|
+| `setup` | 建立/檢查全局設定目錄與 `config.toml`;冪等,可重複執行 |
+| `vault init <目錄>` | 在該目錄建 `.assetdb/`、產生 vault ULID、註冊進中樞 |
+| `vault add <目錄>` | 把**既有**的 `.assetdb/` 註冊進中樞(既有素材庫的遷移路徑) |
+| `vault list` | 列出已註冊的 vault 與其目前狀態 |
+| `vault forget <vault>` | 從註冊表移除;`.assetdb/` **原封不動**,可再 `add` 回來 |
+| `vault forget --delete-index` | 連同該 vault 的 `.assetdb/` 一起刪除 |
+| `project add / forget / list` | 專案註冊表的對應動作 |
+| `purge` | 移除全局設定目錄與全局快取 |
+| `purge --all-vaults` | 另外清掉每個已註冊 vault 的 `.assetdb/` |
+
+**撤除的分層依據**:`.assetdb/` 裡的東西**全部是衍生物**(索引與縮圖),重跑 `scan` 就回得來;
+素材本體在 `library/`。因此刪索引是可回復的、刪素材是不可回復的 —— 而
+`purge --all-vaults` 與 `--delete-index` **在任何情況下都不碰 `library/`**。
+不可逆的那一層需要獨立旗標,符合全域錯誤處理策略第 3 條。
 
 ### 1. CLI(主要入口)
 
 `assetdb <指令> [選項]`,指令群:`scan`、`tools`、`pack`、`reorganize`、`cluster`、`search`、
 `index`、`thumbs`、`new-project`、`project`(`sync`)、`note`、`link`、`doctor`、
 `ai`(`ping` / `classify` / `vision` / `suggest`(`list` / `import` / `confirm` / `reject`)/
-`apply` / `query` / `status`)。子指令的完整文法見 `delivery/design.md` 的指令表。
+`apply` / `query` / `status`),以及 §0 的生命週期指令群(`setup`、`vault`、`project`、`purge`)。
+子指令的完整文法見 `delivery/design.md` 的指令表。
 
 契約原則:
 
-- **資料庫路徑有兩種語意,而且分開表示**。查詢類指令要求資料庫**必須已存在**,找不到就以
-  非 0 結束碼結束並指引使用 `--db` 或先跑 `scan`;**只有 `scan` 是初始化語意**,允許在
-  找不到時開新庫。合成一個函式並預設後者,會讓在錯誤工作目錄下的任何查詢靜默建出空庫。
+- **讀跨全部 vault,寫只進一個 vault。** 查詢類(`search`、`doctor`、`tree`、facet 計數)
+  預設涵蓋所有已註冊的 vault,結果帶著它來自哪個 vault;會寫入的動作
+  (`scan`、`cluster rule` / `apply`、`ai apply`、`note import`)**必須以 `--vault` 指定落點**,
+  程式不替使用者猜。理由:邏輯名稱是全域唯一的對外契約、素材帶授權後果,猜錯的代價高(ADR-012)。
+  `scan` 不給 `--vault` 時對**每個** vault 各跑一次 —— 每一次仍只寫它自己的索引,
+  「寫只進一個 vault」沒有被破壞。
+- **資料庫路徑有兩種語意,而且分開表示**。查詢類指令要求索引**必須已存在**,找不到就以
+  非 0 結束碼結束並指引先跑 `vault init` 或 `vault add`;**只有 `scan` 是初始化語意**。
+  合成一個函式並預設後者,會讓在錯誤工作目錄下的任何查詢靜默建出空庫。
+- **`--db` 仍然存在,但只是「繞過中樞、直接指定單一索引」的逃生口**,供腳本與除錯使用;
+  日常路徑是中樞註冊表。
 - **會改動狀態的動作預設只預覽**——適用清單與理由見「通訊拓撲與原則」的全域錯誤處理策略第 3 條。
 - 參數解析失敗回人看得懂的繁體中文訊息而非例外。
 - `assetdb --version` 印 `assetdb <版本>`;版本號的唯一來源是 `.cabal` 的 `version` 欄位,
@@ -101,10 +161,13 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 ### 3. 檔案系統契約
 
-工作室根目錄佈局(根目錄無空格,原因見 ADR-005 的實測記錄):
+**一個 vault = 一個被納管的資料夾。** 下面是 vault 的內部佈局(根目錄無空格,原因見
+ADR-005 的實測記錄);同一台機器上可以有任意多個,彼此獨立,由中樞的註冊表串起來。
+`library/` 以外的子目錄是這個工作室 vault 的慣例,不是 vault 的必要條件 ——
+vault 的唯一必要條件是它有一個 `.assetdb/`。
 
 ```text
-<studio-root>/
+<vault-root>/
 ├── library/
 │   ├── packs/<vendor>/<pack-slug>/        ← 一包 = 一目錄 = 一個備份與溯源單位
 │   │   ├── pack.toml                      ← 中繼資料快照,人可編輯、git 可追蹤
@@ -115,10 +178,16 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 ├── knowledge/
 ├── marketing/
 ├── web/                                   ← 已建置的前端產物,由伺服器靜態服務
-└── .assetdb/
-    ├── assetdb.sqlite
-    └── cache/                             ← 內容定址的衍生物,可重建(分片規則屬 catalog Level 2)
+└── .assetdb/                              ← 這個目錄的存在 = 它是一個 vault
+    └── assetdb.sqlite                     ← 本 vault 的完整索引,含它自己的 vault ULID
 ```
+
+**索引是嵌入式而且自足的**:vault 帶著 `.assetdb/` 整個搬到另一台機器,`vault add` 一下就能
+繼續用,不需要中樞裡的任何東西。中樞只回答「這台電腦上有哪些 vault、它們現在在哪」——
+它是索引,不是真相。中樞壞掉的修法是重新 `vault add`,不是重建素材。
+
+**縮圖快取已移到全局**(§0):它是內容定址的,同一份內容在兩個 vault 裡本來就該只算一次。
+`.assetdb/` 因此只剩索引一個檔案。
 
 `pack.toml` 是每個包的**中繼資料快照**:由結構搬遷產生,人可編輯、git 可追蹤,
 讓一個素材包目錄離開資料庫也自述得清楚(slug、名稱、廠商、作者、來源、版本、
@@ -141,6 +210,19 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 `assets/Assets.hs`(型別安全的素材常數,供遊戲專案編譯期引用)、`<name>.cabal`。
 遊戲本體只依賴 `catalog` 的領域型別套件來解析 manifest。
 
+**專案獨立於 vault**(2026-08-23 修訂)。專案不再登記在某個 vault 的索引裡,而是由兩樣東西
+共同描述:中樞註冊表的一列(專案 ULID → 目前路徑),加上專案目錄內既有的
+`assets/manifest.json`。理由是專案本來就會離開素材庫獨立存在(它是一個 git repo),把它的
+真相放在某個 vault 的索引裡,等於讓專案的存在依賴一個它不該依賴的東西。
+
+這使 `manifest.json` 成為專案的**自述檔**,而它目前少三樣東西,因此
+**schema 版本由 1 升到 2**:專案 ULID、每筆素材的**來源 vault ULID**(多 vault 之後才有的
+溯源需求)、樣板名稱。`FromJSON` 對版本不符是直接失敗(catalog 契約),所以既有專案需要
+重新產生 manifest —— 遷移路徑寫在 ADR-011。
+
+「這個素材被哪些專案用了」這個反向查詢因此改為**掃過已註冊專案的 manifest**,
+而不是查 vault 索引裡的關聯表。
+
 **命名文法**(全系統穩定的對外契約,見 ADR-004):
 `<kind>_<domain>_<subject>[_<variant>][_<state>][_<NNN>]`,形狀近似
 `^[a-z0-9]+(_[a-z0-9-]+)*$`,最長 64 字元、全域唯一、純 ASCII。`kind` 是封閉列舉;
@@ -152,7 +234,25 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 ## 子系統劃分(Subsystems & Bounded Contexts)
 
-四個子系統,依「資料的生命週期位置」而非技術層次切分。
+五個子系統。`catalog` / `ingest` / `ai-tagging` / `delivery` 依「資料的生命週期位置」切分;
+`workspace` 切在另一個維度上 —— 它管的不是素材,是**工具自己**。
+
+> 初版只有四個,而四個都在講「素材怎麼被處理」,沒有人負責「工具怎麼被安裝、設定、移除」。
+> 這是為什麼那一整塊功能整個不見了,而 `/arch-audit` 一路綠燈 —— 它檢查的是「規劃的做完沒」,
+> 不是「規劃完整嗎」。
+
+### workspace
+
+- **slug**:`workspace`(`workspace` 套件)
+- **單一職責**:工具自身的狀態與生命週期 —— 全局設定目錄、`config.toml` 中樞、vault 與
+  專案的註冊表(ULID → 路徑)、`setup` / `vault` / `project` / `purge` 的語意、
+  以及「這次指令要對哪些 vault 生效」的解析
+- **邊界(不做什麼)**:不碰素材、不掃描、不解壓、不查詢索引內容;只回答「有哪些 vault /
+  專案、它們在哪、這次要用哪些」。**刻意保持輕量**(只依賴 catalog 與一個 TOML 解析器),
+  因為 `server` 也要依賴它 —— 重量級相依進到這裡等於進到伺服器
+- **對外契約摘要**:全局設定目錄的解析、`config.toml` 的讀寫、vault/專案的註冊與撤除、
+  vault 集合的解析(`--vault` 或全部)、purge 的範圍計算
+- **設計文檔**:尚未建立(下一步 `/subsys-design workspace`)
 
 ### catalog
 
@@ -197,8 +297,10 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 - **slug**:`delivery`(`server` + `web` + `cli` + `project` 套件)
 - **單一職責**:系統對人的所有邊界 —— CLI 組合根與參數解析、HTTP API 與縮圖服務、
   TypeScript 型別契約產生、React 虛擬化前端、專案產出與授權閘門
-- **邊界(不做什麼)**:不放業務規則(規則屬於下游子系統);`server` 套件**刻意只依賴
-  catalog**,把重量級相依(影像解碼、zip、LLM)留在 CLI 側,伺服器保持精瘦
+- **邊界(不做什麼)**:不放業務規則(規則屬於下游子系統);`server` 套件**只依賴
+  catalog 與 workspace**,把重量級相依(影像解碼、zip、LLM)留在 CLI 側,伺服器保持精瘦。
+  多一個 workspace 是因為伺服器要讀中樞才知道該服務哪些 vault —— 這條放寬的前提是
+  workspace 本身輕量,規則的精神(伺服器不背重量級相依)沒有變
 - **對外契約摘要**:即「系統對外介面」那四節 —— CLI 指令群、HTTP 端點與回應 DTO、
   檔案系統佈局、專案產出物
 - **設計文檔**:`.design/subsystems/delivery/design.md`
@@ -207,14 +309,23 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 
 - **子系統之間:同進程直接函式呼叫**(單一 binary 群,無網路躍點)。依賴方向嚴格單向:
   `catalog ← ingest`、`catalog ← ai-tagging`、`catalog ← delivery`、`ingest ← delivery`、
-  `ai-tagging ← delivery`。**無循環依賴**,由各 `.cabal` 的 `build-depends` 保證。
+  `ai-tagging ← delivery`、`catalog ← workspace`、`workspace ← delivery`。
+  **無循環依賴**,由各 `.cabal` 的 `build-depends` 保證。`workspace` 不依賴 ingest / ai-tagging
+  —— 它只認得「有哪些 vault」,不認得 vault 裡面是什麼。
 - **組合根位於 `delivery`**:跨子系統的協作在此組裝(例如 AI 套用時把 ingest 的叢集
   反查以函式注入 ai-tagging,讓兩者互不相依)。真正依賴全部套件的是 `cli`;`project`
   另外獨立組合 catalog 與 ingest 的解壓契約。
 - **前端 ↔ 後端**:HTTP/JSON,型別契約由後端產生器單向輸出到前端,並以漂移檢查鎖住。
-- **行程之間:共用同一個 SQLite 檔(WAL)**(見 ADR-009)。`assetdb`(CLI 批次)與
-  `assetdb-server`(常駐查詢)是**兩個獨立行程**,彼此不通訊,只透過
-  `.assetdb/assetdb.sqlite` 交會。這條通道的規則:
+- **中樞是設定,不是通道。** `config.toml` 由 `workspace` 在指令啟動時讀一次,決定這次要
+  開哪些索引;它**不是**行程間傳遞資料的媒介,也不在批次進行中被輪詢。中樞不見了不會讓
+  任何既有 vault 失效 —— 重新 `vault add` 即可。
+- **跨 vault 查詢以 SQLite 的 `ATTACH` 實作**(ADR-012):一個連線掛上多個 vault 的索引再
+  UNION。這之所以乾淨,是因為對外識別一律是 ULID(ADR-003),跨 vault 合併不會撞鍵 ——
+  「整數主鍵不出模組邊界」那條規則在這裡付現。
+- **行程之間:共用 SQLite 檔(WAL)**(見 ADR-009)。`assetdb`(CLI 批次)與
+  `assetdb-server`(常駐查詢)是**兩個獨立行程**,彼此不通訊,只透過各 vault 的
+  `.assetdb/assetdb.sqlite` 交會。伺服器可能同時掛著多個 vault 的索引,而 CLI 一次只寫其中
+  一個 —— 下面的規則**逐一適用於每個索引檔**,不因為掛了多個而改變:
   - **同時只能有一個寫入者**;WAL 模式下讀取者不被寫入者阻塞,反之亦然
   - 取得寫鎖的等待上限是 `busy_timeout=5000`,**超過就是寫入失敗**,不是排隊
   - **服務保證:CLI 的長時間批次進行中,伺服器必須仍然可以查詢,且 CLI 自己的每一筆
@@ -276,17 +387,26 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 └─────┬──────┘        │
       │               │
       ▼               ▼
-  ┌───────────────────────┐
-  │       catalog         │  領域型別、ULID、命名文法、Manifest、
-  │    core  +  store     │  SQLite schema/migration、FTS5、查詢
-  └───────────────────────┘
-            │
+  ┌───────────────────────┐        ┌──────────────────────────┐
+  │       catalog         │◀───────│       workspace          │
+  │    core  +  store     │        │ 全局設定 · 註冊表 · 生命週期 │
+  └───────────────────────┘        └────────────┬─────────────┘
+            │                                   │ 讀一次,決定這次開哪些索引
+            │                                   ▼
+            │              <全局設定目錄>/config.toml   ← 中樞(ULID → 路徑)
+            │              <全局設定目錄>/cache/thumbs/ ← 全局縮圖快取(跨 vault 共用)
             ▼
-    .assetdb/assetdb.sqlite  +  library/(壓縮檔為唯一真相)
+  ┌─────────────────────────────────────────────────────────┐
+  │  vault A/            vault B/            vault C/        │
+  │   .assetdb/…sqlite    .assetdb/…sqlite    .assetdb/…sqlite│  ← 各自完整、可攜
+  │   library/            library/            library/        │  ← 壓縮檔為唯一真相
+  └─────────────────────────────────────────────────────────┘
+        查詢時由 workspace 決定集合,以 SQLite ATTACH 跨 vault UNION(ADR-012)
 
 外部 sidecar:7-Zip(子程序,ingest)、llama.cpp(HTTP,ai-tagging)
 
-兩個行程(assetdb CLI / assetdb-server)彼此不通訊,只透過 .assetdb/assetdb.sqlite 交會
+兩個行程(assetdb CLI / assetdb-server)彼此不通訊,只透過各 vault 的 .assetdb/assetdb.sqlite
+交會;寫入一次只進一個 vault,查詢可以同時看全部
 ```
 
 交付的執行檔是 `assetdb`(CLI)與 `assetdb-server`(HTTP 服務)。`archive` 套件另有一個
@@ -328,6 +448,7 @@ Alchbees Studio 的資源管理原本是純手工資料夾:5,721 個檔案 / 3.4
 | 12 | AI 離線分類與標註(本機 LLM + GBNF) | ai-tagging |
 | 13 | 缺陷與技術債收斂 | 全部 |
 | 14 | 專案增量同步(`project sync`):對帳分四類、只增不刪、預設預覽 | delivery |
+| 15 | 全局工具化:中樞註冊表、vault 生命週期、跨 vault 查詢、專案脫離 vault | workspace + delivery + catalog |
 
 **本表只回答「這個專案分哪些階段、每個階段屬於誰」。** 各階段的完成狀態與對應的 Level 3
 文檔 id 記在各子系統 `design.md` 的「開發階段」節,整體進度由 `/arch-audit status` 從

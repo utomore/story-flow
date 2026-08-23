@@ -23,14 +23,16 @@ library
     import:           warnings, lang
     hs-source-dirs:   src
     exposed-modules:
+        Aapms.Core.AnyNode
+        Aapms.Core.Asset
         Aapms.Core.Entity
-        Aapms.Core.Graph
         Aapms.Core.Id
         Aapms.Core.Json
         Aapms.Core.Level
+        Aapms.Core.License
         Aapms.Core.Link
         Aapms.Core.Meta
-        Aapms.Core.Registry
+        Aapms.Core.Pack
         Aapms.Core.Tree
     build-depends:
         , aeson
@@ -46,20 +48,25 @@ test-suite aapms-core-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Core.AnyNodeSpec
+        Aapms.Core.AssetSpec
+        Aapms.Core.CabalSpec
         Aapms.Core.EntitySpec
         Aapms.Core.Fixtures
-        Aapms.Core.GraphSpec
         Aapms.Core.IdSpec
         Aapms.Core.JsonSpec
+        Aapms.Core.LicenseSpec
         Aapms.Core.LinkSpec
         Aapms.Core.MetaSpec
-        Aapms.Core.RegistrySpec
+        Aapms.Core.PackSpec
         Aapms.Core.TreeSpec
         Aapms.CoreSpec
     build-depends:
         , aeson
         , base
+        , bytestring
         , containers
+        , directory
         , hspec
         , aapms-core
         , text

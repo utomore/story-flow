@@ -1,4 +1,5 @@
--- | entity-graph-core/F002 T5(建構與五條不變量)與 T6(走訪)的對照測試。
+-- | graph-core/F001 T10 的對照測試:buildTree 的建構、五條不變量與走訪
+-- (邏輯沿用舊 entity-graph-core/F002 T5+T6,只換型別)。
 module Aapms.Core.TreeSpec (spec) where
 
 import Data.Either (isRight)
@@ -195,12 +196,12 @@ spec = do
             `shouldBe` [(idOf "nod-0009", refOf "nod-9999", False)]
 
     it "指向其他 Vault 的 Node 一律視為不存在" $
-      let cross = retarget "nod-0009" (refOf "shared-lore:nod-0010") classroomNodes
+      let cross = retarget "nod-0009" (refOf "vlt-a0c4e1f8:nod-0010") classroomNodes
           t = case buildTree classroomLevel cross of
             Right x -> x
             Left es -> error (show es)
        in convergenceReport t
-            `shouldBe` [(idOf "nod-0009", refOf "shared-lore:nod-0010", False)]
+            `shouldBe` [(idOf "nod-0009", refOf "vlt-a0c4e1f8:nod-0010", False)]
 
     it "convergesTo 不影響樹的結構 —— nod-0009 的父節點仍是 nod-0007" $
       fmap ids (pathTo (idOf "nod-0009") classroomTree)

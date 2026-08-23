@@ -3,7 +3,7 @@ id: F001
 type: feature
 title: core-unified-meta
 description: 統一六種節點共用的 Meta、短 id、Link 詞彙與 aeson 編碼規則
-status: open
+status: done
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: []
@@ -252,24 +252,24 @@ type LinkGraph = Map Id [Link]
 
 ## TodoList
 
-- [ ] T1: `Id.hs`:`VaultId` newtype、`IdPrefix` 擴充 8 值、`mkId` 改名 `newId`、`Ref`/`parseRef` 改用 `VaultId`  `dep: -`
-- [ ] T2: `Meta.hs`:`TypeKey`/`Revision` newtype、`Status` 加 `Missing`、`Source` 加 `Scan`/`Ai`、`Timeline` 改 `Maybe`、`Meta` 逐欄改型別、`MetaWarning` 型別骨架、`metaFieldNames`/`bumpRevision`/`isCanon`/`MetaError` 更新  `dep: T1`
-- [ ] T3: `Link.hs`:`LinkKind` 加 `Uses`/`Depicts`、`LinkGraph` 型別別名併入  `dep: T1`
-- [ ] T4: `Entity.hs`:改吃新 `Meta`  `dep: T2`
-- [ ] T5: `Asset.hs`(新):`Sha256`/`LogicalName` newtype、`Asset` 型別  `dep: T1, T2`
-- [ ] T6: `Pack.hs`(新):`AiDisclosure`、`Author`、`Pack` 型別  `dep: T2, T5`
-- [ ] T7: `License.hs`(新):`License` 型別  `dep: T2`
-- [ ] T8: `Level.hs`:`Level`/`Node` 改吃新 `Meta`/`Id`,`NodeKind` 沿用  `dep: T1, T2`
-- [ ] T9: `AnyNode.hs`(新):`AnyNode`、`anyMeta`、`prefixOf`  `dep: T4, T5, T6, T7, T8`
-- [ ] T10: `Tree.hs`:`buildTree` 與既有走訪函式改吃新型別  `dep: T8`
-- [ ] T11: 刪除 `Registry.hs` / `RegistrySpec.hs`;`Graph.hs` 併入 `Link.hs` 後刪除、刪除 `GraphSpec.hs`  `dep: T3`
-- [ ] T12: `Json.hs`:移除 `FieldSpec`/`EntityTypeSpec` 孤兒實例,新增全部新型別的 `ToJSON`/`FromJSON`  `dep: T2, T4, T5, T6, T7, T8, T9, T10`
-- [ ] T13: `aapms-core.cabal`:`exposed-modules` 移除 `Registry`/`Graph`、加入 `Asset`/`Pack`/`License`/`AnyNode`  `dep: T1..T12`
-- [ ] T14: 新增 `core/test/Aapms/Core/CabalSpec.hs`(斷言 8 項禁用套件不在 `build-depends`)  `dep: T13`
-- [ ] T15: 重寫 `Fixtures.hs`(新 `Meta` 形狀、六種節點 fixture)  `dep: T12`
-- [ ] T16: 重寫既有 Spec:`IdSpec` / `MetaSpec` / `LinkSpec` / `EntitySpec` / `TreeSpec` / `JsonSpec`  `dep: T15`
-- [ ] T17: 新增 `AssetSpec` / `PackSpec` / `LicenseSpec` / `AnyNodeSpec`  `dep: T15`
-- [ ] T18: 更新 `core/test/Spec.hs` 的 describe 清單(移除 Registry/Graph、加入新 Spec)  `dep: T16, T17`
+- [x] T1: `Id.hs`:`VaultId` newtype、`IdPrefix` 擴充 8 值、`mkId` 改名 `newId`、`Ref`/`parseRef` 改用 `VaultId`  `dep: -`
+- [x] T2: `Meta.hs`:`TypeKey`/`Revision` newtype、`Status` 加 `Missing`、`Source` 加 `Scan`/`Ai`、`Timeline` 改 `Maybe`、`Meta` 逐欄改型別、`MetaWarning` 型別骨架、`metaFieldNames`/`bumpRevision`/`isCanon`/`MetaError` 更新  `dep: T1`
+- [x] T3: `Link.hs`:`LinkKind` 加 `Uses`/`Depicts`、`LinkGraph` 型別別名併入  `dep: T1`
+- [x] T4: `Entity.hs`:改吃新 `Meta`  `dep: T2`
+- [x] T5: `Asset.hs`(新):`Sha256`/`LogicalName` newtype、`Asset` 型別  `dep: T1, T2`
+- [x] T6: `Pack.hs`(新):`AiDisclosure`、`Author`、`Pack` 型別  `dep: T2, T5`
+- [x] T7: `License.hs`(新):`License` 型別  `dep: T2`
+- [x] T8: `Level.hs`:`Level`/`Node` 改吃新 `Meta`/`Id`,`NodeKind` 沿用  `dep: T1, T2`
+- [x] T9: `AnyNode.hs`(新):`AnyNode`、`anyMeta`、`prefixOf`  `dep: T4, T5, T6, T7, T8`
+- [x] T10: `Tree.hs`:`buildTree` 與既有走訪函式改吃新型別  `dep: T8`
+- [x] T11: 刪除 `Registry.hs` / `RegistrySpec.hs`;`Graph.hs` 併入 `Link.hs` 後刪除、刪除 `GraphSpec.hs`  `dep: T3`
+- [x] T12: `Json.hs`:移除 `FieldSpec`/`EntityTypeSpec` 孤兒實例,新增全部新型別的 `ToJSON`/`FromJSON`  `dep: T2, T4, T5, T6, T7, T8, T9, T10`
+- [x] T13: `aapms-core.cabal`:`exposed-modules` 移除 `Registry`/`Graph`、加入 `Asset`/`Pack`/`License`/`AnyNode`  `dep: T1..T12`
+- [x] T14: 新增 `core/test/Aapms/Core/CabalSpec.hs`(斷言 8 項禁用套件不在 `build-depends`)  `dep: T13`
+- [x] T15: 重寫 `Fixtures.hs`(新 `Meta` 形狀、六種節點 fixture)  `dep: T12`
+- [x] T16: 重寫既有 Spec:`IdSpec` / `MetaSpec` / `LinkSpec` / `EntitySpec` / `TreeSpec` / `JsonSpec`  `dep: T15`
+- [x] T17: 新增 `AssetSpec` / `PackSpec` / `LicenseSpec` / `AnyNodeSpec`  `dep: T15`
+- [x] T18: 更新 `core/test/Spec.hs` 的 describe 清單(移除 Registry/Graph、加入新 Spec)  `dep: T16, T17`
 
 ## 1-to-1 測試對照表
 
@@ -316,4 +316,27 @@ type LinkGraph = Map Id [Link]
 
 ## 實作備註
 
-(留空)
+- `Entity.hs` 與 `Tree.hs` 的原始碼一字未動:兩者只透過抽象的 `Meta` / `Id` 型別
+  操作(`metaId`、`metaLinks`、`nodMeta` 等存取器),T4 與 T10 完全由下游型別
+  (`Meta`、`Ref`)換形狀後自動吃到新契約,不需要任何程式碼變更。
+- `AnyNode` 的 `FromJSON` 沒有另外的判別鍵——解碼時讀 `id` 欄位的前綴決定要
+  用哪一種節點的 `FromJSON`(`prefixOf` 的反函式)。這是內部實作自主權範圍
+  內的選擇:id 前綴本來就唯一對應節點種類(ADR-014),不需要再多一個
+  `"kind"` 欄位重複這件事。`vlt` / `prj` 前綴不對應任何 `AnyNode` 建構子,
+  解碼時回傳明確的 `fail` 訊息。
+- `Asset` / `Pack` / `License` 的 JSON 鍵名採用 design.md「索引結構」表中
+  `assets` / `packs` / `licenses` 表的 snake_case 欄位名(如 `source_url`、
+  `ai_disclosure`、`attribution_required`),讓未來 `aapms-store` 的欄位映射
+  與這裡的 JSON 形狀一致,減少之後對照的心智負擔——這也是實作自主權範圍內
+  的選擇,Level 2 契約沒有規定 JSON 鍵名。
+- `License` 的 `licCommercial` / `licAttributionRequired` 在 JSON 中為必填
+  (`.:` 而非 `.:?`),呼應 design.md md-unified-sections 契約卡「`commercial`
+  與 `attribution_required` 除外,缺漏是錯誤」的既定政策,提前套用到本層的
+  JSON 編碼。
+- `AiDisclosure` 的 `FromJSON` 對不在四個合法字面值內的字串直接失敗,不吞成
+  `AiUnknown`;「缺漏視為 unknown」由呼叫端(`Pack` 的 `.:? "ai_disclosure"
+  .!= AiUnknown`)處理,兩種情境(缺鍵 vs. 打錯字)分開處理。
+- `CabalSpec.hs` 沿用 `conflict` / `service` 等既有套件的先例(讀 `.cabal`
+  檔文字、抓逗號開頭的 `build-depends` 行、逐字比對禁用清單),而非嘗試對
+  `exposed-modules` 也做逐行解析——`isInfixOf` 對模組名稱字串已經足夠精確,
+  不會與禁用套件名或其他文字誤觸發。

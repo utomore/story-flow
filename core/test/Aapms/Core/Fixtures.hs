@@ -1,28 +1,44 @@
--- | 測試共用的資料。以 system.md 的「教室」場景為準,
--- 讓樹與走訪的測試對照的是文件裡真的畫出來的那棵樹。
+-- | 測試共用的資料。教室場景以 system.md 的樹為準;六種節點各留一份最小
+-- fixture 供 graph-core/F001 新增的 Spec(Asset / Pack / License / AnyNode /
+-- Json)重用。
 module Aapms.Core.Fixtures
   ( -- * 建構輔助
     idOf
   , refOf
+  , vaultOf
+  , typeOf
   , day0
   , time0
   , metaOf
   , nodeOf
 
-    -- * 教室場景
+    -- * 教室場景(Entity / Level / Node)
   , classroomLevel
   , classroomNodes
   , entLinda
   , entTower
   , entDialogue
+
+    -- * 六種節點各一份的最小 fixture
+  , sampleEntity
+  , sampleAsset
+  , samplePack
+  , sampleLicense
+  , sampleLevel
+  , sampleNode
   ) where
 
+import Data.Aeson (object, (.=))
 import Data.Text (Text)
 import Data.Time (Day, UTCTime (..), fromGregorian)
+import Aapms.Core.Asset
+import Aapms.Core.Entity
 import Aapms.Core.Id
 import Aapms.Core.Level
+import Aapms.Core.License
 import Aapms.Core.Link
 import Aapms.Core.Meta
+import Aapms.Core.Pack
 
 -- | 由已知合法的字面值取得 'Id'。只給測試用,格式寫錯就讓測試直接爆掉。
 idOf :: Text -> Id
@@ -35,28 +51,42 @@ refOf t = case parseRef t of
   Right r -> r
   Left e -> error ("fixture 的 ref 不合法:" <> show e)
 
+-- | 由已知合法的 @vlt-\<hex\>@ 字面值取得 'VaultId'。
+vaultOf :: Text -> VaultId
+vaultOf t = case parseId t of
+  Right (PVlt, i) -> VaultId (renderId i)
+  Right (p, _) -> error ("fixture 的 vault id 前綴不是 vlt:" <> show p)
+  Left e -> error ("fixture 的 vault id 不合法:" <> show e)
+
+typeOf :: Text -> TypeKey
+typeOf = TypeKey
+
 day0 :: Day
 day0 = fromGregorian 2026 8 16
 
 time0 :: UTCTime
 time0 = UTCTime day0 0
 
+-- | 全部 fixture 共用的預設 vault,取自 design.md 的 parseRef 範例。
+defaultVault :: VaultId
+defaultVault = vaultOf "vlt-a0c4e1f8"
+
 -- | 最小可用的 'Meta':給 id 與 title,其餘取預設。
 metaOf :: Text -> Text -> Meta
 metaOf i title =
   Meta
     { metaId = idOf i
-    , metaVault = "liftgame"
-    , metaType = "plot-fragment"
+    , metaVault = defaultVault
+    , metaType = typeOf "plot-fragment"
     , metaTitle = title
     , metaSummary = title
     , metaTags = []
     , metaStatus = Canon
-    , metaTimeline = emptyTimeline
+    , metaTimeline = Nothing
     , metaAliases = []
     , metaLinks = []
     , metaSource = Human
-    , metaRevision = 1
+    , metaRevision = Revision 1
     , metaCreated = day0
     , metaUpdated = day0
     }
@@ -81,7 +111,7 @@ entDialogue = refOf "ent-d902"
 classroomLevel :: Level
 classroomLevel =
   Level
-    { lvlMeta = (metaOf "lvl-3a01" "教室") {metaType = "level"}
+    { lvlMeta = (metaOf "lvl-3a01" "教室") {metaType = typeOf "level"}
     , lvlRoot = idOf "nod-0001"
     }
 
@@ -127,3 +157,63 @@ convergingNode =
               { metaLinks = [Link ConvergesTo (refOf "nod-0010") Nothing]
               }
         }
+
+-- 六種節點各一份的最小 fixture ---------------------------------------------
+
+sampleEntity :: Entity
+sampleEntity =
+  Entity
+    { entMeta = (metaOf "ent-7f3a" "琳達") {metaType = typeOf "character-fragment"}
+    , entBody = "銀灰短髮剪到耳際……"
+    }
+
+sampleAsset :: Asset
+sampleAsset =
+  Asset
+    { astMeta = (metaOf "ast-1a2b3c4d" "旅行手記畫框") {metaType = typeOf "asset-image"}
+    , astName = Just (LogicalName "ui_gui_travel-book-frame_001")
+    , astSha256 = Sha256 "deadbeefcafebabe0000000000000000000000000000000000000000000000"
+    , astEntry = "ui/gui/travel-book-frame_001.png"
+    , astExt = Just "png"
+    , astKindMeta = object ["width" .= (512 :: Int), "height" .= (512 :: Int)]
+    , astLicense = Just (refOf "lic-9f8e7d6c")
+    , astAuthor = Just "Kenney"
+    , astBody = ""
+    }
+
+samplePack :: Pack
+samplePack =
+  Pack
+    { pckMeta = (metaOf "pck-2b3c4d5e" "Kenney UI Pack") {metaType = typeOf "asset-pack"}
+    , pckVendor = Just "Kenney"
+    , pckArchive = Just "packs/kenney/ui-pack.zip"
+    , pckSha256 = Just (Sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd")
+    , pckLicense = Just (refOf "lic-9f8e7d6c")
+    , pckAuthor = Just (Author "Kenney" (Just "https://kenney.nl") Nothing)
+    , pckSourceUrl = Just "https://kenney.nl/assets/ui-pack"
+    , pckAiDisclosure = AiNone
+    , pckBody = "UI 素材包……"
+    }
+
+sampleLicense :: License
+sampleLicense =
+  License
+    { licMeta = (metaOf "lic-9f8e7d6c" "CC0") {metaType = typeOf "asset-license"}
+    , licCommercial = True
+    , licAttributionRequired = False
+    , licCreditText = Nothing
+    , licModificationAllowed = Just True
+    , licRedistributionAllowed = Just True
+    , licResaleAllowed = Just False
+    , licNftAllowed = Just False
+    , licSourceUrl = Just "https://creativecommons.org/publicdomain/zero/1.0/"
+    , licFullText = Nothing
+    }
+
+sampleLevel :: Level
+sampleLevel = classroomLevel
+
+sampleNode :: Node
+sampleNode = case classroomNodes of
+  (n : _) -> n
+  [] -> error "fixture 的教室場景不該是空的"

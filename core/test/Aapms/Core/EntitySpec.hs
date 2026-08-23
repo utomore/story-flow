@@ -1,4 +1,5 @@
--- | entity-graph-core/F002 T4 的對照測試:Entity / Level / Node 與 NodeKind。
+-- | graph-core/F001 T4+T8 的對照測試:Entity / Level / Node(改吃新 Meta/Id)
+-- 與 NodeKind。
 module Aapms.Core.EntitySpec (spec) where
 
 import Data.Text (Text)
@@ -21,45 +22,45 @@ linda =
   Entity
     { entMeta =
         (metaOf "ent-7f3a" "琳達")
-          { metaType = "character-fragment"
+          { metaType = typeOf "character-fragment"
           , metaSummary = "銀灰短髮,左眼下方有織紋刺青"
           , metaTags = ["外觀"]
           , metaAliases = ["小琳", "第七織手"]
-          , metaTimeline = Timeline (Just "埃提亞崩塌前") (Just 1)
+          , metaTimeline = Just (Timeline (Just "埃提亞崩塌前") (Just 1))
           }
     , entBody = "銀灰短髮剪到耳際……"
     }
 
 spec :: Spec
 spec = do
-  describe "Entity" $ do
+  describe "Entity —— 以新 Meta 建構(T4)" $ do
     it "由 Meta 加 body 組成,兩者都取得回來" $ do
       metaTitle (entMeta linda) `shouldBe` "琳達"
       entBody linda `shouldBe` "銀灰短髮剪到耳際……"
 
-    it "Meta 的十四個欄位對照 system.md 欄位表逐項存在" $ do
+    it "Meta 的十四個欄位對照欄位表逐項存在" $ do
       let m = entMeta linda
       metaId m `shouldBe` idOf "ent-7f3a"
-      metaVault m `shouldBe` "liftgame"
-      metaType m `shouldBe` "character-fragment"
+      metaVault m `shouldBe` vaultOf "vlt-a0c4e1f8"
+      metaType m `shouldBe` typeOf "character-fragment"
       metaTitle m `shouldBe` "琳達"
       metaSummary m `shouldBe` "銀灰短髮,左眼下方有織紋刺青"
       metaTags m `shouldBe` ["外觀"]
       metaStatus m `shouldBe` Canon
-      metaTimeline m `shouldBe` Timeline (Just "埃提亞崩塌前") (Just 1)
+      metaTimeline m `shouldBe` Just (Timeline (Just "埃提亞崩塌前") (Just 1))
       metaAliases m `shouldBe` ["小琳", "第七織手"]
       metaLinks m `shouldBe` []
       metaSource m `shouldBe` Human
-      metaRevision m `shouldBe` 1
+      metaRevision m `shouldBe` Revision 1
       metaCreated m `shouldBe` day0
       metaUpdated m `shouldBe` day0
 
-  describe "Level" $
+  describe "Level —— 以新 Meta/Id 建構(T8)" $
     it "有 Meta 與 root 兩部分" $ do
       lvlRoot classroomLevel `shouldBe` idOf "nod-0001"
       metaTitle (lvlMeta classroomLevel) `shouldBe` "教室"
 
-  describe "Node" $ do
+  describe "Node —— 以新 Meta/Id 建構(T8)" $ do
     it "有 level / parent / order / kind / entities 五個專屬欄位" $ do
       let n = nodeById "nod-0002"
       nodLevel n `shouldBe` idOf "lvl-3a01"
@@ -71,14 +72,14 @@ spec = do
     it "根節點的 parent 為 Nothing" $
       nodParent (nodeById "nod-0001") `shouldBe` Nothing
 
-  describe "NodeKind" $ do
+  describe "NodeKind —— 沿用不變" $ do
     it "恰好六個建構子" $
       length allNodeKinds `shouldBe` 6
 
     it "六個建構子的 render 與 parse 互為反函式" $
       mapM_ (\k -> parseNodeKind (renderNodeKind k) `shouldBe` Right k) allNodeKinds
 
-    it "渲染成 system.md 的字串" $
+    it "渲染成字串" $
       map renderNodeKind allNodeKinds
         `shouldBe` ["scene", "cast", "camera", "interaction", "dialogue", "branch"]
 

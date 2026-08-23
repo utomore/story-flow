@@ -1,7 +1,9 @@
 -- | 有方向性的關聯,一律存在來源端。
 --
--- ADR-005:引擎認得八個核心關聯並據以推論,其餘一律是 'Custom'——引擎當純標註
--- 儲存,可查詢、可顯示、可被 AI 讀到,但不驅動任何邏輯。
+-- ADR-005:引擎認得核心關聯並據以推論,其餘一律是 'Custom'——引擎當純標註
+-- 儲存,可查詢、可顯示、可被 AI 讀到,但不驅動任何邏輯。ADR-012 加了兩個字:
+-- @uses@(故事節點 → 素材)與 @depicts@(素材 → 故事節點),因為作者站的位置
+-- 不同——強迫只能從一邊寫會讓另一邊的作者每次都要切換脈絡。
 module Aapms.Core.Link
   ( LinkKind (..)
   , Link (..)
@@ -10,14 +12,18 @@ module Aapms.Core.Link
   , parseLinkKind
   , isCoreKind
   , suggestCoreKind
+
+    -- * 關聯圖
+  , LinkGraph
   ) where
 
 import Data.Char (isAlpha, toLower)
+import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.Id (Ref)
+import Aapms.Core.Id (Id, Ref)
 
--- | 八個核心建構子 + 一個 'Custom'。封閉的部分讓核心關聯的處理可以窮盡比對,
+-- | 十個核心建構子 + 一個 'Custom'。封閉的部分讓核心關聯的處理可以窮盡比對,
 -- 未來新增核心關聯時編譯器會列出所有待處理的地方。
 data LinkKind
   = -- | A 與 B 矛盾。衝突偵測第 1 層的確定性命中
@@ -36,6 +42,10 @@ data LinkKind
     References
   | -- | Node A 合流到 Node B。標註而非結構(ADR-004)
     ConvergesTo
+  | -- | 故事節點使用某個素材(ADR-012)
+    Uses
+  | -- | 素材描繪某個故事節點(ADR-012)
+    Depicts
   | -- | 自訂關聯。可儲存、可查詢,但不驅動邏輯
     Custom Text
   deriving stock (Show, Eq, Ord)
@@ -47,7 +57,7 @@ data Link = Link
   }
   deriving stock (Show, Eq, Ord)
 
--- | 八個核心關聯,依 system.md 的詞彙表順序。
+-- | 十個核心關聯,依詞彙表順序。
 coreLinkKinds :: [LinkKind]
 coreLinkKinds =
   [ Contradicts
@@ -58,6 +68,8 @@ coreLinkKinds =
   , OccursIn
   , References
   , ConvergesTo
+  , Uses
+  , Depicts
   ]
 
 renderLinkKind :: LinkKind -> Text
@@ -70,6 +82,8 @@ renderLinkKind = \case
   OccursIn -> "occursIn"
   References -> "references"
   ConvergesTo -> "convergesTo"
+  Uses -> "uses"
+  Depicts -> "depicts"
   Custom t -> t
 
 -- | 不回傳 'Either':任何字串都是合法關聯,認不得就是 'Custom'。
@@ -140,4 +154,19 @@ synonyms =
   , ("匯合", ConvergesTo)
   , ("convergeto", ConvergesTo)
   , ("convergesto", ConvergesTo)
+  , ("使用", Uses)
+  , ("用到", Uses)
+  , ("use", Uses)
+  , ("使用了", Uses)
+  , ("描繪", Depicts)
+  , ("畫的是", Depicts)
+  , ("depict", Depicts)
   ]
+
+-- | 關聯圖:來源端持有,與儲存格式一致(關聯只存在來源端)。
+--
+-- __待確認假設 A2__:舊 @Aapms.Core.Graph@ 的 'buildGraph' \/ 'follow' \/
+-- 'supersededSet' \/ 'contradictionPairs' 四個純函式不在本 feature 的 Level 2
+-- 契約範圍內(design.md 契約 B 與「內部模組劃分」都沒有列出),因此只留這個
+-- 型別別名,四個函式與其測試一併刪除。
+type LinkGraph = M.Map Id [Link]

@@ -14,6 +14,7 @@ import System.Directory (doesFileExist)
 import Test.Hspec
 
 import Aapms.Core.Fixtures (idOf, refOf, vaultOf)
+import Aapms.Core.Id (Ref (..))
 import Aapms.Core.Manifest
 import Aapms.Core.Meta (Revision (..), TypeKey (..))
 import Aapms.Core.Asset (Sha256 (..))
@@ -33,8 +34,8 @@ sampleManifestAsset =
     , maType = TypeKey "asset-image"
     , maSha256 = Sha256 "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a1"
     , maVault = vaultOf "vlt-a0c4e1f8"
-    , maPack = Just (idOf "pck-11223344")
-    , maLicense = Just (idOf "lic-55667788")
+    , maPack = Just (refOf "vlt-a0c4e1f8:pck-11223344")
+    , maLicense = Just (refOf "vlt-a0c4e1f8:lic-55667788")
     , maMeta = object ["width" .= (512 :: Int), "height" .= (512 :: Int), "hasAlpha" .= True, "colorCount" .= (128 :: Int)]
     }
 
@@ -57,17 +58,17 @@ sampleManifestAsset2 =
 samplePack :: ManifestPack
 samplePack =
   ManifestPack
-    { mpId = idOf "pck-11223344"
+    { mpId = refOf "vlt-a0c4e1f8:pck-11223344"
     , mpTitle = "Kenney UI Pack"
     , mpVendor = Just "Kenney"
     , mpSourceUrl = Just "https://kenney.nl/assets/ui-pack"
-    , mpLicense = Just (idOf "lic-55667788")
+    , mpLicense = Just (refOf "vlt-a0c4e1f8:lic-55667788")
     }
 
 sampleLicense :: ManifestLicense
 sampleLicense =
   ManifestLicense
-    { mlId = idOf "lic-55667788"
+    { mlId = refOf "vlt-a0c4e1f8:lic-55667788"
     , mlTitle = "CC0"
     , mlCommercial = True
     , mlAttributionRequired = False
@@ -140,12 +141,12 @@ spec = do
       maPath sampleManifestAsset `shouldBe` "sprites/ui_gui_travel-book-frame_001.png"
       maType sampleManifestAsset `shouldBe` TypeKey "asset-image"
       maVault sampleManifestAsset `shouldBe` vaultOf "vlt-a0c4e1f8"
-      maPack sampleManifestAsset `shouldBe` Just (idOf "pck-11223344")
+      maPack sampleManifestAsset `shouldBe` Just (refOf "vlt-a0c4e1f8:pck-11223344")
       maLicense sampleManifestAsset2 `shouldBe` Nothing
       mProject sampleManifest `shouldBe` "Circle"
       length (mAssets sampleManifest) `shouldBe` 2
-      mpId samplePack `shouldBe` idOf "pck-11223344"
-      mlId sampleLicense `shouldBe` idOf "lic-55667788"
+      mpId samplePack `shouldBe` refOf "vlt-a0c4e1f8:pck-11223344"
+      mlId sampleLicense `shouldBe` refOf "vlt-a0c4e1f8:lic-55667788"
 
     it "StoryManifest / StoryManifestEntry 全部欄位可存取" $ do
       smProject sampleStoryManifest `shouldBe` "Circle"
@@ -177,6 +178,53 @@ spec = do
     it "Manifest / StoryManifest round-trip(decode . encode == Just x)" $ do
       decode (encode sampleManifest) `shouldBe` Just sampleManifest
       decode (encode sampleStoryManifest) `shouldBe` Just sampleStoryManifest
+
+  describe "ManifestAsset pack / license 為 Ref(F003 階段一閘門 A2)" $ do
+    it "toJSON 編碼為 \"<vault>:<id>\"" $ do
+      keysOf sampleManifestAsset `shouldMatchList` ["id", "key", "path", "type", "sha256", "vault", "pack", "license", "meta"]
+      case toJSON sampleManifestAsset of
+        Object o -> do
+          KM.lookup "pack" o `shouldBe` Just (String "vlt-a0c4e1f8:pck-11223344")
+          KM.lookup "license" o `shouldBe` Just (String "vlt-a0c4e1f8:lic-55667788")
+        other -> expectationFailure ("預期物件,得到:" <> show other)
+
+    -- 'Aapms.Core.Id.parseRef' 對不帶 vault 前綴的裸 id 不會拒絕:單段輸入被視為
+    -- 「本 vault」參照(refVault = Nothing),而不是報錯。因此 FromJSON 也正確
+    -- 接受裸 id,不需要另外拒絕——這條測試證明的是「正確處理」而非「拒絕」。
+    it "FromJSON 接受不帶 vault 前綴的裸 id,視為本 vault 參照(refVault = Nothing)" $ do
+      let bareIdJson =
+            object
+              [ "id" .= idOf "ast-3f9c1d20"
+              , "key" .= AssetKey "ui_gui_travel-book-frame_001"
+              , "path" .= ("sprites/x.png" :: String)
+              , "type" .= TypeKey "asset-image"
+              , "sha256" .= Sha256 "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a1"
+              , "vault" .= vaultOf "vlt-a0c4e1f8"
+              , "pack" .= ("pck-11223344" :: String)
+              , "license" .= ("lic-55667788" :: String)
+              , "meta" .= object ["width" .= (1 :: Int), "height" .= (1 :: Int), "hasAlpha" .= False]
+              ]
+      case fromJSON bareIdJson :: Result ManifestAsset of
+        Success a -> do
+          maPack a `shouldBe` Just (Ref Nothing (idOf "pck-11223344"))
+          maLicense a `shouldBe` Just (Ref Nothing (idOf "lic-55667788"))
+        Error msg -> expectationFailure ("預期裸 id 被接受為本 vault 參照,卻解析失敗:" <> msg)
+
+  describe "manifest 內部引用圖 vault 化(二輪裁決補述,ManifestPack/ManifestLicense.id 改 Ref)" $ do
+    it "asset 的 pack 能以 Ref 相等唯一對應到頂層 packs 的某一筆(不剝前綴比 Id)" $ do
+      let found = [p | p <- mPacks sampleManifest, Just (mpId p) == maPack sampleManifestAsset]
+      map mpId found `shouldBe` [refOf "vlt-a0c4e1f8:pck-11223344"]
+
+    it "兩個不同 vault 的同號 pack 在同一份 manifest 裡是兩筆可區分的項目" $ do
+      let packA = samplePack {mpId = refOf "vlt-aaaaaaaa:pck-11223344"}
+          packB = samplePack {mpId = refOf "vlt-bbbbbbbb:pck-11223344"}
+          packs = [packA, packB]
+      -- 兩筆的 Ref 整體不相等(vault 段不同),即使剝掉前綴後的短 id 相同
+      (mpId packA == mpId packB) `shouldBe` False
+      -- 各自能被自己的完整 Ref 唯一查到,不會撞名
+      [p | p <- packs, mpId p == refOf "vlt-aaaaaaaa:pck-11223344"] `shouldBe` [packA]
+      [p | p <- packs, mpId p == refOf "vlt-bbbbbbbb:pck-11223344"] `shouldBe` [packB]
+      length packs `shouldBe` 2
 
   describe "T4 golden files 是合法 JSON 且 schemaVersion = 2" $ do
     it "manifest.golden.json" $ do

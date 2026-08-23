@@ -10,8 +10,8 @@
       "type": "asset-image",
       "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a1",
       "vault": "vlt-a0c4e1f8",
-      "pack": "pck-11223344",
-      "license": "lic-55667788",
+      "pack": "vlt-a0c4e1f8:pck-11223344",
+      "license": "vlt-a0c4e1f8:lic-55667788",
       "meta": { "width": 512, "height": 512, "hasAlpha": true, "colorCount": 128 }
     },
     {
@@ -28,16 +28,16 @@
   ],
   "packs": [
     {
-      "id": "pck-11223344",
+      "id": "vlt-a0c4e1f8:pck-11223344",
       "title": "Kenney UI Pack",
       "vendor": "Kenney",
       "sourceUrl": "https://kenney.nl/assets/ui-pack",
-      "license": "lic-55667788"
+      "license": "vlt-a0c4e1f8:lic-55667788"
     }
   ],
   "licenses": [
     {
-      "id": "lic-55667788",
+      "id": "vlt-a0c4e1f8:lic-55667788",
       "title": "CC0",
       "commercial": true,
       "attributionRequired": false,

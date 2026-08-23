@@ -83,8 +83,10 @@ data Manifest = Manifest
   }
   deriving stock (Eq, Show)
 
--- | 一筆素材。'maPack' \/ 'maLicense' 是同一個 vault 內的短 id(待確認假設 A2),
--- 不是跨 vault 的 'Ref'——manifest 裡的 pack \/ license 一定與該 asset 同 vault。
+-- | 一筆素材。'maPack' \/ 'maLicense' 是**跨 vault 的 'Ref'**(F003 階段一閘門
+-- 裁決 A2,取代先前「同一個 vault 內的短 id」的假設):短 id 只在單一 vault 內
+-- 唯一,專案的素材未來可能來自兩個 vault,JSON 編碼為 @"\<vault\>:\<id\>"@
+-- (本 vault 內時可省略 vault 段,見 'Aapms.Core.Id.parseRef')。
 data ManifestAsset = ManifestAsset
   { maId :: Id
   , maKey :: AssetKey
@@ -92,24 +94,29 @@ data ManifestAsset = ManifestAsset
   , maType :: TypeKey
   , maSha256 :: Sha256
   , maVault :: VaultId
-  , maPack :: Maybe Id
-  , maLicense :: Maybe Id
+  , maPack :: Maybe Ref
+  , maLicense :: Maybe Ref
   , maMeta :: Value
   -- ^ kind 專屬 JSON;型別化讀取見 'imageMeta' \/ 'audioMeta'
   }
   deriving stock (Eq, Show)
 
+-- | 頂層去重清單裡的一筆 pack。'mpId' \/ 'mpLicense' 是 'Ref'(2026-08-23 二輪
+-- 裁決,見 F003「已裁決假設」A2 補述):manifest 內部的引用圖整個 vault 化,
+-- 讓 'ManifestAsset.maPack' 與這裡的 'mpId' 形狀一致——兩個 vault 各有一筆
+-- @pck-11223344@ 時仍是兩筆可區分的項目,不必先剝掉 vault 前綴再比對就會撞名。
 data ManifestPack = ManifestPack
-  { mpId :: Id
+  { mpId :: Ref
   , mpTitle :: Text
   , mpVendor :: Maybe Text
   , mpSourceUrl :: Maybe Text
-  , mpLicense :: Maybe Id
+  , mpLicense :: Maybe Ref
   }
   deriving stock (Eq, Show)
 
+-- | 頂層去重清單裡的一筆 license。'mlId' 是 'Ref',理由同 'ManifestPack.mpId'。
 data ManifestLicense = ManifestLicense
-  { mlId :: Id
+  { mlId :: Ref
   , mlTitle :: Text
   , mlCommercial :: Bool
   , mlAttributionRequired :: Bool

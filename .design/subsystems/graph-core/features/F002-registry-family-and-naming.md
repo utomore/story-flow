@@ -2,8 +2,8 @@
 id: F002
 type: feature
 title: registry-family-and-naming
-description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙、命名文法改吃注入詞彙
-status: done
+description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙(kinds/domains/states)、命名文法改吃注入詞彙並語意區分 variant/state
+status: in-progress
 created: 2026-08-23
 updated: 2026-08-23
 depends-on: [F001]
@@ -50,8 +50,9 @@ D1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `c
 ### 契約 C(全部,套件歸屬依 2026-08-23 D7 裁決)
 
 - `Family = FEntity | FAsset`、`TypeDecl`(9 欄,含 `tdNameKinds :: [Segment]`)、`TypeRegistry`、
-  `NamingVocab { nvKinds :: [Segment], nvDomains :: [Segment] }`、`lookupType`——**定義在
-  `aapms-core`**(`Aapms.Core.Registry`)
+  `NamingVocab { nvKinds :: [Segment], nvDomains :: [Segment], nvStates :: [Segment] }`(2026-08-23
+  階段一閘門加 `nvStates`,見「待確認假設」A1)、`lookupType`——**定義在 `aapms-core`**
+  (`Aapms.Core.Registry`)
 - `locateRegistry :: IO (Either RegistryError (FilePath, RegistrySource))`、
   `loadRegistry :: FilePath -> IO (Either RegistryError (TypeRegistry, NamingVocab))`——
   **定義在 `aapms-types`**(`Aapms.Types.Loader`),並 re-export 上一項的全部型別
@@ -63,7 +64,8 @@ D1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `c
 - `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]`(`aapms-core`,吃 F001 的 `AnyNode` /
   `MetaWarning`)
 - `mkLogicalName :: NamingVocab -> NameParts -> Either NameError LogicalName`
-- `parseLogicalName :: Text -> Either NameError NameParts`
+- `parseLogicalName :: NamingVocab -> Text -> Either NameError NameParts`(2026-08-23 階段一閘門
+  改回**帶** `NamingVocab` 參數——原 A1 判斷「契約 B 拿掉了這個參數」是誤判,見「待確認假設」A1)
 - `validateLogicalName :: NamingVocab -> TypeKey -> LogicalName -> Either NameError ()`
 
 **不做**:契約 B 其餘函式(`newId` / `parseId` / `parseRef` / `renderRef` / `prefixOf` /
@@ -146,27 +148,44 @@ D1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `c
 - `maxLogicalNameLength :: Int` `= 64` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:125-126`(不變)
 - `data NameParts = NameParts { npKind :: KindPrefix, npDomain :: Segment, npSubject :: Segment,
   npVariant :: Maybe Segment, npState :: Maybe Segment, npIndex :: Maybe Int }` ——
-  `legacy/assetdb/core/src/AssetDB/Naming.hs:129-147`(**形狀改變**,見「實作方式」的 A1)
+  `legacy/assetdb/core/src/AssetDB/Naming.hs:129-147`(**2026-08-23 階段一閘門定案**:形狀**沿用**
+  legacy 的 `npVariant :: Maybe Segment` / `npState :: Maybe Segment` 語意區分——原 A1「合併成
+  `npModifiers`」的判斷被開發者推翻,見「待確認假設」A1。`npKind` 仍從 `KindPrefix`〔封閉列舉〕
+  換成一般 `Segment`〔合法值改查外部注入的 `nvKinds`〕,這點不變)
 - `data NameError = EmptySegment | BadSegment Text | NoAsciiContent Text | TooLong Int Text |
   UnknownKindPrefix Text | TooFewSegments Int Text | AmbiguousTrailing [Text] Text |
   SubjectLooksLikeModifier Text | IndexOutOfRange Int` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:153-167`
-  (`SubjectLooksLikeModifier` 不沿用,見 A1)
+  (`SubjectLooksLikeModifier` 仍**不沿用**——不是因為 A1 的舊理由,而是因為新演算法的「至少留一段
+  給 subject」guard〔見「實作方式」與待確認假設 A4〕已經讓 `parseLogicalName` 對「subject 長得像
+  state 詞」的輸入結構上不會誤判,不需要一個額外錯誤建構子來擋)
 - `data NamingVocab = NamingVocab { nvStates :: Set Text, nvVariants :: Set Text }`,
-  `defaultVocab :: NamingVocab` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:209-242`(**不沿用**:
-  契約 C 的 `NamingVocab` 形狀是 `{ nvKinds :: [Segment], nvDomains :: [Segment] }`,與這裡的
-  `nvStates`/`nvVariants` 是兩組不同的欄位;`defaultVocab` 的 27 個 state 詞與 17 個 variant 詞
-  **不移植**,見 A1 的完整推導)
+  `defaultVocab :: NamingVocab` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:209-242`(**部分沿用,
+  2026-08-23 階段一閘門定案**:契約 C 的新 `NamingVocab` 形狀是
+  `{ nvKinds :: [Segment], nvDomains :: [Segment], nvStates :: [Segment] }`——`nvStates` 這一張表
+  **移植**〔型別從 `Set Text` 換成 `[Segment]`,語意不變:封閉、只用於分辨 state〕;`nvVariants`
+  那張 17 個具名變體詞的表**依舊不移植**——variant 天生開放,`isVariantShaped` 的「兩位數字+可選字母」
+  形狀限制也不移植,新設計裡 variant 是任何合法 `Segment` 都收。`defaultVocab` 整體**不移植**
+  〔詞彙表全部改住 `types/registry/naming.toml`,程式碼裡不得有編譯期常數〕。`nvStates` 的實際詞數
+  是 37〔互動狀態 7 + 開合 6 + 動作 7 + 方向 10 + 時段 7〕,不是舊版 A1 誤植的「27」——見「TOML 格式
+  規格」的 `naming.toml` 定案清單)
 - `mkLogicalName :: NamingVocab -> NameParts -> Either NameError LogicalName` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:279-289`
-  (改吃契約 C 的新 `NamingVocab`,`isModifierLike` 檢查改成 `nvKinds` 成員檢查)
+  (改吃契約 C 的新 `NamingVocab`;`isModifierLike`〔檢查 subject 撞見 state/variant 詞彙〕不沿用,
+  改成直接檢查 `npKind ∈ nvKinds` 與 `npState`〔若為 `Just`〕`∈ nvStates` 兩項——後者是新增檢查,
+  舊版沒有對稱的「建構時驗證 npState 合法」邏輯,因為舊版 `npState` 本來就只可能來自
+  `parseLogicalName` 拆解的結果,見「實作方式」)
 - `parseLogicalName :: NamingVocab -> Text -> Either NameError NameParts` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:323-356`
-  (**簽名改變**:契約 B 的 `parseLogicalName :: Text -> Either NameError NameParts` 拿掉了
-  `NamingVocab` 參數,右往左剝 state/variant 的演算法失去存在條件,改成位置式解析,見 A1)
+  (**簽名沿用**,不是 A1 舊判斷以為的「拿掉 `NamingVocab` 參數」——契約 B 該行是設計時筆誤,已由
+  開發者裁決訂正,見待確認假設 A1。演算法從「右往左剝、同時查 `nvStates` 與 `nvVariants` 兩張表」
+  簡化成「右往左剝、只查 `nvStates` 一張表」——index 純語法判斷、state 查表、variant 開放全收,
+  見「實作方式」)
 - `validateLogicalName :: Text -> Either NameError LogicalName` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:313-316`
   (**簽名改變**:契約 B 是 `NamingVocab -> TypeKey -> LogicalName -> Either NameError ()`)
 - `isVariantShaped` / `isIndexShaped` / `variantFromNumber` / `indexSegment` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:248-270`
-  (`isIndexShaped` / `indexSegment` 沿用;`isVariantShaped` / `variantFromNumber` 不沿用,見 A1)
+  (`isIndexShaped` / `indexSegment` 沿用;`isVariantShaped` / `variantFromNumber` 依舊不沿用——variant
+  的形狀限制被拿掉,任何合法 `Segment` 都算 variant,不必再判斷是不是「兩位數字+字母」)
 - `renderParts :: NameParts -> Either NameError Text` —— `legacy/assetdb/core/src/AssetDB/Naming.hs:299-307`
-  (改吃新 `NameParts` 形狀,邏輯同構:`kind_domain_subject` 後依序接 modifiers、index)
+  (邏輯同構,沿用 legacy 順序:`kind_domain_subject` 後接 `npVariant`、`npState`、`npIndex`,依序
+  只在 `Just` 時附加)
 
 ### `legacy/assetdb/core/src/AssetDB/Types.hs`(`name_kinds` 對應表的來源,D5 指定)
 
@@ -205,7 +224,7 @@ D1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `c
   呼叫 `aapms` 驗證」——但 D「contract 套件本身已凍結,不要改它」,因此本 feature **不修改**
   `contract/` 底下任何檔案;改為在 `aapms-core` 的新測試(`NamingCasesSpec.hs`)讀同一份
   `fixtures/naming-cases.txt`、逐行呼叫新的 `parseLogicalName` / `mkLogicalName` 驗證,把契約卡的
-  驗收輸入納入 1-to-1 測試(T13)
+  驗收輸入納入 1-to-1 測試(T10;原文誤植為 T13,順手訂正)
 
 ## 實作方式
 
@@ -214,47 +233,77 @@ D1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `c
 | 套件 | 檔案 | 內容 |
 |---|---|---|
 | `aapms-core` | `Registry.hs`(重寫) | `Family`、`FieldDecl`、`TypeDecl`、`TypeRegistry`、`buildRegistry`、`lookupType`、`listTypes`、`lookupDir`、`reservedTypeKeys`(擴充 3 項)、`checkMeta`、`RegistryError` |
-| `aapms-core` | `Naming.hs`(新) | `Segment`、`mkSegment`、`segmentText`、`NameParts`、`NamingVocab`、`NameError`、`mkLogicalName`、`parseLogicalName`、`validateLogicalName`、`renderParts`、`maxLogicalNameLength`、`indexSegment`、`isIndexShaped` |
+| `aapms-core` | `Naming.hs`(新) | `Segment`、`mkSegment`、`segmentText`、`NameParts`(`npVariant`/`npState` 語意分開)、`NamingVocab`(含 `nvStates`)、`NameError`(含 `UnknownState`)、`mkLogicalName`、`parseLogicalName`(帶 `NamingVocab`)、`validateLogicalName`、`renderParts`、`maxLogicalNameLength`、`indexSegment`、`isIndexShaped` |
 | `aapms-types` | `Loader.hs`(重寫) | `locateRegistry` / `loadRegistry` 新簽名、`naming.toml` 專屬解析、`family` / `name_kinds` 解析、re-export `Aapms.Core.Registry` 與 `Aapms.Core.Naming` 的型別 |
-| `types/registry/` | `naming.toml`(新) | `kinds` / `domains` 兩個字串陣列 |
+| `types/registry/` | `naming.toml`(新) | `kinds` / `domains` / `states` 三個字串陣列(`states` 是 2026-08-23 階段一閘門新增,見下) |
 | `types/registry/` | `asset-image.toml` … `asset-archive.toml`(新,8 份) | `family = "asset"`、`name_kinds`、`allowed_links`(留空,靠載入器補 `depicts`) |
 | `types/registry/` | 既有 5 份(改) | 各加一行 `family = "entity"` |
 
-### `NameParts` 的新形狀與 `parseLogicalName` 的位置式演算法
+### `NameParts` 的形狀(2026-08-23 階段一閘門定案,推翻舊 A1)與 `parseLogicalName` 的演算法
 
 ```haskell
 data NameParts = NameParts
-  { npKind      :: Segment
-  , npDomain    :: Segment
-  , npSubject   :: Segment
-  , npModifiers :: [Segment]   -- 0..2 個,對應原文法的 [variant][state],不再語意區分
-  , npIndex     :: Maybe Int
+  { npKind    :: Segment
+  , npDomain  :: Segment
+  , npSubject :: Segment
+  , npVariant :: Maybe Segment   -- 開放,不查詞彙表
+  , npState   :: Maybe Segment   -- 封閉,必須在 nvStates 內
+  , npIndex   :: Maybe Int
   }
 ```
 
-契約 B 的 `parseLogicalName :: Text -> Either NameError NameParts` **沒有** `NamingVocab` 參數。
-legacy 版靠 `nvStates` / `nvVariants` 從右往左剝,才能在「有 state 沒 variant」這類缺項組合裡
-正確分辨哪段是哪個角色;新簽名結構上不可能做這件事。演算法改為**純位置式、不需要任何詞彙表**:
+開發者在階段一閘門裁決:語意區分 variant 與 state 有必要保留(不能合併成 `npModifiers`),但
+不必遷就 legacy 的**兩張**詞彙表(`nvStates` 27/37 詞 + `nvVariants` 17 詞——legacy 那張 variant
+表正是它會誤拒 `spr_char_hero_attack-01_up` 的原因:`attack-01` 不在 17 個具名變體詞裡,legacy
+的 `isVariantShaped` 也不吃帶連字號的複合詞)。契約 B 因此訂正為
+`parseLogicalName :: NamingVocab -> Text -> Either NameError NameParts`(**帶** `NamingVocab`
+參數——design.md 現在的字面簽名如此,舊 A1「拿掉參數」是誤判)。演算法**只查一張表**
+(`nvStates`),variant 天生開放:
 
 1. `rawSegs = splitOn "_" full`;`(kindTxt : domainTxt : rest@(_:_))` 否則 `TooFewSegments`
-2. `mkSegment` 驗證 `domainTxt` 與 `rest` 每一段(ASCII 小寫 + 數字 + 內部 `-`)
-3. 若 `rest` 的最後一段 `isIndexShaped`(剛好 3 位數字),剝掉當 `npIndex`,`remaining` = 剩下的
-4. `remaining` 為空 → `TooFewSegments`;否則 `head remaining` = `npSubject`,
-   `tail remaining` = `npModifiers`
-5. `length npModifiers > 2` → `AmbiguousTrailing`(超過 `[variant][state]` 兩個欄位能裝的量)
+2. `mkSegment` 驗證 `domainTxt` 與 `rest` 每一段(ASCII 小寫 + 數字 + 內部 `-`);`kindTxt` 同樣先
+   過 `mkSegment`(不再是封閉列舉的 `KindPrefix` 解析),`nvKinds` 成員檢查留給
+   `mkLogicalName` / `validateLogicalName`(`parseLogicalName` 本身不查任何詞彙表對錯——它只拆
+   段,`UnknownKindPrefix` 由建構/驗證端回,對稱於 legacy 把 `nvStates` 成員檢查放在拆解本身、
+   詞彙錯誤與語法錯誤分屬不同函式的分工)
+3. 由右往左剝,只查 `nvStates`:
+   a. 若 `rest` 的最後一段 `isIndexShaped`(剛好 3 位純數字,純語法、不查表),剝掉當
+      `npIndex`,得到 `afterIndex`
+   b. **guard**:僅當 `length afterIndex >= 2`(剝掉後還留得下至少一段給 subject)且
+      `afterIndex` 的最後一段 `∈ nvStates` 時,才剝掉當 `npState`,得到 `afterState`;否則
+      `npState = Nothing`、`afterState = afterIndex`(這個 guard 沿用 legacy `peel` 函式「不剝到
+      清空」的保護,見待確認假設 A4——沒有它,單獨一段又剛好撞見 state 詞的主體〔如
+      `spr_char_up`,subject 就叫 `up`〕會被誤剝成「沒有 subject」而報錯)
+   c. `afterState` 依長度分派:`[s]` → `npSubject = s`、`npVariant = Nothing`;
+      `[s, v]` → `npSubject = s`、`npVariant = Just v`(**開放,不查表**,任何合法 `Segment` 都
+      收);`[]` → `TooFewSegments`;更長 → `AmbiguousTrailing`
 
-`renderParts` 方向不變:`kind_domain_subject` 之後依序接 `npModifiers`(原樣接,不重排)、
-最後接 `npIndex`(補零到三位)。
+`renderParts` 方向不變、沿用 legacy 順序:`kind_domain_subject` 之後依序接 `npVariant`、
+`npState`(各自只在 `Just` 時附加)、最後 `npIndex`(補零到三位)。
 
-### `NamingVocab` 的兩個欄位怎麼用
+`mkLogicalName` 除了原本的 `npKind ∈ nvKinds` 檢查,新增 `npState`(若為 `Just`)`∈ nvStates`
+檢查,失敗回新建構子 `UnknownState Text`——這條規則 legacy 沒有對稱物,因為 legacy 的 `npState`
+只可能來自 `parseLogicalName` 拆解(結構上保證合法),但契約 B 的 `mkLogicalName` 也接受呼叫端
+手工建構的 `NameParts`(如 `service` 端組名稱後才驗證),`npState` 可能是任意值,「封裝不變量」
+不能只靠 `parseLogicalName` 那一條路徑保證。
+
+### `NamingVocab` 的三個欄位怎麼用
 
 - `nvKinds :: [Segment]`——**強制**。`mkLogicalName` / `validateLogicalName` 檢查 `npKind` 是否為
   成員,不是就回 `UnknownKindPrefix`。ADR-019 明說「`kind` 是封閉列舉」,這條檢查延續那個立場,
   只是詞彙來源從編譯期的 `KindPrefix` 換成 `naming.toml` 的 `kinds` 陣列
 - `nvDomains :: [Segment]`——**不強制**。ADR-019 明說「`npDomain` 根本不比對詞彙表……加一種素材
-  領域連資料都不必動」,這條決策沒有被本次重構推翻。`nvDomains` 目前是空清單(見 A1),`mkLogicalName`
+  領域連資料都不必動」,這條決策沒有被本次重構推翻。`nvDomains` 目前是空清單,`mkLogicalName`
   / `validateLogicalName` 都不讀它,只是型別上與 `nvKinds` 對稱、供未來(如 `type list` 的 CLI
   提示)使用
+- `nvStates :: [Segment]`——**強制、封閉**(2026-08-23 階段一閘門新增)。`parseLogicalName` 拆解
+  時唯一查的表:候選段落在表內才歸類成 `npState`,不在表內就落回 `npVariant`(開放全收,見上一節
+  的演算法)。`mkLogicalName` 額外驗證手工建構的 `npState`(若為 `Just`)必須是成員,不是就回
+  `UnknownState`。內容住在 `naming.toml` 的 `states` 陣列(見「TOML 格式規格」),**不是**
+  legacy 的 27/37 個詞照搬——本 feature 有裁量權增刪,已依「時態/方向/開合/互動/動作」五組重新
+  審視,結論是**沿用 legacy 全部 37 個詞**(legacy 本身已經是良好分類、彼此語意不重疊,沒有找到
+  明顯該刪或該加的項目;`up` 這個 `spr_char_hero_attack-01_up` 驗收案例需要的詞已經在「方向」組
+  裡,不必額外新增)
 
 ### `validateLogicalName` 的 `TypeKey` 參數
 
@@ -277,10 +326,14 @@ checkMeta reg node = case lookupType reg (metaType m) of
 
 - `missingFields` / `badLinks`:邏輯與舊 `checkEntity` 相同(對照 `fieldPresent` / `badLinks`),
   只是輸入從 `Entity` 換成 `anyMeta node`
-- `badNameKind`:只對 `NAsset (Asset { astName = Just name })` 產生。用 `parseLogicalName` 拆出
-  `npKind`,若 `tdNameKinds decl` 非空且 `npKind` 不在其中 → `[NameKindNotAllowed (tdKey decl)
-  (segmentText npKind)]`。`astName = Nothing`(掃描剛寫入、尚未命名)不產生任何警告;`tdNameKinds`
-  為空(目前只有 `asset-archive`)視為「未宣告限制」,對稱於 `allowed_links` 空清單的既有慣例——見 A3
+- `badNameKind`:只對 `NAsset (Asset { astName = Just name })` 產生。**不呼叫**完整
+  `parseLogicalName`(2026-08-23 階段一閘門後它需要 `NamingVocab` 參數,而 `checkMeta` 的契約簽名
+  `TypeRegistry -> AnyNode -> [MetaWarning]` 沒有這個參數,見待確認假設 A6)——改成直接切
+  `logicalNameText name` 第一個 `_` 之前的文字當 `npKind` 用(`astName :: LogicalName` 的建構子只
+  經 `mkLogicalName` 取得,第一段合法性〔`nvKinds` 成員〕已在寫入時保證過,這裡只需要文字本身,不
+  需要重新驗證)。若 `tdNameKinds decl` 非空且這段文字不在其中 → `[NameKindNotAllowed (tdKey decl)
+  kindTxt]`。`astName = Nothing`(掃描剛寫入、尚未命名)不產生任何警告;`tdNameKinds` 為空(目前
+  只有 `asset-archive`)視為「未宣告限制」,對稱於 `allowed_links` 空清單的既有慣例——見 A3
 
 ### `RegistryError` 的合併與 `RegistryErrors` 包裝
 
@@ -321,6 +374,15 @@ data RegistryError
 - 目錄掃描(`loadRegistry`)排除檔名為 `naming.toml` 的檔案,不當成型別宣告解析;缺少
   `naming.toml` → `NamingFileMissing`
 
+### `naming.toml` 的 `states` 解析(2026-08-23 階段一閘門新增)
+
+`readNamingToml` / `parseNaming` 加第三個鍵 `states`(選填字串陣列,每個元素過 `mkSegment`,規則
+與 `kinds` / `domains` 相同),`NamingVocab` 建構式從 `NamingVocab <$> eKinds <*> eDomains` 改成
+`NamingVocab <$> eKinds <*> eDomains <*> eStates`;`unknownErrs` 的允許鍵清單從
+`["kinds", "domains"]` 加 `"states"`。`states` 空清單目前不是錯誤(型別上允許,但契約卡的驗收
+案例 `spr_char_hero_attack-01_up` 需要 `up` 在表內才過,所以專案實檔的 `naming.toml` 必須非空,
+只是型別層面不強制)。
+
 ### `locateRegistry` 的 `Either` 化
 
 三層定位邏輯(環境變數 → 執行檔旁 → `data-files`)不變,只把最終「三層都沒找到」的 `Nothing`
@@ -342,8 +404,9 @@ data RegistryError
 | `locateRegistryWith :: IO FilePath -> IO (Maybe (RegistrySource, FilePath))` | `types/src/Aapms/Types/Loader.hs:100-114` | - | 三層定位邏輯沿用,回傳型別改 `Either` |
 | `readSpec` / `parseSpec` / 取值輔助群 | `types/src/Aapms/Types/Loader.hs:178-300` | - | TOML 解析邏輯沿用,擴充 `family` / `name_kinds` 兩個鍵 |
 | `mkSegment :: Text -> Either NameError Segment` | `legacy/assetdb/core/src/AssetDB/Naming.hs:88-92` | - | 規則(`^[a-z0-9]+(-[a-z0-9]+)*$`)原樣沿用 |
-| `isIndexShaped :: Text -> Bool` / `indexSegment :: Int -> Either NameError Segment` | `legacy/assetdb/core/src/AssetDB/Naming.hs:257-270` | - | 原樣沿用,是新位置式解析演算法剝離 `npIndex` 的依據 |
-| `renderParts :: NameParts -> Either NameError Text` | `legacy/assetdb/core/src/AssetDB/Naming.hs:299-307` | - | 改吃新 `NameParts` 形狀,拼接邏輯同構 |
+| `isIndexShaped :: Text -> Bool` / `indexSegment :: Int -> Either NameError Segment` | `legacy/assetdb/core/src/AssetDB/Naming.hs:257-270` | - | 原樣沿用,是「由右往左剝、只查 `nvStates`」演算法剝離 `npIndex` 的依據 |
+| `renderParts :: NameParts -> Either NameError Text` | `legacy/assetdb/core/src/AssetDB/Naming.hs:299-307` | - | 邏輯同構沿用(`npVariant` / `npState` 兩個語意分開的欄位也沿用,不必像舊 A1 那樣重寫拼接順序) |
+| `peel :: (Text -> Bool) -> [Segment] -> ([Segment], Maybe Segment)`(`not (null others)` guard) | `legacy/assetdb/core/src/AssetDB/Naming.hs:360-364` | - | guard 邏輯沿用,是「只查 `nvStates`」新演算法避免 subject 撞見 state 詞被誤剝的依據,見待確認假設 A4 |
 | `data AssetKind (..)` / `data KindPrefix (..)` / `prefixKind` / `kindPrefixes` | `legacy/assetdb/core/src/AssetDB/Types.hs:70-142` | - | `name_kinds` 對應表與 `naming.toml` 的 `kinds` 詞彙的唯一來源(D5) |
 
 ## 新增的介面
@@ -393,17 +456,20 @@ mkSegment   :: Text -> Either NameError Segment
 
 data NameParts = NameParts
   { npKind :: Segment, npDomain :: Segment, npSubject :: Segment
-  , npModifiers :: [Segment], npIndex :: Maybe Int
+  , npVariant :: Maybe Segment   -- 開放,不查詞彙表
+  , npState   :: Maybe Segment   -- 封閉,必須在 nvStates 內
+  , npIndex   :: Maybe Int
   }
   deriving stock (Eq, Show)
 
-data NamingVocab = NamingVocab { nvKinds :: [Segment], nvDomains :: [Segment] }
+data NamingVocab = NamingVocab
+  { nvKinds :: [Segment], nvDomains :: [Segment], nvStates :: [Segment] }
   deriving stock (Show, Eq)
 
 data NameError
   = EmptySegment | BadSegment Text | NoAsciiContent Text | TooLong Int Text
-  | UnknownKindPrefix Text | TooFewSegments Int Text | AmbiguousTrailing [Text] Text
-  | IndexOutOfRange Int
+  | UnknownKindPrefix Text | UnknownState Text | TooFewSegments Int Text
+  | AmbiguousTrailing [Text] Text | IndexOutOfRange Int
   deriving stock (Eq, Show)
 renderNameError :: NameError -> Text
 
@@ -412,10 +478,14 @@ indexSegment  :: Int -> Either NameError Segment
 isIndexShaped :: Text -> Bool
 
 mkLogicalName       :: NamingVocab -> NameParts -> Either NameError LogicalName
-parseLogicalName     :: Text -> Either NameError NameParts
+parseLogicalName     :: NamingVocab -> Text -> Either NameError NameParts
 validateLogicalName  :: NamingVocab -> TypeKey -> LogicalName -> Either NameError ()
 renderParts          :: NameParts -> Either NameError Text
 ```
+
+（`UnknownState` 是本次階段一閘門後新增的建構子——見「實作方式」的 `mkLogicalName` 對手工建構
+`npState` 的驗證。`renderNameError` 對它的文字比照 `UnknownKindPrefix` 的風格:
+`"未知的 state 詞 " <> tshow t`。)
 
 ### `aapms-types`(`Aapms.Types.Loader`,簽名變更)
 
@@ -471,41 +541,71 @@ hint     = "一句話說明這個素材的用途"
 # 保留欄位是為了與 kinds 對稱、供未來 CLI 提示使用。
 kinds   = ["spr", "tex", "atlas", "ui", "fnt", "sfx", "bgm", "vo", "lvl", "shd", "src", "doc"]
 domains = []
+
+# states 是命名文法拆解 npState 時唯一查的表(2026-08-23 階段一閘門新增,取代 legacy 的
+# nvStates + nvVariants 兩張表)。逐字取自 legacy/assetdb/core/src/AssetDB/Naming.hs 的
+# defaultVocab 的 nvStates(37 個詞,分五組),本 feature 審視過分類邊界、沒有找到需要增刪的
+# 項目(見「NamingVocab 的三個欄位怎麼用」)。variant 天生開放,刻意不設詞彙表。
+states = [
+  # 互動狀態
+  "idle", "hover", "pressed", "disabled", "active", "selected", "focus",
+  # 開合
+  "open", "closed", "empty", "full", "on", "off",
+  # 動作
+  "walk", "run", "attack", "dash", "death", "hurt", "cast",
+  # 方向
+  "up", "down", "left", "right", "front", "back", "north", "south", "east", "west",
+  # 時段與播放段落
+  "day", "night", "dawn", "dusk", "intro", "loop", "outro",
+]
 ```
 
 ## TodoList
 
-- [x] T1: `aapms-core`:新增 `Naming.hs`(`Segment` / `NameParts` / `NamingVocab` / `NameError` /
-  `mkLogicalName` / `parseLogicalName` / `validateLogicalName` / `renderParts` /
-  `maxLogicalNameLength` / `indexSegment` / `isIndexShaped`)  `dep: F001`
+**2026-08-23 階段一閘門推翻 A1 後,以下項目已完成但內容不符新契約,需重做**(勾選狀態保留代表
+「這個項目本身仍然要做」,不代表現有程式碼已經符合新契約):T1、T3、T5、T6、T9、T10、T11、T12、
+T13。T2、T4、T7、T8、T14 不受影響。
+
+- [x] T1(**需重做**): `aapms-core`:重寫 `Naming.hs`(`Segment` / `NameParts` 改回
+  `npVariant :: Maybe Segment` + `npState :: Maybe Segment`〔不是 `npModifiers`〕/ `NamingVocab`
+  加 `nvStates` / `NameError` 加 `UnknownState` / `mkLogicalName`〔多驗 `npState ∈ nvStates`〕/
+  `parseLogicalName`〔簽名改回帶 `NamingVocab`,演算法改成「由右往左剝、只查 `nvStates`」+
+  A4 的 guard〕/ `validateLogicalName` / `renderParts` / `maxLogicalNameLength` / `indexSegment` /
+  `isIndexShaped`)  `dep: F001`
 - [x] T2: `aapms-core`:重寫 `Registry.hs`(`Family` / `FieldDecl` / `TypeDecl` / `TypeRegistry` /
   `buildRegistry` / `lookupType` / `listTypes` / `lookupDir` / `reservedTypeKeys` 擴充 /
   `RegistryError`)  `dep: T1, F001`
-- [x] T3: `aapms-core`:`Registry.hs` 加 `checkMeta`(`missingFields` / `badLinks` /
-  `badNameKind`)  `dep: T2`
+- [x] T3(**需重做**): `aapms-core`:`Registry.hs` 的 `checkMeta`(`missingFields` / `badLinks` /
+  `badNameKind`)——`badNameKind` 不能再呼叫完整 `parseLogicalName`(需要 `NamingVocab`,但
+  `checkMeta` 簽名沒有這個參數,見 A6),改成直接切 `LogicalName` 文字的第一段  `dep: T2`
 - [x] T4: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Naming`  `dep: T1`
-- [x] T5: `aapms-types`:重寫 `Loader.hs`(`locateRegistry` / `loadRegistry` 新簽名、`naming.toml`
-  排除與解析、`family` / `name_kinds` 解析、`topLevelKeys` 擴充、re-export)  `dep: T2, T3`
-- [x] T6: `types/registry/naming.toml`(新):`kinds`(12 項)、`domains`(空)  `dep: -`
+- [x] T5(**需重做**): `aapms-types`:重寫 `Loader.hs`(`locateRegistry` / `loadRegistry` 新簽名、
+  `naming.toml` 排除與解析——`parseNaming` 加第三個鍵 `states`、`NamingVocab` 建構式多帶一個
+  引數、`family` / `name_kinds` 解析、`topLevelKeys` 擴充、re-export)  `dep: T2, T3`
+- [x] T6(**需重做**): `types/registry/naming.toml`:`kinds`(12 項,不變)、`domains`(空,不變)、
+  新增 `states`(37 項,見「TOML 格式規格」選定清單與理由)  `dep: -`
 - [x] T7: `types/registry/asset-{image,audio,font,level,shader,doc,source,archive}.toml`
   (新,8 份):`family = "asset"`、對照表填 `name_kinds`(`asset-archive` 留空陣列)、
   `allowed_links = []`  `dep: -`
 - [x] T8: `types/registry/{character-fragment,dialogue,item-fragment,lore-fragment,
   plot-fragment}.toml`(改,5 份):各加一行 `family = "entity"`  `dep: -`
-- [x] T9: `core/test/Aapms/Core/NamingSpec.hs`(新):`Segment` 規則、位置式 `parseLogicalName`
-  演算法、`mkLogicalName` 的 `nvKinds` 檢查、`renderParts`  `dep: T1`
-- [x] T10: `core/test/Aapms/Core/NamingCasesSpec.hs`(新):讀
-  `contract/fixtures/naming-cases.txt`,逐行以新 `parseLogicalName` + `mkLogicalName`(用
-  T6 的 `naming.toml` 詞彙)驗證 ok/bad  `dep: T1, T6, T9`
-- [x] T11: `core/test/Aapms/Core/RegistrySpec.hs`(重寫):`family` 驗證、
+- [x] T9(**需重做**): `core/test/Aapms/Core/NamingSpec.hs`:`Segment` 規則、「由右往左剝、只查
+  `nvStates`」的 `parseLogicalName` 演算法(含 A4 guard 的邊界案例:單段 subject 撞見 state 詞)、
+  `mkLogicalName` 的 `nvKinds` / `nvStates`(`UnknownState`)檢查、`renderParts`  `dep: T1`
+- [x] T10(**需重做**): `core/test/Aapms/Core/NamingCasesSpec.hs`:讀
+  `contract/fixtures/naming-cases.txt`,逐行以新 `parseLogicalName`(帶 T6 的 `naming.toml`
+  詞彙,含 `states`)+ `mkLogicalName` 驗證 ok/bad,`spr_char_hero_attack-01_up` 必須拆出
+  `npVariant = Just "attack-01"`、`npState = Just "up"`  `dep: T1, T6, T9`
+- [x] T11(**需重做**): `core/test/Aapms/Core/RegistrySpec.hs`:`family` 驗證、
   `reservedTypeKeys` 三項、`buildRegistry` 錯誤彙整(`RegistryErrors`)、`checkMeta`
-  對 entity 與 asset 兩族  `dep: T2, T3`
-- [x] T12: `types/test/Aapms/Types/LoaderSpec.hs`(重寫):新簽名、`naming.toml` 缺漏 /
-  格式錯誤、`family` 缺漏或非法值、13 份真實 TOML(5 entity + 8 asset)整批可載入、
-  `locateRegistry` 的 `RegistryNotFound` 情境  `dep: T5, T6, T7, T8`
-- [x] T13: `types/test/Aapms/Types/LoaderSpec.hs` 加一個整合測試:對
+  對 entity 與 asset 兩族(測試 fixture 建構 `NamingVocab` 時要補上 `nvStates` 欄位)  `dep: T2, T3`
+- [x] T12(**需重做**): `types/test/Aapms/Types/LoaderSpec.hs`:新簽名、`naming.toml` 缺漏 /
+  格式錯誤(含 `states` 型別錯誤案例)、`family` 缺漏或非法值、13 份真實 TOML(5 entity + 8 asset)
+  整批可載入、`locateRegistry` 的 `RegistryNotFound` 情境  `dep: T5, T6, T7, T8`
+- [x] T13(**需重做**): `types/test/Aapms/Types/LoaderSpec.hs` 加一個整合測試:對
   `types/registry/`(專案實檔目錄)跑 `loadRegistry`,驗收標準「含原五種 entity 族 + 八種
-  asset 族 + `naming.toml`」直接對真實檔案斷言  `dep: T12`
+  asset 族 + `naming.toml`」直接對真實檔案斷言,`NamingVocab` 的 `nvStates` 恰好 37 個
+  `dep: T12`
 - [x] T14: `core/test/Spec.hs` 與 `types/test/Spec.hs` 的 `describe` 清單補上新 Spec
   `dep: T9, T10, T11, T13`
 
@@ -513,35 +613,36 @@ domains = []
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | test_segment_and_nameparts_shape | `mkSegment` 對合法/非法輸入的 `Either`;`NameParts` 可建構與存取 |
+| T1 | test_segment_and_nameparts_shape | `mkSegment` 對合法/非法輸入的 `Either`;`NameParts` 可建構與存取(含 `npVariant` / `npState` 兩個獨立欄位) |
 | T2 | test_family_and_typedecl | `Family` render/parse 互為反函式;`reservedTypeKeys` 含 3 項;`buildRegistry` 對重複鍵 / 空鍵 / 保留鍵回對應 `RegistryError` |
-| T3 | test_checkmeta_entity_and_asset | entity 族:缺必填欄位、關聯不在 `allowed_links` 各回一則警告;asset 族:`name_kinds` 內/外的 `LogicalName` 各回是否有 `NameKindNotAllowed`;`astName = Nothing` 不產生 `NameKindNotAllowed` |
+| T3 | test_checkmeta_entity_and_asset | entity 族:缺必填欄位、關聯不在 `allowed_links` 各回一則警告;asset 族:`name_kinds` 內/外的 `LogicalName` 各回是否有 `NameKindNotAllowed`;`astName = Nothing` 不產生 `NameKindNotAllowed`(取 kind 的邏輯不吃 `NamingVocab`,只切文字) |
 | T4 | test_cabal_exposes_naming | `aapms-core.cabal` 的 `exposed-modules` 含 `Aapms.Core.Naming` |
-| T5 | test_loader_new_signatures | `locateRegistry` / `loadRegistry` 回傳型別為 `Either RegistryError …`;`naming.toml` 不被當成型別宣告解析;`family` / `name_kinds` 缺漏或型別錯誤各回對應 `RegistryError` |
-| T6 | test_naming_toml_shape | `types/registry/naming.toml` 可被 T5 的解析器讀出 12 個 `kinds`、0 個 `domains` |
+| T5 | test_loader_new_signatures | `locateRegistry` / `loadRegistry` 回傳型別為 `Either RegistryError …`;`naming.toml` 不被當成型別宣告解析;`family` / `name_kinds` / `states` 缺漏或型別錯誤各回對應 `RegistryError` |
+| T6 | test_naming_toml_shape | `types/registry/naming.toml` 可被 T5 的解析器讀出 12 個 `kinds`、0 個 `domains`、37 個 `states` |
 | T7 | test_asset_tomls_loadable | 8 份 asset TOML 各自 `family = FAsset`、`tdNameKinds` 與對照表相符(`asset-archive` 為 `[]`)、`tdDir = Nothing` |
 | T8 | test_entity_tomls_still_loadable | 5 份既有 entity TOML 加了 `family = "entity"` 後仍可解析、`tdFamily = FEntity`,其餘欄位與加欄位前相同 |
-| T9 | test_parselogicalname_positional | 對 `spr_char_hero_attack-01_up` 等位置式案例:`npModifiers` 長度 0..2 時各自正確;3 個以上非 index 尾段回 `AmbiguousTrailing`;`renderParts . parseLogicalName == id`(限定合法輸入) |
-| T10 | test_naming_cases_fixture | `naming-cases.txt` 全部 `ok` 案例以 `naming.toml` 詞彙驗證通過;全部 `bad` 案例被對應 `NameError` 拒絕 |
+| T9 | test_parselogicalname_vocab_driven | 對 `spr_char_hero_attack-01_up`:`npVariant = Just "attack-01"`、`npState = Just "up"`(不是 `npModifiers`);`npState` 只在候選段落 `∈ nvStates` 時才成立,不在表內落回 `npVariant`;A4 guard 案例:單段 subject 剛好是 state 詞(如 `spr_char_up`)仍解析出 `npSubject = "up"`、`npState = Nothing`,不誤判成 `TooFewSegments`;3 段以上非 index 尾段回 `AmbiguousTrailing`;`mkLogicalName` 對 `npState = Just <非 nvStates 成員>` 回 `UnknownState`;`renderParts . parseLogicalName == id`(限定合法輸入) |
+| T10 | test_naming_cases_fixture | `naming-cases.txt` 全部 `ok` 案例以 `naming.toml` 詞彙(含 `states`)驗證通過,`spr_char_hero_attack-01_up` 額外斷言 `npVariant` / `npState` 拆分正確;全部 `bad` 案例被對應 `NameError` 拒絕 |
 | T11 | test_registry_family_reserved_and_errors | `key = "level"` / `"asset-pack"` / `"asset-license"` 各回 `ReservedTypeKey`;`family` 非 `"entity"`/`"asset"` 回 `UnknownFamily`;多重錯誤彙整進 `RegistryErrors` 且逐項可讀 |
-| T12 | test_loader_naming_and_family_integration | 缺 `naming.toml` 回 `NamingFileMissing`;13 份 fixture TOML(5+8)整批 `loadRegistry` 成功且 `TypeRegistry` 含全部鍵;`locateRegistry` 三層都找不到時回 `RegistryNotFound` 並列出三個查過的路徑 |
-| T13 | test_loader_real_registry_dir | 對專案的 `types/registry/` 目錄跑 `loadRegistry`:成功、`TypeRegistry` 恰好 13 個鍵(5 entity + 8 asset)、`NamingVocab` 的 `nvKinds` 恰好 12 個 |
+| T12 | test_loader_naming_and_family_integration | 缺 `naming.toml` 回 `NamingFileMissing`;`states` 型別錯誤(非字串陣列)回 `BadFieldType`;13 份 fixture TOML(5+8)整批 `loadRegistry` 成功且 `TypeRegistry` 含全部鍵;`locateRegistry` 三層都找不到時回 `RegistryNotFound` 並列出三個查過的路徑 |
+| T13 | test_loader_real_registry_dir | 對專案的 `types/registry/` 目錄跑 `loadRegistry`:成功、`TypeRegistry` 恰好 13 個鍵(5 entity + 8 asset)、`NamingVocab` 的 `nvKinds` 恰好 12 個、`nvStates` 恰好 37 個 |
 | T14 | test_spec_registration | `core/test/Spec.hs` 引用 `NamingSpec` / `NamingCasesSpec`;`types/test/Spec.hs` 沿用 `LoaderSpec`(內容已擴充) |
 
 ## 待確認假設
 
-- A1:契約 B 的 `parseLogicalName :: Text -> Either NameError NameParts` 拿掉了 `NamingVocab`
-  參數,而契約 C 的 `NamingVocab { nvKinds, nvDomains }` 與 legacy `defaultVocab` 的
-  `{ nvStates, nvVariants }` 是完全不同的兩組欄位(前者管 kind/domain 分段,後者管 variant/state
-  消歧)。這代表 legacy 演算法「用 27 個 state 詞 + 17 個 variant 詞從右往左剝」在新簽名下**結構上
-  不可能實作**。→ 採取:改成純位置式解析(見「實作方式」),`npVariant` / `npState` 合併成
-  `npModifiers :: [Segment]`(不再語意區分,只留順序),`state`/`variant` 兩組詞彙表**不移植**;
-  已逐案代入 `contract/fixtures/naming-cases.txt` 全部 13 案(含 `spr_char_hero_attack-01_up` 這種
-  在 legacy 演算法下會因 `AmbiguousTrailing` 被誤拒的案例)驗證新演算法全部給出正確結果,見
-  「相依性查證」與「新增的介面」→ 影響:若這個結構性判斷有誤(即契約簽名其實是設計時的筆誤,
-  `parseLogicalName` 原意仍要吃 `NamingVocab`),需要回頭找編排者確認 design.md 契約 B 那一行,
-  且 `NameParts` 要改回帶語意標籤的 `npVariant :: Maybe Segment` / `npState :: Maybe Segment`,
-  `SubjectLooksLikeModifier` 與 `nvStates`/`nvVariants` 詞彙表都要補回來
+- A1(**已裁決**,2026-08-23 階段一閘門):原判斷「契約 B 的 `parseLogicalName` 拿掉了
+  `NamingVocab` 參數,因此 `npVariant` / `npState` 必須合併成 `npModifiers`」被開發者推翻。裁決:
+  語意區分 variant 與 state **有必要保留**,`parseLogicalName` 簽名訂正為
+  `NamingVocab -> Text -> Either NameError NameParts`(**帶** `NamingVocab` 參數——這是 design.md
+  現在的字面契約,舊 A1 的「拿掉參數」是設計時筆誤,已由開發者確認訂正)。且開發者明確表示**不必
+  遷就 legacy 的舊格式與舊資料**(素材可全部重新下載),設計自由度大——因此**不是**簡單「把
+  legacy 兩張表原樣搬回來」,而是**只留一張表**(`nvStates`):variant 天生開放、不查表,state
+  封閉、必查 `nvStates`。拆解規則(design.md「命名文法的拆解規則」段落逐字):由右往左,①尾端
+  三位純數字是 `npIndex`(純語法)→②再往左一段若在 `nvStates` 內是 `npState`→③剩下的一段是
+  `npVariant`(開放)→④還有更多段是錯誤。已依此規則逐案代入 `contract/fixtures/naming-cases.txt`
+  全部 7 個合法案例驗證(見「實作方式」的推導),`spr_char_hero_attack-01_up` 正確拆出
+  `npVariant = Just "attack-01"`、`npState = Just "up"`,不再誤判成 `AmbiguousTrailing`。
+  `nvStates` 詞彙不從 legacy 的 27/37 詞照搬而是重新審視,見「NamingVocab 的三個欄位怎麼用」。
 - A2:`validateLogicalName` 的 `TypeKey` 參數,在契約卡「`checkMeta` 對 asset 檢查 name 第一段在
   該型別的 `name_kinds` 內……**只回警告**」與「明確不做:不決定警告要不要擋」兩句之間,若
   `validateLogicalName`(回傳硬錯誤 `Either NameError ()`)也做同一件事的型別專屬檢查,會與
@@ -558,6 +659,33 @@ domains = []
   `asset-archive` 應該完全不允許被命名(任何 `name` 都是警告),需要把「空清單」的語意反過來,
   且要另外決定 `asset-archive` 的 `name_kinds` 該填什麼非空值(目前的來源資料——legacy
   `KindPrefix`——就是沒有這個值)
+- A4(新增,A1 推翻後浮現的演算法完整性問題):design.md「命名文法的拆解規則」字面上四步驟沒有
+  提到 legacy `peel` 函式的「不剝到清空」guard。若照字面實作,單獨一段的 subject 剛好撞見
+  `nvStates` 的詞(如 `spr_char_up`,`domain`後只有一段 `up` 且沒有任何 variant/state/index),
+  步驟②會把它誤剝成 `npState`,剝完 `remaining` 淨空,步驟③「剩下的一段」不存在,結構上會被判成
+  `TooFewSegments`——但這其實是一個完全合法的名稱(`subject = "up"`,沒有 modifier)。
+  → 採取:比照 legacy `peel` 的 guard,②的剝除只在「剝掉後 `remaining` 還留得下至少一段」時才
+  發生,否則整段留給 subject(見「實作方式」演算法步驟 3b、待驗證的 T9 邊界案例)→ 影響:這是純
+  演算法層級的補強,不改變任何契約簽名或 `naming-cases.txt` 既有案例的結果;若編排者認為「subject
+  不該與 state 詞彙撞名,撞了就該是使用者的錯」,則這個 guard 要拿掉,`spr_char_up` 這類輸入改成
+  回錯誤而非解析成功——這是行為選擇,不是正確性問題,兩種都自洽
+- A5(新增):`mkLogicalName` 允許呼叫端手工建構 `NameParts`(不是每次都經過 `parseLogicalName`)。
+  若呼叫端把一個剛好在 `nvStates` 內的詞放進 `npVariant`(而非 `npState`),`mkLogicalName` 目前
+  **不會**拒絕它(`npVariant` 開放、不查表是刻意設計)——但 `renderParts` 產生的字串經
+  `parseLogicalName` 重新拆解時,那段文字會依規則②被歸類成 `npState`,與原始 `NameParts` 的欄位
+  標籤不一致(值不變,語意標籤變了)。→ 採取:不視為錯誤——契約與 T9 承諾的是
+  `renderParts . parseLogicalName == id`(parse 之後 render 拿回原字串),不是「render 之後 parse
+  拿回原始語意標籤」;`npVariant` 的文件字串已經明講「開放,不查詞彙表」,呼叫端若把 state 詞放
+  進 `npVariant` 是自找的語意漂移,不是本 feature 的契約義務 → 影響:若編排者認為這個漂移
+  不可接受(例如某處依賴「我建構時標的是 variant,讀回來也該是 variant」的不變量),需要在
+  `mkLogicalName` 加一條檢查:`npVariant` 不可為 `nvStates` 成員,回一個新錯誤建構子
+- A6(新增):`checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]` 的契約簽名沒有 `NamingVocab`
+  參數,但 A1 裁決後 `parseLogicalName` 需要它,`badNameKind` 因此不能再呼叫完整
+  `parseLogicalName` 取得 `npKind`。→ 採取:`badNameKind` 改成直接切 `LogicalName` 文字第一個
+  `_` 之前的片段當 kind 文字用,不重新驗證合法性(`astName :: LogicalName` 的唯一建構路徑是
+  `mkLogicalName`,已經保證第一段是 `nvKinds` 成員,見「實作方式」的 `checkMeta` 小節)→ 影響:
+  若編排者認為 `checkMeta` 未來需要更完整的命名文法資訊(例如也要對 `npState`/`npVariant` 做型別
+  專屬檢查),`checkMeta` 的契約簽名要加一個 `NamingVocab` 參數,屬於契約 B 的變動
 
 ## 實作備註
 

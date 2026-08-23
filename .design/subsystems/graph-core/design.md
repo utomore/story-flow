@@ -128,16 +128,37 @@ buildTree  :: Level -> [Node] -> Either [TreeError] NodeTree
 checkMeta  :: TypeRegistry -> AnyNode -> [MetaWarning]
 
 -- 命名文法(ADR-019,詞彙來自註冊表)
+data NameParts = NameParts
+  { npKind    :: Segment          -- 封閉,必須在 nvKinds 內
+  , npDomain  :: Segment          -- 開放受控,必須在 nvDomains 內
+  , npSubject :: Segment
+  , npVariant :: Maybe Segment    -- 開放,不查詞彙表
+  , npState   :: Maybe Segment    -- 封閉,必須在 nvStates 內
+  , npIndex   :: Maybe Int }      -- 尾端三位純數字,純語法判斷
+
 mkLogicalName       :: NamingVocab -> NameParts -> Either NameError LogicalName
-parseLogicalName    :: Text -> Either NameError NameParts
+parseLogicalName    :: NamingVocab -> Text -> Either NameError NameParts
 validateLogicalName :: NamingVocab -> TypeKey -> LogicalName -> Either NameError ()   -- 第一段必須是該型別允許的 kind
 
 -- Manifest(遊戲本體 import 的那一組)
-data Manifest      -- assets/manifest.json, schemaVersion = 2
+data Manifest      -- assets/manifest.json, schemaVersion = 2;頂層含 assets + packs + licenses
 data StoryManifest -- story/manifest.json
 newtype AssetKey = AssetKey Text
 manifestIndex :: Manifest -> Map AssetKey ManifestAsset
+imageMeta :: Value -> Maybe ImageMeta        -- kind 專屬 meta 的型別化讀取
+audioMeta :: Value -> Maybe AudioMeta
 ```
+
+**manifest 的兩條定案**(2026-08-23 階段一閘門):
+
+- **manifest 內部的引用一律 vault 化**:凡是「A 指向 B」的欄位都是 `Ref`(寫成 `<vault>:<id>`),不是裸短 id
+  ——`ManifestAsset` 的 `pack` / `license`、頂層 `packs` / `licenses` 清單各項的 `id`、`ManifestPack` 的
+  `license` 全都適用。短 id 只在單一 vault 內唯一,專案的素材未來可能來自兩個 vault;**引用端與被引用端
+  必須同一種形狀**,否則比對時要剝掉 vault 前綴,剝完又回到會撞號的狀態(這是 2026-08-23 閘門的二輪補正)。
+  節點**自身身分**的欄位不在此列:`ManifestAsset` 的 `id` 維持裸短 id,因為它另有一個並列的 `vault` 欄位
+- `Manifest` 頂層帶 **`packs` / `licenses` 去重清單**,每筆 license 含八個授權維度。專案要能離開 vault
+  獨立存在:P6 的授權閘門必須在專案資料夾內就判斷得出「這個專案能不能商用」,不回頭讀 vault;
+  共用同一份 CC0 的數十個 pack 也不必各自重複八個欄位
 
 ### C. 註冊表(`aapms-types`)
 
@@ -149,7 +170,10 @@ data TypeDecl = TypeDecl
   , tdAllowedLinks :: [LinkKind], tdStages :: [Text], tdFields :: [FieldDecl]
   , tdNameKinds :: [Segment] }                                    -- asset 族:命名文法第一段的合法值
 data TypeRegistry
-data NamingVocab = NamingVocab { nvKinds :: [Segment], nvDomains :: [Segment] }
+data NamingVocab = NamingVocab
+  { nvKinds   :: [Segment]     -- 封閉:驅動格式處理器與資料夾
+  , nvDomains :: [Segment]     -- 開放受控:每加一種素材領域只改 naming.toml
+  , nvStates  :: [Segment] }   -- 封閉:up / down / hover / pressed…;拆解時唯一要查的表
 
 locateRegistry :: IO (Either RegistryError (FilePath, RegistrySource))
 loadRegistry   :: FilePath -> IO (Either RegistryError (TypeRegistry, NamingVocab))
@@ -158,6 +182,14 @@ lookupType     :: TypeRegistry -> TypeKey -> Maybe TypeDecl
 
 載入失敗讓程序失敗,**不退回空註冊表**。`asset-pack`、`asset-license`、`level` 是保留鍵,
 註冊表出現它們是錯誤。
+
+**命名文法的拆解規則**(2026-08-23 階段一閘門定案,取代 legacy assetdb 的兩張詞彙表)——由右往左,
+只查 `nvStates` 一張表:① 尾端三位純數字是 `npIndex`(純語法,不查表)→ ② 再往左一段若在 `nvStates`
+內就是 `npState` → ③ 剩下的一段是 `npVariant`(開放,不查表)→ ④ 還有更多段是錯誤。
+變體天生開放(`01a` / `blue` / `attack-01` / `v2`),封閉清單列不完,legacy 那張 17 個變體詞的表因此退場。
+**詞彙表全部住在 `types/registry/naming.toml`,程式碼裡不得有 `defaultVocab`**。
+`nvStates` 改版會改變既有名稱的拆解結果:名稱字串本身(在 `pack.md`)是真相,拆解結果是衍生物,
+詞彙表改版 bump `schema_version` 讓索引整庫重建(與 ADR-016 對切詞規則的處置一致)。
 
 **套件歸屬**(2026-08-23 釐清,避免相依環):`Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` /
 `lookupType` 與純驗證錯誤是**純型別,定義在 `aapms-core`**(與「內部模組劃分」的「Registry 純驗證」一致,

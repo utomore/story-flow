@@ -176,13 +176,25 @@ checkSchemaVersion docName expected got
 
 舊版 `maPack :: Maybe Text` / `maLicense :: Maybe Text` 存的是**名稱**,合併後 pack 與 license
 都是圖譜節點(ADR-012)、有短 id。契約卡沒有規定這兩欄的確切型別,只規定欄位存在;本 feature
-選擇存**同 vault 內的短 id**(`Maybe Id`)而非全域 `Ref`——理由見待確認假設 A2。
+最初選擇存**同 vault 內的短 id**(`Maybe Id`),2026-08-23 階段一閘門裁決改為 **`Maybe Ref`**
+——見下方「已裁決假設」A2 與「實作備註」。
+
+**manifest 內部引用一律 vault 化**(2026-08-23 二輪裁決,補正第一輪的不完整之處):第一輪只把
+`ManifestAsset.maPack` / `maLicense` 這兩個「指過去」的欄位改成 `Ref`,但頂層 `packs` /
+`licenses` 清單裡被指的那一端(`ManifestPack.mpId` / `ManifestLicense.mlId`)仍是裸短 `Id`,
+造成「引用」與「被引用」兩端形狀不對稱——要比對得先剝掉 asset 端的 vault 前綴,剝掉後又回到
+短 id 只在單一 vault 內唯一、跨 vault 撞名的原始問題,A2 想擋的事情沒真正擋成。修正後
+`ManifestPack.mpId`、`ManifestLicense.mlId`、`ManifestPack.mpLicense`(它指向頂層 licenses
+清單,同樣的引用關係)全部改成 `Ref`,manifest 內部的引用圖(asset → pack、asset → license、
+pack → license)兩端一致,用 `Ref` 相等比對就能唯一對應,兩個 vault 各有一筆 `pck-11223344`
+時仍是兩筆可區分的項目。
 
 ## 使用到的既有串接介面
 
 | 介面(含完整簽名) | 來源檔案 | 來源文檔 | 用途 |
 |---|---|---|---|
-| `data Id`,`Id` 的 `ToJSON`/`FromJSON`(字串編碼) | 尚未實作 | F001 | `ManifestAsset.id` / `ManifestPack.id` / `ManifestLicense.id`,沿用既定字串編碼慣例 |
+| `data Id`,`Id` 的 `ToJSON`/`FromJSON`(字串編碼) | 尚未實作 | F001 | `ManifestAsset.id`(短 id,本筆定義自己的身分),沿用既定字串編碼慣例 |
+| `data Ref = Ref { refVault :: Maybe VaultId, refId :: Id }`、`renderRef` / `parseRef` | 尚未實作 | F001 | `ManifestPack.id` / `ManifestLicense.id` / `ManifestPack.license`(2026-08-23 二輪裁決:manifest 內部引用圖 vault 化) |
 | `newtype Sha256 = Sha256 Text` | 尚未實作 | F001 | `ManifestAsset.sha256` |
 | `newtype VaultId = VaultId Text` | 尚未實作 | F001 | `ManifestAsset.vault` |
 | `newtype TypeKey = TypeKey Text` | 尚未實作 | F001 | `ManifestAsset.type` |
@@ -215,21 +227,21 @@ data ManifestAsset = ManifestAsset
   , maType    :: TypeKey   -- 註冊表鍵,asset-<kind>(F002 宣告的 8 個值之一)
   , maSha256  :: Sha256
   , maVault   :: VaultId   -- 來源 vault id
-  , maPack    :: Maybe Id  -- 所屬 pack 節點的短 id(與該 asset 同一 vault)
-  , maLicense :: Maybe Id  -- 授權節點的短 id(與該 asset 同一 vault)
+  , maPack    :: Maybe Ref -- 所屬 pack 節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 A2)
+  , maLicense :: Maybe Ref -- 授權節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 A2)
   , maMeta    :: Value     -- kind 專屬 JSON;imageMeta/audioMeta 型別化讀取
   }
 
 data ManifestPack = ManifestPack
-  { mpId        :: Id
+  { mpId        :: Ref         -- "<vault>:<id>"(2026-08-23 二輪裁決:vault 化,見上方說明)
   , mpTitle     :: Text        -- 對應 Pack 的 metaTitle
   , mpVendor    :: Maybe Text
   , mpSourceUrl :: Maybe Text
-  , mpLicense   :: Maybe Id
+  , mpLicense   :: Maybe Ref   -- "<vault>:<id>",指向頂層 licenses 清單
   }
 
 data ManifestLicense = ManifestLicense
-  { mlId                    :: Id
+  { mlId                    :: Ref   -- "<vault>:<id>"
   , mlTitle                 :: Text   -- 對應 License 的 metaTitle
   , mlCommercial            :: Bool
   , mlAttributionRequired   :: Bool
@@ -257,8 +269,8 @@ JSON 範例(`assets/manifest.json`):
       "type": "asset-image",
       "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a1",
       "vault": "vlt-a0c4e1f8",
-      "pack": "pck-11223344",
-      "license": "lic-55667788",
+      "pack": "vlt-a0c4e1f8:pck-11223344",
+      "license": "vlt-a0c4e1f8:lic-55667788",
       "meta": { "width": 512, "height": 512, "hasAlpha": true, "colorCount": 128 }
     },
     {
@@ -275,16 +287,16 @@ JSON 範例(`assets/manifest.json`):
   ],
   "packs": [
     {
-      "id": "pck-11223344",
+      "id": "vlt-a0c4e1f8:pck-11223344",
       "title": "Kenney UI Pack",
       "vendor": "Kenney",
       "sourceUrl": "https://kenney.nl/assets/ui-pack",
-      "license": "lic-55667788"
+      "license": "vlt-a0c4e1f8:lic-55667788"
     }
   ],
   "licenses": [
     {
-      "id": "lic-55667788",
+      "id": "vlt-a0c4e1f8:lic-55667788",
       "title": "CC0",
       "commercial": true,
       "attributionRequired": false,
@@ -373,18 +385,21 @@ data Manifest = Manifest
 
 data ManifestAsset = ManifestAsset
   { maId :: Id, maKey :: AssetKey, maPath :: Text, maType :: TypeKey, maSha256 :: Sha256
-  , maVault :: VaultId, maPack :: Maybe Id, maLicense :: Maybe Id, maMeta :: Value
+  , maVault :: VaultId, maPack :: Maybe Ref, maLicense :: Maybe Ref, maMeta :: Value
+  -- ^ maPack / maLicense:2026-08-23 階段一閘門裁決 A2,從 Maybe Id 改為 Maybe Ref
   }
   deriving stock (Eq, Show)
 
 data ManifestPack = ManifestPack
-  { mpId :: Id, mpTitle :: Text, mpVendor :: Maybe Text, mpSourceUrl :: Maybe Text
-  , mpLicense :: Maybe Id
+  { mpId :: Ref, mpTitle :: Text, mpVendor :: Maybe Text, mpSourceUrl :: Maybe Text
+  , mpLicense :: Maybe Ref
+  -- ^ mpId / mpLicense:2026-08-23 二輪裁決,從 Id / Maybe Id 改為 Ref / Maybe Ref
   }
   deriving stock (Eq, Show)
 
 data ManifestLicense = ManifestLicense
-  { mlId :: Id, mlTitle :: Text, mlCommercial :: Bool, mlAttributionRequired :: Bool
+  { mlId :: Ref  -- 2026-08-23 二輪裁決,從 Id 改為 Ref
+  , mlTitle :: Text, mlCommercial :: Bool, mlAttributionRequired :: Bool
   , mlCreditText :: Maybe Text, mlModificationAllowed :: Maybe Bool
   , mlRedistributionAllowed :: Maybe Bool, mlResaleAllowed :: Maybe Bool
   , mlNftAllowed :: Maybe Bool, mlSourceUrl :: Maybe Text
@@ -452,37 +467,33 @@ audioMeta :: Value -> Maybe AudioMeta
 | T8 | test_image_audio_meta | 合法 image `Value` → `imageMeta` 回 `Just` 且四欄正確;合法 audio `Value` → `audioMeta` 回 `Just`;image `Value` 餵給 `audioMeta` 回 `Nothing`;`imColorCount` 缺漏時 `imageMeta` 仍解析成功(`Nothing`) |
 | T9 | test_spec_registration | `core/test/Spec.hs` 的 `describe` 清單引用 `ManifestSpec` |
 
-## 待確認假設
+## 已裁決假設(2026-08-23 階段一閘門)
 
-- A1:契約 B 把 `imageMeta` / `audioMeta` 的簽名寫成 `Value -> Maybe ImageMeta`(拿掉舊版的
-  `ManifestAsset` 包裝),但 design.md 提出這兩個函式時是緊接在契約 A 的 `Asset.astKindMeta`
-  之後,而非契約 B 的 `Manifest` 型別區塊裡;契約卡卻明確把它們指派給本 feature(manifest-schema-v2)
-  而不是 F001(core-unified-meta)。→ 採取:視為「通用於任何 kind 專屬 `Value` 的型別化讀取」,
-  同時可套用在 `ManifestAsset.meta` 與 F001 的 `Asset.astKindMeta` 兩處,函式本體在 `aapms-core`
-  只實作一次 → 影響:若編排者認為這兩個函式其實該歸 F001(因為 `astKindMeta` 是 F001 定義的
-  欄位),只是搬移歸屬,簽名與行為不變,不影響其他判斷
-- A2:`ManifestAsset.pack` / `maLicense` 與 `ManifestPack.mpLicense` 的型別,契約卡只規定「帶
-  `pack` / `license` 兩個欄位」,未規定確切型別。舊版是**名稱**字串(`Maybe Text`),但 pack 與
-  license 在合併後(ADR-012)都是圖譜節點、有短 id。→ 採取:選 `Maybe Id`(同 vault 內的短 id,
-  不用 `Ref`),理由是 pack.md / licenses.md 是同一個 vault 內的檔案,asset 引用的 pack/license
-  一定與 asset 本身同 vault,不需要跨 vault 定址的 `<vault>:<id>` 形式;`ManifestAsset.vault` 欄位
-  已經標明了這個共同的 vault 語境 → 影響:若編排者認為 manifest 需要支援「pack/license 來自另一個
-  vault」的情境(目前 `design.md` 沒有描述這種情境),`Maybe Id` 要改成 `Maybe Ref`,`aapms-store`
-  寫 pack.md 的邏輯與寫 manifest 的邏輯(`project`)都要能表達跨 vault 引用
-- A3:`Manifest` 頂層是否要有 `packs` / `licenses` 兩個去重清單,契約卡完全沒提(只提到
-  `ManifestAsset` 逐筆要帶 `pack` / `license` 兩個欄位)。→ 採取:比照舊版與 `system.md`「專案
-  目錄」一節「`manifest.json` ← 素材……**授權**……」的描述,保留頂層 `packs` / `licenses` 兩個
-  去重清單,供遊戲端做致謝名單與授權稽核(`ManifestPack` / `ManifestLicense` 的完整欄位見「JSON
-  形狀規格」)→ 影響:若編排者認為 manifest 不該重複帶這兩份資料(遊戲端本來就只認 `assets` 陣列
-  裡的 id,去重清單只是方便),移除這兩個頂層欄位是相容性改動,`Manifest` 型別與兩份 golden file
-  都要跟著改
-- A4:`StoryManifest` 是否要有獨立的 `schemaVersion` 欄位與獨立的版本拒絕邏輯,契約卡「`FromJSON`
-  對 `schemaVersion = 1` 回明確錯誤」這句話緊接在 `StoryManifest` 欄位清單之後,但 schema 1 時代
-  (assetdb)根本沒有 `story/manifest.json` 這個檔案,不存在真正的「舊版本」可拒絕。→ 採取:仍然
-  給 `StoryManifest` 一個獨立 `schemaVersion` 欄位與同樣的短路拒絕邏輯(對稱於 `Manifest`,為未來
-  `story/manifest.json` 若要 schema 3 預留同一套機制),而非省略這個欄位 → 影響:若編排者認為
-  `story/manifest.json` 不需要版本號(它從一開始就沒有相容性負擔),`smSchemaVersion` 欄位與 T6
-  對 `StoryManifest` 的版本拒絕測試要整個移除,JSON 形狀也要跟著拿掉這個鍵
+原「待確認假設」A1–A4 已由開發者裁決,結果如下:
+
+- A1(`imageMeta` / `audioMeta` 簽名歸屬):**接受,維持現狀**。`Value -> Maybe ImageMeta` /
+  `Value -> Maybe AudioMeta` 留在 `aapms-core`(定義處在 `Manifest.hs`,型別類別掛勾在
+  `Json.hs`),同時適用於 `ManifestAsset.meta` 與 F001 的 `Asset.astKindMeta` 兩處。不搬移歸屬。
+- A2(`ManifestAsset.pack` / `maLicense` 的型別):**要改**。原判斷(`Maybe Id`,同 vault 內短
+  id)推翻,改為 **`Maybe Ref`**,JSON 編碼 `"<vault>:<id>"`(例:
+  `"pack": "vlt-a0c4e1f8:pck-11223344"`)。理由:短 id 只在單一 vault 內唯一,專案的素材未來
+  可能來自兩個 vault;現在多寫十幾個字元,換掉「開第二個 vault 時既有專案全部要重產」的風險。
+  **一輪裁決**(2026-08-23)最初只改 `ManifestAsset.maPack` / `maLicense` 這兩個「指過去」的欄位,
+  `Manifest` 頂層 `packs` / `licenses` 清單裡 `ManifestPack.mpId` / `ManifestLicense.mlId` 維持
+  `Id`。**二輪裁決**(同日,補正一輪的不完整之處)發現這樣「引用」與「被引用」兩端形狀不對稱:
+  要把 asset 的 `pack` 對到頂層清單項目得先剝掉 vault 前綴,剝掉後又回到短 id 跨 vault 撞名的
+  原始問題——A2 想擋的事情沒真正擋成。於是把 `ManifestPack.mpId`、`ManifestLicense.mlId`、
+  `ManifestPack.mpLicense`(它指向頂層 licenses 清單,同樣是內部引用)**一併改成 `Ref`**,
+  manifest 內部的整張引用圖(asset → pack、asset → license、pack → license)vault 化到底,
+  兩端用 `Ref` 相等比對即可唯一對應,不必剝前綴。
+  已改動:`core/src/Aapms/Core/Manifest.hs`(型別)、`core/test/golden/manifest.golden.json`
+  (fixture)、`core/test/Aapms/Core/ManifestSpec.hs`(測試),`Json.hs` 的 `ToJSON`/`FromJSON`
+  無需改動(`Maybe Ref` / `Ref` 已透過既有的 `instance ToJSON/FromJSON Ref`——即
+  `renderRef`/`parseRef`——自動編解碼,不必另寫實例)。
+- A3(`Manifest` 頂層 `packs` / `licenses` 去重清單):**接受,維持現狀**。理由:專案要能離開
+  vault 獨立存在,P6 授權閘門要在專案資料夾內就判斷得出能不能商用,不回頭讀 vault。
+- A4(`StoryManifest` 獨立 `schemaVersion`):**接受,維持現狀**。理由與原判斷相同,為未來
+  `story/manifest.json` 若要 schema 3 預留同一套拒絕機制。
 
 ## 實作備註
 
@@ -501,3 +512,47 @@ audioMeta :: Value -> Maybe AudioMeta
   和驗收標準 T2「恰好九個鍵」一致,屬型別內部 JSON 形狀的自主決定,不影響契約簽名。
 - golden 檔案讀取沿用 `CabalSpec.hs` 的雙路徑探測寫法(`core/test/golden/...` 與
   `test/golden/...`),因為測試可能從專案根目錄或 `core/` 底下執行。
+
+### 2026-08-23 重工(一輪):A2 裁決「要改」的落地(`ManifestAsset.pack` / `license` 改 `Maybe Ref`)
+
+- `Manifest.hs`:`ManifestAsset.maPack` / `maLicense` 型別從 `Maybe Id` 改為 `Maybe Ref`;
+  `ManifestPack` / `ManifestLicense` 當時不動(它們自己的 `id` 視為本 manifest 內定義,
+  `mpLicense` 也維持 `Maybe Id`)——這個範圍判斷在二輪重工中被推翻,見下方。
+- `Json.hs`:**無需改動**。`ManifestAsset` 的 `ToJSON`/`FromJSON` 本來就用泛用的 `.=`/`.:`,
+  型別從 `Maybe Id` 換成 `Maybe Ref` 後,aeson 自動改用既有的 `instance ToJSON Ref`
+  (`String . renderRef`)/ `instance FromJSON Ref`(`withText "Ref" (orFail . parseRef)`),
+  兩者早已存在於 `Json.hs`,不必新寫實例。
+- golden fixture:`manifest.golden.json` 的 `"pack": "pck-11223344"` → `"pack":
+  "vlt-a0c4e1f8:pck-11223344"`,`"license"` 同理;`"pack": null` 的第二筆維持 `null`。
+- **裸 id(不帶 vault 前綴)的 `FromJSON` 行為**:讀 `Aapms.Core.Id.parseRef` 實際簽名
+  (`core/src/Aapms/Core/Id.hs:170-179`)後確認它**不會拒絕**裸 id——單段輸入(無 `:`)被解析
+  為 `Ref { refVault = Nothing, refId = <id> }`,語意是「本 vault 內的參照」,這是刻意設計
+  (`localRef`)而非缺陷。因此新增的測試(`ManifestSpec.hs`「ManifestAsset pack / license 為
+  Ref」describe 區塊)驗證的是**正確處理**而非拒絕:裸 id `"pck-11223344"` 解碼後得到
+  `Just (Ref Nothing (idOf "pck-11223344"))`。這與契約卡「短 id 只在單一 vault 內唯一」的前提
+  一致——省略 vault 段落時,`ManifestAsset.vault` 欄位已標明的來源 vault 仍是唯一可能的語境。
+
+### 2026-08-23 重工(二輪):manifest 內部引用圖整個 vault 化
+
+一輪的範圍判斷不完整:只讓「引用」的一端(`ManifestAsset.maPack`/`maLicense`)vault 化,
+「被引用」的一端(頂層 `packs`/`licenses` 清單裡的 `id`)仍是裸短 id。後果是要比對兩端得先
+剝掉 asset 端的 vault 前綴,剝掉後又回到短 id 只在單一 vault 內唯一的原始問題——兩個 vault
+各有一筆 `pck-11223344` 時,頂層 `packs` 會出現兩筆撞名的 `"id": "pck-11223344"`,無法區分,
+A2「換掉跨 vault 撞名風險」的目的沒有真正達成。
+
+- `Manifest.hs`:`ManifestPack.mpId` 從 `Id` 改為 `Ref`;`ManifestLicense.mlId` 從 `Id` 改為
+  `Ref`;`ManifestPack.mpLicense` 從 `Maybe Id` 改為 `Maybe Ref`(它指向頂層 `licenses` 清單,
+  跟 `maPack`/`maLicense` 是同一種「manifest 內部引用」,理當同規則)。`ManifestAsset.maId`
+  維持 `Id` 不變——那是本筆自己的身分,不是引用。
+- `Json.hs`:同樣**無需改動**,原因同一輪:`ManifestPack`/`ManifestLicense` 的 `ToJSON`/
+  `FromJSON` 已經是泛用的 `.=`/`.:`,型別換成 `Ref`/`Maybe Ref` 後自動吃到既有的 `Ref` 實例。
+- golden fixture:`manifest.golden.json` 的 `packs[0].id`、`licenses[0].id`、`packs[0].license`
+  三處補上 `vlt-a0c4e1f8:` 前綴。
+- `ManifestSpec.hs`:`samplePack`/`sampleLicense` 改用 `refOf`;新增
+  `describe "manifest 內部引用圖 vault 化(二輪裁決補述……)"` 兩條測試——① asset 的 `maPack`
+  能以 `Ref` 整體相等(不剝前綴)唯一對應到 `mPacks` 裡的某一筆;② 建兩筆 `mpId` 短 id 相同但
+  vault 不同的 `ManifestPack`(`vlt-aaaaaaaa:pck-11223344` 與 `vlt-bbbbbbbb:pck-11223344`),
+  驗證兩者 `Ref` 不相等、各自能用完整 `Ref` 唯一查到,證明「manifest 內部引用圖 vault 化」後
+  跨 vault 同號不再撞名。
+- 範圍**沒有**擴大到 `ManifestAsset.maId`、`ManifestPack.mpTitle` 等本筆自身定義的欄位——只有
+  「A 指向 B」這種內部引用關係的欄位才 vault 化。

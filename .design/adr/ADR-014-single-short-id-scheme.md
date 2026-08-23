@@ -40,7 +40,7 @@ ULID 在 assetdb 的對外契約份量比報告估的小:遊戲端的 `Assets.hs
 **二、唯一性範圍是 vault。** 跨 vault 以 `<vault-id>:<id>` 定址。跨 vault `ATTACH` 查詢不會撞鍵,
 因為結果每筆帶 vault 欄位(ADR-017)。
 
-**三、asset 的對外身分仍是邏輯名稱。** `name` 全域唯一(命名文法,assetdb ADR-004)、是
+**三、asset 的對外身分仍是邏輯名稱。** `name` 全域唯一(命名文法,ADR-019;原 assetdb ADR-004)、是
 `Assets.hs` 的 key;`ast-` id 是圖譜內部的節點身分,兩者並存、職責不同:`name` 可能在命名決策
 改變時更動,`id` 從掃描進來那一刻起不變。
 

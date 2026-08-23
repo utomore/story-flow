@@ -6,7 +6,11 @@
 「世界觀:歷史」不是一個 Entity;歷史裡「描述埃提亞這個地區在崩塌前的樣貌」那一段才是。
 片段夠細,關聯才有意義,「這段新劇情和過去的故事有沒有衝突」才可能精準回答。
 
-**目前版本 `v0.1.0.0`** —— 四個子系統 19 個 feature 全數完成(P0–P5),12 個測試套件 1462 條全綠。
+**目前版本 `v0.1.0.0`** —— story-flow 時期的四個子系統 19 個 feature 全數完成,12 個測試套件 1462 條全綠。
+
+> **2026-08-23 起本 repo 進入 aapms 重構**(把素材庫 assetdb 深度整合進來,見 [`.design/system.md`](./.design/system.md)):
+> P0 已完成——全樹改名 `aapms-*` / `Aapms.*`、assetdb 以保留歷史的方式併入 `legacy/assetdb/`、
+> 契約層測試 `contract/` 立起。下面的指令說明仍是 story-flow 的功能面,P1–P6 逐期改寫,README 於 P7 重寫。
 
 ---
 
@@ -453,12 +457,10 @@ trigram tokenizer;`aapms-store` 的測試會直接驗證這個 flag 有生效。
 ### 設計文檔
 
 - [`.design/system.md`](./.design/system.md) —— 專案燈塔:需求、對外契約、子系統劃分、通訊拓撲、開發階段
-- [`.design/subsystems/`](./.design/subsystems) —— 四份子系統架構,各含功能規劃與 Feature 契約卡:
-  [片段圖譜核心](./.design/subsystems/entity-graph-core/design.md)(5/5)、
-  [業務契約與介面](./.design/subsystems/service-and-interfaces/design.md)(3/3)、
-  [衝突偵測](./.design/subsystems/conflict-detection/design.md)(6/6)、
-  [LLM 與工作坊](./.design/subsystems/llm-workshop-mcp/design.md)(5/5)
-- [`.design/adr/`](./.design/adr) —— 11 份架構決策紀錄
+- [`.design/subsystems/`](./.design/subsystems) —— 重構後的子系統架構(目前只有 [graph-core](./.design/subsystems/graph-core/design.md),0/9);
+  合併前的四份子系統文檔在 [`.design/legacy/`](./.design/legacy)
+- [`.design/adr/`](./.design/adr) —— 22 份架構決策紀錄(ADR-019~022 由 assetdb 搬入)
+- [`contract/`](./contract) —— 契約層測試(ADR-018):只跑執行檔與讀 `.cabal`,不依賴任何內部型別,重建期間的安全網
 - [`types/registry/`](./types/registry) —— 宣告式型別註冊表
 
 ---

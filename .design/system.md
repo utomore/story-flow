@@ -583,6 +583,13 @@ schema 還改得動的時候拿真資料驗證。
 
 **P0 越晚做衝突越大**——它讓所有既有分支需要重解,必須在任何邏輯改動之前完成。
 
+> **進度**:P0 於 2026-08-23 完成,三個 commit:全樹改名(`6f41745`)、assetdb 以 subtree merge 併入
+> `legacy/assetdb/`(`6d0c31c`,不進 `cabal.project`,P4–P6 再依各子系統搬到最終位置)、契約測試
+> `contract/` 與 ADR-019~022。刻意留到 P3 的執行期名稱:marker `.storyflow/`、`STORYFLOW_*` 環境變數、
+> `~/.config/story-flow/vaults.toml`、MCP 錯誤碼 `story_flow_*`(由 `workspace` / `shell` 依 ADR-017 改)。
+> GitHub 上 `utomore/aapms` → `assetdb-legacy`、`utomore/story-flow` → `aapms` 的改名與本機目錄改名
+> 由開發者手動執行。
+
 ## 與既有文檔的關係
 
 | 文檔 | 處置 |

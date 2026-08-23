@@ -7,7 +7,7 @@ status: active
 created: 2026-08-23
 updated: 2026-08-23
 parent: system
-related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017]
+related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
 ---
 
@@ -117,7 +117,7 @@ buildTree  :: Level -> [Node] -> Either [TreeError] NodeTree
 -- 註冊表純驗證:只回警告,不決定怎麼辦
 checkMeta  :: TypeRegistry -> AnyNode -> [MetaWarning]
 
--- 命名文法(assetdb ADR-004,詞彙來自註冊表)
+-- 命名文法(ADR-019,詞彙來自註冊表)
 mkLogicalName       :: NamingVocab -> NameParts -> Either NameError LogicalName
 parseLogicalName    :: Text -> Either NameError NameParts
 validateLogicalName :: NamingVocab -> TypeKey -> LogicalName -> Either NameError ()   -- 第一段必須是該型別允許的 kind
@@ -564,7 +564,7 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
   節的順序與給定順序相同;`writeAssetFields` 只改 `name` / `license` / `author` / `tags` 這些
   人給欄位,**拒絕**改 `sha256` / `entry`(那是掃描器的事,要改走 `addSection` / `deleteNode`);
   所有寫入比對 `revision`,不符回 `RevisionMismatch` 且檔案未動;`allocateId` 在人為製造碰撞時
-  以 salt 重試直到不撞;寫入後 `indexFile` 只重讀該檔;交易內無任何檔案 IO(寫鎖預算,ADR-009)
+  以 salt 重試直到不撞;寫入後 `indexFile` 只重讀該檔;交易內無任何檔案 IO(寫鎖預算,ADR-022)
 - **明確不做**:不做跨 vault 寫入;不決定業務規則(名稱全域唯一由 `service` 先查);不產縮圖、
   不算雜湊
 

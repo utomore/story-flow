@@ -29,6 +29,11 @@ library
         StoryFlow.Server.Auth
         StoryFlow.Server.Error
         StoryFlow.Server.State
+    -- G-E002:--version 從 cabal 的 version 欄讀,單一來源。
+    other-modules:
+        Paths_storyflow_server
+    autogen-modules:
+        Paths_storyflow_server
     -- service-and-interfaces/F003 驗收標準 3:handler 內沒有業務判斷,server 不 import
     -- storyflow-store。狀態碼的分派走 service 的 errorCode 字串,不是落地層的
     -- 建構子——storyflow-store / sqlite-simple 出現在這裡即為架構違規(T6)。

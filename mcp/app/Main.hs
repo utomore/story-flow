@@ -5,11 +5,16 @@
 module Main (main) where
 
 import qualified Data.Text as T
-import StoryFlow.Mcp (resolveConfig, runServer)
+import qualified Data.Text.IO as TIO
+import StoryFlow.Mcp (mcpVersion, resolveConfig, runServer, wantsVersion)
 import System.Environment (getArgs)
 
 main :: IO ()
 main = do
   argv <- map T.pack <$> getArgs
-  cfgResult <- resolveConfig argv
-  runServer cfgResult
+  -- --version 是 CLI 式呼叫,不是 session:印一行就結束,不進 JSON-RPC 迴圈(G-E002)
+  if wantsVersion argv
+    then TIO.putStrLn mcpVersion
+    else do
+      cfgResult <- resolveConfig argv
+      runServer cfgResult

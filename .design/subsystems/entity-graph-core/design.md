@@ -5,7 +5,8 @@ title: entity-graph-core
 description: 片段圖譜核心:型別、註冊表、Markdown 解析與可重建索引
 status: active
 created: 2026-08-18
-updated: 2026-08-21
+updated: 2026-08-23
+code-paths: [core/src, types/src, md/src, store/src]
 parent: system
 related-adr: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-008, ADR-009, ADR-010]
 ---
@@ -43,7 +44,7 @@ ADR-002 的那條線:**檔案才是真相來源,SQLite 只是可以刪掉重建�
 | 元件 | 職責 | IO |
 |---|---|---|
 | `types/registry/*.toml` | 宣告每個 Entity 型別的名稱、欄位提示、允許的關聯、工作坊階段、`dir`、`owner_type` | 資料,非程式 |
-| `storyflow-types` | 讀 TOML、解析、錯誤彙整;`defaultRegistryDir` 以 cabal `data-files` + `STORYFLOW_REGISTRY` 定位 | 唯一 IO 是讀檔 |
+| `storyflow-types` | 讀 TOML、解析、錯誤彙整;`locateRegistry` 依 `STORYFLOW_REGISTRY` → 執行檔旁的 `registry/` → cabal `data-files` 三層定位並回報來源(2026-08-23 G-E002:原本只有頭尾兩層,複製執行檔到別台機器就找不到) | 唯一 IO 是讀檔 |
 | `storyflow-core` | `Meta` / `Entity` / `Link` / `Level` / `Node` / `NodeKind` / `LinkKind` 型別;ID 生成(FNV-1a);樹的合法性驗證(`buildTree`);關聯遍歷;註冊表的純驗證(`checkEntity`);全系統唯一的 aeson 編碼規則 | **零 IO** |
 | `storyflow-md` | Markdown 分節格式 ↔ 核心型別的雙向轉換;節層繼承規則;位元組保留的寫回 | 純函式,吃 `Text` 吐型別 |
 | `storyflow-store` | Vault 定位(git 式向上搜尋)、原子檔案寫入、SQLite 索引建立與重建、FTS5 trigram、樂觀鎖、過時偵測 | 檔案 + SQLite |
@@ -139,7 +140,7 @@ NewEntity / MetaOverride(來自 service-and-interfaces)
                               │ 讀檔(唯一 IO)
                  ┌────────────┴─────────────┐
                  │  storyflow-types         │  TOML 解析 + 錯誤彙整
-                 │  defaultRegistryDir      │  data-files / STORYFLOW_REGISTRY
+                 │  locateRegistry          │  env / 執行檔旁 / data-files
                  └────────────┬─────────────┘
                               │ TypeRegistry
    ┌──────────────┐  ┌────────┴─────────────┐

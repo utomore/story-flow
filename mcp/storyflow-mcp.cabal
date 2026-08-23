@@ -29,6 +29,11 @@ library
         StoryFlow.Mcp.Protocol
         StoryFlow.Mcp.Server
         StoryFlow.Mcp.Tools
+    -- G-E002:--version 從 cabal 的 version 欄讀,單一來源。
+    other-modules:
+        Paths_storyflow_mcp
+    autogen-modules:
+        Paths_storyflow_mcp
     -- 「storyflow-mcp 不 import storyflow-service(只打 HTTP)」這條硬性邊界靠的
     -- 正是這幾個名字不出現:storyflow-service / storyflow-store / storyflow-md /
     -- storyflow-conflict / storyflow-workshop / storyflow-llm / storyflow-core 一個

@@ -15,7 +15,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Options.Applicative
 import StoryFlow.Api (storyFlowOpenApi)
-import StoryFlow.Server (ServeOpts (..), defaultServeOpts, runServer)
+import StoryFlow.Server (ServeOpts (..), defaultServeOpts, runServer, serverVersion)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.IO (stderr)
@@ -53,7 +53,7 @@ main = do
 pinfo :: ParserInfo Opts
 pinfo =
   info
-    (helper <*> optsP)
+    (helper <*> infoOption serverVersion (long "version" <> help "印出版本後結束") <*> optsP)
     ( fullDesc
         <> header "story-flow-serve —— story-flow 的 REST API 伺服器"
         <> progDesc

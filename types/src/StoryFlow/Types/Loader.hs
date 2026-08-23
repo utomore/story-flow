@@ -8,7 +8,11 @@
 -- 而沒有檔名的錯誤訊息在 5 個以上型別檔時等於沒有。
 module StoryFlow.Types.Loader
   ( -- * 執行期定位
-    defaultRegistryDir
+    RegistrySource (..)
+  , locateRegistry
+  , locateRegistryWith
+  , registryBesideExecutable
+  , defaultRegistryDir
   , registryEnvVar
 
     -- * 載入
@@ -35,8 +39,8 @@ import StoryFlow.Core.Registry
   , validateRegistry
   )
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.Environment (lookupEnv)
-import System.FilePath (takeExtension, (</>))
+import System.Environment (getExecutablePath, lookupEnv)
+import System.FilePath (takeDirectory, takeExtension, (</>))
 import qualified TOML
 
 import Paths_storyflow_types (getDataDir)
@@ -50,27 +54,68 @@ import Paths_storyflow_types (getDataDir)
 registryEnvVar :: String
 registryEnvVar = "STORYFLOW_REGISTRY"
 
--- | 型別註冊表在執行期的目錄。
+-- | 註冊表是從哪一層找到的。
 --
--- @cabal install@ 之後的執行檔沒有原始碼樹的相對路徑,因此正式的來源是 cabal
--- 的 @data-files@(見 @storyflow-types.cabal@);'registryEnvVar' 有值時優先
--- ——開發時指向工作目錄的 @types\/registry\/@,作者要自訂型別時也不必重編譯。
+-- @doctor@ 要說得出來,找不到時的錯誤訊息也要列得出找過哪裡(G-E002)。
+data RegistrySource
+  = -- | 'registryEnvVar' 指到的目錄
+    FromEnv
+  | -- | 執行檔所在目錄底下的 @registry\/@ ——zip 解開就能跑靠的是這一層
+    BesideExecutable
+  | -- | cabal 的 @data-files@,@cabal install@ 之後才存在
+    FromDataDir
+  deriving stock (Show, Eq)
+
+-- | 型別註冊表在執行期的目錄,連同它是從哪一層找到的。
 --
--- __找到的目錄必須真的存在__,否則回 'Nothing':回一個不存在的路徑只會讓
--- 錯誤延後到 'loadRegistry' 才爆,而且訊息會變成「目錄不存在」而不是
--- 「你的環境變數指錯地方」。環境變數指向不存在的目錄時__不退回 @data-files@__
--- ——那會讓一個打錯的環境變數靜默地載入另一份註冊表。
-defaultRegistryDir :: IO (Maybe FilePath)
-defaultRegistryDir =
+-- 三層,順序固定:
+--
+-- 1. 'registryEnvVar' ——開發時指向工作目錄的 @types\/registry\/@,作者要自訂型別
+--    時也不必重編譯
+-- 2. 執行檔旁的 @registry\/@ ——只複製執行檔到別台機器時,烙印的 cabal 路徑不存在,
+--    這一層是唯一能跑起來的方式。放在 @data-files@ __之前__:同一台機器上有舊的
+--    cabal 安裝時,zip 解開的那份要用自己帶的註冊表
+-- 3. cabal 的 @data-files@(見 @storyflow-types.cabal@)
+--
+-- __找到的目錄必須真的存在__,否則往下一層找;三層都沒有就回 'Nothing'。回一個
+-- 不存在的路徑只會讓錯誤延後到 'loadRegistry' 才爆,而且訊息會變成「目錄不存在」
+-- 而不是「你的環境變數指錯地方」。
+--
+-- __例外是第一層__:環境變數指向不存在的目錄時__不往下退__——那會讓一個打錯的
+-- 環境變數靜默地載入另一份註冊表。
+locateRegistry :: IO (Maybe (RegistrySource, FilePath))
+locateRegistry = locateRegistryWith getExecutablePath
+
+-- | 「執行檔旁」那一層__會去查__的路徑,不管它存不存在。
+--
+-- 找不到註冊表時的錯誤訊息要說得出「我查過這裡」;`service` 不依賴 `filepath`
+-- 與 `directory`,這個路徑由本模組算好給它。
+registryBesideExecutable :: IO FilePath
+registryBesideExecutable = (</> "registry") . takeDirectory <$> getExecutablePath
+
+-- | 'locateRegistry' 的可注入版本:執行檔路徑由呼叫端給。
+--
+-- 測試要驗「執行檔旁」這一層,而測試執行檔旁邊不會真的有 @registry\/@;
+-- 把 'getExecutablePath' 換成指向臨時目錄的動作就測得到。
+locateRegistryWith :: IO FilePath -> IO (Maybe (RegistrySource, FilePath))
+locateRegistryWith exePath =
   lookupEnv registryEnvVar >>= \case
-    Just p | not (null p) -> existing p
+    Just p | not (null p) -> fmap (FromEnv,) <$> existing p
     _ -> do
-      base <- try getDataDir :: IO (Either IOException FilePath)
-      either (const (pure Nothing)) (existing . (</> "registry")) base
+      beside <- existing . (</> "registry") . takeDirectory =<< exePath
+      case beside of
+        Just d -> pure (Just (BesideExecutable, d))
+        Nothing -> do
+          base <- try getDataDir :: IO (Either IOException FilePath)
+          fmap (FromDataDir,) <$> either (const (pure Nothing)) (existing . (</> "registry")) base
   where
     existing p = do
       ok <- doesDirectoryExist p
       pure (if ok then Just p else Nothing)
+
+-- | 'locateRegistry' 的投影:只要目錄,不問來源。簽名自 P1 起沒變。
+defaultRegistryDir :: IO (Maybe FilePath)
+defaultRegistryDir = fmap snd <$> locateRegistry
 
 data LoadError
   = -- | 檔名 + 解析器訊息

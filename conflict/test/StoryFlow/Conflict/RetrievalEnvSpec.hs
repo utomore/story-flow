@@ -9,7 +9,7 @@ import Control.Exception (bracket)
 import Data.List (sort)
 import Data.Text (Text)
 import qualified Data.Text as T
-import StoryFlow.Conflict.Retrieval
+import StoryFlow.Conflict.Retrieval.Internal
 import StoryFlow.Conflict.Types
 import StoryFlow.Core.Id (Id, Ref (..), localRef, parseId, renderId)
 import StoryFlow.Core.Link (Link (..), LinkKind (Involves, OccursIn, PartOf, References))

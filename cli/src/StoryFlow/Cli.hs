@@ -27,6 +27,7 @@ module StoryFlow.Cli
 
 import Control.Exception (IOException, try)
 import Control.Monad (unless)
+import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (ToJSON (..), Value (..), fromJSON)
 import qualified Data.Aeson as A
@@ -39,6 +40,7 @@ import qualified Data.Text.IO as TIO
 import Options.Applicative (ParserResult (..), execCompletion, renderFailure)
 import StoryFlow.Api (WorkshopStepResp (wssReply))
 import StoryFlow.Cli.Backend
+import StoryFlow.Cli.Doctor
 import StoryFlow.Cli.Error
 import StoryFlow.Cli.Options
 import StoryFlow.Cli.Render
@@ -48,8 +50,9 @@ import StoryFlow.Conflict.Types (Draft (..))
 import StoryFlow.Core.Id (Id, renderId, renderRef)
 import StoryFlow.Core.Link (Link (..), LinkKind, isCoreKind, renderLinkKind, suggestCoreKind)
 import StoryFlow.Service
+import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (..))
-import System.IO (Handle, hFlush, stderr, stdin, stdout)
+import System.IO (Handle, hFlush, hIsTerminalDevice, hSetEncoding, stderr, stdin, stdout, utf8)
 
 -- 輸出去向 ---------------------------------------------------------------------
 
@@ -76,15 +79,21 @@ runCli = runCliWith defaultCliIO
 -- 引數錯誤__不走信封__:@--json@ 這個旗標本身可能就是打錯的那一個,
 -- 這時候假裝解析成功地印一個 JSON 出來只會更難查。
 runCliWith :: CliIO -> [String] -> IO ExitCode
-runCliWith io args = case parseCli args of
-  Success (g, c) -> dispatch io g c
-  CompletionInvoked cr -> do
-    msg <- execCompletion cr "story-flow"
-    TIO.hPutStr (cliOut io) (T.pack msg)
-    pure ExitSuccess
-  Failure f -> case renderFailure f "story-flow" of
-    (msg, ExitSuccess) -> TIO.hPutStrLn (cliOut io) (T.pack msg) >> pure ExitSuccess
-    (msg, _) -> TIO.hPutStrLn (cliErr io) (T.pack msg) >> pure (ExitFailure 2)
+runCliWith io args = do
+  -- service-and-interfaces/B002:人類模式的輸出__導向檔案或管線時__要是 UTF-8。
+  -- 終端機留給它自己的 codec(Windows 主控台是 cp950 時,繁中要交給它才顯示得出來);
+  -- 不是終端機就沒有「顯示」這回事,接收端是另一個程式,而那邊的共同語言是 UTF-8。
+  -- --json 那條路徑(jsonLine)本來就自己編 UTF-8,不受這裡影響。
+  mapM_ utf8UnlessTerminal [cliOut io, cliErr io]
+  case parseCli args of
+    Success (g, c) -> dispatch io g c
+    CompletionInvoked cr -> do
+      msg <- execCompletion cr "story-flow"
+      TIO.hPutStr (cliOut io) (T.pack msg)
+      pure ExitSuccess
+    Failure f -> case renderFailure f "story-flow" of
+      (msg, ExitSuccess) -> TIO.hPutStrLn (cliOut io) (T.pack msg) >> pure ExitSuccess
+      (msg, _) -> TIO.hPutStrLn (cliErr io) (T.pack msg) >> pure (ExitFailure 2)
 
 -- 派送 -------------------------------------------------------------------------
 
@@ -94,6 +103,15 @@ dispatch :: CliIO -> GlobalOpts -> Command -> IO ExitCode
 dispatch io g cmd = case cmd of
   VaultInit dir name | Nothing <- goRemote g -> direct (vaultCreated <$> createVaultB Nothing dir name)
   VaultList | Nothing <- goRemote g -> direct (listed <$> listVaultsB Nothing)
+  -- G-E002:doctor 診斷的是這台機器,不走 Backend、不開索引;
+  -- 退出碼不由 emit 決定——報告永遠印得出來,但註冊表找不到就是 1。
+  Doctor
+    | Just _ <- goRemote g -> emit io g (Left (CliUsage "doctor 診斷本機,不能與 --remote 併用"))
+    | otherwise -> do
+        cwd <- getCurrentDirectory
+        r <- runDoctor (T.pack cliVersion) (goVault g) cwd
+        _ <- emit io g (Right (plain (renderDoctor r) r))
+        pure (if doctorPasses r then ExitSuccess else ExitFailure 1)
   _ -> withBackend g $ \case
     Left e -> emit io g (Left e)
     Right (b, issues) -> do
@@ -206,6 +224,8 @@ handle io b = \case
   WorkshopCommit sid -> do
     r <- commitStageB b sid
     pure (plain (renderWorkshopCommit r) r)
+  -- dispatch 在進 Backend 之前就攔下 Doctor;這一支只為了讓 pattern 完整
+  Doctor -> throwError (CliUsage "doctor 不走 Backend")
   where
     vaultCreated v = plain ("已建立 Vault " <> vvName v <> "(" <> T.pack (vvRoot v) <> ")") v
     updated v = "已更新 " <> renderId (evId v) <> "(revision " <> tshow (evRevision v) <> ")"
@@ -314,10 +334,16 @@ failCode e = ExitFailure (if isUsageError e then 2 else 1)
 warn :: CliIO -> Text -> IO ()
 warn io t = line (cliErr io) ("警告:" <> t)
 
--- | 人類可讀的輸出走 handle 自己的編碼:Windows 主控台是 cp950 時,繁中要交給
--- 它的 codec 才顯示得出來。
+-- | 人類可讀的輸出走 handle 自己的編碼。那個編碼在 runCliWith 一開始就被定好了:
+-- 終端機維持主控台的 codec(cp950 要交給它才顯示得出來),非終端機一律 UTF-8(B002)。
 line :: Handle -> Text -> IO ()
 line = TIO.hPutStrLn
+
+-- | 非終端機的 handle 設成 UTF-8;終端機不動。
+utf8UnlessTerminal :: Handle -> IO ()
+utf8UnlessTerminal h = do
+  tty <- hIsTerminalDevice h
+  unless tty (hSetEncoding h utf8)
 
 -- | @--json@ 的那一行__一律寫成 UTF-8 位元組__,繞過 handle 的 codec。
 --

@@ -3,12 +3,26 @@ module StoryFlow.Mcp.ConfigSpec (spec) where
 
 import Control.Exception (bracket)
 import qualified Data.Text as T
-import StoryFlow.Mcp.Config (Config (..), resolveConfig)
+import StoryFlow.Mcp.Config (Config (..), mcpVersion, resolveConfig, wantsVersion)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import Test.Hspec
 
 spec :: Spec
 spec = do
+  -- G-E002 T7:--version 在 resolveConfig 之前攔截,不需要 URL、不進 JSON-RPC 迴圈。
+  describe "--version" $ do
+    it "wantsVersion 只認 --version 這個字" $ do
+      wantsVersion ["--version"] `shouldBe` True
+      wantsVersion ["--url", "http://x", "--version"] `shouldBe` True
+      wantsVersion ["--url", "http://x"] `shouldBe` False
+      wantsVersion [] `shouldBe` False
+    it "mcpVersion 是「story-flow-mcp <版本>」,版本只含數字與點" $ do
+      case T.words mcpVersion of
+        [name, v] -> do
+          name `shouldBe` "story-flow-mcp"
+          T.all (`elem` ("0123456789." :: String)) v `shouldBe` True
+        ws -> expectationFailure ("應恰好兩個字,實得 " <> show ws)
+
   describe "都沒設定" $
     it "回 Left,訊息說出下一步" $
       withEnv [("STORYFLOW_URL", Nothing), ("STORYFLOW_TOKEN", Nothing)] $ do

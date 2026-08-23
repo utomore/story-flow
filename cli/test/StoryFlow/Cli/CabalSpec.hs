@@ -21,6 +21,12 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "套件邊界" $ do
+
+  -- G-E002 T4:--version 從 cabal 自動產生的 Paths_ 模組讀版本,它要登記在 autogen-modules。
+  it "autogen-modules 含 Paths_storyflow_cli(G-E002)" $ do
+    src <- readCabal
+    ("Paths_storyflow_cli" `isInfixOf` src) `shouldBe` True
+    ("autogen-modules" `isInfixOf` src) `shouldBe` True
   it "library 的 build-depends 不含落地層,也不含伺服器" $ do
     deps <- dependencyLines . stanza "library" <$> readCabal
     deps `shouldSatisfy` (not . null) -- 沒切到東西的話下面全都是空過

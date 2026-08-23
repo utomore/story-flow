@@ -317,6 +317,38 @@ spec = do
               Left es -> expectationFailure ("專案實檔載入失敗:" <> show es)
               Right reg -> length (listTypes reg) `shouldBe` 5
 
+  -- G-E002 T1:三層查找,並說出是哪一層。執行檔路徑用 locateRegistryWith 注入——
+  -- 測試執行檔旁邊不會真的有 registry/。
+  describe "locateRegistry(G-E002)" $ do
+    it "環境變數優先,連執行檔旁都不看" $
+      withRegistryDir [("a.toml", goodToml "a-fragment" "甲")] $ \envDir ->
+        withSystemTempDirectory "storyflow-exe" $ \exeDir -> do
+          createDirectoryIfMissing True (exeDir </> "registry")
+          withEnvVar registryEnvVar (Just envDir) $
+            locateRegistryWith (pure (exeDir </> "story-flow.exe"))
+              `shouldReturn` Just (FromEnv, envDir)
+
+    it "沒設環境變數時,執行檔旁的 registry/ 先於 data-files" $
+      withSystemTempDirectory "storyflow-exe" $ \exeDir -> do
+        createDirectoryIfMissing True (exeDir </> "registry")
+        withEnvVar registryEnvVar Nothing $
+          locateRegistryWith (pure (exeDir </> "story-flow.exe"))
+            `shouldReturn` Just (BesideExecutable, exeDir </> "registry")
+
+    it "執行檔旁沒有 registry/ 就退到 data-files" $
+      withSystemTempDirectory "storyflow-exe" $ \exeDir ->
+        withEnvVar registryEnvVar Nothing $
+          locateRegistryWith (pure (exeDir </> "story-flow.exe")) >>= \case
+            Just (FromDataDir, _) -> pure ()
+            other -> expectationFailure ("應退到 data-files,實得 " <> show other)
+
+    it "環境變數指向不存在的目錄時回 Nothing,不往執行檔旁退" $
+      withSystemTempDirectory "storyflow-exe" $ \exeDir -> do
+        createDirectoryIfMissing True (exeDir </> "registry")
+        withEnvVar registryEnvVar (Just (exeDir </> "不存在")) $
+          locateRegistryWith (pure (exeDir </> "story-flow.exe"))
+            `shouldReturn` Nothing
+
 -- | 設定(或清掉)一個環境變數跑一段,結束後還原。
 withEnvVar :: String -> Maybe String -> IO a -> IO a
 withEnvVar name mv act = bracket save restore (const act)

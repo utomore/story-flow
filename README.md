@@ -1,4 +1,4 @@
-# story-flow
+# aapms
 
 故事設定的**片段圖譜**與**場景樹**管理工具,以 Haskell 撰寫,API 優先。
 
@@ -14,21 +14,21 @@
 
 ### 下載發佈包(Windows x64,不需要 Haskell 環境)
 
-到 [Releases](https://github.com/utomore/story-flow/releases) 下載 `story-flow-<版本>-windows-x64.zip`,解開就能跑。
+到 [Releases](https://github.com/utomore/aapms/releases) 下載 `aapms-<版本>-windows-x64.zip`,解開就能跑。
 
 裡面有三個執行檔加一個 `registry/` 資料夾:
 
 | 檔案 | 用途 |
 |---|---|
-| `story-flow` | 主要的命令列工具。建 Vault、寫片段、查關聯、偵測衝突、工作坊 |
-| `story-flow-serve` | REST API 伺服器。只有要用 MCP、或從別台機器操作時才需要 |
-| `story-flow-mcp` | MCP stdio adapter,讓 claude code / codex 直接操作圖譜 |
+| `aapms` | 主要的命令列工具。建 Vault、寫片段、查關聯、偵測衝突、工作坊 |
+| `aapms-serve` | REST API 伺服器。只有要用 MCP、或從別台機器操作時才需要 |
+| `aapms-mcp` | MCP stdio adapter,讓 claude code / codex 直接操作圖譜 |
 | `registry/` | 型別註冊表(五份 TOML)。**必須跟執行檔放在同一個資料夾** |
 
 **解開後第一件事**:
 
 ```
-story-flow doctor
+aapms doctor
 ```
 
 ### 從原始碼安裝
@@ -36,8 +36,8 @@ story-flow doctor
 需求:GHC 9.14.1、cabal 3.16.x(不使用 stack)。
 
 ```
-git clone https://github.com/utomore/story-flow && cd story-flow
-cabal install exe:story-flow exe:story-flow-serve exe:story-flow-mcp
+git clone https://github.com/utomore/aapms && cd aapms
+cabal install exe:aapms exe:aapms-serve exe:aapms-mcp
 ```
 
 型別註冊表會隨 cabal 的 `data-files` 一起裝好,零設定。
@@ -58,23 +58,23 @@ cabal install exe:story-flow exe:story-flow-serve exe:story-flow-mcp
 ## 五分鐘上手
 
 ```bash
-story-flow vault init ./my-world --name myworld   # 把資料夾變成 Vault
+aapms vault init ./my-world --name myworld   # 把資料夾變成 Vault
 cd my-world
 
-story-flow type list                              # 有哪些片段型別、各自要填什麼
+aapms type list                              # 有哪些片段型別、各自要填什麼
 
-story-flow entity new --type character-fragment \
+aapms entity new --type character-fragment \
   --title 琳達 --summary "織紋刀的持有者" \
   --body "琳達在埃提亞崩塌後失去雙親。"           # 建一份主題檔
 
-story-flow entity add 琳達 --title 動機 \
+aapms entity add 琳達 --title 動機 \
   --summary "她想找出崩塌的真相" \
   --body "..." --link partOf:ent-xxxx             # 往同一個角色加一節
 
-story-flow search 織紋刀                           # FTS5 中文全文檢索
+aapms search 織紋刀                           # FTS5 中文全文檢索
 
 echo "琳達那年就帶著織紋刀上路了。" > draft.txt
-story-flow conflict check --draft draft.txt       # 這段草稿跟既有設定矛盾嗎
+aapms conflict check --draft draft.txt       # 這段草稿跟既有設定矛盾嗎
 ```
 
 ---
@@ -92,7 +92,7 @@ story-flow conflict check --draft draft.txt       # 這段草稿跟既有設定�
 
 **儲存**:Markdown 檔是**唯一真相來源**(可 `git diff`、可用編輯器直接改、AI Agent 可直接讀);
 SQLite 只是**可重建的索引**(關聯查詢與 FTS5 中文全文檢索)。刪掉 `.storyflow/index.db`
-跑 `story-flow index rebuild` 就回得來。
+跑 `aapms index rebuild` 就回得來。
 
 **八個核心關聯**:`contradicts`(矛盾)、`supersedes`(取代)、`derivedFrom`(衍生自)、
 `partOf`(屬於)、`involves`(牽涉)、`occursIn`(發生於)、`references`(引用)、
@@ -111,7 +111,7 @@ SQLite 只是**可重建的索引**(關聯查詢與 FTS5 中文全文檢索)。�
 ## 指令全覽
 
 ```
-story-flow [--vault <名稱>|--remote <網址>] [--json] <名詞> <動詞> [選項]
+aapms [--vault <名稱>|--remote <網址>] [--json] <名詞> <動詞> [選項]
 ```
 
 ### 全域旗標
@@ -122,23 +122,23 @@ story-flow [--vault <名稱>|--remote <網址>] [--json] <名詞> <動詞> [選�
 | `--json` | 輸出統一信封 `{"ok":true,"data":…}` / `{"ok":false,"error":{"code","message"}}`。**給 AI Agent 用的就是這個** |
 | `--remote <網址>` | 改走遠端伺服器,如 `http://127.0.0.1:8787`。**不能與 `--vault` 併用** |
 | `--version` | 印出版本後結束 |
-| `--help` | 任何層級都可用,如 `story-flow entity add --help` |
+| `--help` | 任何層級都可用,如 `aapms entity add --help` |
 
 **退出碼**:`0` 成功、`1` 業務或傳輸失敗、`2` 引數用法錯誤。
 
 ### `doctor` —— 本機診斷
 
 ```
-story-flow doctor
+aapms doctor
 ```
 
 五項讀不連的檢查,**不開索引、不打網路**,沒有 Vault 也跑得起來:
 
 ```
-[ok] 版本:story-flow 0.1.0.0
-[ok] 型別註冊表:5 個型別,來自執行檔旁 C:\tools\story-flow\registry
-[!!] Vault:從目前目錄向上找不到 .storyflow/;請在 Vault 根目錄執行 story-flow vault init
-[ok] 全域註冊表:C:\Users\me\AppData\Roaming\story-flow\vaults.toml,登記了 3 個 Vault
+[ok] 版本:aapms 0.1.0.0
+[ok] 型別註冊表:5 個型別,來自執行檔旁 C:\tools\aapms\registry
+[!!] Vault:從目前目錄向上找不到 .storyflow/;請在 Vault 根目錄執行 aapms vault init
+[ok] 全域註冊表:C:\Users\me\AppData\Roaming\aapms\vaults.toml,登記了 3 個 Vault
 [--] [llm]:無法檢查(沒有 Vault)
 ```
 
@@ -154,7 +154,7 @@ story-flow doctor
 | `vault info` | 目前 Vault 的名稱、路徑與 Entity 數 |
 
 `--name` 是 `--vault` 用來定址的名字,可以是中文。全域註冊表在
-`%APPDATA%\story-flow\vaults.toml`(Windows)/ `~/.config/story-flow/vaults.toml`(POSIX),
+`%APPDATA%\aapms\vaults.toml`(Windows)/ `~/.config/story-flow/vaults.toml`(POSIX),
 可用 `STORYFLOW_VAULTS` 覆寫。
 
 `vault init` 會建出:
@@ -173,7 +173,7 @@ my-world/
 ### `type` —— 型別註冊表
 
 ```
-story-flow type list          # 列出全部型別:鍵、名稱、目錄、允許的關聯、欄位提示、工作坊階段
+aapms type list          # 列出全部型別:鍵、名稱、目錄、允許的關聯、欄位提示、工作坊階段
 ```
 
 `--json` 的輸出就是給 AI Agent 的提示來源:每個型別的 `fields` 帶 `required` 與 `hint`,
@@ -226,7 +226,7 @@ story-flow type list          # 列出全部型別:鍵、名稱、目錄、允�
 ### `search` —— 全文檢索
 
 ```
-story-flow search <關鍵詞> [--type|--status|--tag|--limit]
+aapms search <關鍵詞> [--type|--status|--tag|--limit]
 ```
 
 FTS5 trigram tokenizer,中文可用。兩字以下的詞由落地層自動改走 `LIKE`。
@@ -262,7 +262,7 @@ FTS5 trigram tokenizer,中文可用。兩字以下的詞由落地層自動改走
 ### `context` —— 撈相關片段(不判斷矛盾)
 
 ```
-story-flow context --for <檔案|-> [--ref <id>]… [選項]
+aapms context --for <檔案|-> [--ref <id>]… [選項]
 ```
 
 給一段草稿,回傳相關的既有 `canon` 片段**連內容一起**。只跑前兩層(圖遍歷 + FTS5 候選),
@@ -279,7 +279,7 @@ story-flow context --for <檔案|-> [--ref <id>]… [選項]
 ### `conflict check` —— 三層衝突報告
 
 ```
-story-flow conflict check --draft <檔案|-> [--ref <id>]… [選項]
+aapms conflict check --draft <檔案|-> [--ref <id>]… [選項]
 ```
 
 | 層 | 做什麼 | 確定性 | 成本 |
@@ -330,17 +330,17 @@ story-flow conflict check --draft <檔案|-> [--ref <id>]… [選項]
 
 ---
 
-## `story-flow-serve` —— REST API
+## `aapms-serve` —— REST API
 
 ```
-story-flow-serve [--port <n>] [--bind <位址>] [--vault <名稱>] [--openapi] [--version]
+aapms-serve [--port <n>] [--bind <位址>] [--vault <名稱>] [--openapi] [--version]
 ```
 
 - `--port` 預設 `8787`,`--bind` 預設 `127.0.0.1`
 - **綁非 loopback 位址時必須設 `STORYFLOW_TOKEN`,否則拒絕啟動**(整個 Vault 暴露在區域網路上
   不是可以靠使用者留意來緩解的後果)。loopback 模式下 token 是選配
 - `--openapi` 不啟動伺服器,把 OpenAPI 3 文件印到 stdout:
-  `story-flow-serve --openapi > openapi.json` 是給 Agent 的一步驟交付
+  `aapms-serve --openapi > openapi.json` 是給 Agent 的一步驟交付
 
 28 個 operation 覆蓋 `service` 的全部業務操作加 conflict 與 workshop 的出口。
 錯誤 body 一律 `{"error":{"code":…,"message":…}}`,`code` 與 CLI 的 `--json` 完全相同。
@@ -354,19 +354,19 @@ CLI 的 `--remote <網址>` 走同一份契約(servant 的 API 型別同時產�
 
 ### 方式 A:直接跑 CLI(最簡單,不用起 server)
 
-Claude Code 在 Bash 裡跑 `story-flow --json …` 就好。內嵌模式直接讀寫檔案,不需要 daemon。
+Claude Code 在 Bash 裡跑 `aapms --json …` 就好。內嵌模式直接讀寫檔案,不需要 daemon。
 
-先跑 `story-flow --json type list` 拿到每個型別的 `stages` 與 `fields`(含 `required` 與 `hint`),
+先跑 `aapms --json type list` 拿到每個型別的 `stages` 與 `fields`(含 `required` 與 `hint`),
 Claude Code 就能照著階段跟你談,每階段 `entity add` 一節,`--source agent:claude-code`。
 
 ### 方式 B:MCP
 
 ```
-story-flow-serve --port 8080
-claude mcp add story-flow -- story-flow-mcp --url http://127.0.0.1:8080
+aapms-serve --port 8080
+claude mcp add aapms -- aapms-mcp --url http://127.0.0.1:8080
 ```
 
-`story-flow-mcp` 把 REST 的**全部** operation 暴露成 MCP tool,tool 名字由 OpenAPI 的
+`aapms-mcp` 把 REST 的**全部** operation 暴露成 MCP tool,tool 名字由 OpenAPI 的
 `operationId` 機械推導、參數形狀來自同一份 API 型別 —— 新增 REST 路由會自動長出對應的 tool。
 
 | 設定 | 說明 |
@@ -374,7 +374,7 @@ claude mcp add story-flow -- story-flow-mcp --url http://127.0.0.1:8080
 | `--url <網址>` 或 `STORYFLOW_URL` | 伺服器位址(旗標優先) |
 | `STORYFLOW_TOKEN` | 伺服器有設 token 時要帶 |
 
-**它不會自己拉背景 server** —— 連不上就在 `initialize` 回錯誤並告訴你先跑 `story-flow-serve`。
+**它不會自己拉背景 server** —— 連不上就在 `initialize` 回錯誤並告訴你先跑 `aapms-serve`。
 
 ---
 
@@ -399,7 +399,7 @@ retries    = 1                           # 選填,預設 1。只重試「連不�
 `llm_http_status`(看狀態碼:401 是金鑰、404 是路徑)、`llm_bad_response`(換端點或換模型)、
 `llm_config_missing`(去加 `[llm]` 段)、`llm_config_invalid`(照訊息改那一個鍵)。
 
-用 `story-flow doctor` 的第五項確認設定解不解得開(**不會連線**)。
+用 `aapms doctor` 的第五項確認設定解不解得開(**不會連線**)。
 
 ---
 
@@ -417,7 +417,7 @@ retries    = 1                           # 選填,預設 1。只重試「連不�
 ## 架構
 
 ```
-       ┌─ story-flow CLI ─┐   預設內嵌,--remote 走 HTTP
+       ┌─ aapms CLI ─┐   預設內嵌,--remote 走 HTTP
 Agent ─┼─ MCP adapter ────┼─→ REST API ─→ service ─→ storage
        └─ 直接打 API ─────┘
 ```
@@ -443,12 +443,12 @@ cabal test all --test-show-details=direct
 本專案**不使用 CI**,`scripts/check` 就是它的替代品。
 
 打包發佈:`./scripts/release.ps1` / `./scripts/release.sh` —— 產出
-`dist-release/story-flow-<版本>-<平台>/` 與同名 zip。
+`dist-release/aapms-<版本>-<平台>/` 與同名 zip。
 
-> `cabal test` **不會重新 link 執行檔**。改完程式要實跑驗證時,先 `cabal build exe:story-flow`。
+> `cabal test` **不會重新 link 執行檔**。改完程式要實跑驗證時,先 `cabal build exe:aapms`。
 
 `direct-sqlite` 在 `cabal.project` 開啟 `+fulltextsearch`,以取得中文搜尋所需的 FTS5
-trigram tokenizer;`storyflow-store` 的測試會直接驗證這個 flag 有生效。
+trigram tokenizer;`aapms-store` 的測試會直接驗證這個 flag 有生效。
 
 ### 設計文檔
 
@@ -477,8 +477,8 @@ trigram tokenizer;`storyflow-store` 的測試會直接驗證這個 flag 有生�
 
 ## 與其他工具的關係
 
-story-flow 屬於 [alchbees-dev](https://github.com/utomore) 工作室工具集:
+aapms 屬於 [alchbees-dev](https://github.com/utomore) 工作室工具集:
 
-- **`assetdb`** —— 管「已經存在的素材」。與 story-flow 平行,無程式化相依
-- **`design-studio`** —— story-flow 的前身概念(Python 的 AI 引導式設計工作坊)。並存不動,
+- **`assetdb`** —— 管「已經存在的素材」。與 aapms 平行,無程式化相依
+- **`design-studio`** —— aapms 的前身概念(Python 的 AI 引導式設計工作坊)。並存不動,
   不做資料遷移

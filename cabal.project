@@ -1,4 +1,4 @@
--- story-flow — 故事設定的片段圖譜與場景樹管理工具
+-- aapms — 故事設定的片段圖譜與場景樹管理工具
 -- GHC 9.14.1 / cabal 3.16.x,不使用 stack。
 
 packages:
@@ -24,40 +24,40 @@ allow-newer:
 
 tests: True
 
-package storyflow-core
+package aapms-core
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-types
+package aapms-types
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-md
+package aapms-md
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-store
+package aapms-store
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-service
+package aapms-service
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-conflict
+package aapms-conflict
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-llm
+package aapms-llm
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-workshop
+package aapms-workshop
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-cli
+package aapms-cli
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-api
+package aapms-api
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-server
+package aapms-server
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
-package storyflow-mcp
+package aapms-mcp
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
 
 -- direct-sqlite 預設不編入 FTS5。全文檢索是衝突偵測第 2 層的基礎,

@@ -1,0 +1,86 @@
+cabal-version:      3.4
+name:               aapms-llm
+version:            0.1.0.0
+synopsis:           aapms 的 OpenAI 相容 LLM 端點抽象(地端與雲端共用同一組型別)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Llm
+        Aapms.Llm.Client
+        Aapms.Llm.Config
+        Aapms.Llm.Error
+    -- 設定的唯一來源是 aapms-service 的 vaultConfig(內嵌出口)。
+    -- aapms-store / aapms-md / sqlite-simple / direct-sqlite 一個都不准
+    -- 進來:「所有讀取經 ServiceM」這條界線靠的正是這幾個名字不出現,與
+    -- aapms-conflict 完全相同的紀律(llm-workshop-mcp/F001 T10 釘住)。
+    --
+    -- 刻意不含 aapms-core:這一層不認得 Entity / Meta / Id,它只把
+    -- [Message] 搬進去、把 Text 搬出來。
+    --
+    -- 也刻意不含任何 LLM SDK:契約卡的硬邊界是「只用 http-client +
+    -- http-client-tls + aeson」。
+    build-depends:
+        , aeson
+        , base              >=4.14 && <5
+        , bytestring
+        , containers
+        , http-client
+        , http-client-tls
+        , http-types
+        , aapms-service
+        , text
+        , toml-reader
+
+test-suite aapms-llm-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Llm.CabalSpec
+        Aapms.Llm.ClientSpec
+        Aapms.Llm.ConfigSpec
+        Aapms.Llm.ErrorClassSpec
+        Aapms.Llm.ErrorSpec
+        Aapms.Llm.Fixtures
+        Aapms.Llm.RetrySpec
+        Aapms.Llm.StubSpec
+        Aapms.LlmSpec
+    -- wai / warp 只准出現在這裡:測試用真的 HTTP 打本機 stub 端點,因為
+    -- 「連不上服務」是地端優先場景最常發生的錯誤,它必須被真的測到。
+    -- http-client 在測試裡是給「那個埠真的拒絕連線」的前提斷言直接探測用的。
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , http-client
+        , http-types
+        , aapms-llm
+        , aapms-service
+        , temporary
+        , text
+        , toml-reader
+        , wai
+        , warp

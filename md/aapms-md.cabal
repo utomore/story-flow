@@ -1,0 +1,70 @@
+cabal-version:      3.4
+name:               aapms-md
+version:            0.1.0.0
+synopsis:           aapms 的 Markdown 分節格式雙向轉換
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Md
+        Aapms.Md.Document
+        Aapms.Md.Error
+        Aapms.Md.Inherit
+        Aapms.Md.Lexer
+        Aapms.Md.Parse
+        Aapms.Md.Render
+        Aapms.Md.Yaml
+    build-depends:
+        , aeson
+        , base            >=4.14 && <5
+        , bytestring
+        , containers
+        , HsYAML
+        , HsYAML-aeson
+        , aapms-core
+        , text
+        , time
+
+test-suite aapms-md-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Md.DocumentSpec
+        Aapms.Md.EditSpec
+        Aapms.Md.ErrorSpec
+        Aapms.Md.Fixtures
+        Aapms.Md.HeadingSpec
+        Aapms.Md.InheritSpec
+        Aapms.Md.LexerSpec
+        Aapms.Md.ParseEntitySpec
+        Aapms.Md.ParseLevelSpec
+        Aapms.Md.RenderSpec
+        Aapms.Md.YamlSpec
+        Aapms.MdSpec
+    build-depends:
+        , base
+        , containers
+        , hspec
+        , aapms-core
+        , aapms-md
+        , text
+        , time

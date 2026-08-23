@@ -1,4 +1,4 @@
-# story-flow
+# aapms
 
 故事設定的片段圖譜與場景樹管理工具。這個資料夾解開就能跑,不需要安裝 Haskell、cabal 或原始碼。
 
@@ -6,16 +6,16 @@
 
 | 檔案 | 用途 |
 |---|---|
-| `story-flow` | 主要的命令列工具。建 Vault、寫片段、查關聯、偵測衝突、工作坊,全部在這裡 |
-| `story-flow-serve` | REST API 伺服器。只有在要用 MCP、或從別台機器操作時才需要 |
-| `story-flow-mcp` | MCP stdio adapter,讓 claude code / codex 直接操作圖譜。要先起 `story-flow-serve` |
+| `aapms` | 主要的命令列工具。建 Vault、寫片段、查關聯、偵測衝突、工作坊,全部在這裡 |
+| `aapms-serve` | REST API 伺服器。只有在要用 MCP、或從別台機器操作時才需要 |
+| `aapms-mcp` | MCP stdio adapter,讓 claude code / codex 直接操作圖譜。要先起 `aapms-serve` |
 | `registry/` | 型別註冊表(五份 TOML)。**必須跟執行檔放在同一個資料夾**,不要搬走 |
 | `README.md` | 這份說明 |
 
 ## 第一步
 
 ```
-story-flow doctor
+aapms doctor
 ```
 
 它會告訴你:版本、型別註冊表從哪裡載入、目前目錄有沒有 Vault、全域註冊表正不正常、`[llm]` 段有沒有設。
@@ -24,11 +24,11 @@ story-flow doctor
 ## 開始用
 
 ```
-story-flow vault init ./my-world --name myworld     # 把一個資料夾變成 Vault
+aapms vault init ./my-world --name myworld     # 把一個資料夾變成 Vault
 cd my-world
-story-flow type list                                 # 看有哪些片段型別、各自要填什麼
-story-flow entity new --type character-fragment --title 琳達 --summary "…" --body "…"
-story-flow conflict check --draft draft.txt          # 新草稿跟既有設定矛不矛盾
+aapms type list                                 # 看有哪些片段型別、各自要填什麼
+aapms entity new --type character-fragment --title 琳達 --summary "…" --body "…"
+aapms conflict check --draft draft.txt          # 新草稿跟既有設定矛不矛盾
 ```
 
 每個指令都支援 `--json`,給 AI Agent 用。
@@ -46,8 +46,8 @@ story-flow conflict check --draft draft.txt          # 新草稿跟既有設定�
 ## 接 claude code(MCP)
 
 ```
-story-flow-serve --port 8080
-claude mcp add story-flow -- story-flow-mcp --url http://127.0.0.1:8080
+aapms-serve --port 8080
+claude mcp add aapms -- aapms-mcp --url http://127.0.0.1:8080
 ```
 
 之後 claude code 會看到全部 REST 操作對應的 tool,參數形狀直接來自 API 定義。

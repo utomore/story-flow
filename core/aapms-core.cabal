@@ -1,0 +1,66 @@
+cabal-version:      3.4
+name:               aapms-core
+version:            0.1.0.0
+synopsis:           aapms 的純型別與純函式核心(零 IO)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Core.Entity
+        Aapms.Core.Graph
+        Aapms.Core.Id
+        Aapms.Core.Json
+        Aapms.Core.Level
+        Aapms.Core.Link
+        Aapms.Core.Meta
+        Aapms.Core.Registry
+        Aapms.Core.Tree
+    build-depends:
+        , aeson
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , text
+        , time
+
+test-suite aapms-core-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Core.EntitySpec
+        Aapms.Core.Fixtures
+        Aapms.Core.GraphSpec
+        Aapms.Core.IdSpec
+        Aapms.Core.JsonSpec
+        Aapms.Core.LinkSpec
+        Aapms.Core.MetaSpec
+        Aapms.Core.RegistrySpec
+        Aapms.Core.TreeSpec
+        Aapms.CoreSpec
+    build-depends:
+        , aeson
+        , base
+        , containers
+        , hspec
+        , aapms-core
+        , text
+        , time

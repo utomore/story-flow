@@ -1,0 +1,61 @@
+cabal-version:      3.4
+name:               aapms-types
+version:            0.1.0.0
+synopsis:           aapms 型別註冊表的 TOML 載入層
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+-- 註冊表隨程式碼版控,但 cabal install 之後的執行檔沒有原始碼樹的相對路徑。
+-- 帶著它們走,執行期由 defaultRegistryDir 以 getDataDir 定位(service-and-interfaces/F001 T2)。
+data-files:         registry/*.toml
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Types.Loader
+    other-modules:
+        Paths_aapms_types
+    autogen-modules:
+        Paths_aapms_types
+    build-depends:
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , aapms-core
+        , text
+        , toml-reader
+
+test-suite aapms-types-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Types.LoaderSpec
+    build-depends:
+        , base
+        , bytestring
+        , directory
+        , filepath
+        , hspec
+        , aapms-core
+        , aapms-types
+        , temporary
+        , text

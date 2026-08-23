@@ -1,25 +1,25 @@
 module Main (main) where
 
-import qualified StoryFlow.Service.AliasIndexSpec
-import qualified StoryFlow.Service.CabalSpec
-import qualified StoryFlow.Service.EndToEndSpec
-import qualified StoryFlow.Service.EntityReadSpec
-import qualified StoryFlow.Service.EntityWriteSpec
-import qualified StoryFlow.Service.EnvSpec
-import qualified StoryFlow.Service.ErrorSpec
-import qualified StoryFlow.Service.FacadeSpec
-import qualified StoryFlow.Service.JsonSpec
-import qualified StoryFlow.Service.LevelSpec
-import qualified StoryFlow.Service.LinkGraphSpec
-import qualified StoryFlow.Service.LinkSpec
-import qualified StoryFlow.Service.MonadSpec
-import qualified StoryFlow.Service.TypeListSpec
-import qualified StoryFlow.Service.TypesSpec
-import qualified StoryFlow.Service.ValidateSpec
-import qualified StoryFlow.Service.VaultConfigSpec
-import qualified StoryFlow.Service.LocateSpec
-import qualified StoryFlow.Service.VaultRootSpec
-import qualified StoryFlow.Service.VaultSpec
+import qualified Aapms.Service.AliasIndexSpec
+import qualified Aapms.Service.CabalSpec
+import qualified Aapms.Service.EndToEndSpec
+import qualified Aapms.Service.EntityReadSpec
+import qualified Aapms.Service.EntityWriteSpec
+import qualified Aapms.Service.EnvSpec
+import qualified Aapms.Service.ErrorSpec
+import qualified Aapms.Service.FacadeSpec
+import qualified Aapms.Service.JsonSpec
+import qualified Aapms.Service.LevelSpec
+import qualified Aapms.Service.LinkGraphSpec
+import qualified Aapms.Service.LinkSpec
+import qualified Aapms.Service.MonadSpec
+import qualified Aapms.Service.TypeListSpec
+import qualified Aapms.Service.TypesSpec
+import qualified Aapms.Service.ValidateSpec
+import qualified Aapms.Service.VaultConfigSpec
+import qualified Aapms.Service.LocateSpec
+import qualified Aapms.Service.VaultRootSpec
+import qualified Aapms.Service.VaultSpec
 import System.IO
 import Test.Hspec
 
@@ -28,23 +28,23 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    StoryFlow.Service.CabalSpec.spec
-    StoryFlow.Service.ErrorSpec.spec
-    StoryFlow.Service.MonadSpec.spec
-    StoryFlow.Service.EnvSpec.spec
-    StoryFlow.Service.TypesSpec.spec
-    StoryFlow.Service.JsonSpec.spec
-    StoryFlow.Service.ValidateSpec.spec
-    StoryFlow.Service.VaultSpec.spec
-    describe "llm-workshop-mcp/F001 T4 vaultConfig" StoryFlow.Service.VaultConfigSpec.spec
-    describe "llm-workshop-mcp/F002 T2 vaultRoot" StoryFlow.Service.VaultRootSpec.spec
-    describe "G-E002 T2/T3 registryHint 與 locateVault" StoryFlow.Service.LocateSpec.spec
-    StoryFlow.Service.TypeListSpec.spec
-    StoryFlow.Service.EntityReadSpec.spec
-    StoryFlow.Service.AliasIndexSpec.spec
-    StoryFlow.Service.EntityWriteSpec.spec
-    StoryFlow.Service.LinkSpec.spec
-    StoryFlow.Service.LinkGraphSpec.spec
-    StoryFlow.Service.LevelSpec.spec
-    StoryFlow.Service.FacadeSpec.spec
-    StoryFlow.Service.EndToEndSpec.spec
+    Aapms.Service.CabalSpec.spec
+    Aapms.Service.ErrorSpec.spec
+    Aapms.Service.MonadSpec.spec
+    Aapms.Service.EnvSpec.spec
+    Aapms.Service.TypesSpec.spec
+    Aapms.Service.JsonSpec.spec
+    Aapms.Service.ValidateSpec.spec
+    Aapms.Service.VaultSpec.spec
+    describe "llm-workshop-mcp/F001 T4 vaultConfig" Aapms.Service.VaultConfigSpec.spec
+    describe "llm-workshop-mcp/F002 T2 vaultRoot" Aapms.Service.VaultRootSpec.spec
+    describe "G-E002 T2/T3 registryHint 與 locateVault" Aapms.Service.LocateSpec.spec
+    Aapms.Service.TypeListSpec.spec
+    Aapms.Service.EntityReadSpec.spec
+    Aapms.Service.AliasIndexSpec.spec
+    Aapms.Service.EntityWriteSpec.spec
+    Aapms.Service.LinkSpec.spec
+    Aapms.Service.LinkGraphSpec.spec
+    Aapms.Service.LevelSpec.spec
+    Aapms.Service.FacadeSpec.spec
+    Aapms.Service.EndToEndSpec.spec

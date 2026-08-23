@@ -1,0 +1,76 @@
+cabal-version:      3.4
+name:               assetdb-project
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — 專案 scaffolding
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+library
+    import:           warnings
+    exposed-modules:
+        AssetDB.Project.Template
+        AssetDB.Project.Assets
+        AssetDB.Project.Create
+        AssetDB.Project.Sync
+    other-modules:
+        AssetDB.Project.Internal
+    hs-source-dirs:   src
+    build-depends:
+        , assetdb-archive
+        , assetdb-core
+        , assetdb-ingest
+        , assetdb-store
+        , aeson           >=2.1
+        , aeson-pretty    >=0.8
+        , base            >=4.17 && <5
+        , bytestring      >=0.11
+        , containers      >=0.6
+        , directory       >=1.3
+        , filepath        >=1.4
+        , sqlite-simple   >=0.4.18
+        , text            >=2.0
+        , time            >=1.12
+    default-language: GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+
+test-suite assetdb-project-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.Project.AssetsSpec
+        AssetDB.Project.CreateSpec
+        AssetDB.Project.SyncSpec
+        AssetDB.Project.TemplateSpec
+    hs-source-dirs:   test
+    build-depends:
+        , assetdb-archive
+        , assetdb-core
+        , assetdb-ingest
+        , assetdb-project
+        , assetdb-store
+        , aeson           >=2.1
+        , base
+        , bytestring      >=0.11
+        , directory       >=1.3
+        , filepath        >=1.4
+        , hspec           >=2.10
+        , process         >=1.6
+        , sqlite-simple   >=0.4.18
+        , temporary       >=1.3
+        , text
+        , zip             >=2.0
+    build-tool-depends: hspec-discover:hspec-discover
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings

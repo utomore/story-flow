@@ -1,0 +1,348 @@
+# 素材包中繼資料目錄
+#
+# 掃描能自動得到的只有「這個壓縮檔存在、裡面有這些內容」。作者、授權、
+# AI 使用揭露、購買來源無法從檔名或內容推導 —— 而且盤點證實廠商壓縮檔裡
+# 有沒有這些資訊完全看運氣:Crusenho 附了完整 License.txt,四個 Effects 包
+# 什麼都沒有。所以這些是資料,由人維護。
+#
+# 套用方式:
+#   assetdb pack apply --catalogue data/packs.toml
+#
+# `archive` 以**基本檔名**比對,不是完整路徑 —— 重構會改變目錄結構,
+# 但廠商的壓縮檔檔名不會變。
+#
+# `license` 引用 licenses 資料表裡的名稱(見 store/src/AssetDB/Store/Schema.hs
+# 的種子資料)。同一份授權涵蓋多個素材包時不必重複描述。
+#
+# `ai` 的值:unknown(還沒查)/ none(作者明確聲明未使用)/ assisted / generated。
+# unknown 與 none 意義不同,發行前稽核只接受 none。
+
+schema = 1
+
+# ── Crusenho ────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[GUI] Complete_UI_Book_Styles_Pack_Full.7z"
+name    = "Complete UI Book Styles Pack"
+slug    = "complete-ui-book-styles"
+vendor  = "Crusenho"
+author  = "Crusenho Agus Hennihuno"
+author_url = "https://crusenho.itch.io"
+license = "Crusenho Asset License"
+ai      = "unknown"
+source_url = "https://crusenho.itch.io/complete-ui-book-styles-pack"
+version = "1.0"
+notes   = "全庫最大的一包,且是唯一明確要求署名的授權。專案致謝必須包含它。"
+
+# ── Cainos ──────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[Map] Pixel Art Top Down - Village v1.0.9.zip"
+name    = "Pixel Art Top Down - Village"
+slug    = "pixel-art-top-down-village"
+vendor  = "Cainos"
+author  = "Cainos"
+author_url = "https://cainos.itch.io"
+license = "Cainos Asset License"
+ai      = "none"
+source_url = "https://cainos.itch.io/pixel-art-top-down-village"
+version = "1.0.9"
+price_usd = 39.99
+acquired = "2025-04-29"
+notes = "文件在 https://docs.cainos.net/pixel-art-top-down-village。草地不是 47-tile autotile,是圖層混合遮罩。"
+
+[[pack]]
+archive = "[Map] Pixel Art Top Down - Basic v1.2.3.zip"
+name    = "Pixel Art Top Down - Basic"
+slug    = "pixel-art-top-down-basic"
+vendor  = "Cainos"
+author  = "Cainos"
+author_url = "https://cainos.itch.io"
+license = "Cainos Asset License"
+ai      = "none"
+version = "1.2.3"
+
+[[pack]]
+archive = "[GUI] Pixel Art Icon Pack - Food.zip"
+name    = "Pixel Art Icon Pack - Food"
+slug    = "pixel-art-icon-pack-food"
+vendor  = "Cainos"
+author  = "Cainos"
+author_url = "https://cainos.itch.io"
+license = "Cainos Asset License"
+ai      = "none"
+price_usd = 4.99
+notes   = "122 個 32×32 圖示,同時附 PNG 與含圖層的 TIFF。那 122 個 .tif 是 KSource,不進遊戲。"
+
+[[pack]]
+archive = "[GUI] Pixel Art Icon Pack - RPG.zip"
+name    = "Pixel Art Icon Pack - RPG"
+slug    = "pixel-art-icon-pack-rpg"
+vendor  = "Cainos"
+author  = "Cainos"
+author_url = "https://cainos.itch.io"
+license = "Cainos Asset License"
+ai      = "none"
+
+# ── Shikashi ────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[GUI] Shikashi's Fantasy Icons Pack v2.zip"
+name    = "Shikashi's Fantasy Icons Pack"
+slug    = "shikashi-fantasy-icons"
+vendor  = "shikashipx"
+author  = "Matt Firth"
+author_url = "https://shikashipx.itch.io"
+license = "Shikashi Fantasy Icons"
+ai      = "unknown"
+version = "2"
+notes = "我們持有的 v2 內附 txt 寫 245 icons / CC BY 3.0;商品頁現寫 284 icons / CC BY 4.0。以手上這份為準。作者另有 607 圖示的新版,升級時當成新的一包匯入。"
+
+# ── BDragon1727 ─────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[Effects] Super Package Retro Pixel Effects 32x32 pack 1 Full.rar"
+name    = "Super Package Retro Pixel Effects 32x32 pack 1 (Full)"
+slug    = "retro-pixel-effects-pack-1-full"
+vendor  = "BDragon1727"
+author  = "BDragon1727"
+author_url = "https://bdragon1727.itch.io"
+license = "BDragon1727 Full License"
+ai      = "none"
+version = "1"
+price_usd = 3.5
+acquired = "2023-10-20"
+notes   = "60 種特效 × 7 色系,每個特效 9–12 格。色盤 ENDESGA 32。"
+
+[[pack]]
+archive = "[Effects] 60 Retro Effect 32x32 Pack 1 Free.rar"
+name    = "60 Retro Effect 32x32 Pack 1 (Free)"
+slug    = "retro-pixel-effects-pack-1-free"
+vendor  = "BDragon1727"
+author  = "BDragon1727"
+author_url = "https://bdragon1727.itch.io"
+license = "BDragon1727 Full License"
+ai      = "none"
+price_usd = 0.0
+notes   = "免費版,20 種特效。與 Full 版有 20/22 重疊但**有 2 筆獨有內容**,不是純子集。"
+
+[[pack]]
+archive = "[Effects] Super Package Retro Pixel Effects 32x32 pack 2.0 Full.rar"
+name    = "Super Package Retro Pixel Effects 32x32 pack 2 (Full)"
+slug    = "retro-pixel-effects-pack-2-full"
+vendor  = "BDragon1727"
+author  = "BDragon1727"
+author_url = "https://bdragon1727.itch.io"
+license = "BDragon1727 Full License"
+ai      = "none"
+version = "2.0"
+price_usd = 4.0
+acquired = "2023-10-24"
+notes   = "140 種特效 × 9 色系。"
+
+[[pack]]
+archive = "[Effects] Super Package Retro Pixel Effects 32x32 pack 2 Free.rar"
+name    = "Super Package Retro Pixel Effects 32x32 pack 2 (Free)"
+slug    = "retro-pixel-effects-pack-2-free"
+vendor  = "BDragon1727"
+author  = "BDragon1727"
+author_url = "https://bdragon1727.itch.io"
+license = "BDragon1727 Full License"
+ai      = "none"
+price_usd = 0.0
+notes   = "免費版,35 種特效。與其他壓縮檔**完全沒有內容重疊** —— 不是 Full 版的子集。"
+
+# ── Idylwild ────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[Fonts] Idylwild's Runic Codex.zip"
+name    = "Idylwild's Runic Codex"
+slug    = "runic-codex"
+vendor  = "Idylwild"
+author  = "Idylwild"
+author_url = "https://idylwild.itch.io"
+license = "Idylwild Runic Codex"
+ai      = "none"
+price_usd = 0.0
+acquired = "2026-01-14"
+notes   = "這批素材裡唯一允許再散布的。商品頁另附 Runes Reference Sheet.rtf。"
+
+# ── MattzArt ────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "[Characters] FULL_Adventurer 2D Pixel Art.zip"
+name    = "FULL Adventurer 2D Pixel Art"
+slug    = "adventurer-2d-pixel-art"
+license = "Adventurer 2D Pixel Art"
+ai      = "unknown"
+notes   = "⚠ 作者名待補 —— 壓縮檔內的 License.txt 沒有署名,商品頁也未確認。在補上之前這包維持 draft。"
+
+# ── Kibyra ──────────────────────────────────────────────────────────────────
+# 11 包同一作者、同一授權。每包 $2.00,或 Fantasy Pixel Art Icon Bundle $11.99。
+# 全部標示為 AI Assisted(Graphics)—— Steam 等平台上架要求申報。
+
+[[pack]]
+archive = "animal-icons.zip"
+name = "Animal Icons"
+slug = "animal-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "book-icons.zip"
+name = "Book Icons"
+slug = "book-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+acquired = "2026-04-22"
+
+[[pack]]
+archive = "crafting-materials-icons.zip"
+name = "Crafting Materials Icons"
+slug = "crafting-materials-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "food-icons.zip"
+name = "Food Icons"
+slug = "food-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "herbs&medicinal-plants.zip"
+name = "Herbs & Medicinal Plants"
+slug = "herbs-medicinal-plants"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "ingots&refinedmetals-icons.zip"
+name = "Ingots & Refined Metals Icons"
+slug = "ingots-refined-metals-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "monsterparts-icons.zip"
+name = "Monster Parts Icons"
+slug = "monster-parts-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "ores-minerals-icons.zip"
+name = "Ores & Minerals Icons"
+slug = "ores-minerals-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "treasure-icons.zip"
+name = "Treasure Icons"
+slug = "treasure-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "weather-icons.zip"
+name = "Weather Icons"
+slug = "weather-icons"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+[[pack]]
+archive = "Magic Potions.zip"
+name = "Magic Potions"
+slug = "magic-potions"
+vendor = "Kibyra"
+author = "Kibyra"
+author_url = "https://kibyra.itch.io"
+license = "Kibyra Asset License"
+ai = "assisted"
+price_usd = 2.0
+
+# ── 非商業 ──────────────────────────────────────────────────────────────────
+
+[[pack]]
+archive = "Magic Shader All.zip"
+name    = "Magic Shader All"
+slug    = "magic-shader-all"
+ai      = "unknown"
+notes   = "⚠ 作者、來源、授權全部未知。維持 draft,建商業專案時會被閘門擋下。從未解壓。"
+
+# ── 參考資料(非遊戲素材)─────────────────────────────────────────────────
+
+[[pack]]
+archive = "金門建築.rar"
+kind    = "reference"
+name    = "1990 年代金門建築"
+slug    = "ref-1990s-taiwan-jinmen-architecture"
+author  = "Alchbees Studio"
+author_contact = "lhm.stu@gmail.com"
+license = "Studio Owned"
+ai      = "none"
+notes   = "自有攝影素材。歸入 reference,預設不進素材搜尋結果。"
+
+[[pack]]
+archive = "金門地道.rar"
+kind    = "reference"
+name    = "1990 年代金門地道"
+slug    = "ref-1990s-taiwan-jinmen-tunnels"
+author  = "Alchbees Studio"
+author_contact = "lhm.stu@gmail.com"
+license = "Studio Owned"
+ai      = "none"
+notes   = "自有攝影素材。與金門建築有 3 筆重複照片。"
+
+[[pack]]
+archive = "福岡廟宇.rar"
+kind    = "reference"
+name    = "日本福岡廟宇"
+slug    = "ref-1990s-japan-fukuoka-temples"
+author  = "Alchbees Studio"
+author_contact = "lhm.stu@gmail.com"
+license = "Studio Owned"
+ai      = "none"
+notes   = "自有攝影素材,266 張 HEIC。縮圖需要 ImageMagick sidecar。"

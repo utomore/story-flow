@@ -1,0 +1,109 @@
+cabal-version:      3.4
+name:               assetdb-cli
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — 命令列介面
+description:
+  無頭操作。前端還沒出現之前這是唯一的入口,
+  之後也仍然是腳本與自動化的入口。
+
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+-- 指令實作放在 library、只有 main 留在 executable。放在 executable 裡的
+-- 模組測不到,而路徑解析(delivery/B001)與參數解析正是最需要測試的部分。
+library
+    import:           warnings
+    exposed-modules:
+        AssetDB.Cli.Options
+        AssetDB.Cli.Scan
+        AssetDB.Cli.Doctor
+        AssetDB.Cli.Pack
+        AssetDB.Cli.Reorg
+        AssetDB.Cli.Cluster
+        AssetDB.Cli.Search
+        AssetDB.Cli.Thumbs
+        AssetDB.Cli.Project
+        AssetDB.Cli.Notes
+        AssetDB.Cli.Ai
+    other-modules:
+        Paths_assetdb_cli
+    autogen-modules:
+        Paths_assetdb_cli
+    hs-source-dirs:   app
+    build-depends:
+        , assetdb-ai
+        , assetdb-archive
+        , assetdb-core
+        , assetdb-ingest
+        , assetdb-project
+        , assetdb-reorg
+        , bytestring
+        , containers           >=0.6
+        , assetdb-store
+        , base                 >=4.17 && <5
+        , directory            >=1.3
+        , filepath             >=1.4
+        , optparse-applicative >=0.17
+        , sqlite-simple        >=0.4.18
+        , text                 >=2.0
+        , time                 >=1.12
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+
+executable assetdb
+    import:           warnings
+    main-is:          Main.hs
+    hs-source-dirs:   main
+    ghc-options:      -threaded -rtsopts
+    build-depends:
+        , assetdb-archive
+        , assetdb-cli
+        , assetdb-core
+        , assetdb-store
+        , base
+        , text
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+
+test-suite assetdb-cli-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.Cli.OptionsSpec
+        AssetDB.Cli.ParserSpec
+        AssetDB.Cli.ProjectSpec
+        AssetDB.Cli.EndToEndSpec
+    hs-source-dirs:   test
+    build-depends:
+        , assetdb-cli
+        , assetdb-project
+        , base
+        , bytestring
+        , directory            >=1.3
+        , filepath             >=1.4
+        , hspec                >=2.10
+        , optparse-applicative >=0.17
+        , process              >=1.6
+        , sqlite-simple        >=0.4.18
+        , temporary            >=1.3
+        , text                 >=2.0
+    build-tool-depends:
+        hspec-discover:hspec-discover
+        , assetdb-cli:assetdb
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards

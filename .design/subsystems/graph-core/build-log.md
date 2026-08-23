@@ -20,7 +20,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段 | 波次 | features | 狀態 |
 |---|---|---|---|
 | 階段一 純層 | W1 | core-unified-meta | design-done |
-| 階段一 純層 | W2 | registry-family-and-naming | pending |
+| 階段一 純層 | W2 | registry-family-and-naming | design-done |
 | 階段一 純層 | W3 | manifest-schema-v2 | pending |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | pending |
 | 階段二 解析與落地 | W5 | store-unified-index | pending |
@@ -57,7 +57,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
 |---|---|---|---|---|---|
 | core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | design-done |
-| registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | pending |
+| registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | design-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | pending |
 | md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | pending |
 | store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | pending |
@@ -75,6 +75,10 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | F001 A1 | `MetaWarning` 建構子清單(`MissingRequiredField` / `LinkNotAllowed` / `UnknownNodeType` / `NameKindNotAllowed`)依 F002 契約卡驗收文字反推 | 先定最小形狀,`checkMeta` 由 F002 實作 | 待閘門 |
 | F001 A2 | 舊 `Aapms.Core.Graph` 的 `buildGraph` / `follow` / `supersededSet` / `contradictionPairs` 不在契約 B | 只留 `LinkGraph` 型別,四個函式與 GraphSpec 刪除;P5 conflict 若要再回契約 B 補 | 待閘門 |
 | F001 A3 | `CabalSpec` 禁用清單 | 逐字抄「使用的技術」節 8 個套件名,不推理分類 | 待閘門 |
+| F002 A1 **(要裁決)** | 契約 B 的 `parseLogicalName :: Text -> Either NameError NameParts` 沒有 `NamingVocab` 參數;契約 C 的 `NamingVocab {nvKinds, nvDomains}` 與 legacy `defaultVocab {nvStates, nvVariants}`(**編排者已回原始碼確認** legacy/assetdb/core/src/AssetDB/Naming.hs:209)是不同的兩組欄位,legacy「用 state/variant 詞彙從右往左剝」在新簽名下做不出來 | 改純位置式解析,`npVariant` / `npState` 併成 `npModifiers :: [Segment]`;逐案代 `contract/fixtures/naming-cases.txt` 13 案全過(含 legacy 演算法反而誤拒的 `spr_char_hero_attack-01_up`) | 待閘門 |
+| F002 A2 | `validateLogicalName` 收 `TypeKey` 但不用它做型別專屬過濾 | 型別專屬的 `name_kinds` 檢查留在 `checkMeta`(只警告) | 待閘門 |
+| F002 A3 | `asset-archive` 依 D5 對照表算出 `tdNameKinds` 剛好是空清單(legacy `KindPrefix` 無值對應 `KArchive`) | 比照 `allowed_links` 空清單慣例,視為「未宣告限制」 | 待閘門 |
+| 編排者(D5 前提修正) | D5 說「`naming.toml` 的 kinds / domains 從 `defaultVocab` 原樣落成」,但 `defaultVocab` 實際上是 states / variants,沒有 kinds / domains | kinds 由 legacy `KindPrefix` 列舉推出、domains 由 legacy 說明中的開放詞彙處理;與 A1 同一個根,閘門一起裁決 | 待閘門 |
 
 ## 階段結果
 

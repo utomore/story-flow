@@ -25,12 +25,17 @@ library
     exposed-modules:
         Aapms.Store
         Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
         Aapms.Store.Error
         Aapms.Store.Index
         Aapms.Store.Marker
+        Aapms.Store.Node
         Aapms.Store.Query
         Aapms.Store.Row
         Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Write
     build-depends:
         , aeson
         , base          >=4.14 && <5

@@ -5,7 +5,7 @@ title: graph-core
 description: 統一片段圖譜核心:型別、註冊表、兩種 Markdown 格式與可丟棄的索引
 status: active
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-08-25
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
@@ -228,6 +228,8 @@ renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text   -- 兩半�
 updateSection     :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
 updateSectionBody :: Id -> Text -> Document -> Either MdError Document
 appendSection     :: NewSection -> Document -> Either MdError Document
+-- 插在指定父節點的子樹之後(= 成為它的最後一個子節點);nsLevel 必須等於父節點的 secLevel + 1
+insertSection     :: Id -> NewSection -> Document -> Either MdError Document
 -- NewSection 的 payload 對節點種類做 sum(2026-08-24 裁決,見下方 G1)
 data NewSection = NewSection
   { nsId :: Id, nsLevel :: Int, nsTitle :: Text, nsBody :: Text
@@ -313,14 +315,15 @@ checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef] -- 本 vault 指�
 createTopicFile   :: VaultHandle -> TypeRegistry -> NewEntity  -> IO (Either StoreError CreateResult)
 createLevelFile   :: VaultHandle -> TypeRegistry -> NewLevel   -> IO (Either StoreError CreateResult)
 createPackFile    :: VaultHandle -> NewPack -> [NewSection]    -> IO (Either StoreError CreateResult) -- 每個 NewSection 的 payload 必須是 NSAsset
-addSection        :: VaultHandle -> Id -> NewSection           -> IO (Either StoreError CreateResult) -- 片段 / asset / license / node,依 nsPayload 分派
+data SectionPlacement = AtEnd | UnderParent Id     -- 追加在檔尾 / 插在指定父節點底下
+addSection        :: VaultHandle -> Id -> SectionPlacement -> NewSection -> IO (Either StoreError CreateResult) -- 依 nsPayload 分派;UnderParent 時 nsLevel 由 headingDepthFor 推導,不由呼叫端給
 writeMeta         :: VaultHandle -> Id -> Revision -> (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)
 writeAssetFields  :: VaultHandle -> Id -> Revision -> AssetPatch -> IO (Either StoreError WriteResult)
 writeBody         :: VaultHandle -> Id -> Revision -> Text      -> IO (Either StoreError WriteResult)
 addLink / removeLink :: VaultHandle -> Id -> Revision -> Link   -> IO (Either StoreError WriteResult)
 upsertLicense     :: VaultHandle -> License                     -> IO (Either StoreError WriteResult)
 deleteNode        :: VaultHandle -> Id -> Revision -> DeleteMode -> IO (Either StoreError DeleteResult)
-allocateId        :: VaultHandle -> IdPrefix -> Text -> IO Id   -- salt 遞增重試直到不撞
+allocateId        :: VaultHandle -> IdPrefix -> Text -> IO (Either StoreError Id)  -- salt 遞增重試直到不撞;碰撞查詢失敗即失敗,不靜默照發
 ```
 
 ### F. 查詢 DTO

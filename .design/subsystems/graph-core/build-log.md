@@ -5,7 +5,7 @@ title: graph-core-build
 description: 依 Level 2 功能規劃委派展開 graph-core 的九個 feature(主架構 P1)
 status: in-progress
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-08-25
 parent: graph-core
 ---
 
@@ -24,7 +24,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段一 純層 | W3 | manifest-schema-v2 | impl-done |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | impl-done |
 | 階段二 解析與落地 | W5 | store-unified-index | impl-done |
-| 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | pending |
+| 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | F007 impl-done;F008 spec-done,待 spec 更新 → qa ∥ impl |
 | 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
 
 ## 委派決策記錄
@@ -67,11 +67,11 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | (舊流程) | sonnet | — | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | **重跑完成** impl-done(G1 + G2 修復) |
+| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | impl-done(G1 + G2 修復);**A5 裁決後重新打開**:加 `insertSection` |
 | store-vault-handle | F005 | F005-store-vault-handle.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | impl-done |
-| store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs | opus | sonnet | sonnet | pending |
+| store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs | opus | sonnet | sonnet | spec-done,待 spec 更新(A2/A3/A4/A5/A6)→ qa ∥ impl |
 | store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新) | opus | sonnet | sonnet | pending |
 
 `aapms-store.cabal` 是 W6 兩個 feature 的共用檔(都要加模組),**由編排者單線改**,不讓平行的 spec
@@ -103,6 +103,13 @@ subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
 | F003 A3 **(影響 JSON 形狀)** | `Manifest` 頂層補 `packs` / `licenses` 去重清單(契約卡未提) | 依 system.md「專案目錄」的授權描述與舊版慣例補上 | 接受 |
 | F003 A4 | `StoryManifest` 給獨立 `schemaVersion` 與版本拒絕邏輯(schema 1 時代此檔不存在) | 先給,與 assets manifest 對稱 | 接受 |
 | 編排者(D5 前提修正) | D5 說「`naming.toml` 的 kinds / domains 從 `defaultVocab` 原樣落成」,但 `defaultVocab` 實際上是 states / variants,沒有 kinds / domains | kinds 由 legacy `KindPrefix` 列舉推出、domains 由 legacy 說明中的開放詞彙處理;與 A1 同一個根,閘門一起裁決 | 接受(隨 A1 一併重做,states 詞彙落成 naming.toml 37 詞) |
+| F008 A1 | 契約 E 的 `createPackFile` 第三參數 `[NewAsset]`,但 G1 之後 `NewAsset` 只剩專屬七欄,組不出節的標題與節層 meta | 改成 `[NewSection]`,payload 必須是 `NSAsset` | **接受**(契約 E 已於 `58972f9` 回寫) |
+| F008 A2 | 骨架路徑清單不含 `Error.hs`,加不了建構子,故在 `Aapms.Store.Edit` 另立 `StoreWriteError`,以 `WriteStore StoreError` 為橋 | 十二條簽名一律回 `Either StoreWriteError a` | **推翻**(2026-08-25):契約 G 明文「`StoreError` 是唯一錯誤型別,不得另立平行的錯誤型別再橋接」。15 個建構子併進 `StoreError`,刪 `WriteStore` 與 `renderStoreWriteError` |
+| F008 A3 | `allocateId` 契約簽名 `IO Id` 沒有失敗通道,但碰撞檢查要查索引 | 查詢失敗視同「查不到」並回傳當前候選 id | **推翻**(2026-08-25 開發者裁決):改 `IO (Either StoreError Id)`。理由:靜默照發會把未經碰撞檢查的 id 寫進 Markdown,而檔案是真相(ADR-013),事後只能以「rebuildIndex 撞主鍵」發現,修復要人工改 id 與所有指向它的關聯。已回寫契約 E |
+| F008 A4 | `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 的永久歸屬是 `aapms-md`(契約 D),但 `md/` 不在骨架清單裡 | 暫時定義在 `Aapms.Store.Create` | **推翻**(2026-08-25):F004 的 G2 重跑已把這五個型別放進 `Aapms.Md.Render`,兩份定義逐欄相同。`Aapms.Store.Create` 刪本地定義改 re-export |
+| F008 A5 | `addSection` 對 `LevelDoc` 只能追加在文件末尾(F004 已移除 `insertSection`),無法在中段父節點底下插入 | `nsLevel` 由呼叫端給,寫檔前以 `validateLevelDoc` 把關 | **推翻**(2026-08-25 開發者裁決):現在就補 `insertSection`。契約 D 加 `insertSection :: Id -> NewSection -> Document -> Either MdError Document`;契約 E 的 `addSection` 加 `SectionPlacement = AtEnd | UnderParent Id`,`UnderParent` 時 `nsLevel` 由既有的 `headingDepthFor` 推導(呼叫端自算等於父子關係有兩個真相來源)。**F004 因此重新打開** |
+| F008 A6 | `Aapms.Store` 門面沒有 re-export 本 feature 的四個模組,而該檔不在骨架清單裡 | 不動它,qa / impl 直接 import 內部模組 | **接受並補上**(2026-08-25):門面不完整會逼 `service` 記得 import 內部模組,兩行的事 |
+| F007(全部) | — | — | **未記錄**:W6 的 spec 閘門結論沒有寫進本表,F007 已 impl-done 無從補。下一波起確保 spec subagent 的回報當場彙整 |
 
 ## 階段結果
 
@@ -239,4 +246,31 @@ commit:`c9f6fe4`(F004)、`83c737e` + `8ae2c31`(F005 含 D9 重工)、`3b2d1e3`(F
 
 ### 階段三 檢索與寫入
 
-(未開始)
+**W6 spec**(`58972f9`):F007 與 F008 兩份 spec + 骨架平行完成,並建 `spec-gaps.md` 記 G1 / G2。
+同一個 commit 把 A1(`createPackFile` 改收 `[NewSection]`)與契約 G(`StoreError` 是唯一錯誤型別)
+回寫進 `design.md`。
+
+**W6 F007 完成**(`bbb7b48` qa → `46bbedf` impl):FTS5 雙索引、CJK 預切、查詢路由、facet。
+仲裁一輪,歸因 **spec bug**(G5,`snippet()` 回片段而 L4 只對完整輸出定義),修 spec 後
+**111 examples / 0 failures**。
+
+**F004 重跑**(`b82485c`):修 G2 的資料遺失缺陷(`updateSection` 靜默刪掉 asset 的
+`sha256` / `entry` 與 license 的八個維度),`MetaExtras` 兩半式 meta 區塊落地;
+`aapms-md` 239 → **285 examples / 0 failures**。
+
+**接續模式的進度補正**(2026-08-25):本節原本寫「(未開始)」,與 git 歷史不符——W6 的 spec、
+F007 的整條 qa/impl/仲裁、F004 的 G2 重跑都已完成。依 `git log` 補正如上。
+**W6 的 spec 閘門結論(F007 / F008 的待確認假設)當時沒有記進本檔**,F007 已完成無從追補;
+F008 的六條於 2026-08-25 補跑閘門,結論見「待確認假設彙總」。
+
+**2026-08-25 接續前的基準線**(編排者獨立重跑,非採信回報):`cabal build all` 全綠;
+`aapms-core` 224 / `aapms-types` 42 / `aapms-md` 285 / `aapms-store` 111 =
+**662 examples、0 failures**。工作樹乾淨。
+
+**F008 spec 閘門**(2026-08-25):六條假設 2 接受(A1 / A6 補上)、4 推翻(A2 / A3 / A4 / A5)。
+四處契約回寫經開發者確認措辭後寫入 `design.md`(`updated: 2026-08-25`):
+契約 D 加 `insertSection`、契約 E 的 `addSection` 加 `SectionPlacement`、
+`allocateId` 改 `IO (Either StoreError Id)`;契約 G 無需改動(既有文字已涵蓋 A2)。
+
+**W6 剩餘工作**:① F004 + F008 的 spec 更新(平行,opus)把骨架與四項裁決對齊
+② 編排者編譯 + commit ③ F008 的 qa ∥ impl ④ 跑測試與仲裁。

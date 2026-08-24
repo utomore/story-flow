@@ -42,6 +42,8 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | D6 | `core/` `md/` `store/` 現有單元測試的處置 | 隨模組重寫、舊的刪(ADR-018 第二條);各 feature 依自己的 1-to-1 測試表寫新 Spec,被取代的舊 Spec 刪掉,不留編不過的檔 | 全部 feature |
 | D8 | F005 設計回報:`aapms-store` 的 12 個模組裡有 7 個(`Create` / `Edit` / `Index` / `Node` / `Query` / `Row` / `Write`)已編不過(import 已刪的 `Aapms.Core.Graph`、已改名的 `mkId`、已換 API 的 `validateRegistry`),它們分屬 F006 / F008 / F009,F005 卻因此拿不到綠燈 | **編排者裁決**:`aapms-store` 以**模組為單位**逐步復原——F005 只把 `Marker` / `Atomic` / `Schema` / `Error` 留在 `.cabal` 的 `exposed-modules`,其餘 7 個**檔案留在磁碟當素材、暫時移出 cabal**,由 F006 / F008 / F009 各自改寫後加回。這是 D1(套件層凍結)的同一個作法降到模組層,ADR-018「重建核心,舊程式碼當素材搬」也是這個意思。**F005 不得移除 `aapms-md` 的 build-depends**——實作順序改成 F004 先跑,md 修好後 store 就有可用的相依 | F005 / F006 / F008 / F009 |
 | D9 | F006 設計回報:`design.md` **自己前後矛盾**——資料流管線(第 340 行)與模組間公開介面(第 375 行)都寫索引時要跑 `checkMeta`,F006 契約卡也把「`checkMeta` 的警告進 `IndexIssue`」列為驗收,但契約 E 的 `rebuildIndex` / `refreshStale` / `indexFile` 簽名沒有 `TypeRegistry`,F005 交付的 `VaultHandle` 也沒帶 → 型別上叫不動。**編排者另查出 subagent 沒提到的一點**:契約 E 的 `openVault` 自己就要做過時刷新,它同樣需要註冊表,所以只補三個函式參數仍會漏 | **開發者裁決:A —— 註冊表放進 `VaultHandle`**,`openVault :: TypeRegistry -> FilePath -> IO ...`。理由:`openVault` 遲早要它,分次加簽名只會逐次長胖;註冊表載入失敗即程序失敗(契約 C),由 `openVault` 收下代表順序被型別釘死。已回寫契約 E。**F005 需小幅重工**(handle 加欄位、`openVault` 加參數、測試跟著改),F006 尚未實作故無浪費 | F005 / F006 / F007 / F008 / F009 |
+| D10 | 階段三改用 0.8.7 的三角色流程(spec / qa / impl),qa 只讀 spec 寫測試且**不得自行引入相依**。專案目前只有 hspec,沒有 property-based 框架(`legacy/assetdb` 用過 QuickCheck) | **開發者裁決:引入 hedgehog**。四個 test-suite 加相依,law 寫成 property。不影響 production library 的零相依斷言(`boundary-rules.md`:測試不在依賴圖裡) | F007 / F008 / F009 的 qa |
+| G1 | F004 實作時回報:契約 E 的 `NewSection` 只有 `nsMeta :: MetaOverride`,而 `MetaOverride` 沒有 asset 的 `sha256` / `entry` / … 也沒有 license 的八個維度 → `appendSection` / `addSection` 寫不出能通過 `toPack` / `toLicenses` 驗證的完整新節,擋住 F008 的驗收 | **開發者裁決:A —— `NewSection` 改成對節點種類做 sum**(`NewSectionPayload` = `NSFragment` / `NSAsset` / `NSLicense` / `NSNode`,封閉建構子),`addSection` 維持單一入口。與契約 A 的 `AnyNode` / `LinkKind` 同模式。**不採**塞進 `MetaOverride`——那是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提。已回寫契約 D | F004(既有 `NewSection` 要改)/ F008 |
 | D7 | F001 設計回報:契約 C 把 `TypeRegistry` 放 `aapms-types`,但 `checkMeta`(core)要吃它而 types 已依賴 core → 相依環 | **編排者裁決(未經開發者,閘門再確認)**:純型別 `Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` / `lookupType` 定義在 `aapms-core`,`aapms-types` 只有 `locateRegistry` / `loadRegistry` 與 TOML 解析並 re-export。與「內部模組劃分」表和現有程式碼一致,已回寫契約 C | F001 / F002 |
 
 **澄清後仍懸著、交給 subagent 當待確認假設的點**(開發者已知):
@@ -54,21 +56,35 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 ## 配號表
 
-(features/ 為空,依功能規劃順序預先配滿九個號;平行執行不得自行配號;委派模型固定 `sonnet`)
+(fan out 前預先分配;平行執行不得自行配號或自選骨架路徑。**骨架檔案**同一波內不得重疊;
+**模型欄**固定 spec `opus`、qa 與 impl `sonnet`,品質有問題時歸因得回 spec 寫得夠不夠。
 
-| feature | id | 檔名 | 設計模型 | 實作模型 | 狀態 |
+階段一、二在 0.8.6 舊流程下完成——當時沒有骨架與 qa/impl 分離,同一個 subagent 既寫實作也寫測試,
+模型一律 `sonnet`。階段三起改用 0.8.7 的三角色流程。)
+
+| feature | id | 檔名 | 骨架檔案 | spec 模型 | qa 模型 | impl 模型 | 狀態 |
+|---|---|---|---|---|---|---|---|
+| core-unified-meta | F001 | F001-core-unified-meta.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| registry-family-and-naming | F002 | F002-registry-family-and-naming.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| md-unified-sections | F004 | F004-md-unified-sections.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| store-vault-handle | F005 | F005-store-vault-handle.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | pending |
+| store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs | opus | sonnet | sonnet | pending |
+| store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新) | opus | sonnet | sonnet | pending |
+
+`aapms-store.cabal` 是 W6 兩個 feature 的共用檔(都要加模組),**由編排者單線改**,不讓平行的 spec
+subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
+
+## 仲裁紀錄
+
+(每一輪紅燈的裁決;這張表是事後判斷「spec 哪裡寫不清楚」的唯一資料。同一 feature 上限 3 輪。
+階段一、二在舊流程下沒有 qa/impl 分離,因此沒有仲裁紀錄。)
+
+| feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
-| core-unified-meta | F001 | F001-core-unified-meta.md | sonnet | sonnet | impl-done |
-| registry-family-and-naming | F002 | F002-registry-family-and-naming.md | sonnet | sonnet | impl-done |
-| manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | sonnet | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | sonnet | sonnet | impl-done |
-| store-vault-handle | F005 | F005-store-vault-handle.md | sonnet | sonnet | impl-done |
-| store-unified-index | F006 | F006-store-unified-index.md | sonnet | sonnet | impl-done |
-| store-fts-dual-index | F007 | F007-store-fts-dual-index.md | sonnet | sonnet | pending |
-| store-write-operations | F008 | F008-store-write-operations.md | sonnet | sonnet | pending |
-| store-multi-vault-read | F009 | F009-store-multi-vault-read.md | sonnet | sonnet | pending |
-
-模型欄是閘門的診斷依據:委派模型固定 `sonnet`,所以品質有問題時歸因得回契約卡寫得夠不夠,不會混進模型差異。
+| (尚無) | | | | | |
 
 ## 待確認假設彙總
 

@@ -218,9 +218,26 @@ overrideAt        :: Id -> Document -> Either MdError MetaOverride   -- 讀出�
 updateSection     :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
 updateSectionBody :: Id -> Text -> Document -> Either MdError Document
 appendSection     :: NewSection -> Document -> Either MdError Document
+-- NewSection 的 payload 對節點種類做 sum(2026-08-24 裁決,見下方 G1)
+data NewSection = NewSection
+  { nsId :: Id, nsLevel :: Int, nsTitle :: Text, nsBody :: Text
+  , nsPayload :: NewSectionPayload }
+data NewSectionPayload
+  = NSFragment MetaOverride          -- 主題檔的片段
+  | NSAsset    MetaOverride NewAsset -- pack.md 的一筆 asset(專屬欄位在 NewAsset)
+  | NSLicense  MetaOverride NewLicense -- licenses.md 的一種授權(八個維度)
+  | NSNode     MetaOverride NewNode  -- Level 檔的一個節點
 removeSection     :: Id -> Document -> Either MdError Document
 newDocument       :: DocKind -> Meta -> Text -> Document
 ```
+
+**G1 定案(2026-08-24)**:`NewSection` 原本只有 `nsMeta :: MetaOverride` 一個管道,而 `MetaOverride`
+沒有 asset 的 `sha256` / `entry` / `ext` / `meta` / `license` / `author`,也沒有 license 的八個授權維度
+——`appendSection` / `addSection` 因此寫不出能通過 `toPack` / `toLicenses` 驗證的完整新節。改成
+**對節點種類做 sum**(`NewSectionPayload`,封閉建構子),與契約 A 的 `AnyNode`、`LinkKind` 同一個模式:
+新增節點型別時編譯器會列出所有待處理處,`addSection` 也維持單一入口。
+**不採**「把 asset / license 欄位塞進 `MetaOverride`」——那個型別是 md 與 store 共用的節層繼承 DTO,
+污染它會動到 ADR-010 位元組保留所依賴的繼承規則。
 
 `docKind` 只看檔案層 `type`:`level` → `LevelDoc`、`asset-pack` → `PackDoc`、`asset-license` → `LicenseDoc`、
 其餘一律 `TopicDoc`(md 不認識註冊表)。`licenses.md` 的檔案層是**容器不是節點**:frontmatter 寫
@@ -277,7 +294,7 @@ checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef] -- 本 vault 指�
 createTopicFile   :: VaultHandle -> TypeRegistry -> NewEntity  -> IO (Either StoreError CreateResult)
 createLevelFile   :: VaultHandle -> TypeRegistry -> NewLevel   -> IO (Either StoreError CreateResult)
 createPackFile    :: VaultHandle -> NewPack -> [NewAsset]      -> IO (Either StoreError CreateResult)
-addSection        :: VaultHandle -> Id -> NewSection           -> IO (Either StoreError CreateResult) -- 片段 / asset / node
+addSection        :: VaultHandle -> Id -> NewSection           -> IO (Either StoreError CreateResult) -- 片段 / asset / license / node,依 nsPayload 分派
 writeMeta         :: VaultHandle -> Id -> Revision -> (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)
 writeAssetFields  :: VaultHandle -> Id -> Revision -> AssetPatch -> IO (Either StoreError WriteResult)
 writeBody         :: VaultHandle -> Id -> Revision -> Text      -> IO (Either StoreError WriteResult)

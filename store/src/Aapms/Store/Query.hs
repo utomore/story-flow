@@ -1,5 +1,5 @@
--- | 條件查詢、關聯查詢、單一 vault 查詢出口(graph-core\/F006,不含全文檢索
--- ——那是 #7 的範圍)。
+-- | 條件查詢、關聯查詢、全文檢索與 facet:單一 vault 的查詢出口
+-- (graph-core\/F006 + graph-core\/F007)。
 --
 -- 'linksTo' 是索引存在的主要理由之一:關聯只存在來源端(ADR-002),檔案裡
 -- 查不到「誰指向我」,只有索引做得到反向查詢。
@@ -7,6 +7,14 @@
 -- 'lookupNode' 的 body 一律__回讀檔案__而不從索引拿:正文可能很長,不該在
 -- 可丟棄的索引裡再存一份權威副本;design.md 明寫「@body@ 進 FTS 但不進
 -- @nodes@」。
+--
+-- == 全文檢索的兩條路(graph-core\/F007;ADR-016)
+--
+-- 'search' 把文字條件交給 "Aapms.Store.Tokenize" 的 'Aapms.Store.Tokenize.routeOf'
+-- 決定走 @fts_tri@(trigram)、@fts_cjk@(unicode61 + 預切)或兩者,兩邊的
+-- 命中以相關度合併去重。兩條路都給得出 bm25 分數,'shScore' 因此是 'Double'
+-- 而不是 @Maybe Double@。__沒有 @LIKE@ 掃描路徑__:那是 trigram 三字元下限的
+-- 權宜之計,ADR-016 第二條已讓它退場。
 module Aapms.Store.Query
   ( -- * 過濾條件
     NodeFilter (..)
@@ -22,6 +30,14 @@ module Aapms.Store.Query
   , linksFrom
   , linksTo
   , loadLinkGraph
+
+    -- * 全文檢索(graph-core\/F007)
+  , SearchQuery (..)
+  , emptySearchQuery
+  , SearchHit (..)
+  , FacetCounts (..)
+  , SearchResult (..)
+  , search
   ) where
 
 import Data.Maybe (listToMaybe, mapMaybe)
@@ -448,3 +464,60 @@ loadLinkGraph vh = do
     query_ (vhConn vh) "SELECT src, dst_vault, dst, kind, note FROM links ORDER BY rowid" ::
       IO [LinkRow]
   pure (M.fromListWith (flip (++)) [(s, [l]) | (s, l) <- mapMaybe toLink rows])
+
+--------------------------------------------------------------------------------
+-- 全文檢索(契約 F,graph-core/F007)
+
+-- | 一次檢索:文字條件(可無)+ 結構條件 + 要不要順便算 facet。
+data SearchQuery = SearchQuery
+  { sqText :: Maybe Text
+  -- ^ 全文條件。'Nothing' 或去掉頭尾空白後為空字串時__不__走 FTS,退化成
+  -- 純結構查詢(等同 'listNodes')。
+  , sqFilter :: NodeFilter
+  -- ^ 結構條件,語意與 'listNodes' 完全相同(含 'nfLimit' \/ 'nfOffset')。
+  , sqFacets :: Bool
+  -- ^ 'True' 時 'srFacets' 為 'Just',否則為 'Nothing'。
+  }
+  deriving stock (Show, Eq)
+
+-- | 沒有文字條件、最寬鬆的結構條件、不算 facet。
+emptySearchQuery :: SearchQuery
+emptySearchQuery = undefined
+
+-- | 一筆命中。'shVault' 讓跨 vault 的 @searchAcross@(graph-core\/F009)與單一
+-- vault 的 'search' 回同一種形狀。
+data SearchHit = SearchHit
+  { shVault :: VaultId
+  , shMeta :: Meta
+  , shSnippet :: Text
+  -- ^ 命中片段的純文字,不含任何標記;沒有文字條件時為空字串。
+  , shScore :: Double
+  -- ^ 相關度,愈大愈相關。有文字條件時恆 @> 0@;沒有文字條件時恆 @0@。
+  }
+  deriving stock (Show, Eq)
+
+-- | 五個維度的分面計數。每個維度都是(值, 筆數),計數遞減、同計數以值遞增;
+-- 值為 NULL 或計數為 0 的不出現。
+data FacetCounts = FacetCounts
+  { fcTypes :: [(Text, Int)]
+  , fcVaults :: [(Text, Int)]
+  , fcTags :: [(Text, Int)]
+  , fcOwners :: [(Text, Int)]
+  , fcLicenses :: [(Text, Int)]
+  }
+  deriving stock (Show, Eq)
+
+-- | 'srTotal' 是套用全部條件、__未__套用 'nfLimit' \/ 'nfOffset' 的總筆數。
+data SearchResult = SearchResult
+  { srHits :: [SearchHit]
+  , srTotal :: Int
+  , srFacets :: Maybe FacetCounts
+  }
+  deriving stock (Show, Eq)
+
+-- | 單一 vault 的全文檢索出口(契約 E)。
+--
+-- 不會失敗:索引是衍生物,查不到就是空結果,沒有 'Aapms.Store.Error.StoreError'
+-- 這一層——與 'listNodes' \/ 'lookupNode' 一致。
+search :: VaultHandle -> SearchQuery -> IO SearchResult
+search = undefined

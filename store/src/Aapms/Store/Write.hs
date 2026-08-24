@@ -1,244 +1,167 @@
--- | 改既有實體:meta、正文、關聯(ADR-003 的樂觀鎖)。
+-- | 改寫既有節點,與短 id 的配號(graph-core\/F008)。
 --
--- 「建檔 / 增節 / 刪除」在 "Aapms.Store.Create",「Level 樹編輯」在
--- "Aapms.Store.Node";三者共用的那條紀律(讀 → 鎖 → 純函式編輯 → 寫檔 →
+-- 「建檔 \/ 增節 \/ 刪除」在 "Aapms.Store.Create",「Level 樹的純推導」在
+-- "Aapms.Store.Node";三者共用的那條紀律(讀 → 樂觀鎖 → 純函式編輯 → 寫檔 →
 -- 索引)在 "Aapms.Store.Edit",本模組不重寫一遍。
 --
--- 檔案層主體與片段走__同一組介面__:差別只在 @section_anchor@ 是不是 @NULL@,
--- 而那件事由 'locate' 回答,不必呼叫端指定。片段改的是節的 @```meta@ 區塊
--- (只有那一段被重新序列化),主體改的是 frontmatter(整段重新序列化,見
--- 'Aapms.Md.Render.updateFrontmatter')。
+-- 檔案層主體與節走__同一組介面__:差別只在 'Aapms.Store.Edit.locAnchor' 是不是
+-- 'Nothing',而那件事由 'Aapms.Store.Edit.locate' 回答,不必呼叫端指定。節改的是
+-- 該節的 @```meta@ 區塊(只有那一段被重新序列化,ADR-010),主體改的是
+-- frontmatter。
+--
+-- __本模組不做業務判斷__(契約卡「明確不做」):名稱是否全域唯一由 @service@
+-- 在呼叫之前以 'Aapms.Store.Query.lookupByName' 查過;本模組只負責把值寫下去。
 module Aapms.Store.Write
-  ( WriteResult (..)
+  ( -- * asset 的人給欄位
+    AssetPatch (..)
 
     -- * Meta
-  , writeEntityMeta
-  , writeEntityPatch
+  , writeMeta
+  , writeAssetFields
 
     -- * 正文
-  , writeEntityBody
+  , writeBody
 
     -- * 關聯
-  , addEntityLink
-  , removeEntityLink
+  , addLink
+  , removeLink
+
+    -- * 授權
+  , upsertLicense
 
     -- * ID
   , allocateId
   ) where
 
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Time (Day, UTCTime, getCurrentTime, utctDay)
-import Database.SQLite.Simple
-import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Id (Id, IdPrefix, Ref, mkId, renderId)
-import Aapms.Core.Link (Link (..), LinkKind)
-import Aapms.Core.Meta (Meta (..), bumpRevision)
-import Aapms.Md
-import Aapms.Store.Edit
-import Aapms.Store.Error (StoreError (..), trySqlite)
-import Aapms.Store.Vault (Vault)
+import Aapms.Core.Asset (LogicalName)
+import Aapms.Core.Id (Id, IdPrefix, Ref)
+import Aapms.Core.License (License)
+import Aapms.Core.Link (Link)
+import Aapms.Core.Meta (Revision)
+import Aapms.Md.Inherit (MetaOverride)
+import Aapms.Store.Edit (StoreWriteError, WriteResult)
+import Aapms.Store.Marker (VaultHandle)
 
--- | 修改既有 Entity 的 Meta。片段與檔案層主體都支援。
+-- asset 的人給欄位 ---------------------------------------------------------------
+
+-- | 'Aapms.Store.Write.writeAssetFields' 能改的__全部__欄位。
 --
--- @expected@ 是呼叫端手上那份資料的 revision;與檔案裡的實際值不符就
--- 'StaleRevision',__一個位元組都不寫__。
+-- @sha256@ \/ @entry@ \/ @ext@ \/ @meta@ __不在這裡,而且是刻意的__:那四欄是
+-- 掃描器(@asset-ingest@)從檔案本身算出來的事實,不是人給的意見。「拒絕改」
+-- 因此不是一個執行期檢查,而是__型別上表達不出來__ ——檔案換了就是換了一筆
+-- asset,要走 'Aapms.Store.Create.addSection' \/ 'Aapms.Store.Create.deleteNode'。
 --
--- 修改函式吃 'MetaOverride' 而不是 'Meta':片段的 meta 區塊本來就是「只寫與
--- 檔案層不同的欄位」,寫成完整的 'Meta' 會讓每次修改都把繼承來的欄位全部釘死
--- 在節上。檔案層主體沒有「目前的覆寫」可用,以
--- 'Aapms.Md.Inherit.overrideOf' 把 'Meta' 展開成每欄都是 @Just@ 的覆寫,
--- 改完再 'Aapms.Md.Inherit.applyOverride' 疊回去。
+-- 每一欄的外層 'Maybe' 是「這次動不動它」,內層 'Maybe' 是「要設成什麼」:
+-- @apName = Nothing@ 不動、@apName = Just Nothing@ 清空、
+-- @apName = Just (Just n)@ 設成 @n@。兩層合在一起才表達得出「清空」,少一層就
+-- 只能把「不動」與「清空」混為一談。
+data AssetPatch = AssetPatch
+  { apName :: Maybe (Maybe LogicalName)
+  , apLicense :: Maybe (Maybe Ref)
+  , apAuthor :: Maybe (Maybe Text)
+  , apTags :: Maybe [Text]
+  -- ^ @tags@ 住在 'Aapms.Core.Meta.Meta' 而不是 asset 專屬表,但它是人給欄位,
+  -- 所以與另外三欄一起走這條路徑;@Just []@ = 清空
+  }
+  deriving stock (Show, Eq)
+
+-- Meta ------------------------------------------------------------------------
+
+-- | 修改既有節點的 'Aapms.Core.Meta.Meta'。節與檔案層主體都支援。
 --
--- @id@ 與 @title@ 'MetaOverride' 表達不了,因此改不動——改標題請走 md 的
--- 'Aapms.Md.Render.updateFrontmatter'(P2 的 service 會包一層)。
-writeEntityMeta
-  :: Connection
-  -> Vault
+-- 第三個參數是呼叫端手上那份資料的 revision;與檔案裡的實際值不符就
+-- 'Aapms.Store.Edit.RevisionMismatch',__一個位元組都不寫__。
+--
+-- 修改函式吃 'MetaOverride' 而不是 'Meta':節的 meta 區塊本來就是「只寫與檔案層
+-- 不同的欄位」,寫成完整的 'Meta' 會讓每次修改都把繼承來的欄位全部釘死在節上。
+-- @id@ 與 @title@ 'MetaOverride' 表達不了,因此改不動。
+--
+-- 目標是 pack.md 的 asset 節或 licenses.md 的 license 節時,該節的專屬欄位
+-- (@sha256@ \/ @entry@ \/ 八個授權維度……)__必須原樣保留__ ——它們與
+-- 'MetaOverride' 住在同一個 @```meta@ 區塊裡,重新序列化時漏掉就是資料遺失。
+writeMeta
+  :: VaultHandle
   -> Id
-  -> Int
+  -> Revision
   -> (MetaOverride -> MetaOverride)
-  -> IO (Either StoreError WriteResult)
-writeEntityMeta conn v i expected f = editEntityMeta conn v i expected Nothing (Right . f)
+  -> IO (Either StoreWriteError WriteResult)
+writeMeta = undefined
 
--- | 改 Meta,並可__在同一次寫入裡__換掉標題。
+-- | 改 asset 的人給欄位。目標不是 asset 時回 'Aapms.Store.Edit.NotAnAsset'。
 --
--- 標題與其他欄位分兩次寫的話,第二次失敗就會留下「標題改了、summary 沒改」
--- 的半套結果,而且 revision 會平白跳兩號。所以是一個函式吃兩件事,不是兩個
--- 函式各寫一次。
---
--- 標題的落點兩層不同:檔案層主體在 frontmatter 的 @title@,片段在標題行本身
--- (走 'Aapms.Md.Render.renameSection')。'MetaOverride' 兩者都表達不了,
--- 因此標題是獨立的 @Maybe Text@ 參數而不是覆寫裡的一欄。
-writeEntityPatch
-  :: Connection
-  -> Vault
+-- 只動 'AssetPatch' 指定的欄位;@sha256@ \/ @entry@ \/ @ext@ \/ @meta@ 與正文
+-- 一律不變(見 'AssetPatch' 的說明)。
+writeAssetFields
+  :: VaultHandle
   -> Id
-  -> Int
-  -> Maybe Text
-  -- ^ 新標題;@Nothing@ = 不動標題
-  -> (MetaOverride -> MetaOverride)
-  -> IO (Either StoreError WriteResult)
-writeEntityPatch conn v i expected mTitle f =
-  editEntityMeta conn v i expected mTitle (Right . f)
+  -> Revision
+  -> AssetPatch
+  -> IO (Either StoreWriteError WriteResult)
+writeAssetFields = undefined
 
--- | 換掉正文:片段換該節的 @secBodyRaw@,主體換 frontmatter 之後的 preamble。
+-- 正文 ------------------------------------------------------------------------
+
+-- | 換掉正文:節換該節的正文切片,檔案層主體換 frontmatter 之後的 preamble。
 --
--- 兩條路徑都會遞增 revision——正文才是片段真正的內容,改了它卻不動 revision,
+-- 兩條路徑都會遞增 revision ——正文才是節真正的內容,改了它卻不動 revision,
 -- 樂觀鎖就對「內容被改過」視而不見。
-writeEntityBody
-  :: Connection
-  -> Vault
+writeBody
+  :: VaultHandle
   -> Id
-  -> Int
+  -> Revision
   -> Text
-  -> IO (Either StoreError WriteResult)
-writeEntityBody conn v i expected body =
-  editEntity conn v i expected $ \today anchor rel doc _ -> case anchor of
-    Just _ -> do
-      cur <- orMd rel (overrideAt i doc)
-      doc' <- orMd rel (updateSection i (const (bumpOverride expected today cur)) doc)
-      orMd rel (replaceSectionBody i (sectionBodyRaw (docEnding doc) body) doc')
-    Nothing -> do
-      doc' <- orMd rel (updateFrontmatter (bumpRevision today) doc)
-      Right (replacePreamble body doc')
+  -> IO (Either StoreWriteError WriteResult)
+writeBody = undefined
+
+-- 關聯 ------------------------------------------------------------------------
 
 -- | 加一筆關聯。
 --
--- 關聯__只存在來源端__(ADR-002),所以這是單邊、單檔操作:目標端的檔案
--- 一個位元組都不會被碰到。反向查詢由索引負責。
-addEntityLink
-  :: Connection -> Vault -> Id -> Int -> Link -> IO (Either StoreError WriteResult)
-addEntityLink conn v i expected l =
-  editEntityMeta conn v i expected Nothing $ \ov ->
-    Right ov {moLinks = Just (fromMaybe [] (moLinks ov) ++ [l])}
+-- 關聯__只存在來源端__(ADR-002),所以這是單邊、單檔操作:目標端的檔案一個
+-- 位元組都不會被碰到。反向查詢由索引負責。
+addLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreWriteError WriteResult)
+addLink = undefined
 
--- | 以 @(LinkKind, Ref)@ 配對刪除;同一對出現多次時全部刪掉。
+-- | 刪一筆關聯,以整筆 'Link' 比對(@kind@ + @target@ + @note@ 皆相同才算命中);
+-- 同一筆出現多次時全部刪掉。
 --
--- __一筆都沒命中時回 'LinkNotFound' 而不是靜默成功__:呼叫端以為刪掉了、
--- 實際上關聯還在,是最難查的那種錯。
+-- __一筆都沒命中時回 'Aapms.Store.Edit.LinkNotFound' 而不是靜默成功__:呼叫端
+-- 以為刪掉了、實際上關聯還在,是最難查的那種錯,而且此時檔案__不會被寫__。
 --
--- 比對的是__檔案裡寫的那個 'Ref'__:作者寫 @liftgame:ent-7f3a@ 時要以同樣的
--- 形式來刪。索引為了反向查詢會把本 Vault 的前綴正規化掉,檔案不會。
-removeEntityLink
-  :: Connection -> Vault -> Id -> Int -> LinkKind -> Ref -> IO (Either StoreError WriteResult)
-removeEntityLink conn v i expected k target =
-  editEntityMeta conn v i expected Nothing $ \ov ->
-    let current = fromMaybe [] (moLinks ov)
-        kept = [x | x <- current, not (hit x)]
-        hit x = linkKind x == k && linkTarget x == target
-     in if length kept == length current
-          then Left (LinkNotFound i k target)
-          else Right ov {moLinks = Just kept}
+-- 比對的是__檔案裡寫的那個 'Aapms.Core.Id.Ref'__:作者寫
+-- @vlt-a0c4e1f8:ent-7f3a@ 時要以同樣的形式來刪。
+removeLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreWriteError WriteResult)
+removeLink = undefined
 
--- 共同骨架 ---------------------------------------------------------------------
+-- 授權 ------------------------------------------------------------------------
 
--- | 「改一個既有 Entity 的 meta」的共同骨架。
+-- | 把一種授權寫進該 vault 的 @licenses.md@:同 id 的節已存在就整節改寫,
+-- 不存在就追加一節。
 --
--- 修改函式回 'Left' 時__整個操作中止且不寫檔__——'removeEntityLink' 的
--- 'LinkNotFound' 走的就是這條。
-editEntityMeta
-  :: Connection
-  -> Vault
-  -> Id
-  -> Int
-  -> Maybe Text
-  -> (MetaOverride -> Either StoreError MetaOverride)
-  -> IO (Either StoreError WriteResult)
-editEntityMeta conn v i expected mTitle f =
-  editEntity conn v i expected $ \today anchor rel doc m -> case anchor of
-    -- 節層:只有這一節的 meta 區塊(必要時再加標題行)被重新序列化,其餘逐字不動
-    Just _ -> do
-      cur <- orMd rel (overrideAt i doc)
-      ov <- f cur
-      doc' <- orMd rel (updateSection i (const (bumpOverride expected today ov)) doc)
-      case mTitle of
-        Nothing -> Right doc'
-        Just t -> orMd rel (renameSection i t doc')
-    -- 檔案層主體:frontmatter 整段重新序列化
-    Nothing -> do
-      ov <- f (overrideOf m)
-      orMd rel (updateFrontmatter (retitle . bumpRevision today . applyOverride ov) doc)
-  where
-    retitle = maybe id (\t x -> x {metaTitle = t}) mTitle
-
--- | 讀 → 樂觀鎖 → 純函式編輯 → 寫檔 → 索引。
+-- 吃完整的 'License' 而不是覆寫函式:授權的八個維度是一組互相牽動的宣告
+-- (可商用但要求署名、可改作但不可轉售……),逐欄 patch 會讓「這份授權到底
+-- 允許什麼」散落在多次呼叫裡。'Aapms.Core.License.licFullText' 不寫進節層
+-- (@licenses.md@ 的節不重複貼授權全文,'Aapms.Md.Parse.toLicenses' 解出來
+-- 恆為 'Nothing')。
 --
--- 編輯函式拿到今天的日期、目標的 @section_anchor@、Vault 相對路徑、切好塊的
--- 'Document',以及__目標實體目前的 'Meta'__(節層的那份已經套過繼承規則)。
-editEntity
-  :: Connection
-  -> Vault
-  -> Id
-  -> Int
-  -> (Day -> Maybe Text -> FilePath -> Document -> Meta -> Either StoreError Document)
-  -> IO (Either StoreError WriteResult)
-editEntity conn v i expected edit =
-  locate conn i >>? \(Located rel anchor) ->
-    readDocument v rel >>? \doc ->
-      entityFileOf rel doc ?>> \(ef, _) ->
-        currentMeta rel i anchor ef ?>> \m ->
-          checkRevision i expected (metaRevision m) ?>> \() -> do
-            today <- utctDay <$> getCurrentTime
-            edit today anchor rel doc m ?>> \doc' ->
-              commit conn v rel doc' (expected + 1)
-
--- | 目標實體目前的 'Meta'。
---
--- 索引說有、檔案裡卻找不到,代表索引過時——回 'UnknownSectionId' 而不是
--- 'EntityNotFound':資料沒有不見,是索引跟不上。
-currentMeta :: FilePath -> Id -> Maybe Text -> EntityFile -> Either StoreError Meta
-currentMeta rel i anchor ef = case anchor of
-  Nothing
-    | metaId (entMeta (efMain ef)) == i -> Right (entMeta (efMain ef))
-    | otherwise -> stale
-  Just _ -> case [entMeta e | e <- efFragments ef, metaId (entMeta e) == i] of
-    (m : _) -> Right m
-    [] -> stale
-  where
-    stale = Left (ParseFailed rel [mdError rel 1 (UnknownSectionId i)])
-
--- | revision +1、@updated@ 改今天。樂觀鎖的另一半:不遞增的話,兩個並發的
--- 寫入拿同一個 revision 都會通過。
-bumpOverride :: Int -> Day -> MetaOverride -> MetaOverride
-bumpOverride expected today ov =
-  ov {moRevision = Just (expected + 1), moUpdated = Just today}
+-- 樂觀鎖的 expected revision 取自傳入的 'License' 自己的
+-- 'Aapms.Core.Meta.metaRevision' ——契約 E 的簽名沒有獨立的 revision 參數,而
+-- 完整的 'License' 本來就帶著它。節不存在(新增)時不比對。
+upsertLicense :: VaultHandle -> License -> IO (Either StoreWriteError WriteResult)
+upsertLicense = undefined
 
 -- ID ---------------------------------------------------------------------------
 
--- | 產生一個索引裡還沒有人用的 ID。
+-- | 產生一個索引裡還沒有人用的 ID(ADR-014)。
 --
--- @core@ 的 'mkId' 是純函式,唯一性只有持有索引的這一層做得到:撞了就
--- @salt + 1@ 重算。8 次都撞的機率可以忽略,但無上限的迴圈是不可接受的。
-allocateId :: Connection -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
-allocateId conn p content t = go 0
-  where
-    go salt
-      | salt > maxRetries = pure (Left (IdCollision p))
-      | otherwise = do
-          let i = mkId p content t salt
-          idExists conn i >>= \case
-            Left e -> pure (Left e)
-            Right True -> go (salt + 1)
-            Right False -> pure (Right i)
-
-    maxRetries = 8 :: Int
-
--- | 三種實體共用同一個 ID 空間,所以三張表都要看。
-idExists :: Connection -> Id -> IO (Either StoreError Bool)
-idExists conn i = do
-  r <-
-    trySqlite $
-      query
-        conn
-        "SELECT (SELECT count(*) FROM entities WHERE id = ?)\
-        \     + (SELECT count(*) FROM levels   WHERE id = ?)\
-        \     + (SELECT count(*) FROM nodes    WHERE id = ?)"
-        (t, t, t)
-  pure $ case r of
-    Left e -> Left e
-    Right (rows :: [Only Int]) -> Right $ case rows of
-      (Only n : _) -> n > 0
-      [] -> False
-  where
-    t = renderId i
+-- 'Aapms.Core.Id.newId' 是純函式,唯一性只有持有索引的這一層做得到:撞了就
+-- @salt + 1@ 重算,直到不撞。時間由本函式取(@core@ 零 IO,時間必須由呼叫端
+-- 提供,而這裡就是那個呼叫端)。
+--
+-- 簽名沒有失敗通道(契約 E 標明 @IO Id@),所以碰撞查詢本身出錯時視同「查不到」
+-- 並回傳當前候選:配號是純粹的計算,索引壞掉這件事會在後續的
+-- 'Aapms.Store.Edit.commit' 以 'Aapms.Store.Edit.IndexUpdateFailed' 現形,不必
+-- 在這裡多一條路徑(F008 待確認假設 A3)。
+allocateId :: VaultHandle -> IdPrefix -> Text -> IO Id
+allocateId = undefined

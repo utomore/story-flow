@@ -293,7 +293,7 @@ checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef] -- 本 vault 指�
 -- 寫入:先寫檔、再更新索引;全部經原子寫入與樂觀鎖
 createTopicFile   :: VaultHandle -> TypeRegistry -> NewEntity  -> IO (Either StoreError CreateResult)
 createLevelFile   :: VaultHandle -> TypeRegistry -> NewLevel   -> IO (Either StoreError CreateResult)
-createPackFile    :: VaultHandle -> NewPack -> [NewAsset]      -> IO (Either StoreError CreateResult)
+createPackFile    :: VaultHandle -> NewPack -> [NewSection]    -> IO (Either StoreError CreateResult) -- 每個 NewSection 的 payload 必須是 NSAsset
 addSection        :: VaultHandle -> Id -> NewSection           -> IO (Either StoreError CreateResult) -- 片段 / asset / license / node,依 nsPayload 分派
 writeMeta         :: VaultHandle -> Id -> Revision -> (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)
 writeAssetFields  :: VaultHandle -> Id -> Revision -> AssetPatch -> IO (Either StoreError WriteResult)
@@ -328,6 +328,11 @@ data SearchResult = SearchResult { srHits :: [SearchHit], srTotal :: Int, srFace
 `StoreError` / `MdError` / `RegistryError` / `IdError` / `NameError` 每個建構子都有對應的
 `render*` 繁中訊息,**每一則說出下一步該做什麼**。上層(`service`)原樣包,不重寫。
 跨 vault 的 `TooManyVaults` 必須列出當前數量與上限。
+
+**`StoreError` 是 `aapms-store` 的唯一錯誤型別**(2026-08-24 釐清):寫入、索引、marker、跨 vault
+的失敗全部是它的建構子,由各 feature 依需要**擴充**(如 F005 建骨架、F006 加索引類、F008 加寫入類),
+不得另立平行的錯誤型別再橋接——契約 E 的每個函式都寫 `Either StoreError a`,多一個型別就是多一套
+`render*` 與多一次翻譯,`service` 也會看到兩種形狀。
 
 ## 內部模組劃分(Internal Modules)
 
@@ -526,8 +531,8 @@ fts_map(rowid PK, node_id)
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 7 | store-fts-dual-index | `fts_tri` + `fts_cjk`、預切、查詢路由、bm25 合併、`search` 與 facet、`LIKE` 退場 | Tokenize、Query | #6 | - |
-| 8 | store-write-operations | 建檔 / 增節 / 改寫 / 刪除 / Node / License 的寫入改接統一 `Meta`;`AssetPatch`;樂觀鎖;`allocateId` | Write | #4, #6 | - |
+| 7 | store-fts-dual-index | `fts_tri` + `fts_cjk`、預切、查詢路由、bm25 合併、`search` 與 facet、`LIKE` 退場 | Tokenize、Query | #6 | F007-store-fts-dual-index.md |
+| 8 | store-write-operations | 建檔 / 增節 / 改寫 / 刪除 / Node / License 的寫入改接統一 `Meta`;`AssetPatch`;樂觀鎖;`allocateId` | Write | #4, #6 | F008-store-write-operations.md |
 | 9 | store-multi-vault-read | `VaultSet`:ATTACH、`*Across`、`lookupRef`、`TooManyVaults`、`checkReferences` | MultiVault | #7 | - |
 
 小結:共 **9 個 features、3 個階段**;全部完成即主架構 P1 交付:`rm index.db` → rebuild 兩種

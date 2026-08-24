@@ -7,6 +7,15 @@
 -- graph-core\/F006 把業務表(@nodes@ 等 11 張)接上,'schemaVersion' 因此從
 -- F005 的 1 改成 2(shape 變了,依 ADR-013 不寫 migration)。擴充
 -- 'indexTables'\/'schemaDDL' 時繼續在這份清單上加,不另開一份。
+--
+-- graph-core\/F007 再加三張 FTS 相關的表(@fts_tri@ \/ @fts_cjk@ \/ @fts_map@)
+-- 與一個觸發器,'schemaVersion' 因此 2 → 3。__ADR-016 第四條__:切詞規則
+-- ("Aapms.Store.Tokenize")改版一樣只 bump 這個數字讓索引整庫重建,不遷移。
+--
+-- 兩張 FTS 表的__列維護__也住在本模組('insertFtsRows'):FTS5 虛擬表沒有外鍵,
+-- 是整份 schema 裡唯一不能靠 @files@ → @nodes@ 的級聯自動清乾淨的東西,而
+-- @fts_map@ 的刪除觸發器(建在本模組的 DDL 裡)正是補上那條級聯的機制;
+-- 宣告表結構的人一併負責它的列生命週期,兩者分家就會漂移。
 module Aapms.Store.Schema
   ( -- * VaultKind
     VaultKind (..)
@@ -32,6 +41,9 @@ module Aapms.Store.Schema
 
     -- * 連線知道自己屬於哪個 Vault
   , setVaultInfo
+
+    -- * FTS 列維護(graph-core\/F007)
+  , insertFtsRows
   ) where
 
 import Control.Monad (forM_, void)
@@ -44,6 +56,7 @@ import Aapms.Core.Meta (MetaWarning (..), TypeKey (..))
 import Aapms.Core.Tree (TreeError, renderTreeError)
 import Aapms.Md.Error (MdError, renderMdError)
 import Aapms.Store.Error (StoreError, trySqlite)
+import Aapms.Store.Tokenize (FtsRow)
 
 -- | 一個 vault 主要裝什麼(ADR-017)。運維分界,不是資料模型分界。
 data VaultKind = AssetVault | StoryVault
@@ -59,10 +72,11 @@ parseVaultKind "asset" = Just AssetVault
 parseVaultKind "story" = Just StoryVault
 parseVaultKind _ = Nothing
 
--- | graph-core\/F006 把業務表接上,shape 變了(1 → 2),依 ADR-013 舊索引一律
--- 視為需要重建,不寫 migration。
+-- | graph-core\/F006 把業務表接上,shape 變了(1 → 2);graph-core\/F007 再加
+-- 兩張 FTS5 虛擬表與 @fts_map@(2 → 3)。依 ADR-013 \/ ADR-016 第四條,舊索引
+-- 一律視為需要重建,不寫 migration——__切詞規則改版也只 bump 這個數字__。
 schemaVersion :: Int
-schemaVersion = 2
+schemaVersion = 3
 
 -- | 索引重建\/索引時回報的問題。graph-core\/F005 只有 'SchemaRebuilt';
 -- graph-core\/F006__擴充__加三個建構子(不重新定義,契約 G「骨架」原則):
@@ -120,8 +134,12 @@ renderMetaWarning = \case
   NameKindNotAllowed (TypeKey k) kind ->
     "型別 " <> k <> " 的命名第一段 `" <> kind <> "` 不在允許的 name_kinds 內"
 
--- | 全部的表,順序固定(依外鍵相依順序:@files@ → @nodes@ → 其餘)。
--- 之後的 feature 加業務表時擴充這份清單,不是另開一份。
+-- | 全部的表,順序固定(依外鍵相依順序:@files@ → @nodes@ → 其餘 → 三張
+-- FTS 相關表)。之後的 feature 加業務表時擴充這份清單,不是另開一份。
+--
+-- @fts_map@ 排在最後有實質意義:'resetSchema' 以__反向__順序 DROP,先砍
+-- @fts_map@ 會連帶砍掉建在它上面的觸發器,之後砍兩張虛擬表才不會留下指向
+-- 不存在的表的觸發器。
 indexTables :: [Text]
 indexTables =
   [ "meta_info"
@@ -136,6 +154,9 @@ indexTables =
   , "levels"
   , "tree_nodes"
   , "tree_node_entities"
+  , "fts_tri"
+  , "fts_cjk"
+  , "fts_map"
   ]
 
 -- | 開啟指定路徑的索引:開連線 → PRAGMA → schema_version 判斷(不符即重建)→
@@ -166,6 +187,10 @@ closeIndex = close
 prepareConnection :: Connection -> IO ()
 prepareConnection conn = do
   execute_ conn "PRAGMA foreign_keys = ON"
+  -- graph-core/F007:外鍵級聯造成的刪除,預設__不會__觸發 DELETE 觸發器。
+  -- @fts_map@ 的觸發器正是靠 files → nodes → fts_map 這條級聯被叫起來的,
+  -- 沒有這一行,兩張 FTS 表就永遠清不掉舊列。
+  execute_ conn "PRAGMA recursive_triggers = ON"
   -- journal_mode / busy_timeout 都回傳一列結果,execute_ 不接受這種語句
   void (query_ conn "PRAGMA journal_mode = WAL" :: IO [Only Text])
   void (query_ conn "PRAGMA busy_timeout = 5000" :: IO [Only Int])
@@ -236,7 +261,7 @@ setVaultInfo conn vid kind name = do
     put k val =
       execute conn "INSERT OR REPLACE INTO meta_info(key, value) VALUES (?, ?)" (k :: Text, val)
 
--- | 12 張表的建表語句,順序與 'indexTables' 一致。
+-- | 15 張表的建表語句(外加 @fts_map@ 的刪除觸發器),順序與 'indexTables' 一致。
 --
 -- 外鍵全部 @ON DELETE CASCADE@,以 @nodes.file_path@\/@links.file_path@
 -- @REFERENCES files(path)@ 為根(design.md「索引結構」):刪一筆 @files@
@@ -323,4 +348,40 @@ schemaDDL =
   , "CREATE TABLE tree_node_entities(\
     \  node_id TEXT NOT NULL REFERENCES tree_nodes(id) ON DELETE CASCADE,\
     \  ref TEXT NOT NULL)"
+  , -- graph-core/F007(ADR-016):兩張 FTS5 表,同一份來源文字、同一個 rowid。
+    -- 六個欄位與 'Aapms.Store.Tokenize.FtsText' 的欄位順序逐一對應。
+    -- 兩張都__不是__ contentless:snippet() 要得到內容,而且要能整批刪列。
+    "CREATE VIRTUAL TABLE fts_tri USING fts5(\
+    \  title, summary, body, aliases, tags, name,\
+    \  tokenize = 'trigram')"
+  , -- 內容是 Tokenize 預切過的 unigram + bigram 串,unicode61 遇空白斷詞,
+    -- 二字詞因此變成精確比對。
+    "CREATE VIRTUAL TABLE fts_cjk USING fts5(\
+    \  title, summary, body, aliases, tags, name,\
+    \  tokenize = 'unicode61')"
+  , -- FTS5 的 rowid 是整數,節點 id 是文字,這張表是兩者的對照。
+    -- 外鍵讓 files → nodes 的級聯一路走到這裡。
+    "CREATE TABLE fts_map(\
+    \  rowid INTEGER PRIMARY KEY,\
+    \  node_id TEXT NOT NULL UNIQUE REFERENCES nodes(id) ON DELETE CASCADE)"
+  , -- 虛擬表沒有外鍵,只有這個觸發器補得上最後一段級聯(需要
+    -- PRAGMA recursive_triggers = ON,見 prepareConnection)。
+    "CREATE TRIGGER fts_map_after_delete AFTER DELETE ON fts_map BEGIN\
+    \  DELETE FROM fts_tri WHERE rowid = old.rowid;\
+    \  DELETE FROM fts_cjk WHERE rowid = old.rowid;\
+    \ END"
   ]
+
+--------------------------------------------------------------------------------
+-- FTS 列維護(graph-core/F007)
+
+-- | 把一批節點的 FTS 內容寫進 @fts_tri@ \/ @fts_cjk@,並在 @fts_map@ 建立
+-- 節點 id ↔ rowid 的對照。__以節點 id 為單位取代__:同一個節點已經有列時先
+-- 清掉再寫,所以對同一份檔案重複索引不會留下重複列,也不會讓新節點撿到舊
+-- rowid 的殘留內容。
+--
+-- 呼叫端是 "Aapms.Store.Index" 的單檔索引交易(整檔替換的 FTS 部分):
+-- 節點列已經寫進 @nodes@ 之後、同一個 transaction 之內呼叫。本函式__不__自己
+-- 開交易、不做任何檔案 IO(ADR-022 寫鎖預算)。
+insertFtsRows :: Connection -> [FtsRow] -> IO ()
+insertFtsRows = undefined

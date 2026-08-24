@@ -67,10 +67,10 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | (舊流程) | sonnet | — | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | **重跑中**:spec-done(G1 + G2) |
+| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | **重跑完成** impl-done(G1 + G2 修復) |
 | store-vault-handle | F005 | F005-store-vault-handle.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
-| store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | pending |
+| store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | impl-done |
 | store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs | opus | sonnet | sonnet | pending |
 | store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新) | opus | sonnet | sonnet | pending |
 
@@ -85,6 +85,8 @@ subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
 | F007 | 1 | `SearchSpec.hs:163` E6:`shSnippet` 應含「藥水」,實得 `"魔法藥 水 瓶"` | E6 + A3 + L4 | **spec bug** | 停下,回報開發者。**編排者實測歸因**:`desegmentCjk(完整 cjkSegment 輸出)` 正確還原且 **L4 成立**;但 FTS5 的 `snippet()` 回的是**片段**(欄位的一段視窗),不是完整的 `cjkSegment t`——L4 對片段沒有定義任何行為,A3 卻要求把 `snippet()` 的輸出餵給它。impl 滿足了所有 law,qa 逐字轉錄 E6,兩邊都沒錯,是 spec 把函式用在定義域外 |
+| F007 | 2 | (無新紅燈) | — | — | spec 修訂後重跑:**111 examples / 0 failures**。E6 由修正 spec(snippet 改取 `fts_tri` 原文)而非弱化斷言達成 |
+| F004 | 1 | `L9` / `L10`(`renderMetaBlock` 行序列與行數) | L9 原文 | **qa 誤讀** | qa 自行歸因並修正:L9 原文明寫 `moLinks = Just (_:_)` 產生「`links:` 加每個關聯一行」,但 qa 的計數 helper 把每個有值欄位一律算 1 行,漏算這條例外。改 `fieldLineCount` 後兩條轉綠,其餘 283 個 example 未動 |
 
 ## 待確認假設彙總
 

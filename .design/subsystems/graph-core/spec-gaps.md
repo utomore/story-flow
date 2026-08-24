@@ -40,7 +40,7 @@ parent: graph-core
   `sha256: deadbeef1234` / `entry: PNG/a.png` 的 asset 節呼叫
   `updateSection aid (\o -> o { moSummary = Just "after" })`,寫回後那兩行消失
 - **為什麼沒被測到**:`md/test/` 沒有任何測試把 `updateSection` 與 `sha256` 放在一起
-- **狀態**:**open** → 由 **F004 重跑**修復(2026-08-24 開發者裁決),與 G1 同一個根
+- **狀態**:**resolved**(2026-08-24,F004 重跑完成並經編排者以原重現案例驗證:`SHA256_KEPT True` / `ENTRY_KEPT True` / `SUMMARY_NEW True`)。原處置:由 **F004 重跑**修復(2026-08-24 開發者裁決),與 G1 同一個根
   (`MetaOverride` 是唯一管道),一併處理:`Render` 要支援 payload 專屬欄位的序列化,
   並新增 payload 保留的編輯路徑讓 `updateSection` 不再吃掉節專屬欄位
 
@@ -67,6 +67,9 @@ parent: graph-core
   `grep -rniE "\bLIKE\b" store/src/` 覆核)。但 G3 問的「原始碼是否排除 Haddock 註解」這個
   語意問題本身仍未解:qa 若已依字面讀法寫死斷言字串,或未來任何人在註解裡再次寫下這個詞,
   同樣的爭議會重演,狀態維持 open 讓編排者\/開發者定調)
+- **狀態:resolved**(2026-08-24 開發者裁決 → spec 已修訂):**L23 撤銷**,F007 spec 的 Laws 段以刪除線
+  保留原文並附撤銷理由,編號不重編;`Query.hs` 的模組 Haddock 改成引用 L9 / L10(「只有兩條路,沒有
+  第三條」)。qa 不再需要 L23 的測試,`TokenizeSpec.hs` / `SearchSpec.hs` 開頭關於 L23 的說明可一併移除
 
 ## G4(F007 / impl)
 
@@ -94,7 +97,10 @@ parent: graph-core
   `desegmentCjk`,若整個函式留 `undefined`,會連帶讓所有 CJK 命中路徑的片段輸出崩潰,影響
   範圍遠大於這個病態子集;因此選擇實作可用版本 + 記錄此 gap,而非整項停工。若編排者認為這個
   處置不恰當(應該整項停工等 spec 修訂),請指示回退
-- 狀態:open
+- **狀態:resolved**(2026-08-24 開發者裁決 → spec 已修訂):**L4 撤銷**,且 `desegmentCjk` 在失去
+  snippet 這個唯一消費者後**整個從介面與骨架移除**(`Tokenize.hs` 的匯出與定義都已刪除,`cjkSegment`
+  的 Haddock 加了「這個表示法是單向的,沒有反函式」的說明防止有人再加回去)。qa 要刪掉
+  `TokenizeSpec.hs` 的 `prop_L4` 與對 `desegmentCjk` 的 import
 
 ## G5(F007 / 編排者仲裁)—— 與 G4 同一個根
 
@@ -113,4 +119,22 @@ parent: graph-core
   編排者建議的方向:`fts_tri` 存的是**原始文字**(trigram tokenizer 不做應用層預切),
   所以 snippet 從 `fts_tri` 的內容取就是自然的連續文字,`desegmentCjk` 可以整個退出 snippet 路徑;
   L4 則應改成有條件的 law 或直接撤掉
-- **狀態**:open
+- **狀態**:**resolved**(2026-08-24 開發者裁決,見下)
+
+---
+
+## 2026-08-24 開發者裁決(G3 / G4 / G5)
+
+三條一起解,因為 G4 與 G5 同一個根:**「先所有 unigram、再所有 bigram」的切詞表示法本來就不是為了
+可逆而設計的**,而 spec 在兩處假設它可逆。
+
+- **G5(snippet)**:`desegmentCjk` **整個移出 snippet 路徑**。`fts_tri` 存的是**原始文字**
+  (trigram tokenizer 不做應用層預切),所以不論命中來自哪張表,`shSnippet` 一律從 `fts_tri` 的
+  內容取——拿到的就是自然的連續文字。A3 要改寫,E6 的期望(snippet 含「藥水」)因此成立
+- **G4(L4)**:`desegmentCjk` 失去 snippet 這個消費者後,L4 的全稱量詞失去存在理由。
+  **撤掉 L4**(或改成有條件的 law);`desegmentCjk` 若已無消費者就一併從介面移除
+- **G3(L23)**:**撤掉 L23**。用文字掃描斷言「某個關鍵字不在原始碼裡」本來就分不出註解與程式碼
+  ——這正是它撞到骨架自身註解的原因。它想保證的事(沒有 `LIKE` 掃描路徑)已由 L9 / L10 的
+  路由 law 涵蓋:查詢一定走 trigram 或 cjk 兩條 FTS 路徑之一,沒有第三條路
+
+**執行**:由 spec 角色修訂 F007 的 spec 與骨架,再重跑受影響的 qa 與 impl。

@@ -2,11 +2,19 @@
 -- 'renderMetaBlock' 印出的純量文字不是 newtype 的 derived 'Show'
 -- (graph-core/F004)。
 --
--- 這一組測試守住 ADR-010 的第二條保證:__改一個欄位,git diff 只顯示那一行__。
+-- graph-core/F004__重跑__(G2):'renderMetaBlock' 從 2 參數(@MetaOverride ->
+-- LineEnding -> Text@)改成 3 參數(多吃一個 'MetaExtras')——本檔既有呼叫點
+-- 一律補上 @(MetaExtras [])@(既有測試只關心 'Meta' 那一半,不影響原本的
+-- 斷言)。新增 Example 1\/6\/7\/8(spec 對照見檔尾),都是純 hspec、不需要
+-- hedgehog,因為 Example 是具體輸入輸出,不是全稱量詞。
+--
+-- 這一組測試守住 ADR-010 的第二條保證:__改一個欄位,git diff 只顯示那一行__,
+-- 以及 G2 修復後的新保證:__改 Meta 那一半,型別專屬那一半一個位元組都不動__。
 module Aapms.Md.EditSpec (spec) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import Aapms.Core.Asset (Asset (..), Sha256 (..))
 import Aapms.Core.Entity (Entity (..))
 import Aapms.Core.Level (NodeKind (KCamera))
 import Aapms.Core.Link
@@ -44,6 +52,100 @@ fullOverride =
     , moUpdated = Just day0
     , moLinks = Just [Link PartOf (refOf "ent-7f3a") (Just "屬於琳達")]
     }
+
+-- Example 1(spec-gaps G2 的直接回歸例)---------------------------------------
+--
+-- 逐字取自 F004 spec:pack.md 的 asset 節含 sha256 / entry,只改 summary,
+-- 那兩行(與 toPack 讀回的值)必須不變。這是已重現缺陷(G2)的否證。
+e1PackMd :: Text
+e1PackMd =
+  T.unlines
+    [ "---"
+    , "id: pck-00000001"
+    , "vault: liftgame-assets"
+    , "type: asset-pack"
+    , "title: E1 pack"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "## a.png {#ast-00000001}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "sha256: deadbeef1234"
+    , "entry: PNG/a.png"
+    , "```"
+    ]
+
+-- Example 6:未知欄位(型別註冊表宣告的自訂欄位)也要保留 -----------------
+e6Md :: Text
+e6Md =
+  T.unlines
+    [ "---"
+    , "id: ent-0001"
+    , "vault: liftgame"
+    , "type: character"
+    , "title: E6"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "## 片段 {#ent-000a}"
+    , ""
+    , "```meta"
+    , "summary: 一句話"
+    , "battle_power: 9000"
+    , "```"
+    ]
+
+-- Example 7:型別專屬半邊的編輯路徑(updateSectionExtras) -------------------
+e7PackMd :: Text
+e7PackMd =
+  T.unlines
+    [ "---"
+    , "id: pck-00000002"
+    , "vault: liftgame-assets"
+    , "type: asset-pack"
+    , "title: E7 pack"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "## b.png {#ast-00000002}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "sha256: cafebabe0001"
+    , "entry: PNG/b.png"
+    , "license: lic-00000001"
+    , "```"
+    ]
+
+-- Example 8:區塊風格巢狀值(meta: + 兩行縮排)------------------------------
+e8Md :: Text
+e8Md =
+  T.unlines
+    [ "---"
+    , "id: pck-00000003"
+    , "vault: liftgame-assets"
+    , "type: asset-pack"
+    , "title: E8 pack"
+    , "created: 2026-08-16"
+    , "updated: 2026-08-16"
+    , "---"
+    , ""
+    , "## c.png {#ast-00000003}"
+    , ""
+    , "```meta"
+    , "type: asset-image"
+    , "sha256: 00112233"
+    , "entry: PNG/c.png"
+    , "meta:"
+    , "  width: 256"
+    , "  height: 192"
+    , "```"
+    ]
 
 spec :: Spec
 spec = do
@@ -97,9 +199,82 @@ spec = do
           -- 補完之後仍是合法文件
           fmap (length . docSections) (parseDocument out) `shouldBe` Right 1
 
+    -- spec 對照:Example 1(spec-gaps G2 的回歸例,務必逐字翻譯,不弱化)
+    it "Example 1:pack.md asset 節改 summary 後,sha256/entry 兩行逐字保留、toPack 讀回不變" $ do
+      let aid = idOf "ast-00000001"
+          d = docOf e1PackMd
+      case updateSection aid (\o -> o {moSummary = Just "after"}) d of
+        Left e -> expectationFailure (T.unpack (renderMdError e))
+        Right d' -> do
+          let out = renderDocument d'
+          out `shouldSatisfy` T.isInfixOf "sha256: deadbeef1234"
+          out `shouldSatisfy` T.isInfixOf "entry: PNG/a.png"
+          let (_, assets) = packOf (docOf out)
+          map astSha256 assets `shouldBe` [Sha256 "deadbeef1234"]
+          map astEntry assets `shouldBe` ["PNG/a.png"]
+          map (metaSummary . astMeta) assets `shouldBe` ["after"]
+
+    -- spec 對照:Example 6(未知欄位也要保留,不只型別專屬那幾個)
+    it "Example 6:註冊表自訂欄位 battle_power 在 updateSection 之後逐字保留" $ do
+      let d = docOf e6Md
+      case updateSection (idOf "ent-000a") (\o -> o {moStatus = Just Canon}) d of
+        Left e -> expectationFailure (T.unpack (renderMdError e))
+        Right d' -> renderDocument d' `shouldSatisfy` T.isInfixOf "battle_power: 9000"
+
+    -- spec 對照:Example 8(多行頂層條目整段保留、順序不變)
+    it "Example 8:區塊風格巢狀值(meta: + 兩行縮排)在 updateSection 之後逐字保留、順序不變" $ do
+      let d = docOf e8Md
+      case updateSection (idOf "ast-00000003") (\o -> o {moSummary = Just "x"}) d of
+        Left e -> expectationFailure (T.unpack (renderMdError e))
+        Right d' ->
+          renderDocument d'
+            `shouldSatisfy` T.isInfixOf "meta:\n  width: 256\n  height: 192\n"
+
+  -- graph-core/F004 重跑:型別專屬半邊的編輯路徑
+  describe "updateSectionExtras" $ do
+    -- spec 對照:Example 7
+    it "Example 7:只換 license,sha256/entry 逐字不變,overrideAt 與正文/標題不受影響" $ do
+      let aid = idOf "ast-00000002"
+          d = docOf e7PackMd
+          -- naKindMeta 借用「這份 fixture 本來就沒有 meta 欄位」時 toPack 解出的
+          -- astKindMeta(等於「不寫這一欄」的值),不憑空杜撰 Data.Aeson.Value
+          -- 的字面建構子——test-suite 目前沒有 aeson 相依(見回報)
+          origKindMeta = case snd (packOf d) of
+            (a : _) -> astKindMeta a
+            [] -> error "e7PackMd 應該恰有一個 asset"
+          na' =
+            NewAsset
+              { naName = Nothing
+              , naSha256 = Sha256 "cafebabe0001"
+              , naEntry = "PNG/b.png"
+              , naExt = Nothing
+              , naKindMeta = origKindMeta
+              , naLicense = Just (refOf "lic-00000002")
+              , naAuthor = Nothing
+              }
+          beforeOverride = overrideAt aid d
+      case updateSectionExtras aid (mergeExtras (payloadExtras (NSAsset emptyOverride na'))) d of
+        Left e -> expectationFailure (T.unpack (renderMdError e))
+        Right d' -> do
+          let out = renderDocument d'
+          out `shouldSatisfy` T.isInfixOf "sha256: cafebabe0001"
+          out `shouldSatisfy` T.isInfixOf "entry: PNG/b.png"
+          out `shouldSatisfy` T.isInfixOf "license: lic-00000002"
+          out `shouldSatisfy` (not . T.isInfixOf "license: lic-00000001")
+          overrideAt aid d' `shouldBe` beforeOverride
+          let old = firstSection d
+              new = firstSection d'
+          secHeadingRaw new `shouldBe` secHeadingRaw old
+          secBodyRaw new `shouldBe` secBodyRaw old
+
+    it "操作不存在的 id 回 Left" $
+      case updateSectionExtras (idOf "ast-99999999") id doc of
+        Left e -> errKind e `shouldBe` UnknownSectionId (idOf "ast-99999999")
+        Right _ -> expectationFailure "應該回 Left"
+
   describe "renderMetaBlock" $ do
     it "欄位順序固定,且與 system.md 的範例一致" $
-      T.lines (renderMetaBlock fullOverride LF)
+      T.lines (renderMetaBlock fullOverride (MetaExtras []) LF)
         `shouldBe` [ "```meta"
                    , "kind: camera"
                    , "type: character-fragment"
@@ -120,7 +295,7 @@ spec = do
 
     -- T2:type / vault / revision 印出的是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
     it "type / vault / revision 是純量文字,不是 newtype 的 derived Show" $ do
-      let ls = T.lines (renderMetaBlock fullOverride LF)
+      let ls = T.lines (renderMetaBlock fullOverride (MetaExtras []) LF)
       ls `shouldContain` ["type: character-fragment"]
       ls `shouldContain` ["vault: liftgame"]
       ls `shouldContain` ["revision: 3"]
@@ -129,29 +304,34 @@ spec = do
       ls `shouldSatisfy` all (not . T.isInfixOf "Revision ")
 
     it "值為 Nothing 的欄位不輸出" $
-      T.lines (renderMetaBlock (emptyOverride {moSummary = Just "只有這一欄"}) LF)
+      T.lines (renderMetaBlock (emptyOverride {moSummary = Just "只有這一欄"}) (MetaExtras []) LF)
         `shouldBe` ["```meta", "summary: 只有這一欄", "```"]
 
     it "同一份資料連續序列化兩次結果相同" $
-      renderMetaBlock fullOverride LF `shouldBe` renderMetaBlock fullOverride LF
+      renderMetaBlock fullOverride (MetaExtras []) LF `shouldBe` renderMetaBlock fullOverride (MetaExtras []) LF
 
     it "CRLF 文件產生 CRLF 的區塊" $
-      renderMetaBlock (emptyOverride {moSummary = Just "x"}) CRLF
+      renderMetaBlock (emptyOverride {moSummary = Just "x"}) (MetaExtras []) CRLF
         `shouldBe` "```meta\r\nsummary: x\r\n```\r\n"
 
     it "需要跳脫的字串才加引號" $ do
-      T.lines (renderMetaBlock (emptyOverride {moSummary = Just "冒號: 後面有空白"}) LF)
+      T.lines (renderMetaBlock (emptyOverride {moSummary = Just "冒號: 後面有空白"}) (MetaExtras []) LF)
         `shouldBe` ["```meta", "summary: \"冒號: 後面有空白\"", "```"]
-      T.lines (renderMetaBlock (emptyOverride {moType = Just (typeOf "true")}) LF)
+      T.lines (renderMetaBlock (emptyOverride {moType = Just (typeOf "true")}) (MetaExtras []) LF)
         `shouldBe` ["```meta", "type: \"true\"", "```"]
 
     it "流式上下文裡的逗號會被引號保護" $
-      T.lines (renderMetaBlock (emptyOverride {moTags = Just ["a,b"]}) LF)
+      T.lines (renderMetaBlock (emptyOverride {moTags = Just ["a,b"]}) (MetaExtras []) LF)
         `shouldBe` ["```meta", "tags: [\"a,b\"]", "```"]
 
     it "序列化後再解析回來,欄位一致(round-trip)" $
-      decodeMeta (T.unlines (init (drop 1 (T.lines (renderMetaBlock fullOverride LF)))))
+      decodeMeta (T.unlines (init (drop 1 (T.lines (renderMetaBlock fullOverride (MetaExtras []) LF)))))
         `shouldBe` Right fullOverride
+
+    -- graph-core/F004 重跑,G2:型別專屬條目逐字接在 Meta 欄位之後
+    it "MetaExtras 非空時,逐字接在 Meta 欄位之後、fence 之前" $
+      T.lines (renderMetaBlock (emptyOverride {moSummary = Just "只有這一欄"}) (MetaExtras ["battle_power: 9000"]) LF)
+        `shouldBe` ["```meta", "summary: 只有這一欄", "battle_power: 9000", "```"]
 
   describe "removeSection" $ do
     it "移除節連同它的 meta 區塊與正文" $
@@ -287,3 +467,12 @@ spec = do
 -- | 一節的三段原始切片。用來斷言「這一節一個位元組都沒動」。
 slices :: Section -> (Text, Maybe Text, Text)
 slices s = (secHeadingRaw s, secMetaRaw s, secBodyRaw s)
+
+-- spec 對照(F004 重跑)-------------------------------------------------------
+-- L2  updateSection 保留未觸及節/其他節的位元組       -> Aapms.Md.EditLawsSpec(hedgehog,未接線)
+-- L3  updateSectionExtras 同 L2 的保留條件             -> Aapms.Md.EditLawsSpec
+-- L8  updateSection 冪等                               -> Aapms.Md.EditLawsSpec
+-- E1  pack.md asset 節改 summary,sha256/entry 不變     -> "Example 1" it
+-- E6  未知欄位保留                                      -> "Example 6" it
+-- E7  updateSectionExtras 型別專屬半邊編輯路徑          -> "Example 7" it
+-- E8  多行頂層條目(meta: 巢狀值)整段保留               -> "Example 8" it

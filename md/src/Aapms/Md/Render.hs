@@ -65,13 +65,15 @@ module Aapms.Md.Render
   , mergeExtras
   ) where
 
-import Data.Aeson (FromJSON (..), Value (..), withObject, (.!=), (.:), (.:?))
+import Data.Aeson (FromJSON (..), Value (..), encode, withObject, (.!=), (.:), (.:?))
 import Data.Char (isDigit, isSpace)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Time (Day)
-import Aapms.Core.Asset (LogicalName, Sha256)
+import Aapms.Core.Asset (LogicalName (..), Sha256 (..))
 import Aapms.Core.Id (Id, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (NodeKind, renderNodeKind)
 import Aapms.Core.Link (Link (..), renderLinkKind)
@@ -79,7 +81,7 @@ import Aapms.Core.Meta
 import Aapms.Md.Document
 import Aapms.Md.Error
 import Aapms.Md.Inherit
-import Aapms.Md.Lexer (lineTerm, metaBlockYaml, splitLinesKeep)
+import Aapms.Md.Lexer (lineContent, lineTerm, metaBlockYaml, splitLinesKeep)
 import Aapms.Md.Yaml (decodeFrontmatter, decodeMeta)
 
 -- | 逐字重組。未經修改的 'Document' 保證
@@ -101,7 +103,12 @@ renderSection Section {..} = secHeadingRaw <> fromMaybe "" secMetaRaw <> secBody
 -- 這一步,對 @pack.md@ 的 asset 節做任何一次 'updateSection' 都會吃掉
 -- @sha256@ \/ @entry@ —— 依 ADR-013 那是素材中繼資料的真相。
 updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
-updateSection = undefined
+updateSection i f doc@Document {..} = case sectionById i doc of
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
+  Just s -> do
+    ov <- currentOverride s
+    let s' = s {secMetaRaw = Just (reserialize docEnding s (f ov) (extrasOf s))}
+    Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
 
 -- | 某一節目前的 @```meta@ 區塊解出來的覆寫;沒有區塊時是 'emptyOverride'。
 --
@@ -129,7 +136,17 @@ currentOverride Section {..} = case secMetaRaw of
 -- graph-core/F004 重跑:多吃一個 'MetaExtras' —— 少了它,重寫等於刪掉節的
 -- 型別專屬條目(G2)。
 reserialize :: LineEnding -> Section -> MetaOverride -> MetaExtras -> Text
-reserialize = undefined
+reserialize le Section {..} ov ex = lead <> renderMetaBlock ov ex le
+  where
+    lead = case secMetaRaw of
+      Nothing -> renderLineEnding le
+      Just raw -> leadingBlanks raw
+
+-- | 一段 meta 區塊原始切片中,fence 行之前的空行(逐字)。
+leadingBlanks :: Text -> Text
+leadingBlanks raw = T.concat (takeWhile isBlankLine' (splitLinesKeep raw))
+  where
+    isBlankLine' l = T.all isSpace (lineContent l)
 
 -- meta 區塊的型別專屬那一半 ---------------------------------------------------
 
@@ -153,12 +170,38 @@ newtype MetaExtras = MetaExtras
 -- @'MetaExtras' []@。__不解 YAML__:壞掉的區塊照樣抽得出行,壞不壞是
 -- 'updateSection' 走 'MetaOverride' 那一半時才會發現的事。
 extrasOf :: Section -> MetaExtras
-extrasOf = undefined
+extrasOf Section {..} = case secMetaRaw of
+  Nothing -> MetaExtras []
+  Just raw ->
+    let contentLines = splitLinesKeep (snd (metaBlockYaml raw))
+        extraEntries = [e | e <- splitEntries contentLines, entryKey e `notElem` metaFieldOrder]
+     in MetaExtras (map lineContent (concat extraEntries))
+
+-- | 一個「頂層條目」= 第 0 欄起的 @key:@ 那一行 + 其後所有縮排行與空行
+-- (design.md「頂層條目」定義)。假設輸入的第一行必為頂層行(呼叫端保證)。
+splitEntries :: [Text] -> [[Text]]
+splitEntries [] = []
+splitEntries (l : ls) = (l : pre) : splitEntries rest
+  where
+    (pre, rest) = break isTopLevelLine ls
+
+-- | 第 0 欄起的行,即該行第一個字元不是空白。
+isTopLevelLine :: Text -> Bool
+isTopLevelLine l = case T.uncons l of
+  Just (c, _) -> not (isSpace c)
+  Nothing -> False
+
+-- | 一個條目的鍵:第一行 @:@ 之前的文字。
+entryKey :: [Text] -> Text
+entryKey [] = ""
+entryKey (l : _) = fst (T.breakOn ":" l)
 
 -- | 'extrasOf' 的 'Id' 版本,與 'overrideAt' 對稱:@aapms-store@ 的寫入路徑
 -- 需要__先看目前的專屬欄位__再決定要不要改。節不存在時回 'Left'。
 extrasAt :: Id -> Document -> Either MdError MetaExtras
-extrasAt = undefined
+extrasAt i doc = case sectionById i doc of
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
+  Just s -> Right (extrasOf s)
 
 -- | 兩份專屬條目合併:__第一個參數為新__,同鍵時它贏。
 --
@@ -166,7 +209,11 @@ extrasAt = undefined
 -- 依原序在後」。這是 'updateSectionExtras' 的「只改我指名的那幾欄、其餘逐字
 -- 留著」語意的唯一定義處。
 mergeExtras :: MetaExtras -> MetaExtras -> MetaExtras
-mergeExtras = undefined
+mergeExtras (MetaExtras a) (MetaExtras b) =
+  let aEntries = splitEntries a
+      aKeys = map entryKey aEntries
+      bKept = [e | e <- splitEntries b, entryKey e `notElem` aKeys]
+   in MetaExtras (concat aEntries ++ concat bKept)
 
 -- | 只改某一節的型別專屬條目:'MetaOverride' 那一半、標題行與正文
 -- __一個位元組都不動__。
@@ -175,7 +222,12 @@ mergeExtras = undefined
 -- (@license@ \/ @author@ \/ @name@、八個授權維度),而
 -- @'MetaOverride' -> 'MetaOverride'@ 表達不了它們。節不存在時回 'Left'。
 updateSectionExtras :: Id -> (MetaExtras -> MetaExtras) -> Document -> Either MdError Document
-updateSectionExtras = undefined
+updateSectionExtras i f doc@Document {..} = case sectionById i doc of
+  Nothing -> Left (mdError 1 (UnknownSectionId i))
+  Just s -> do
+    ov <- currentOverride s
+    let s' = s {secMetaRaw = Just (reserialize docEnding s ov (f (extrasOf s)))}
+    Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
 
 -- 新節的建構 DTO --------------------------------------------------------------
 
@@ -289,7 +341,11 @@ instance FromJSON NewLicense where
 -- @'Just' ('nnKind' n)@,__不管__原本的 @moKind@ 是什麼。其餘三個建構子原樣
 -- 回傳自己帶的 'MetaOverride'。
 payloadOverride :: NewSectionPayload -> MetaOverride
-payloadOverride = undefined
+payloadOverride = \case
+  NSFragment ov -> ov
+  NSAsset ov _ -> ov
+  NSLicense ov _ -> ov
+  NSNode ov (NewNode k) -> ov {moKind = Just k}
 
 -- | payload 的型別專屬那一半,序列化成 'MetaExtras' 的行。
 --
@@ -304,7 +360,43 @@ payloadOverride = undefined
 -- 值為 'Nothing'(以及 'NewAsset' 的 @naKindMeta = 'Null'@)的欄位不輸出——
 -- 與 @FromJSON@ 的 @.:?@ 對「鍵不存在」的處置一致,寫出去再解回來是同一份值。
 payloadExtras :: NewSectionPayload -> MetaExtras
-payloadExtras = undefined
+payloadExtras = \case
+  NSFragment _ -> MetaExtras []
+  NSNode _ _ -> MetaExtras []
+  NSAsset _ NewAsset {..} ->
+    let Sha256 shaText = naSha256
+     in MetaExtras $
+          concat
+            [ ["name: " <> scalar t | Just (LogicalName t) <- [naName]]
+            , ["sha256: " <> scalar shaText]
+            , ["entry: " <> scalar naEntry]
+            , ["ext: " <> scalar t | Just t <- [naExt]]
+            , ["meta: " <> renderValue naKindMeta | naKindMeta /= Null]
+            , ["license: " <> scalar (renderRef r) | Just r <- [naLicense]]
+            , ["author: " <> scalar t | Just t <- [naAuthor]]
+            ]
+  NSLicense _ NewLicense {..} ->
+    MetaExtras $
+      concat
+        [ ["commercial: " <> renderBool nlcCommercial]
+        , ["attribution_required: " <> renderBool nlcAttributionRequired]
+        , ["credit_text: " <> scalar t | Just t <- [nlcCreditText]]
+        , ["modification_allowed: " <> renderBool b | Just b <- [nlcModificationAllowed]]
+        , ["redistribution_allowed: " <> renderBool b | Just b <- [nlcRedistributionAllowed]]
+        , ["resale_allowed: " <> renderBool b | Just b <- [nlcResaleAllowed]]
+        , ["nft_allowed: " <> renderBool b | Just b <- [nlcNftAllowed]]
+        , ["source_url: " <> scalar t | Just t <- [nlcSourceUrl]]
+        ]
+
+-- | 'Bool' 寫成 meta 區塊的純量文字。
+renderBool :: Bool -> Text
+renderBool True = "true"
+renderBool False = "false"
+
+-- | 任意 aeson 'Value' 寫成一行內的 flow 值(JSON 是 YAML 的子集,借
+-- aeson 自己的編碼器產生,不另寫一套縮排\/引號規則)。
+renderValue :: Value -> Text
+renderValue v = TL.toStrict (TLE.decodeUtf8 (encode v))
 
 -- | 在文件__最後一節之後__插入新節,沒有任何節時插在最前面(preamble 之後)。
 -- 「1,693 節的文件末尾追加一節,前面 1,693 節位元組不變」——這是
@@ -319,7 +411,19 @@ payloadExtras = undefined
 -- 這裡被擋下來):那是呼叫端與 'Aapms.Md.Parse' 的職責,與本函式不驗證標題
 -- 階層是同一個理由。
 appendSection :: NewSection -> Document -> Either MdError Document
-appendSection = undefined
+appendSection NewSection {..} doc@Document {..}
+  | any ((== nsId) . secId) docSections = Left (mdError 1 (DuplicateSectionId nsId))
+  | otherwise = Right doc'
+  where
+    newSec = mkSection docEnding nsLevel nsId nsTitle (Just nsPayload) nsBody
+    doc' = case reverse docSections of
+      [] -> doc {docPreamble = blankTail docEnding docPreamble, docSections = [newSec]}
+      (lastSec : earlier) ->
+        doc
+          { docSections =
+              reverse (lastSec {secBodyRaw = blankTail docEnding (secBodyRaw lastSec)} : earlier)
+                ++ [newSec]
+          }
 
 -- | 插入點之前那一段的結尾:__補到剛好隔一個空行__。
 --
@@ -417,7 +521,19 @@ replacePreamble body doc@Document {..} = doc {docPreamble = lead <> nl <> core}
 -- 'payloadOverride' 與 'payloadExtras' 兩半組成(graph-core/F004 重跑:原本
 -- 吃 @'Maybe' 'MetaOverride'@,只寫得出一半)。
 mkSection :: LineEnding -> Int -> Id -> Text -> Maybe NewSectionPayload -> Text -> Section
-mkSection = undefined
+mkSection le level i title mpayload body =
+  Section
+    { secLevel = level
+    , secHeadingRaw = T.replicate level "#" <> " " <> title <> " {#" <> renderId i <> "}" <> nl
+    , secTitle = title
+    , secId = i
+    , secMetaRaw = metaRaw
+    , secBodyRaw = body
+    , secLine = 0
+    }
+  where
+    nl = renderLineEnding le
+    metaRaw = (\p -> nl <> renderMetaBlock (payloadOverride p) (payloadExtras p) le) <$> mpayload
 
 -- 檔案層 frontmatter --------------------------------------------------------
 
@@ -562,7 +678,10 @@ metaFieldOrder =
 -- 才乾淨」這條規則的延伸,回原位要多存一份位置資訊,而位置本身不是資料
 -- (graph-core/F004 重跑,G2)。
 renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text
-renderMetaBlock = undefined
+renderMetaBlock ov ex le = T.concat (map (<> nl) lns)
+  where
+    nl = renderLineEnding le
+    lns = "```meta" : concatMap (metaFieldLines ov) metaFieldOrder ++ extraLines ex ++ ["```"]
 
 -- | 'metaFieldOrder' 的每一欄怎麼寫成一行。'renderMetaBlock' 的 'MetaOverride'
 -- 那一半;值為 'Nothing' 的欄位回空清單。

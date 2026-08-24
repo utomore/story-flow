@@ -3,7 +3,7 @@ id: F007
 type: feature
 title: store-fts-dual-index
 description: FTS5 trigram 與 unicode61 雙索引、查詢路由、分數合併與 facet
-status: open
+status: in-progress
 created: 2026-08-24
 updated: 2026-08-24
 depends-on: [F001, F005, F006]
@@ -288,4 +288,32 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 
 ## 實作備註
 
-(撰寫時留空)
+- `Tokenize.hs` / `Schema.hs` / `Query.hs` 三個骨架檔案的全部 `undefined`(共 18 處:
+  Tokenize 15、Schema(`insertFtsRows`)1、Query(`emptySearchQuery`/`search`)2)已换成本體。
+  `cabal build aapms-store`(含 lib + test 執行檔連結)通過,`-Wall -Wcompat` 無警告。
+  未跑 `cabal test`(依角色隔離,測試是 qa 的產出)
+- 骨架清單外的接線(委派已授權的那一處)已完成:`Index.hs` 的 `planWrite` 回傳型別加一個
+  `[AnyNode]` 元素(`anyNodes`,原本已算出只餵給 `metaIssues`),`indexOne` 的
+  `withTransaction` 內、`action conn rel` 之後呼叫
+  `insertFtsRows (vhConn vh) (map ftsRowOf anyNodes)`。除此之外沒有再碰
+  `Index.hs`/`Create.hs`/`Edit.hs`/`Node.hs`/`Write.hs`
+- `triMatchExpr`:逐詞加雙引號(`ftsQuoted`)後以 `AND` 相連(要求每個詞都出現,不要求相鄰)。
+  `cjkMatchExpr`:每個中日韓連續段用該段的 bigram 組成片語(`ftsPhrase`),段與段之間 `AND`;
+  長度 1 的段(無 bigram)直接用該字元本身當作已加引號的詞。兩者皆屬純實作層級的演算法選擇,
+  只受 L9–L11 與 E4/E5/E8–E10 約束,spec 未逐字規定拼法
+- `search` 的合併/排序/分頁策略:文字比對統一先算出 `[(節點, 分數, 片段)]`(無文字條件時分數
+  皆為 0、片段皆為空,對照 `listNodes` 語意),兩張表都命中時取分數較大者(D2),再依
+  「分數遞減、id 遞增」排序(L14)後套用 `nfLimit`/`nfOffset`。Facet 的五個維度各自忽略自己
+  的過濾條件(D5)、保留其餘結構條件與文字條件重新算候選集,再依維度分組計數
+- **修正了骨架本身的一處 `LIKE` 獨立詞**(`Query.hs:16` 模組 Haddock,qa 已記錄為 G3 的一部分):
+  改寫措辭讓 L23(原始碼不含 `LIKE` 獨立詞)在字面讀法下對本次改動後的檔案成立;G3 問的語意
+  問題(「原始碼」是否排除 Haddock 註解)本身仍未解,狀態維持 open
+- **新增 spec-gaps G4**:`L4`(`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)` 對所有
+  `t`)在 `cjkSegment` 既定的「先 unigram 再 bigram」輸出格式下,對特定含重複字元、且重複點
+  剛好落在 run 邊界的病態輸入**在數學上不可能**被任何 `desegmentCjk` 實作滿足(可構造出
+  `cjkRuns` 不同但 `cjkSegment` 輸出逐字元相同的一對輸入)。已實作一個貪婪還原演算法,對
+  E1–E3 與絕大多數真實輸入正確,僅病態輸入類別下可能偏離;详見 spec-gaps.md G4。**因此本
+  feature 即使測試全綠也不得標 `done`**,已將 frontmatter 的 `status` 設為 `in-progress`
+- 依規則本 impl 不寫、不讀任何 `store/test/` 底下的檔案;上面提到的 `cabal build` 會連帶連結
+  `aapms-store-test` 執行檔(該套件的預設 build target 行為),但沒有執行測試、也沒有開檔看
+  測試內容

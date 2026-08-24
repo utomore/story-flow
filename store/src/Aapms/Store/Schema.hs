@@ -47,6 +47,7 @@ module Aapms.Store.Schema
   ) where
 
 import Control.Monad (forM_, void)
+import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
@@ -56,7 +57,7 @@ import Aapms.Core.Meta (MetaWarning (..), TypeKey (..))
 import Aapms.Core.Tree (TreeError, renderTreeError)
 import Aapms.Md.Error (MdError, renderMdError)
 import Aapms.Store.Error (StoreError, trySqlite)
-import Aapms.Store.Tokenize (FtsRow)
+import Aapms.Store.Tokenize (FtsRow (..), FtsText (..))
 
 -- | 一個 vault 主要裝什麼(ADR-017)。運維分界,不是資料模型分界。
 data VaultKind = AssetVault | StoryVault
@@ -384,4 +385,27 @@ schemaDDL =
 -- 節點列已經寫進 @nodes@ 之後、同一個 transaction 之內呼叫。本函式__不__自己
 -- 開交易、不做任何檔案 IO(ADR-022 寫鎖預算)。
 insertFtsRows :: Connection -> [FtsRow] -> IO ()
-insertFtsRows = undefined
+insertFtsRows conn = mapM_ (insertFtsRow conn)
+
+-- | 單一節點:先清掉舊列(@fts_map@ 的 DELETE 觸發器連帶清 @fts_tri@\/
+-- @fts_cjk@),再插入新的一份,兩張表共用同一個新 rowid。
+insertFtsRow :: Connection -> FtsRow -> IO ()
+insertFtsRow conn FtsRow {..} = do
+  let idText = renderId frNode
+  execute conn "DELETE FROM fts_map WHERE node_id = ?" (Only idText)
+  execute conn "INSERT INTO fts_map(node_id) VALUES (?)" (Only idText)
+  rid <- lastInsertRowId conn
+  insertFtsText conn "fts_tri" rid frTri
+  insertFtsText conn "fts_cjk" rid frCjk
+
+insertFtsText :: Connection -> Text -> Int64 -> FtsText -> IO ()
+insertFtsText conn table rid FtsText {..} =
+  execute
+    conn
+    ( Query
+        ( "INSERT INTO "
+            <> table
+            <> "(rowid, title, summary, body, aliases, tags, name) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+    )
+    (rid, ftTitle, ftSummary, ftBody, ftAliases, ftTags, ftName)

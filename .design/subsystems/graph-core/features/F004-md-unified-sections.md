@@ -3,9 +3,9 @@ id: F004
 type: feature
 title: md-unified-sections
 description: 分節引擎接統一 Meta;新增 pack.md/licenses.md 解析與位元組保留寫回
-status: done
+status: in-progress
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-08-24
 depends-on: [F001, F002]
 related-adr: [ADR-002, ADR-009, ADR-010, ADR-013]
 related-feature: []
@@ -13,528 +13,377 @@ related-feature: []
 
 # F004: md-unified-sections
 
-## 功能概述
+## 目的
 
-`aapms-md` 目前只認得故事側兩種文件(主題檔 / Level 檔),而且吃的是 F001 統一 `Meta` 之前的舊型別
-形狀——`Aapms.Md.Inherit` 有 12 處欄位型別對不上現在的 `Meta`(`TypeKey` vs `Text`、`VaultId` vs
-`Text`、`Revision` vs `Int`),整個套件目前編不過。本 feature 要做兩件事:
+`aapms-md` 讓四種 Markdown 文件(主題檔 / Level 檔 / `pack.md` / `licenses.md`)共用一個分節引擎:
+解析成 `aapms-core` 的節點型別,以及在**未修改的區塊逐字保留原始位元組**(ADR-010)的前提下寫回。
+Markdown 檔是唯一的真相來源(ADR-002),所以本套件的正確性直接等於資料的安全性。
 
-1. **接上統一 `Meta`**:修好 `aapms-md` 的型別錯誤,讓它對齊 F001/F002 定案的 `Meta` / `Asset` /
-   `Pack` / `License` / `Entity` / `Level` / `Node`。
-2. **擴充成四種文件共用一個分節引擎**:在既有的主題檔 / Level 檔之外,新增 `pack.md`(容器 =
-   `Pack`,節 = `Asset`)與 `licenses.md`(容器只是 Meta 容器不是節點,節 = `License`)的解析與
-   位元組保留寫回,並落地 design.md「節層繼承規則」表格(pack.md 的節層 `type` 不繼承且缺漏是
-   錯誤,其餘三種文件繼承)。
+本次是 F004 的**重跑**(2026-08-24 開發者裁決),要修的是上一輪交付後暴露的兩件事,兩者同一個根——
+`MetaOverride` 是節層 meta 區塊的**唯一**管道,而它只涵蓋 `Meta` 的十三個欄位:
 
-驗收標準(照契約卡逐字):
+1. **G1(契約變更)**:`NewSection` 只有 `nsMeta :: MetaOverride`,寫不出 asset 的 `sha256` /
+   `entry` / `ext` / `meta` / `license` / `author`,也寫不出 license 的八個授權維度——`appendSection`
+   因此**產不出能通過 `toPack` / `toLicenses` 驗證的完整新節**,契約 E 的 `createPackFile` /
+   `addSection` 連帶做不下去。裁決:`NewSection` 的 payload 對節點種類做 sum。
+2. **G2(已重現的資料遺失缺陷)**:`updateSection` 用 `renderMetaBlock` **整塊重寫** meta 區塊,而
+   `renderMetaBlock` 只認得 `MetaOverride` 的欄位(`field` 的 catch-all 是 `_ -> []`)。對 `pack.md`
+   的 asset 節做**任何**一次 `updateSection`,`sha256` / `entry` 等行會**靜默消失**。編排者已在 GHCi
+   對 `c9f6fe4` 的程式碼重現:一個含 `sha256: deadbeef1234` / `entry: PNG/a.png` 的 asset 節,呼叫
+   `updateSection aid (\o -> o { moSummary = Just "after" })` 之後那兩行不見了。依 ADR-013,`pack.md`
+   是素材中繼資料的真相,這是**永久資料破壞**。缺陷能帶著通過 239 個測試,是因為 `md/test/` 沒有任何
+   測試把 `updateSection` 與 `sha256` 放在一起。
 
-- 四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同
-- 繼承規則照 design.md 表格:pack.md 的節層 `type` 不繼承且缺漏是錯誤
-- `toPack` 把檔案層轉成 `Pack`、每節轉成 `Asset`
-- `toLicenses` 每節一個 `License`,八個維度缺漏為 `Nothing` 而非錯誤(`commercial` 與
-  `attribution_required` 除外,缺漏是錯誤)
-- `appendSection` 在 1,693 節的文件末尾追加一節,前面 1,693 節位元組不變(D4:測試內生成器合成,
-  不需要真實大檔)
-- `MdError` 指出行號
-
-## 相依性
-
-`depends-on: [F001, F002]`:
-
-- **F001**:直接的程式碼相依,理由見下方「使用到的既有串接介面」表——本 feature 的每一個函式都
-  消費 F001 在 `aapms-core` 定義的 `Meta` / `Entity` / `Asset` / `Pack` / `License` / `Level` /
-  `Node` / `Id` / `Ref` / `Link` / `TypeKey` / `VaultId` / `Revision` 與 `Aapms.Core.Json` 編碼
-  規則
-- **F002**:沒有直接的函式呼叫(`aapms-md` 不 import `aapms-types`,`docKind` 只比對字面
-  `type` 字串,不查 `TypeRegistry`)——但 `docKind` 硬編碼的三個字面值("level"/"asset-pack"/
-  "asset-license")與 F002 的 `registry-family-and-naming` 驗收標準「`asset-pack` / `asset-license`
-  / `level` 出現在註冊表是載入錯誤」是**同一份保留鍵清單**的兩處體現:F002 若增減保留鍵,
-  `docKind` 的分類規則要跟著改。這是「共用資料結構」性質的相依(design.md 功能規劃表本身也把
-  md-unified-sections 列為依賴 #1、#2),不是呼叫關係,故不出現在「使用到的既有串接介面」表——
-  該表只列有實際簽名可查證的函式呼叫。
-
-不依賴 F003(`Manifest`):`aapms-md` 不產生、不讀 manifest。
-
-**不可與 store-vault-handle(#5)/store-unified-index(#6)/store-write-operations(#8)平行**:
-`aapms-store` 的六個模組(`Edit.hs` / `Create.hs` / `Node.hs` / `Query.hs` / `Index.hs` /
-`Write.hs`)全部 `import Aapms.Md`,而本 feature 會改動 `parseDocument` 的簽名(拿掉 `FilePath`、
-`[MdError]` 改單一 `MdError`)、把 `insertSection` 換成 `appendSection`(吃新的 `NewSection` DTO)、
-把 `replaceSectionBody` 改名 `updateSectionBody`、拿掉 `MdWarning`。store 那六個模組現在編不過
-(不只因為 `aapms-md` 編不過,`aapms-core` 的 F001 型別重塑它也還沒接上),本 feature 完成後它們
-依然編不過——這是預期中的階段性狀態(見「明確不做」與下方風險段),`#5`/`#6`/`#8` 要接上新介面時
-才會動 store 的程式碼。
+解法是同一個:把 meta 區塊在型別上**切成兩半**——`MetaOverride` 那一半(鍵落在 `metaFieldOrder` 裡)
+與型別專屬那一半(`MetaExtras`,其餘的頂層條目)。`renderMetaBlock` 必須同時吃兩半,少一半在型別上
+就寫不出來;`updateSection` 只讓呼叫端碰前一半,後一半以原始行逐字帶過去。
 
 ## 對應的 Level 2 契約
 
-實作 design.md「對外契約」契約 D 全部(`aapms-md`)、「模組間公開介面」的
-`aapms-md` ↔ `aapms-core`(含 `MetaOverride`)、契約 G 的 `MdError`;資料流管線「讀取」的
-`parseDocument → docKind → to*` 一段與「寫入」的「md 寫回」一段;「節層繼承規則」表格。
+- **契約 D(`aapms-md`)全部**:`DocKind` / `Document` / `parseDocument` / `docKind` /
+  `toTopic` / `toLevel` / `toPack` / `toLicenses` / `renderDocument` / `updateFrontmatter` /
+  `overrideAt` / `updateSection` / `updateSectionBody` / `appendSection` / `removeSection` /
+  `newDocument`,以及 2026-08-24 回寫的 `NewSection` / `NewSectionPayload` / `NewAsset` /
+  `NewLicense` / `NewNode`
+- **「模組間公開介面」的 `aapms-md` ↔ `aapms-core`**(含 `MetaOverride` 這個 md 與 store 共用的
+  「只改部分欄位」DTO)
+- **契約 G 的 `MdError`**;資料流管線「讀取」的 `parseDocument → docKind → to*` 一段與「寫入」的
+  「aapms-md 寫回」一段;design.md 的**「節層繼承規則」表格**
 
-不動契約 A / B / C / E / F(`aapms-core` 的型別與函式、`aapms-types` 的註冊表、`aapms-store` 的
-落地函式)——本 feature 只改 `aapms-md` 這一個套件的公開介面。
+**超出契約 D 逐字清單的部分**(`MetaExtras` / `extrasOf` / `extrasAt` / `mergeExtras` /
+`updateSectionExtras` / `payloadOverride` / `payloadExtras`):見「待確認假設」A1,需要編排者把契約 D
+補齊。不動契約 A / B / C / E / F。
 
-## 實作方式
+## 數據
 
-### 1. 修正 `MetaOverride` 與 `Render.hs` 的型別對齊(T1、T2)
+| 型別 | 動作 | 定義 | 擁有的知識 |
+|---|---|---|---|
+| `NewSection` | 修改 | `{ nsId :: Id, nsLevel :: Int, nsTitle :: Text, nsBody :: Text, nsPayload :: NewSectionPayload }` | 一個待寫入的新節有哪些欄位(`nsMeta` 拆進 payload) |
+| `NewSectionPayload` | 新增 | `NSFragment MetaOverride \| NSAsset MetaOverride NewAsset \| NSLicense MetaOverride NewLicense \| NSNode MetaOverride NewNode`(封閉 sum) | 四種節點各自需要哪些欄位才寫得完整 |
+| `NewAsset` | 新增 | `{ naName :: Maybe LogicalName, naSha256 :: Sha256, naEntry :: Text, naExt :: Maybe Text, naKindMeta :: Value, naLicense :: Maybe Ref, naAuthor :: Maybe Text }` | asset 的節層專屬欄位清單與必填/選填劃分(**讀寫共用同一份**) |
+| `NewLicense` | 新增 | `{ nlcCommercial :: Bool, nlcAttributionRequired :: Bool, nlcCreditText :: Maybe Text, nlcModificationAllowed, nlcRedistributionAllowed, nlcResaleAllowed, nlcNftAllowed :: Maybe Bool, nlcSourceUrl :: Maybe Text }` | 節層授權八維度的清單與必填/選填劃分(讀寫共用同一份) |
+| `NewNode` | 新增 | `newtype NewNode = NewNode { nnKind :: NodeKind }` | Level 節點的專屬欄位只有 `kind`(`parent`/`order`/`entities` 由推導而來,不得重複指定) |
+| `MetaExtras` | 新增 | `newtype MetaExtras = MetaExtras { extraLines :: [Text] }`,每個元素是**一行、不含行尾** | 一個 meta 區塊裡**不屬於 `Meta`** 的頂層條目的**原始位元組** |
+| `AssetFields` | 刪除 | — | 併入 `NewAsset`(原本只有讀方向認得這組欄位,寫方向沒有——這正是 G1/G2 的根) |
+| `LicenseFields` | 刪除 | — | 併入 `NewLicense` |
+| `MetaOverride` | **不動** | `Aapms.Md.Inherit:45-59`,十三個 `Maybe` 欄位 | 節層對 `Meta` 欄位的覆寫。**刻意不擴充**:它是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則 |
+| `DocKind` / `Document` / `Section` / `MdError` / `MdErrorKind` | 不動 | 同上一輪 | 檔案身分、原始切片、錯誤與行號 |
 
-`Aapms.Md.Inherit.MetaOverride` 目前是:
+**「頂層條目」的定義**(`MetaExtras` 與 `extrasOf` 共用,是本 feature 唯一的新語法規則):meta 區塊
+fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 開頭的那一行** + 其後所有「縮排行或
+空行」。條目的**鍵**是該行 `:` 之前的文字。鍵落在 `metaFieldOrder` 裡的是 `Meta` 欄位,其餘是型別
+專屬條目。`meta:` 這種區塊風格的巢狀值因此整段留得住。
 
-```haskell
-data MetaOverride = MetaOverride
-  { moKind :: Maybe NodeKind
-  , moType :: Maybe Text        -- 應為 Maybe TypeKey
-  , moVault :: Maybe Text       -- 應為 Maybe VaultId
-  , ...
-  , moRevision :: Maybe Int     -- 應為 Maybe Revision
-  , ... }
-```
+## 介面
 
-改成 `moType :: Maybe TypeKey`、`moVault :: Maybe VaultId`、`moRevision :: Maybe Revision`。
-`TypeKey` / `VaultId` / `Revision` 三者都已在 `Aapms.Core.Json` 有 `FromJSON` 實例(字串 / 字串 /
-數字),`MetaOverride` 手寫的 `FromJSON` 實例(`o .:? "type"` 等)完全不用改——aeson 會自動用對的
-實例解碼。`emptyOverride`、`overrideOf`、`applyOverride`、`inheritMeta` 四處建構跟著把
-`Just metaType`/`Just metaVault`/`Just metaRevision`(以及 `maybe 1 id moRevision` 要改成
-`maybe (Revision 1) id moRevision`)的型別對齊。
+### 契約 D:讀取方向
 
-`Render.hs` 序列化這三個欄位時目前直接對 `Text`/`Int` 呼叫 `scalar`/`show`(`renderFrontmatter` 的
-`"type: " <> scalar (metaType m)`、`"vault: " <> scalar (metaVault m)`、
-`"revision: " <> T.pack (show (metaRevision m))`,以及 `renderMetaBlock` 的對應三行)。
-`TypeKey`/`VaultId`/`Revision` 都是 `deriving stock (Show)` 的 newtype(建構子有 export),
-直接 `show` 會印成 `TypeKey "asset-pack"` 而不是 `asset-pack`,`Revision` 同理。六處都要先
-pattern match 解開 newtype(`let TypeKey t = metaType m in scalar t` 這種寫法)才能餵給既有的
-`scalar`/`flowScalar`。
+| 簽名 | 語意(做什麼) | 骨架位置 |
+|---|---|---|
+| `parseDocument :: Text -> Either MdError Document` | 把一份 Markdown 文字切成保留原始位元組的分節結構,並判定它是四種文件的哪一種 | `md/src/Aapms/Md/Parse.hs:52` |
+| `docKind :: Document -> DocKind` | 回報這份文件的身分 | `md/src/Aapms/Md/Document.hs:81` |
+| `toTopic :: Document -> Either MdError (Entity, [Entity])` | 把主題檔解讀成主體與它的片段 | `md/src/Aapms/Md/Parse.hs:124` |
+| `toLevel :: Document -> Either MdError (Level, [Node])` | 把 Level 檔解讀成 Level 與它的節點 | `md/src/Aapms/Md/Parse.hs:140` |
+| `toPack :: Document -> Either MdError (Pack, [Asset])` | 把 `pack.md` 解讀成 Pack 與它的素材 | `md/src/Aapms/Md/Parse.hs:224` |
+| `toLicenses :: Document -> Either MdError [License]` | 把 `licenses.md` 解讀成一組授權(容器本身不是節點) | `md/src/Aapms/Md/Parse.hs:279` |
 
-### 2. 移除 `MdWarning`,警告改交給 `checkMeta`(T3)
+### 契約 D:寫回方向
 
-design.md 的讀取管線寫得很明白:「`aapms-core` 純驗證:`buildTree`(Level)、`checkMeta`(每個
-節點,只產警告)」——警告的唯一來源是 F002 的 `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]`
-(`core/src/Aapms/Core/Meta.hs:128`,型別在同檔 183-192 行)。契約 D 的四個 `to*` 函式簽名也印證
-這件事:`toTopic :: Document -> Either MdError (Entity, [Entity])` 這類簽名裡沒有警告的位置。
+| 簽名 | 語意(做什麼) | 骨架位置 |
+|---|---|---|
+| `renderDocument :: Document -> Text` | 把分節結構還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:87` |
+| `updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document` | 改寫檔案層 frontmatter | `md/src/Aapms/Md/Render.hs:436` |
+| `overrideAt :: Id -> Document -> Either MdError MetaOverride` | 讀出某節目前的 `Meta` 覆寫 | `md/src/Aapms/Md/Render.hs:115` |
+| `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 改寫某節的 `Meta` 欄位;**該節的型別專屬條目、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:103` |
+| `updateSectionBody :: Id -> Text -> Document -> Either MdError Document` | 只換某節的正文 | `md/src/Aapms/Md/Render.hs:353` |
+| `appendSection :: NewSection -> Document -> Either MdError Document` | 在文件最後一節之後追加一個新節;沒有節時追加在 preamble 之後 | `md/src/Aapms/Md/Render.hs:321` |
+| `removeSection :: Id -> Document -> Either MdError Document` | 刪掉某節連同它的 meta 區塊與正文 | `md/src/Aapms/Md/Render.hs:343` |
+| `newDocument :: DocKind -> Meta -> Text -> Document` | 從零產生一份只有 frontmatter 與正文、還沒有任何節的文件 | `md/src/Aapms/Md/Render.hs:458` |
 
-現有的 `Aapms.Md.Error.MdWarning`(`MissingSummary` / `CustomLinkKind` / `EmptyBody`,
-`md/src/Aapms/Md/Error.hs:103-118`)與 `Inherit.hs` 產生警告的那兩行(167-169)因此整組移除;
-`Parse.hs` 現有的 `parseEntityFile :: Document -> Either [MdError] (EntityFile, [MdWarning])`
-與 `parseLevelFile` 同理拿掉回傳的 `[MdWarning]`。這是一個會改變行為的決定,列進「待確認假設」。
+### 契約 D 之外(本次新增,待編排者補進契約 D,見 A1)
 
-### 3. `MdError` 拿掉檔案路徑(T4)
+| 簽名 | 語意(做什麼) | 骨架位置 |
+|---|---|---|
+| `newtype MetaExtras = MetaExtras { extraLines :: [Text] }` | 一組型別專屬條目的原始行 | `md/src/Aapms/Md/Render.hs:145` |
+| `extrasOf :: Section -> MetaExtras` | 取出某節 meta 區塊裡的型別專屬條目 | `md/src/Aapms/Md/Render.hs:155` |
+| `extrasAt :: Id -> Document -> Either MdError MetaExtras` | 同上,以節 id 定位(與 `overrideAt` 對稱) | `md/src/Aapms/Md/Render.hs:160` |
+| `mergeExtras :: MetaExtras -> MetaExtras -> MetaExtras` | 合併兩組專屬條目,同鍵時**第一個參數贏** | `md/src/Aapms/Md/Render.hs:168` |
+| `updateSectionExtras :: Id -> (MetaExtras -> MetaExtras) -> Document -> Either MdError Document` | 改寫某節的型別專屬條目;**該節的 `Meta` 欄位、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:177` |
+| `payloadOverride :: NewSectionPayload -> MetaOverride` | 取出 payload 的 `Meta` 那一半 | `md/src/Aapms/Md/Render.hs:291` |
+| `payloadExtras :: NewSectionPayload -> MetaExtras` | 取出 payload 的型別專屬那一半 | `md/src/Aapms/Md/Render.hs:306` |
+| `renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text` | 把兩半序列化成一個完整的 ` ```meta ` 區塊 | `md/src/Aapms/Md/Render.hs:564` |
+| `mkSection :: LineEnding -> Int -> Id -> Text -> Maybe NewSectionPayload -> Text -> Section` | 由零件組一個新的節 | `md/src/Aapms/Md/Render.hs:419` |
 
-契約 D 的 `parseDocument :: Text -> Either MdError Document` 沒有 `FilePath` 參數,`docKind`
-一系列函式也都只吃 `Document`。現有 `MdError` 帶 `errPath :: FilePath`
-(`md/src/Aapms/Md/Error.hs:26`),但契約沒有任何函式能把路徑餵進來——`Document`
-(`md/src/Aapms/Md/Document.hs:54-67`)自己的 `docPath` 欄位目前也只能由呼叫端在 `parseDocument`
-時傳入,新契約下沒有這個管道。`mkDocument`(即將改名 `newDocument`)原本就把 `docPath` 留空,
-註解寫「要用於錯誤訊息時由呼叫端填」——也就是說現有程式碼已經承認路徑是呼叫端的責任,只是舊契約
-把它硬塞進 `parseDocument` 的參數。新契約把這個責任徹底移交出去:`MdError` 拿掉 `errPath`,只剩
-`errLine :: Int` 與 `errKind :: MdErrorKind`;`Document` 拿掉 `docPath`。`renderMdError` 的輸出
-從 `<path>:<line>: <msg>` 改成 `第 <line> 行:<msg>`。之後 `aapms-store`(#5/#6,不在本 feature
-範圍)在 `indexFile :: VaultHandle -> FilePath -> IO (...)` 已經知道檔案路徑,要顯示給使用者時
-自己接上路徑即可。
+### 既有匯出(本次未改動,登記以求介面表完整)
 
-`Lexer.hs`/`Parse.hs`/`Render.hs` 全部建構 `MdError` 的地方(約 20 處呼叫點,`MdError path line
-kind` 或 `mdError path line kind`)要把 `path` 參數拿掉。
+| 簽名 | 語意(做什麼) | 骨架位置 |
+|---|---|---|
+| `renderSection :: Section -> Text` | 把一個節還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:91` |
+| `renameSection :: Id -> Text -> Document -> Either MdError Document` | 只換某節標題行的標題文字(層級與 `{#id}` 保留) | `md/src/Aapms/Md/Render.hs:376` |
+| `replacePreamble :: Text -> Document -> Document` | 只換 frontmatter 與第一個節之間的正文 | `md/src/Aapms/Md/Render.hs:399` |
+| `renderFrontmatter :: Meta -> LineEnding -> Text` | 把完整 `Meta` 序列化成 frontmatter 內容(不含 `---` 界線) | `md/src/Aapms/Md/Render.hs:505` |
+| `frontmatterFieldOrder :: [Text]` | frontmatter 的固定欄位順序 | `md/src/Aapms/Md/Render.hs:476` |
+| `metaFieldOrder :: [Text]` | ` ```meta ` 區塊裡屬於 `Meta` 的那一半的固定欄位順序,同時是「哪些鍵不是型別專屬條目」的唯一判準 | `md/src/Aapms/Md/Render.hs:538` |
 
-### 4. `parseDocument` 改單一錯誤,`Document` 內部快取 `DocKind`(T5、T6)
+## Laws(行為性質)
 
-契約:`parseDocument :: Text -> Either MdError Document`、`docKind :: Document -> DocKind`——
-注意 `docKind` **不是** `Either MdError DocKind`,代表它不會失敗。但 `docKind` 的判定規則
-(design.md:「`docKind` 只看檔案層 `type`:`level` → `LevelDoc`、`asset-pack` → `PackDoc`、
-`asset-license` → `LicenseDoc`、其餘一律 `TopicDoc`」)要讀 frontmatter 的 YAML 才知道
-`type` 是什麼字串,而 YAML 有可能解不開。兩個事實合起來只有一種讀法:**`parseDocument` 必須在
-解析階段就把 frontmatter 的 YAML 解到能讀出 `type`,`DocKind` 隨著 `Document` 一起算好存進去**;
-`docKind` 只是回傳這個內部欄位的存取器,不會、也不需要重新解析。frontmatter YAML 解不開時
-`parseDocument` 直接回 `Left (MdError _ (FrontmatterYaml _))`。
+以下 `d` 一律指任一由 `parseDocument` 成功解析出的 `Document`,`i` 指 `d` 裡任一節的 `secId`,
+`f :: MetaOverride -> MetaOverride`、`g :: MetaExtras -> MetaExtras` 為任意函數。
 
-`parseDocument` **不需要**在這個階段驗證 `Meta` 的六個必填欄位(`id`/`vault`/`type`/`title`/
-`created`/`updated`)全部到齊——那是語意層的事,留給 `toTopic`/`toLevel`/`toPack`/`toLicenses`
-各自檢查(沿用既有 `Aapms.Md.Yaml.requiredFrontFields` 與 `missingFields`,
-`md/src/Aapms/Md/Yaml.hs:69-75`)。`parseDocument` 只要 frontmatter 是合法 YAML、且能讀出
-`type`(缺 `type` 或型別不是字串一律當 `TopicDoc`,因為 design.md 說「其餘一律 `TopicDoc`」,
-`type` 本身要不要存在留給後面的必填欄位檢查)。
+**ADR-010 位元組保留**
 
-原本 `lexDocument`(`Lexer.hs:139-160`)以 `Either [MdError] Document` 回報**全部**結構錯誤
-(標題缺 id、id 重複、meta 區塊沒收尾等);新契約要求單一 `MdError`。做法:內部仍然照舊蒐集
-所有結構錯誤(這是實作細節,不影響公開型別),對外把清單依 `errLine` 排序後只回傳第一筆
-(`Left . minimumBy (comparing errLine)`)。這個「只回報第一個錯誤」的行為改變,連同上面的
-`MdWarning` 移除一起列進「待確認假設」。
+- **L1**:對所有能被 `parseDocument` 成功解析的文字 `t`,`renderDocument <$> parseDocument t == Right t`。
+- **L2**:對所有 `d`、`i`、`f`,若 `updateSection i f d == Right d'`,則對 `d'` 中每一個 `secId /= i`
+  的節,`renderSection` 的結果與 `d` 中同 id 的節逐位元組相同;`i` 那一節的 `secHeadingRaw` 與
+  `secBodyRaw` 也逐位元組相同。
+- **L3**:對所有 `d`、`i`、`g`,`updateSectionExtras i g d` 滿足與 L2 完全相同的保留條件。
 
-### 5. `newDocument` 取代 `mkDocument`(T7)
+**G2:型別專屬條目的保留(本次重跑的核心)**
 
-契約:`newDocument :: DocKind -> Meta -> Text -> Document`。現有 `mkDocument :: LineEnding ->
-Meta -> Text -> Document`(`Render.hs:258-269`)吃的是 `LineEnding` 不是 `DocKind`。新文件一律
-固定用 `LF`(呼叫端要 `CRLF` 的情境——沿用既有檔案的風格——本來就是走 `updateFrontmatter`/
-`updateSection` 之類的編輯路徑,不會呼叫 `newDocument`);傳入的 `DocKind` 存進上一節的內部快取
-欄位,讓新建的 `Document` 呼叫 `docKind` immediately 就拿得到正確答案,不必先 `renderDocument`
-再 `parseDocument` 繞一圈。
+- **L4**:對所有 `d`、`i`、`f`,若 `updateSection i f d == Right d'`,則
+  `extrasAt i d' == extrasAt i d`(行的內容逐字相同,順序相同,不多不少)。
+- **L5**:對所有能被 `toPack` 成功解析的 `d`、任一 `i`、任一 `f`,令
+  `Right d' = updateSection i f d`、`Right (_, as) = toPack d`、
+  `Right (_, as') = (parseDocument (renderDocument d') >>= toPack)`,則 `as` 與 `as'` 逐項的
+  `astSha256` / `astEntry` / `astExt` / `astName` / `astKindMeta` / `astLicense` / `astAuthor`
+  對應相等。(這是已重現缺陷的直接否證形式。)
+- **L6**:對所有能被 `toLicenses` 成功解析的 `d`、任一 `i`、任一 `f`,`updateSection` 再
+  `renderDocument` → `parseDocument` → `toLicenses` 之後,每個 `License` 的八個維度
+  (`licCommercial` / `licAttributionRequired` / `licCreditText` / `licModificationAllowed` /
+  `licRedistributionAllowed` / `licResaleAllowed` / `licNftAllowed` / `licSourceUrl`)與變換前相等。
+- **L7**:對所有節 `s`,`extraLines (extrasOf s)` 恰好是 `s` 的 meta 區塊中**鍵不在 `metaFieldOrder`**
+  的頂層條目的所有行,逐字相同、相對順序與原文相同;且其中不含任何鍵在 `metaFieldOrder` 中的條目。
+- **L8**:對所有 `d`、`i`,`updateSection i id d >>= updateSection i id` 與 `updateSection i id d`
+  產生的 `renderDocument` 結果相同(冪等)。
 
-### 6. `toTopic` / `toLevel`(T8)
+**meta 區塊的序列化**
 
-分別是現有 `parseEntityFile`(`Parse.hs:127-152`)/ `parseLevelFile`(`Parse.hs:158-196`)去掉
-`[MdWarning]` 回傳值後的改名版,回傳型別從 `EntityFile { efMain, efFragments }` /
-`LevelFile { lfLevel, lfNodes }` 兩個中介 record 改成契約要求的 tuple `(Entity, [Entity])` /
-`(Level, [Node])`。內部邏輯(標題階層即樹、`buildTree` 不在這裡呼叫、Node 的 `entities` 由
-`involves`/`references` 推導)不變,只是套上第 1、2 節修好的型別與 `inheritMeta` 新簽名
-(見下一節,`typeInherits = True`)。
+- **L9**:對所有 `ov`、`ex`、`le`,`renderMetaBlock ov ex le` 的行序列 =
+  `["```meta"] ++ M ++ extraLines ex ++ ["```"]`,每行以 `renderLineEnding le` 結尾;其中 `M` 是
+  「`ov` 中值為 `Just` 的欄位依 `metaFieldOrder` 的順序各自產生的行」(`Nothing` 的欄位不產生行,
+  `moLinks = Just (_:_)` 產生 `links:` 加每個關聯一行)。也就是說:**`extraLines ex` 逐字、逐序、
+  原封不動地出現在區塊的最後一段**。(`M` 與 `ex` 的鍵不重複,不是本函式的責任而是它的前提——由
+  L7 與 L11 保證所有 `MetaExtras` 的來源都滿足它。)
+- **L10**:對所有 `ov`、`le`,`renderMetaBlock ov (MetaExtras []) le` 與上一輪
+  `renderMetaBlock ov le` 的輸出逐位元組相同(**回歸 law**:兩半設計不得改變只有 `Meta` 欄位時的排版)。
+- **L11**:對所有 `p :: NewSectionPayload`,`extraLines (payloadExtras p)` 中每個條目的鍵都**不在**
+  `metaFieldOrder` 裡(兩半的鍵集合不相交)。
+- **L12**:對所有 `a`、`b :: MetaExtras`,`mergeExtras a b` 的鍵集合 = `a` 的鍵 ∪ `b` 的鍵;同鍵的
+  條目逐字取自 `a`;`b` 中鍵未被覆蓋的條目逐字保留;順序是「`a` 的條目依原序在前,`b` 剩下的依原序在後」。
 
-### 7. `toPack`(T9)
+**G1:payload 寫得出完整的新節**
 
-```
-toPack :: Document -> Either MdError (Pack, [Asset])
-```
+- **L13**:對所有 `pack.md` 的 `d`、任一未撞號的 `PAst` 前綴 `i`、任一 `NewAsset na`、任一含
+  `moType = Just t` 的 `ov`,令
+  `Right d' = appendSection (NewSection i 2 title body (NSAsset ov na)) d`,則
+  `parseDocument (renderDocument d') >>= toPack` 成功,且新增那一筆 `Asset` 滿足
+  `astSha256 = naSha256 na`、`astEntry = naEntry na`、`astExt = naExt na`、`astName = naName na`、
+  `astKindMeta = naKindMeta na`、`astLicense = naLicense na`、`astAuthor = naAuthor na`。
+- **L14**:同 L13 的形式,`NSLicense ov nl` 追加進 `licenses.md` 之後 `toLicenses` 解回的新 `License`,
+  八個維度逐一等於 `nl` 的對應欄位。
+- **L15**:同 L13 的形式,`NSNode ov (NewNode k)` 追加進 Level 檔之後 `toLevel` 解回的新 `Node`
+  滿足 `nodKind == k`,**不論 `moKind ov` 是什麼**(`NewNode` 是 `kind` 的唯一真相來源)。
+- **L16**:對所有 `p`,`moKind (payloadOverride p)` 在 `p` 為 `NSNode _ n` 時等於 `Just (nnKind n)`,
+  其餘三個建構子時等於該建構子所帶 `MetaOverride` 的 `moKind`;`payloadOverride` 不改動其他十二個欄位。
 
-檔案層:pack.md 的 frontmatter **直接解成 `Pack`**,不是先解成 `Meta` 再另外處理 pack 專屬欄位——
-`Aapms.Core.Json` 的 `FromJSON Pack` 實例(`core/src/Aapms/Core/Json.hs:282-293`)本來就是把
-`parseMetaFields o`(Meta 的六個必填 + 其餘欄位)與 `vendor`/`archive`/`sha256`/`license`/
-`author`/`source_url`/`ai_disclosure` 這些 pack 專屬欄位攤平在同一層物件解出來,而 pack.md 的
-frontmatter 形狀(system.md 的範例)正好就是這個攤平形狀。沿用 `Parse.hs` 現有的
-`frontValue`/`missingFields`(`Yaml.hs:69-75`)先驗六個必填欄位,再 `fromValue v :: Either Text
-Pack`。
+**追加與刪除**
 
-每一節:先驗 `secId` 前綴是 `PAst`(沿用既有 `prefixErrors`,`Parse.hs:119-123`,把預期前綴從
-`PEnt`/`PNod` 換成 `PAst`);`type` **不繼承**——`inheritMeta` 需要一個「type 是否繼承」的旗標
-(design.md 節層繼承規則表格,pack.md 那一列),缺漏時回 `SectionFieldMissing secId "type"`(新
-增的 `MdErrorKind` 建構子,見下)。除了 `Meta` 的欄位外,asset 專屬欄位(`name`/`sha256`/`entry`/
-`ext`/`meta`/`license`/`author`)要從**同一份**節 meta YAML `Value` 另外解一次——它們不在
-`MetaOverride` 裡(`MetaOverride` 只管 `Meta` 的欄位,`moKind` 是 Node 專屬的既有先例,asset 專屬
-欄位比照辦理,獨立一個小 record 解碼,不塞進 `MetaOverride`,避免這個 DTO 為了三種文件各自的
-專屬欄位越長越雜)。`sha256`/`entry` 對應 `Asset` 的非 `Maybe` 欄位(`Aapms.Core.Asset.Asset`,
-`core/src/Aapms/Core/Asset.hs:35-46`),缺漏是錯誤;`name`/`ext`/`meta`/`license`/`author` 缺漏
-是 `Nothing`/`Null`,與 `Aapms.Core.Json` 的 `FromJSON Asset` 實例(`Json.hs:244-255`)用的
-`.:?`/`.:` 規則完全一致(等於把該實例「拆成兩半」用:一半走 `MetaOverride`+`inheritMeta`,一半
-走這個新的小型別)。
+- **L17**:對所有 `d` 與 `nsId` 未出現在 `d` 的 `NewSection ns`,`appendSection ns d == Right d'` 且
+  `d'` 中原有每一節的 `secHeadingRaw` 與 `secMetaRaw` 逐位元組不變;`secBodyRaw` 僅最後一節可能在
+  **尾端**補上行尾/空行,其餘節逐位元組不變;新節排在最後。
+- **L18**:對所有 `d` 與 `nsId ns` 已存在於 `d` 的 `ns`,
+  `appendSection ns d == Left (mdError 1 (DuplicateSectionId (nsId ns)))`。
+- **L19**:對所有 `d`、`i`,`removeSection i d == Right d'` 時 `sectionIds d'` = `sectionIds d` 去掉 `i`,
+  且 `d'` 中每一節的 `renderSection` 與 `d` 中同 id 的節逐位元組相同;`i` 不存在時回
+  `Left (mdError 1 (UnknownSectionId i))`。
+- **L20**:對所有 `d`、`i`、`body`,`updateSectionBody i body d == Right d'` 時,`d'` 中 `i` 那一節的
+  `secHeadingRaw` 與 `secMetaRaw` 逐位元組不變,其他節的 `renderSection` 逐位元組不變。
+- **L21**:對所有 `le`、`level`、`i`、`title`、`p`、`body`,
+  `mkSection le level i title (Just p) body` 產生的 `Section` 的 `secMetaRaw` 等於
+  `renderLineEnding le <> renderMetaBlock (payloadOverride p) (payloadExtras p) le`;
+  `Nothing` 時 `secMetaRaw == Nothing`。
 
-不像 `toLevel` 呼叫 `structure`(`Parse.hs:220-240`)驗證標題跳級,`toPack` 跟現有的
-`parseEntityFile` 一樣是**攤平**清單:pack.md 的每個節都是同一層的 asset,不管標題用 `##` 還是
-`###`,`Section` 順序直接映成 `[Asset]` 的順序,不做樹狀驗證。
+**解析與繼承**
 
-### 8. `toLicenses`(T10)
+- **L22**:對所有能解析的 `t`,`docKind` 只由檔案層 `type` 決定:`"level"` → `LevelDoc`、
+  `"asset-pack"` → `PackDoc`、`"asset-license"` → `LicenseDoc`、其餘(含缺 `type`、`type` 不是字串)
+  一律 `TopicDoc`。
+- **L23**(節層繼承規則,design.md 表格):對所有檔案層 `Meta` `front` 與任一節,解出的節 `Meta` 滿足
+  `metaVault` / `metaStatus` / `metaTimeline` / `metaSource` / `metaCreated` / `metaUpdated` 在節層未寫
+  時等於 `front` 的對應值;`metaTags == nub (metaTags front ++ 節層 tags)`;`metaSummary` /
+  `metaAliases` / `metaLinks` 節層未寫時為空、`metaRevision` 節層未寫時為 `Revision 1`(皆不繼承);
+  `metaId` / `metaTitle` 取自節本身。
+- **L24**:對所有 `pack.md` 的節,節層未寫 `type` 時 `toPack` 回
+  `Left (MdError _ (SectionFieldMissing secId "type"))`;對主題檔 / Level 檔 / `licenses.md` 的節,
+  節層未寫 `type` 時繼承檔案層的 `metaType`。
+- **L25**:對所有 `d`、`k`、`m`、`b`,`docKind (newDocument k m b) == k`;且
+  `parseDocument (renderDocument (newDocument k m b))` 成功。
+- **L26**:對所有 `d` 與任一 `f :: Meta -> Meta`,`updateFrontmatter f d == Right d'` 時 `d'` 的
+  `docPreamble` 與每一節的 `renderSection` 逐位元組不變。
+- **L27**:對所有 `d`、`i`,`overrideAt i d` 與「`d` 中 `i` 那一節的 meta 區塊解出的 `MetaOverride`」
+  相同;節沒有 meta 區塊時為 `emptyOverride`;節不存在時回 `Left (mdError 1 (UnknownSectionId i))`。
 
-```
-toLicenses :: Document -> Either MdError [License]
-```
+**既有匯出的回歸 law(行為不得改變)**
 
-design.md 明講「licenses.md 的檔案層是容器不是節點」——檔案層只解到 `Meta`(用既有
-`frontMeta`/`fromValue v :: Either Text Meta` 那條路,跟 TopicDoc/LevelDoc 一樣,**不是**
-`toPack` 那種直接解成完整節點型別的路),這個 `Meta` 只用來當節層繼承的來源,不出現在
-`toLicenses` 的回傳值裡。
+- **L28**:對所有 `d`、`i`、`title`,`renameSection i title d == Right d'` 時 `d'` 中 `i` 那一節的
+  `secMetaRaw` 與 `secBodyRaw` 逐位元組不變、`secId` 不變、`secLevel` 不變、`secTitle == title`,
+  其他節的 `renderSection` 逐位元組不變。
+- **L29**:對所有 `d`、`body`,`replacePreamble body d` 之後每一節的 `renderSection` 與 `docFrontRaw`
+  逐位元組不變,且 `parseDocument (renderDocument (replacePreamble body d))` 成功。
+- **L30**:對所有 `m :: Meta`、`le`,`renderFrontmatter m le` 產生的行,其鍵依序恰好是
+  `frontmatterFieldOrder`(每個欄位都輸出,`links` 為多行);且
+  `decodeFrontmatter (renderFrontmatter m le) == Right m`(往返不失真)。
+- **L31**:對所有 `Section` `s`,`renderSection s == secHeadingRaw s <> fromMaybe "" (secMetaRaw s) <> secBodyRaw s`。
 
-每一節:先驗 `secId` 前綴是 `PLic`;`type` **繼承**——design.md 的節層繼承規則表格只列出兩欄
-(「主題檔 / Level 檔」與「pack.md」),licenses.md 沒有單獨一欄。讀法只有一種說得通:表格說
-「四種文件共用,差異只在一列」,那一列就是 pack.md 那一欄,licenses.md 因此併入「主題檔 /
-Level 檔」那一欄——container 的 `type` 固定是 `asset-license`,每個 `License` 節點的型別概念上
-本來就跟容器一致(不像 Pack 的節是各種 `asset-image`/`asset-audio`,型別本來就該跟容器不同),
-繼承或要求逐節重寫沒有實質差異,選繼承跟另外三種文件的規則一致、程式碼路徑最少分岔。
+## Examples
 
-除了 `Meta` 欄位外,授權八維度(`commercial`/`attribution_required`/`credit_text`/
-`modification_allowed`/`redistribution_allowed`/`resale_allowed`/`nft_allowed`/`source_url`)
-從同一份節 YAML `Value` 另外解——比照 `toPack` 的做法,獨立一個小 record,`commercial`/
-`attribution_required` 用 `.:`(缺漏是錯誤),其餘六個用 `.:?`(缺漏是 `Nothing`)。這與
-`Aapms.Core.Json` 的 `FromJSON License` 實例(`Json.hs:310-322`)的必填/選填劃分完全一致
-(該實例的 `full_text` 欄位不在節層——`License` 的 `licFullText` 供全域授權登記用,節層 meta
-不需要重複貼授權全文,沿用同一套「缺漏 `Nothing`」規則自然涵蓋)。跟 `toPack` 一樣是攤平清單,
-不驗證標題階層。
+| # | 輸入 | 預期輸出 | 覆蓋的邊界 |
+|---|---|---|---|
+| E1 | `pack.md` 的 asset 節含 `sha256: deadbeef1234` 與 `entry: PNG/a.png`,呼叫 `updateSection aid (\o -> o { moSummary = Just "after" })`,再 `renderDocument` | 輸出文字仍含 `sha256: deadbeef1234` 與 `entry: PNG/a.png` 兩行(逐字);`toPack` 解回的 `astSha256` / `astEntry` 不變;`summary` 改成 `after` | **已重現缺陷的回歸例**(G2) |
+| E2 | 只有 frontmatter、沒有任何節的 `pack.md`,`appendSection (NewSection ast-0001 2 "圖示" "" (NSAsset ov na)) d` | 產生一個節;`renderDocument` → `parseDocument` → `toPack` 成功且 `[Asset]` 長度為 1 | 空文件 / 單一元素 |
+| E3 | `pack.md` 的節沒有寫 `type`,呼叫 `toPack` | `Left (MdError line (SectionFieldMissing secId "type"))` | pack.md 的節層 `type` 不繼承 |
+| E4 | `licenses.md` 的節沒有寫 `commercial`,呼叫 `toLicenses` | `Left (MdError line (SectionFieldMissing secId "commercial"))` | 八維度中兩個必填的例外路徑 |
+| E5 | 1,693 節的合成 `pack.md`,`appendSection` 追加第 1,694 節 | 前 1,693 節的 `renderSection` 逐位元組不變(僅第 1,693 節的 `secBodyRaw` 尾端可能補空行);新節在最後;結果能再 `parseDocument` + `toPack` | 極值(D4:測試內生成器合成,不需要真實大檔) |
+| E6 | 節的 meta 區塊含註冊表宣告的自訂欄位 `battle_power: 9000`,呼叫 `updateSection i (\o -> o { moStatus = Just Canon })` | `battle_power: 9000` 逐字保留 | **未知欄位**也要保留(不只型別專屬那幾個) |
+| E7 | asset 節,呼叫 `updateSectionExtras aid (mergeExtras (payloadExtras (NSAsset emptyOverride na')))`,其中 `na'` 只改 `naLicense` | `license` 那一行換成新值;`sha256` / `entry` / `meta` 逐字不變;`overrideAt aid` 的結果與呼叫前相同;正文與標題行逐位元組不變 | 型別專屬半邊的編輯路徑(契約 E 的 `writeAssetFields` 靠它) |
+| E8 | 節的 meta 區塊含區塊風格的巢狀值 `meta:` + 兩行縮排的 `width:` / `height:`,呼叫任一 `updateSection` | 三行整段逐字保留、順序不變 | 多行頂層條目 |
+| E9 | `appendSection` 的 `nsId` 與既有節撞號 | `Left (MdError 1 (DuplicateSectionId nsId))` | 例外路徑 |
+| E10 | 五份 frontmatter:`type: level` / `type: asset-pack` / `type: asset-license` / `type: character` / 完全沒有 `type` | `docKind` 依序為 `LevelDoc` / `PackDoc` / `LicenseDoc` / `TopicDoc` / `TopicDoc` | 四種身分 + 未知 fallback |
 
-### 9. `MdErrorKind` 新增建構子(T11)
+## 依賴
 
-```haskell
-SectionFieldMissing Id Text   -- 節 id, 缺少的必填欄位名(如 "type"、"commercial")
-```
+`depends-on: [F001, F002]`(維持不變)。
 
-供 `toPack`(節缺 `type`)與 `toLicenses`(節缺 `commercial`/`attribution_required`)共用。
-`renderMdErrorKind` 補一行:`"節 " <> renderId i <> " 缺少必填欄位 " <> f`。既有的
-`RequiredFieldMissing Text` 維持專指「檔案層 frontmatter 缺欄位」的語意,不覆用。
+- **F001**:直接的程式碼相依。下表每一列都是 `aapms-core` 在 F001 定案的型別與編碼規則,本 feature
+  的每一個函式都消費它們;`NewAsset` / `NewLicense` 的欄位形狀更是逐欄照抄 `Asset` / `License`。
+- **F002**:**沒有直接的函式呼叫**(`aapms-md` 不 import `aapms-types`,`docKind` 只比對字面
+  `type` 字串,不查 `TypeRegistry`),因此不出現在下表——該表只列有實際簽名可查證的呼叫。相依是
+  「共用資料結構」性質的:`docKind` 硬編碼的三個字面值(`level` / `asset-pack` / `asset-license`)
+  與 F002 驗收標準「這三個保留鍵出現在註冊表是載入錯誤」是**同一份保留鍵清單的兩處體現**,F002 若
+  增減保留鍵,`docKind` 的分類規則(L22)要跟著改。另外「meta 區塊的未知鍵一律保留」(L7)這條規則
+  存在的理由,正是 F002 的註冊表可以宣告任意欄位。
+- **不依賴 F003**(`Manifest`):`aapms-md` 不產生、不讀 manifest。
 
-### 10. `NewSection` 與 `appendSection`(T12)
-
-```haskell
-data NewSection = NewSection
-  { nsId    :: Id
-  , nsLevel :: Int
-  , nsTitle :: Text
-  , nsMeta  :: MetaOverride
-  , nsBody  :: Text
-  }
-
-appendSection :: NewSection -> Document -> Either MdError Document
-```
-
-`nsId` 由呼叫端(`aapms-store` 的 `allocateId`,契約 E,#8 的範圍)先配好再傳進來——`aapms-md`
-不知道怎麼配 id,契約 B 的 `newId`/`allocateId` 也都不在 `aapms-md` 能呼叫的範圍內。取代現有的
-`insertSection :: Maybe Id -> Section -> Document -> Either MdError Document`
-(`Render.hs:107-118`):`insertSection` 的 `Maybe Id` 是「插在哪一節之後」,`Nothing` 代表插在
-**最前面**;而契約的 `appendSection`(顧名思義)固定「插在文件**最後**一節之後,沒有任何節時插在
-最前面(preamble 之後)」——語意变窄但直接對上驗收標準的「在 1,693 節的文件末尾追加一節」。實作
-上是 `insertSection` 邏輯的一個特化:算出 `docSections` 最後一個的 `secId`(或沒有節時走
-`Nothing` 分支),用 `mkSection`(`Render.hs:210-221`,拿掉 `LineEnding` 參數改吃 `Document` 的
-`docEnding`)由 `NewSection` 組出 `Section`,重複 id 時回 `Left (MdError _ (DuplicateSectionId
-nsId))`。
-
-`appendSection` 完全不驗證標題層級是否合理(例如 Level 文件插入一個層級不連續的節)——跟 `toPack`/
-`toLicenses`/`toTopic` 一樣,樹狀合法性是 `aapms-core` 的 `buildTree` 在下一次 `toLevel` 時才會
-抓到(`MdErrorKind` 的 `HeadingSkip`/`HeadingAboveRoot` 屬於 `structure` 這個既有機制,不歸
-`appendSection` 管)。
-
-### 11. `updateSectionBody` 改名(T13)
-
-現有 `replaceSectionBody :: Id -> Text -> Document -> Either MdError Document`
-(`Render.hs:148-162`)簽名已經跟契約一致,純改名成 `updateSectionBody`,邏輯不動。
-
-## 使用到的既有串接介面
+### 使用到的既有介面
 
 | 介面(含完整簽名) | 來源檔案 | 來源文檔 | 用途 |
 |---|---|---|---|
-| `data Meta = Meta { metaId :: Id, metaVault :: VaultId, metaType :: TypeKey, metaTitle :: Text, metaSummary :: Text, metaTags :: [Text], metaStatus :: Status, metaTimeline :: Maybe Timeline, metaAliases :: [Text], metaLinks :: [Link], metaSource :: Source, metaRevision :: Revision, metaCreated :: Day, metaUpdated :: Day }` | `core/src/Aapms/Core/Meta.hs:123-139` | F001 | `MetaOverride`/`inheritMeta`/`applyOverride`/frontmatter 序列化的基礎型別 |
-| `newtype TypeKey = TypeKey Text`(建構子 export) | `core/src/Aapms/Core/Meta.hs:45-47` | F001 | `moType`/`metaType` 的正確型別 |
-| `newtype Revision = Revision Int`(建構子 export) | `core/src/Aapms/Core/Meta.hs:50-52` | F001 | `moRevision`/`metaRevision` 的正確型別 |
-| `data Status = Draft \| Canon \| Deprecated \| Missing` | `core/src/Aapms/Core/Meta.hs:57-62` | F001 | `moStatus`/`metaStatus`,`FromJSON`/`ToJSON` 已在 `Json.hs` | 
-| `data Source = Human \| Agent Text \| Workshop Text \| Scan \| Ai Text` | `core/src/Aapms/Core/Meta.hs:80-90` | F001 | `moSource`/`metaSource` |
-| `data Timeline = Timeline { tlLabel :: Maybe Text, tlOrder :: Maybe Int }` | `core/src/Aapms/Core/Meta.hs:112-116` | F001 | `moTimeline`/`metaTimeline` |
-| `newtype Id`(不透明)、`parseId :: Text -> Either IdError (IdPrefix, Id)`、`renderId :: Id -> Text`、`idPrefix :: Id -> IdPrefix` | `core/src/Aapms/Core/Id.hs:86-141` | F001 | 節標題 `{#id}` 解析、`secId`、`appendSection` 的 `nsId` |
-| `newtype VaultId = VaultId Text`(建構子 export) | `core/src/Aapms/Core/Id.hs:148-150` | F001 | `moVault`/`metaVault` 的正確型別 |
-| `data Ref = Ref { refVault :: Maybe VaultId, refId :: Id }`、`parseRef`、`renderRef :: Ref -> Text` | `core/src/Aapms/Core/Id.hs:156-182` | F001 | `Link` 的 target、`astLicense`/`pckLicense` |
-| `data IdPrefix = PEnt \| PAst \| PPck \| PLic \| PLvl \| PNod \| PVlt \| PPrj`、`renderIdPrefix` | `core/src/Aapms/Core/Id.hs:46-66` | F001 | `prefixErrors` 對 `PAst`(pack.md)/`PLic`(licenses.md)的驗證 |
-| `data Link = Link { linkKind :: LinkKind, linkTarget :: Ref, linkNote :: Maybe Text }`、`data LinkKind = ... \| Uses \| Depicts \| Custom Text`、`renderLinkKind` | `core/src/Aapms/Core/Link.hs:28-58,75-87` | F001 | `moLinks`/`metaLinks`,`Render.hs` 的 `linkLine` |
+| `data Meta = Meta { metaId :: Id, metaVault :: VaultId, metaType :: TypeKey, metaTitle :: Text, metaSummary :: Text, metaTags :: [Text], metaStatus :: Status, metaTimeline :: Maybe Timeline, metaAliases :: [Text], metaLinks :: [Link], metaSource :: Source, metaRevision :: Revision, metaCreated :: Day, metaUpdated :: Day }` | `core/src/Aapms/Core/Meta.hs:123-138` | F001 | `MetaOverride` / `inheritMeta` / frontmatter 序列化的基礎型別 |
+| `newtype TypeKey = TypeKey Text`、`newtype Revision = Revision Int`、`data Status`、`data Source`、`data Timeline`(建構子皆 export) | `core/src/Aapms/Core/Meta.hs:45-116` | F001 | `MetaOverride` 各欄位的型別;`renderMetaBlock` 序列化前解開 newtype |
+| `newtype Id`(不透明)、`renderId :: Id -> Text`、`idPrefix :: Id -> IdPrefix`、`parseId :: Text -> Either IdError (IdPrefix, Id)` | `core/src/Aapms/Core/Id.hs:86-141` | F001 | 節標題 `{#id}`、`secId`、`nsId` |
+| `newtype VaultId = VaultId Text`、`data Ref = Ref { refVault :: Maybe VaultId, refId :: Id }`、`renderRef :: Ref -> Text`、`data IdPrefix = PEnt \| PAst \| PPck \| PLic \| PLvl \| PNod \| PVlt \| PPrj`、`renderIdPrefix` | `core/src/Aapms/Core/Id.hs:46-182` | F001 | `moVault`、`naLicense`、`prefixErrorsE` 對 `PAst` / `PLic` 的驗證 |
+| `data Link = Link { linkKind :: LinkKind, linkTarget :: Ref, linkNote :: Maybe Text }`、`data LinkKind`、`renderLinkKind :: LinkKind -> Text` | `core/src/Aapms/Core/Link.hs:28-87` | F001 | `moLinks`、`linkLine` |
 | `data Entity = Entity { entMeta :: Meta, entBody :: Text }` | `core/src/Aapms/Core/Entity.hs:12-17` | F001 | `toTopic` 的回傳型別 |
-| `data Level = Level { lvlMeta :: Meta, lvlRoot :: Id }`、`data Node = Node { nodMeta :: Meta, nodLevel :: Id, nodParent :: Maybe Id, nodOrder :: Int, nodKind :: NodeKind, nodEntities :: [Ref] }`、`data NodeKind = KScene \| ... \| KBranch`、`renderNodeKind`、`parseNodeKind` | `core/src/Aapms/Core/Level.hs:19-71` | F001 | `toLevel` 的回傳型別、`moKind` |
-| `data Asset = Asset { astMeta :: Meta, astName :: Maybe LogicalName, astSha256 :: Sha256, astEntry :: Text, astExt :: Maybe Text, astKindMeta :: Value, astLicense :: Maybe Ref, astAuthor :: Maybe Text, astBody :: Text }`、`newtype Sha256`、`newtype LogicalName` | `core/src/Aapms/Core/Asset.hs:17-46` | F001 | `toPack` 每節轉出的 `Asset`;`astSha256`/`astEntry` 非 `Maybe`,決定哪些欄位缺漏是錯誤 |
-| `data Pack = Pack { pckMeta :: Meta, pckVendor :: Maybe Text, pckArchive :: Maybe FilePath, pckSha256 :: Maybe Sha256, pckLicense :: Maybe Ref, pckAuthor :: Maybe Author, pckSourceUrl :: Maybe Text, pckAiDisclosure :: AiDisclosure, pckBody :: Text }`、`data Author`、`data AiDisclosure` | `core/src/Aapms/Core/Pack.hs:19-47` | F001 | `toPack` 的檔案層回傳型別 |
-| `data License = License { licMeta :: Meta, licCommercial :: Bool, licAttributionRequired :: Bool, licCreditText :: Maybe Text, licModificationAllowed :: Maybe Bool, licRedistributionAllowed :: Maybe Bool, licResaleAllowed :: Maybe Bool, licNftAllowed :: Maybe Bool, licSourceUrl :: Maybe Text, licFullText :: Maybe Text }` | `core/src/Aapms/Core/License.hs:13-25` | F001 | `toLicenses` 每節轉出的型別;`licCommercial`/`licAttributionRequired` 非 `Maybe`,決定哪些欄位缺漏是錯誤 |
-| `instance FromJSON Meta`(`o .: "id"` 等六個必填 + 其餘 `.:?`) | `core/src/Aapms/Core/Json.hs:154,177-193` | F001 | `frontMeta` 解檔案層(TopicDoc/LevelDoc/LicenseDoc 容器) |
-| `instance FromJSON Pack`(`parseMetaFields o` + pack 專屬欄位攤平在同一物件) | `core/src/Aapms/Core/Json.hs:282-293` | F001 | `toPack` 解檔案層,直接 `fromValue v :: Either Text Pack` |
-| `instance FromJSON Asset` / `instance FromJSON License`(必填/選填欄位劃分) | `core/src/Aapms/Core/Json.hs:244-255,310-322` | F001 | `toPack`/`toLicenses` 節層專屬欄位解碼的必填/選填規則參照(不能直接重用,因為節 YAML 沒有 `id`/`title`/`created`/`updated`,見實作方式第 7、8 節) |
-| `instance FromJSON TypeKey` / `FromJSON VaultId` / `FromJSON Revision` / `FromJSON Status` / `FromJSON Source` / `FromJSON Timeline` / `FromJSON Link` / `FromJSON NodeKind` | `core/src/Aapms/Core/Json.hs:58-68,82-92,101-104,128-139,141-149,94-98` | F001 | `MetaOverride`(修正型別後)、`Meta` 本身的 `FromJSON` 全部靠這些實例;`aapms-md` 不必自己寫解碼 |
+| `data Level = Level { lvlMeta :: Meta, lvlRoot :: Id }`、`data Node = Node { nodMeta :: Meta, nodLevel :: Id, nodParent :: Maybe Id, nodOrder :: Int, nodKind :: NodeKind, nodEntities :: [Ref] }`、`data NodeKind = KScene \| KCast \| KCamera \| KInteraction \| KDialogue \| KBranch`、`renderNodeKind :: NodeKind -> Text` | `core/src/Aapms/Core/Level.hs:19-71` | F001 | `toLevel` 的回傳型別、`NewNode`、`moKind` 的序列化 |
+| `data Asset = Asset { astMeta :: Meta, astName :: Maybe LogicalName, astSha256 :: Sha256, astEntry :: Text, astExt :: Maybe Text, astKindMeta :: Value, astLicense :: Maybe Ref, astAuthor :: Maybe Text, astBody :: Text }`、`newtype Sha256 = Sha256 Text`、`newtype LogicalName = LogicalName Text` | `core/src/Aapms/Core/Asset.hs:17-46` | F001 | `toPack` 的回傳型別;**`NewAsset` 的欄位形狀逐欄照抄它**(扣掉 `astMeta` 與 `astBody`),`astSha256` / `astEntry` 非 `Maybe` 決定了 `naSha256` / `naEntry` 也非 `Maybe` |
+| `data Pack = Pack { pckMeta :: Meta, pckVendor :: Maybe Text, pckArchive :: Maybe FilePath, pckSha256 :: Maybe Sha256, pckLicense :: Maybe Ref, pckAuthor :: Maybe Author, pckSourceUrl :: Maybe Text, pckAiDisclosure :: AiDisclosure, pckBody :: Text }` | `core/src/Aapms/Core/Pack.hs:19-47` | F001 | `toPack` 的檔案層回傳型別 |
+| `data License = License { licMeta :: Meta, licCommercial :: Bool, licAttributionRequired :: Bool, licCreditText :: Maybe Text, licModificationAllowed :: Maybe Bool, licRedistributionAllowed :: Maybe Bool, licResaleAllowed :: Maybe Bool, licNftAllowed :: Maybe Bool, licSourceUrl :: Maybe Text, licFullText :: Maybe Text }` | `core/src/Aapms/Core/License.hs:13-25` | F001 | `toLicenses` 的回傳型別;**`NewLicense` 的欄位形狀照抄它**(扣掉 `licMeta` 與 `licFullText`) |
+| `instance FromJSON Meta` / `Pack` / `Asset` / `License` / `TypeKey` / `VaultId` / `Revision` / `Status` / `Source` / `Timeline` / `Link` / `NodeKind` | `core/src/Aapms/Core/Json.hs:49-322` | F001 | 全系統唯一的 aeson 編碼規則;`NewAsset` / `NewLicense` 的 `FromJSON` 逐欄借用這些實例 |
 
-## 新增的介面
+### 依賴方向
 
-```haskell
--- Aapms.Md.Document -----------------------------------------------------
+- **依賴誰**:`aapms-md` → `aapms-core`(唯一的套件相依,本次**不新增任何 build-depends**;
+  `Data.Aeson` 已是既有相依)
+- **誰會依賴它**:`aapms-store`(`Index.hs` / `Query.hs` 走讀取方向,`Create.hs` / `Write.hs` /
+  `Node.hs` / `Edit.hs` 走寫回方向)
+- **新增的依賴邊**:
+  - **模組內部**:`Aapms.Md.Parse` → `Aapms.Md.Render`(取用 `NewAsset` / `NewLicense` 與其
+    `FromJSON` 實例)。方向不可反轉:`Aapms.Md.Render` **不得** import `Aapms.Md.Parse`,否則成環
+  - **套件之間**:無新增
+- **可否與其他進行中任務平行開發**:**不可與 F007 / F008 平行**。`aapms-store` 的 `Create.hs`
+  目前自己定義了一組同名的 `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` /
+  `NewNode`(`store/src/Aapms/Store/Create.hs:137-216`),與本 feature 定義在 `Aapms.Md.Render` 的
+  是**同一組 DTO 的兩份定義**——契約 D 說它們屬於 `aapms-md`。收斂方式見「建議編排者做的上層動作」。
+  與 F001 / F002 / F003 無衝突(不碰 `core/` 與 `types/`)。
 
-data DocKind = TopicDoc | LevelDoc | PackDoc | LicenseDoc
-  deriving stock (Show, Eq)
+## 不可逆決定
 
-data Document   -- 不透明;內部欄位由實作決定,不再含 docPath
+1. **`NewSectionPayload` 是封閉 sum,且屬於 `aapms-md` 的對外 DTO**(2026-08-24 開發者裁決,
+   design.md 契約 D 已回寫)。
+   - 否決「把 asset / license 欄位塞進 `MetaOverride`」:那個型別是 md 與 store 共用的**節層繼承
+     DTO**,ADR-010 的位元組保留依賴它的繼承規則;為了三種文件各自的專屬欄位把它撐大,等於讓
+     `inheritMeta` 的每一欄都要回答「這一欄對另外三種文件是什麼意思」。
+   - 否決「每種文件一個 `addSection*`」:store 的單一入口會變成四個,新增節點種類要改四處;封閉
+     sum 讓編譯器替我們列出所有待處理處(與契約 A 的 `AnyNode`、`LinkKind` 同一個模式)。
+2. **meta 區塊在型別上切成兩半,型別專屬那一半以原始行保存**。
+   - 否決「解成 `Value` 再重編」:引號、數字格式與縮排都會被改寫,ADR-010 的位元組保留在**被編輯的
+     那一節**上就沒了,而作者手寫的 `meta:` 巢狀值會被重排。
+   - 否決「只保留已知的型別專屬欄位(asset 七個 + license 八個)」:型別註冊表可以宣告任意欄位
+     (`Aapms.Md.Inherit` 的既有註解已明說「未知欄位一律忽略不報錯」),那些欄位照樣會被吃掉——
+     同一個 bug 換一批欄位重演。以「不在 `metaFieldOrder` 裡」為判準,一條規則涵蓋全部。
+3. **型別專屬條目排在 `Meta` 欄位之後**(`pack.md` / `licenses.md` 一經編輯,meta 區塊的行序就固定
+   成這個樣子,是會進 git 歷史的格式決定)。
+   - 否決「回到原位」:要多存一份位置資訊,而位置本身不是資料;且 `appendSection` 產生的新節沒有
+     「原位」可言,兩條路徑會產生不同排版,`git diff` 反而更髒。
+4. **`NewAsset` / `NewLicense` 讀寫共用同一個型別與同一份 `FromJSON`**(刪掉 `AssetFields` /
+   `LicenseFields`)。
+   - 否決「讀一份、寫一份」:必填 / 選填的劃分會分歧,而 G1 與 G2 正是「讀方向認得、寫方向不認得」
+     這個分歧的兩個症狀。共用一份之後,「解得回來的形狀」與「寫得出去的形狀」在型別上是同一個。
 
--- Aapms.Md.Error ----------------------------------------------------------
+## 骨架
 
-data MdError = MdError { errLine :: Int, errKind :: MdErrorKind }
-  deriving stock (Show, Eq)
+| 檔案 | 內容 |
+|---|---|
+| `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整 |
+| `md/src/Aapms/Md/Parse.hs` | 刪除 `AssetFields` / `LicenseFields` 及其實例,改用 `Aapms.Md.Render` 的 `NewAsset` / `NewLicense`;`toPack` / `toLicenses` / `licenseFieldsOf` 的欄位名機械性更名(行為不變) |
+| `md/src/Aapms/Md/Inherit.hs` | **未改動**(刻意):`MetaOverride` 是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提 |
 
-mdError :: Int -> MdErrorKind -> MdError
+**本體為 `undefined` 的函數**(impl 只准替換這些,不得改動任何簽名與型別):
+`updateSection`、`reserialize`(私有)、`extrasOf`、`extrasAt`、`mergeExtras`、
+`updateSectionExtras`、`payloadOverride`、`payloadExtras`、`appendSection`、`mkSection`、
+`renderMetaBlock`。
 
-data MdErrorKind
-  = NoFrontmatter
-  | UnterminatedFrontmatter
-  | FrontmatterYaml Text
-  | SectionYaml Id Text
-  | HeadingWithoutId Text
-  | DuplicateSectionId Id
-  | IdPrefixMismatch Id Text
-  | HeadingSkip Int Int
-  | HeadingAboveRoot Int Int
-  | UnterminatedMetaBlock
-  | MissingNodeKind Id
-  | RootMismatch Id Id
-  | RequiredFieldMissing Text        -- 檔案層 frontmatter 缺欄位
-  | SectionFieldMissing Id Text      -- 新增:節缺少必填欄位(pack 的 type、license 的兩個必填維度)
-  | UnknownSectionId Id
-  deriving stock (Show, Eq)
-
-renderMdError :: MdError -> Text     -- "第 <line> 行:<訊息>",不再含檔名
-
--- Aapms.Md.Inherit --------------------------------------------------------
-
-data MetaOverride = MetaOverride
-  { moKind :: Maybe NodeKind
-  , moType :: Maybe TypeKey          -- 修正:原為 Maybe Text
-  , moVault :: Maybe VaultId         -- 修正:原為 Maybe Text
-  , moSummary :: Maybe Text
-  , moTags :: Maybe [Text]
-  , moStatus :: Maybe Status
-  , moTimeline :: Maybe Timeline
-  , moAliases :: Maybe [Text]
-  , moLinks :: Maybe [Link]
-  , moSource :: Maybe Source
-  , moRevision :: Maybe Revision     -- 修正:原為 Maybe Int
-  , moCreated :: Maybe Day
-  , moUpdated :: Maybe Day
-  }
-  deriving stock (Show, Eq)
-  -- FromJSON 實例不變(逐欄 .:?),型別隨欄位改變自動吃到正確的 core 實例
-
--- Aapms.Md.Parse ----------------------------------------------------------
-
-parseDocument :: Text -> Either MdError Document
-docKind       :: Document -> DocKind
-
-toTopic    :: Document -> Either MdError (Entity, [Entity])
-toLevel    :: Document -> Either MdError (Level, [Node])
-toPack     :: Document -> Either MdError (Pack, [Asset])
-toLicenses :: Document -> Either MdError [License]
-
--- Aapms.Md.Render -----------------------------------------------------------
-
-renderDocument    :: Document -> Text
-updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
-updateSection     :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
-updateSectionBody :: Id -> Text -> Document -> Either MdError Document          -- 改名自 replaceSectionBody
-appendSection     :: NewSection -> Document -> Either MdError Document          -- 取代 insertSection
-removeSection     :: Id -> Document -> Either MdError Document
-newDocument       :: DocKind -> Meta -> Text -> Document                        -- 取代 mkDocument
-
-data NewSection = NewSection
-  { nsId    :: Id
-  , nsLevel :: Int
-  , nsTitle :: Text
-  , nsMeta  :: MetaOverride
-  , nsBody  :: Text
-  }
-  deriving stock (Show, Eq)
-```
-
-## TodoList
-
-- [x] T1: `MetaOverride` 的 `moType`/`moVault`/`moRevision` 改型別為 `TypeKey`/`VaultId`/`Revision`,
-      `emptyOverride`/`overrideOf`/`applyOverride` 三處建構跟著改  `dep: -`
-- [x] T2: `Render.hs` 的 `renderFrontmatter`/`renderMetaBlock` 對 `type`/`vault`/`revision` 六處
-      序列化改成先 pattern match 解開 newtype 再交給 `scalar`/`flowScalar`  `dep: T1`
-- [x] T3: `inheritMeta` 簽名加「type 是否繼承」旗標,回傳改 `Either MdErrorKind Meta`;移除
-      `Aapms.Md.Error` 的 `MdWarning`/`renderMdWarning` 與 `Inherit.hs` 產生警告的兩行  `dep: T1`
-- [x] T4: `MdError` 拿掉 `errPath`(改雙參數 `errLine`/`errKind`);`Document` 拿掉 `docPath`;
-      `Lexer.hs`/`Parse.hs`/`Render.hs` 全部建構 `MdError`/`mdError` 的呼叫點改新簽名  `dep: T3`
-- [x] T5: `parseDocument :: Text -> Either MdError Document`(拿掉 `FilePath`;結構錯誤內部仍蒐集
-      全部、對外取行號最小的一筆);`Document` 內部快取 `DocKind`(frontmatter YAML 解不出時回
-      `FrontmatterYaml`)  `dep: T4`
-- [x] T6: `docKind :: Document -> DocKind` 改為讀取內部快取欄位的存取器;`DocKind` 新增
-      `PackDoc`/`LicenseDoc`  `dep: T5`
-- [x] T7: `newDocument :: DocKind -> Meta -> Text -> Document` 取代 `mkDocument`(固定 `LF`,把
-      傳入的 `DocKind` 存進內部快取欄位)  `dep: T6`
-- [x] T8: `parseEntityFile`/`parseLevelFile` 改名 `toTopic`/`toLevel`,回傳型別改 tuple、拿掉
-      `[MdWarning]`,套用 T3 的 `inheritMeta`(`typeInherits = True`)  `dep: T3, T5`
-- [x] T9: 新增 `toPack`——容器 `fromValue v :: Either Text Pack`;每節驗 `PAst` 前綴、
-      `inheritMeta`(`typeInherits = False`,缺漏回 `SectionFieldMissing`),另解一組 asset 專屬
-      欄位(`sha256`/`entry` 缺漏是錯誤,其餘缺漏是 `Nothing`)  `dep: T3, T4`
-- [x] T10: 新增 `toLicenses`——容器只解 `Meta`(不進回傳值);每節驗 `PLic` 前綴、`inheritMeta`
-      (`typeInherits = True`),另解一組 license 8 維度(`commercial`/`attribution_required` 必填,
-      其餘 6 個缺漏是 `Nothing`)  `dep: T3, T4`
-- [x] T11: `MdErrorKind` 新增 `SectionFieldMissing Id Text`,`renderMdErrorKind` 補訊息  `dep: T4`
-- [x] T12: `NewSection` DTO + `appendSection` 取代 `insertSection`(插在最後一節之後,無節時插最前;
-      重複 id 回 `DuplicateSectionId`)  `dep: T4`
-- [x] T13: `replaceSectionBody` 改名 `updateSectionBody`(簽名邏輯不變)  `dep: -`
-- [x] T14: `Fixtures.hs` 補 `packMd`/`licensesMd`(逐字取自 system.md/design.md 範例)與 1,693 節
-      合成器(D4:測試內產生器合成,不需要真實大檔)  `dep: T9, T10`
-- [x] T15: 依 1-to-1 測試表重整 `md/test/`——刪除 `MdWarning` 相關斷言(`InheritSpec`/
-      `ParseEntitySpec`/`ParseLevelSpec`),修正 `EditSpec`/`InheritSpec` 裡 5 處
-      `moVault = Just "..."`/`moType = Just "..."` 字面量(改包 `VaultId`/`TypeKey`),新增
-      `ParsePackSpec`/`ParseLicenseSpec`/`AppendSectionSpec`  `dep: T2, T6, T7, T8, T9, T10, T11, T12, T13, T14`
-- [x] T16: `cabal test aapms-md` 全綠;記錄 `aapms-store` 六個模組(`import Aapms.Md`)在本 feature
-      完成後依然編不過屬預期(D1,#5/#6/#8 才會接上新介面),回報進交付說明  `dep: T15`
-
-## 1-to-1 測試對照表
-
-| Todo | 測試 | 說明 |
-|------|------|------|
-| T1 | test_metaOverride_roundtrip | `overrideOf`/`applyOverride` 對 `moVault`/`moType`/`moRevision` 往返不失真(型別正確) |
-| T2 | test_render_meta_scalars_unwrapped | `renderFrontmatter`/`renderMetaBlock` 印出的 `vault`/`type`/`revision` 是純量文字(如 `asset-pack`/`4`),不是 newtype 的 derived `Show`(`TypeKey "asset-pack"`/`Revision 4`) |
-| T3 | test_toTopic_no_warning_channel | `toTopic`/`toLevel` 的回傳型別不含警告(編譯期即保證);另測 `inheritMeta` 對 `typeInherits=False` 且缺 `type` 時回 `Left (SectionFieldMissing ...)` |
-| T4 | test_mderror_no_path | `renderMdError` 輸出「第 N 行:訊息」不含檔名;`Document` 型別不再有 `docPath` 欄位(編譯期保證) |
-| T5 | test_parseDocument_single_error | 故意造兩個結構錯誤(標題缺 `{#id}` 在第 5 行、重複 id 在第 10 行),`parseDocument` 回傳 `errLine = 5` 的那個 |
-| T6 | test_docKind_four_kinds | 四種 frontmatter(角色檔/`level`/`asset-pack`/`asset-license`)`docKind` 各自對應四個建構子;未知 `type` 回 `TopicDoc` |
-| T7 | test_newDocument_pack_kind | `newDocument PackDoc meta body` 建出的 `Document`,`docKind` 回 `PackDoc`;`renderDocument` 產物能再被 `parseDocument` 解回、`docKind` 仍是 `PackDoc` |
-| T8 | test_toTopic_toLevel_roundtrip | 沿用既有 `lindaMd`/`classroomMd` fixture,`toTopic`/`toLevel` 的欄位(id/summary 不繼承、tags 聯集、links)與改名前的 `parseEntityFile`/`parseLevelFile` 行為等價 |
-| T9 | test_toPack_inherit_and_required | `packMd` fixture:容器解出的 `Pack` 欄位正確;asset 節缺 `type` 回 `SectionFieldMissing`;缺 `sha256`/`entry` 回錯誤;`vault`/`status` 從容器繼承、`tags` 聯集去重 |
-| T10 | test_toLicenses_eight_dims | `licensesMd` fixture:每節一個 `License`;缺 `commercial`/`attribution_required` 回 `SectionFieldMissing`;其餘六維缺漏是 `Nothing`;容器本身不出現在回傳的 `[License]` 裡 |
-| T11 | test_sectionFieldMissing_message | `renderMdError` 對 `SectionFieldMissing lic-xxxx "commercial"` 印出節 id 與行號 |
-| T12 | test_appendSection_1693 | 合成器造 1,693 節的 `packMd`,`appendSection` 加一節後:前 1,693 節逐位元組不變、新節在最後、重複 id 回 `DuplicateSectionId`、結果能再被 `parseDocument` + `toPack` 解回 |
-| T13 | test_updateSectionBody_rename | `updateSectionBody` 只改正文,標題行與 meta 區塊逐位元組不變(沿用既有 `replaceSectionBody` 的斷言,呼叫點改新名) |
-| T14 | test_fixtures_parse_ok | `packMd`/`licensesMd`/合成器產出的文字都能被 `parseDocument` 成功解析(不進一步斷言內容,只確認 fixture 本身合法,供 T9/T10/T12 使用) |
-| T15 | test_full_roundtrip_four_kinds | 四種 fixture(`lindaMd`/`classroomMd`/`packMd`/`licensesMd`)各自「解析 → `renderDocument` → 再解析」逐位元組相等(未修改情形,P0 契約測試精神的套件內版本) |
-| T16 | cabal test aapms-md exit 0 | 全套件測試通過;`aapms-store` 不在本次驗證範圍,於回報中明記現況 |
+**未改動、行為與上一輪相同的匯出**:`renderDocument` / `renderSection` / `overrideAt` /
+`updateSectionBody` / `removeSection` / `renameSection` / `replacePreamble` / `updateFrontmatter` /
+`renderFrontmatter` / `frontmatterFieldOrder` / `newDocument` / `metaFieldOrder`,以及
+`Aapms.Md.Document` / `Aapms.Md.Error` / `Aapms.Md.Lexer` / `Aapms.Md.Yaml` 全部。
 
 ## 待確認假設
 
-- A1:`toTopic`/`toLevel`/`toPack`/`toLicenses` 移除 `MdWarning` 通道(`MissingSummary`/
-  `CustomLinkKind`/`EmptyBody` 三種既有品質警告不再產生)。依據:契約 D 的四個 `to*` 簽名都是
-  `Either MdError (...)`,沒有警告的位置;design.md 讀取管線明寫警告只來自 `aapms-core` 的
-  `checkMeta`。影響:若判斷錯誤,需要在 `MdError`(或另一個型別)裡重新開一個警告通道,
-  `toTopic`/`toLevel`/`toPack`/`toLicenses` 四個簽名都要加回傳值,是一次會動到 Level 2 契約的改動,
-  需要開 `/subsys-design` 更新模式而非本 feature 自行加回。
-- A2:`parseDocument` 由「一次回報全部結構錯誤(`[MdError]`)」改成「只回報行號最小的一個
-  (`MdError`)」。依據:契約 D 的 `parseDocument :: Text -> Either MdError Document` 是單一
-  `MdError`,`Render.hs` 既有的編輯函式(`updateSection`/`removeSection`)本來就是這個單一錯誤的
-  形狀,採同一慣例。影響:若判斷錯誤(開發者其實要保留「一次列完全部錯誤」的 UX),需要在
-  `MdErrorKind` 加一個聚合建構子(如 `ManyErrors [MdError]`)包住清單,`renderMdError` 對它逐筆
-  串接輸出,不需要改動任何函式簽名,是低成本的修正。
-- A3:`MdError` 徹底拿掉 `errPath`/`Document` 拿掉 `docPath`,檔名由 `aapms-store` 在回報給使用者
-  時自行接上。依據:契約 D 所有函式簽名都沒有 `FilePath` 的位置,現有 `mkDocument` 的註解本來就
-  承認路徑是「呼叫端要用於錯誤訊息時自己填」。影響:若判斷錯誤(`aapms-store` 其實預期
-  `MdError` 自帶檔名),`store-vault-handle`(#5)或 `store-unified-index`(#6)實作時會需要一個
-  「幫 `MdError` 補上檔名」的轉接函式,屬於低成本、局部的修正,不影響 `aapms-md` 內部邏輯。
-- A4:`licenses.md` 的節層 `type` 繼承(與主題檔/Level 檔同一列,不與 pack.md 同列)。依據:
-  design.md「節層繼承規則」表格只列兩欄,licenses.md 沒有專屬欄位,且每個 `License` 節點在概念上
-  本來就與容器同型別(不像 Asset 對 Pack 型別必然不同)。影響:若判斷錯誤,`toLicenses` 需要改成
-  `typeInherits = False`(要求每節顯式寫 `type: asset-license`),是 `Inherit.hs` 內部一個布林參數
-  的改動,不影響公開簽名。
-- A5:沿用既有 `Aapms.Md.Render.overrideAt :: Id -> Document -> Either MdError MetaOverride`
-  (`Render.hs:78-81`)不變,即使它不在契約 D 的逐字清單裡。依據:它是 F001 之前既有程式碼(不是
-  本 feature 新增),`aapms-store` 的 `Edit.hs` 依賴它先看目前值再決定要不要改
-  (見該函式註解),移除會讓 store 一側多一段重複解碼邏輯;`moKind` 也是同類「契約清單外但已被
-  認可的既有補充」先例。影響:若判斷錯誤(架構要求嚴格只暴露契約逐字清單),`/subsys-build` 的
-  `arch-audit feature` 審查會抓到這條額外公開介面,屆時把它改成非 export 的內部函式即可,
-  `aapms-store` 屆時要用時再另開介面請示 `/subsys-design`。
-- A6:`toPack` 對節缺 `sha256`/`entry` 用一般的 `SectionYaml`(aeson 的通用錯誤訊息),不新開
-  `SectionFieldMissing` 分支。依據:契約清單只把 `SectionFieldMissing` 的例子點名在 `type`
-  (pack.md)與 `commercial`/`attribution_required`(licenses.md)這三個由 `inheritMeta`/專屬檢查
-  邏輯明確處理的欄位;`sha256`/`entry` 的必填規則沿用 `Aapms.Core.Json` 既有的 `FromJSON Asset`
-  `.:` 規則(`Json.hs:249-250`),用同一套 aeson 失敗訊息是最少分岔的做法。影響:若判斷錯誤(開發者
-  期望 `sha256`/`entry` 缺漏也要精準的 `SectionFieldMissing` 訊息),`toPack` 的 `AssetFields`
-  解碼要仿照 `licenseFieldsOf` 的做法,先各自檢查鍵是否存在,是局部、不影響簽名的修正。
-
-## 待確認假設(發現的契約邊界問題,建議 `#8 store-write-operations` 設計時一併考慮)
-
-- G1:`NewSection`(契約 D)目前只有 `nsMeta :: MetaOverride` 一個管道寫節層欄位,而
-  `MetaOverride` 只涵蓋 `Meta` 的欄位——`toPack`/`toLicenses` 各自解讀的「asset 專屬欄位」
-  (`sha256`/`entry`/`name`/`ext`/`meta`/`license`/`author`)與「license 八維度」不在
-  `MetaOverride` 裡,也就不在 `NewSection` 能表達的範圍。這代表未來 `#8` 用 `appendSection`
-  (或它在 store 層的 `addSection`)幫 pack.md 新增一個 asset、或幫 licenses.md 新增一筆授權時,
-  __寫不出一個能通過 `toPack`/`toLicenses` 驗證的完整節__——`renderMetaBlock` 只認得
-  `metaFieldOrder` 那組欄位,沒有管道讓呼叫端多塞 `sha256: ...` 這種專屬欄位進 meta 區塊。
-  這是本 feature 實作 T12 時發現的既有 Level 2 契約(`NewSection`)本身的表達力缺口,不是
-  `appendSection` 的臭蟲——`appendSection` 忠實按契約卡簽名實作,且刻意不驗證節的業務欄位完整性
-  (見 `Render.hs` 的 `appendSection` haddock)。**沒有擅自改契約**,原樣保留 `NewSection`;
-  `#8` 設計時需要面對這個問題,可能的方向是幫 pack.md / licenses.md 開一個帶專屬欄位的
-  `NewSection` 變體,或在 store 層組好完整 meta 區塊文字再走別的寫入路徑,兩者都動到 Level 2
-  契約,不在本 feature 的委派範圍內自行決定。
+- **A1**:新增七個契約 D 逐字清單之外的公開介面(`MetaExtras` / `extrasOf` / `extrasAt` /
+  `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras`),並把
+  `renderMetaBlock` / `mkSection` 的簽名改成吃兩半。→ 採取:照做,並請編排者把它們補進 design.md
+  契約 D。依據:(a) 只要 `renderMetaBlock` 還存在一個「只吃 `MetaOverride`」的公開版本,G2 就只是
+  被繞過而不是被消滅——型別上必須寫不出來;(b) 契約 E 的 `writeAssetFields` / `upsertLicense` 要改的
+  正是型別專屬那一半,而 `(MetaOverride -> MetaOverride)` 表達不了,不補這條路 F008 會再撞一次牆。
+  → 影響:若編排者判定 md 的公開面必須嚴格等於契約 D 逐字清單,`extrasAt` / `mergeExtras` /
+  `updateSectionExtras` / `payloadOverride` / `payloadExtras` 可改成非 export 的內部函式,但
+  `MetaExtras` 與 `renderMetaBlock` 的新簽名不能退回——那是缺陷修復本身。屆時 F008 需要另一條寫入
+  型別專屬欄位的管道,要回 `/subsys-design` 更新契約 D。
+- **A2**:型別專屬條目一律排在 `Meta` 欄位之後,因此**第一次** `updateSection` 會重排既有檔案 meta
+  區塊的行序(資料不變,排版變)。→ 採取:接受,並以 L8(冪等)保證只重排一次。依據:見「不可逆
+  決定」第 3 條。→ 影響:若判斷錯誤(要求既有檔案的行序原樣不動),`MetaExtras` 要改成帶「原本
+  夾在哪兩個 `Meta` 欄位之間」的位置資訊,`renderMetaBlock` 的合併規則跟著改;`appendSection` 產生
+  的新節仍需要一套預設順序,兩條路徑會分岔。
+- **A3**:`NSNode` 的 `nnKind` 是 `kind` 的唯一真相來源,`payloadOverride` 一律以它覆蓋 `moKind`。
+  → 採取:照做(L16)。依據:契約 D 的 `NSNode` 同時帶 `MetaOverride` 與 `NewNode`,兩者都能表達
+  `kind`,不指定優先權就是兩個真相來源。→ 影響:若判斷錯誤(要求 `moKind` 優先或兩者必須一致),
+  是 `payloadOverride` 一個函式的改動,不影響任何簽名。
+- **A4**:`MetaExtras` 是 `[Text]`(原始行)而不是結構化的鍵值對。→ 採取:照做。依據:見「不可逆
+  決定」第 2 條。→ 影響:呼叫端(F008)要改某一欄時,必須靠 `payloadExtras` 產生新條目再
+  `mergeExtras`,不能直接改一個欄位的值;若判斷錯誤,`MetaExtras` 要改成 `[(Text, Text)]` 之類的
+  結構,`extrasOf` 與 `mergeExtras` 的簽名跟著改,且會失去「作者手寫格式原樣保留」這條性質。
+- **A5**:`renderMetaBlock` 中 `metaFieldOrder` 每一欄怎麼寫成一行,抽成私有的
+  `metaFieldLines :: MetaOverride -> Text -> [Text]`,並**保留上一輪已交付的本體**(不是 `undefined`)。
+  → 採取:照做。依據:那是已上線、已被 EditSpec 逐行斷言過的序列化規則(引號、流式風格、newtype
+  解包),本次的變更是「多接一半」而不是「重寫排版」;讓 impl 從零重推有回歸風險,L10 也正是為了
+  釘住它。→ 影響:若編排者認定 spec 角色不得留下任何非 `undefined` 的本體,把它改成 `undefined`
+  即可,L10 會抓到任何排版漂移。
+- **A6**:`NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` / `MetaExtras`
+  全部定義在 `Aapms.Md.Render`,而不是新開一個 `Aapms.Md.Section` 模組。→ 採取:照做。依據:委派
+  指示要求 `md/aapms-md.cabal` 不得改動,新模組加不進 `exposed-modules` 就編不過;`NewSection` 上一
+  輪本來就住在 `Aapms.Md.Render`。→ 影響:代價是 `Aapms.Md.Render` 裡出現了兩個 `FromJSON` 實例
+  (解碼職責通常在 `Aapms.Md.Yaml` / `Aapms.Md.Parse` 那一側)。若編排者願意動 cabal,把這六個型別
+  與兩個實例搬到 `Aapms.Md.Section` 是純機械搬移,`Aapms.Md.Parse` → `Aapms.Md.Render` 那條新的
+  模組內相依也會一併消失。
+- **A7**:`aapms-store` 的 `Aapms.Store.Create`(`store/src/Aapms/Store/Create.hs:137-216`)已經有一組
+  同名同形的 `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode`。→ 採取:
+  **不碰 store**(委派指示明令),在 `aapms-md` 定義正本時**逐欄採用與 store 完全相同的欄位名**
+  (`naName` / `naSha256` / …、`nlcCommercial` / …、`nnKind`),讓收斂成本降到「刪掉 store 那段、
+  改成 re-export」。依據:契約 D 說這組 DTO 屬於 `aapms-md`;兩份定義同時存在時,store 一旦
+  `import Aapms.Md` 就會產生名稱衝突。→ 影響:編排者需要在 F007 / F008 收斂時裁決由誰刪除;在那之前
+  `aapms-store` 仍然編得過(它目前不 import `Aapms.Md.Render`)。
 
 ## 實作備註
 
-- 除了設計文檔已點名的 12 處 `moType`/`moVault`/`moRevision` 型別錯位,`Inherit.hs` 原始碼裡另外
-  有兩處與本 feature 同類但文檔沒列出的型別錯誤:`applyOverride`/`inheritMeta` 對 `metaTimeline`
-  的 `keep`/`orInherit` 呼叫在 F001 把 `Meta` 的 `metaTimeline` 改成 `Maybe Timeline`(原本可能是
-  `Timeline`)後產生「無限型別」錯誤(`keep`/`orInherit` 的型別變數 `a` 同時被要求是 `Timeline` 與
-  `Maybe Timeline`)。修法:`applyOverride` 新增 `keepMaybe`、`inheritMeta` 改用
-  `maybe (metaTimeline file) Just moTimeline`,語意與其餘欄位的「節層寫了才覆蓋、否則繼承/保留」
-  規則一致。這屬於「修好 aapms-md 讓它真的編得過」範圍內的必要修正,不影響任何公開簽名。
-- `Document` 型別維持__透明__(`Document(..)` 完整匯出),不是設計文檔「新增的介面」段落註解的
-  「不透明」。理由:`docKind :: Document -> DocKind` 直接借用 `docKind` 這個記錄欄位存取器實作
-  (`Document` 的欄位之一就叫 `docKind`),而套件內部(`Lexer.hs`/`Parse.hs`/`Render.hs`)與既有測試
-  (`DocumentSpec` 一直用記錄語法直接建構 `Document`)本來就需要能直接操作欄位。對外契約 D 只列出
-  函式簽名沒有規定 export list 要隱藏建構子,`aapms-store` 使用時仍應只走契約 D 列的函式——這是
-  慣例邊界,不是型別系統邊界。若 `/arch-audit` 認為需要真正不透明,屬低成本的 export list 調整。
-- `renderFrontmatter` 對 `metaTimeline :: Maybe Timeline` 的序列化:`Nothing`(完全沒有時間軸)寫
-  `timeline: null`,`Just tl` 才走原本的 `timelineLine`。`Nothing` 與 `null` 的 YAML round-trip
-  等價是靠 aeson `.:?` 對 `Null` 值視同鍵不存在的既有行為(`explicitParseFieldMaybe`),不是本
-  feature 新開的規則,只是首次在 frontmatter 層用到。
-- `toPack` 對檔案層 `Pack` 的 `pckBody` 額外用 `T.strip docPreamble` 覆蓋(`Aapms.Core.Json` 的
-  `FromJSON Pack` 從同一層 JSON 物件解 `body`,但 frontmatter 的 YAML 裡沒有 `body` 鍵,直接
-  `fromValue` 只會得到預設空字串)——與 `toTopic` 對 `Entity` 的 `entBody` 處理方式一致。
-- `md/test/` 的 fixtures(`packMd`/`licensesMd`)沒有逐字照抄 system.md 的 Kenney UI Pack 範例:
-  該範例的 `license: cc0` 不是合法的 `Ref` 格式(`Ref` 要求 `<prefix>-<hex>` 或
-  `vlt-<hex>:<prefix>-<hex>`),測試需要真的可解析,因此換成 `license: lic-00000001`,其餘欄位與
-  排版逐字保留。`licenses.md` 沒有 system.md/design.md 的逐字範例可抄,依 design.md「授權節點」
-  段落與「節層繼承規則」表格新編。
-- `synthPackMd`(D4 的 1,693 節合成器)每節之後刻意隔__兩個__空行(不是一個):讓最後一節的
-  `secBodyRaw` 本來就是 `"\n\n"`,`appendSection` 的 `blankTail` 補分隔空行時剛好是 no-op,
-  「前面節位元組不變」才能斷言到逐位元組相等,不必靠「插入點本來就會變」的但書。
-- `synthPackMd` 的 `sha256` 值加了雙引號(`sha256: "<hex>"`):產生器用 `showHex` 對小的整數
-  (如 1)算出的十六進位字串全是十進位數字(`00000001`),不加引號會被 YAML 解成數字純量,
-  `Sha256` 的 `FromJSON`(`withText`)因此解碼失敗——這是 fixture 產生器本身的坑,不是
-  `aapms-md` 的臭蟲(真實 sha256 幾乎必含 a-f 不會踩到)。
+(撰寫時留空;開發過程中與設計的偏差記錄於此)

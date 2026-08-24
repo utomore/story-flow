@@ -19,14 +19,14 @@ module Aapms.Md.Parse
   , toLicenses
   ) where
 
-import Data.Aeson (FromJSON (..), Value (..), withObject, (.:), (.:?), (.!=))
+import Data.Aeson (Value (..))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.List (nub)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.Asset (Asset (..), LogicalName, Sha256)
+import Aapms.Core.Asset (Asset (..))
 import Aapms.Core.Entity (Entity (..))
 import Aapms.Core.Id (Id, IdPrefix (..), Ref, idPrefix, parseId, renderIdPrefix)
 import Aapms.Core.Json ()
@@ -39,6 +39,7 @@ import Aapms.Md.Document
 import Aapms.Md.Error
 import Aapms.Md.Inherit
 import Aapms.Md.Lexer (lexDocument, metaBlockYaml)
+import Aapms.Md.Render (NewAsset (..), NewLicense (..))
 import Aapms.Md.Yaml
 
 -- | 切塊(見 "Aapms.Md.Lexer")+ 讀出檔案身分('DocKind')存進 'Document'。
@@ -209,30 +210,10 @@ structure (s0 : rest) = go [] M.empty rootLevel (s0 : rest)
 --------------------------------------------------------------------------------
 -- pack.md
 
--- | 素材專屬欄位,從節的 meta YAML 另外解一次(不在 'MetaOverride' 裡——那個
--- DTO 只管 'Meta' 的欄位)。@sha256@ \/ @entry@ 缺漏是錯誤(對應 'Asset' 的非
--- 'Maybe' 欄位),其餘缺漏是 'Nothing' \/ 'Null',與 "Aapms.Core.Json" 的
--- @FromJSON Asset@ 實例規則一致。
-data AssetFields = AssetFields
-  { afName :: Maybe LogicalName
-  , afSha256 :: Sha256
-  , afEntry :: Text
-  , afExt :: Maybe Text
-  , afMeta :: Value
-  , afLicense :: Maybe Ref
-  , afAuthor :: Maybe Text
-  }
-
-instance FromJSON AssetFields where
-  parseJSON = withObject "AssetFields" $ \o ->
-    AssetFields
-      <$> o .:? "name"
-      <*> o .: "sha256"
-      <*> o .: "entry"
-      <*> o .:? "ext"
-      <*> o .:? "meta" .!= Null
-      <*> o .:? "license"
-      <*> o .:? "author"
+-- 素材專屬欄位從節的 meta YAML 另外解一次(不在 MetaOverride 裡——那個 DTO 只管
+-- Meta 的欄位)。型別與解碼規則現在與寫入方向共用同一份(Aapms.Md.Render.NewAsset,
+-- graph-core/F004 重跑 G1):讀出來的形狀就是寫回去要給的形狀,兩邊的必填/選填
+-- 劃分不可能再分歧。
 
 -- | 檔案層 pack.md 的 frontmatter 直接解成 'Pack'(不是先解成 'Meta' 再另外
 -- 處理 pack 專屬欄位)——"Aapms.Core.Json" 的 @FromJSON Pack@ 實例本來就是把
@@ -259,55 +240,34 @@ toPack doc@Document {..} = do
       ov <- sectionOverride s
       meta <- wrapMeta secLine (inheritMeta False front secId secTitle ov)
       av <- sectionValue s
-      af <- either (Left . mdError secLine . SectionYaml secId) Right (fromValue av :: Either Text AssetFields)
+      af <- either (Left . mdError secLine . SectionYaml secId) Right (fromValue av :: Either Text NewAsset)
       Right
         Asset
           { astMeta = meta
-          , astName = afName af
-          , astSha256 = afSha256 af
-          , astEntry = afEntry af
-          , astExt = afExt af
-          , astKindMeta = afMeta af
-          , astLicense = afLicense af
-          , astAuthor = afAuthor af
+          , astName = naName af
+          , astSha256 = naSha256 af
+          , astEntry = naEntry af
+          , astExt = naExt af
+          , astKindMeta = naKindMeta af
+          , astLicense = naLicense af
+          , astAuthor = naAuthor af
           , astBody = T.strip secBodyRaw
           }
 
 --------------------------------------------------------------------------------
 -- licenses.md
 
--- | 授權八維度中,節層 meta 直接管的那一組(不含 @full_text@——那是全域授權
--- 登記用,節層不重複貼授權全文)。
-data LicenseFields = LicenseFields
-  { lfCommercial :: Bool
-  , lfAttributionRequired :: Bool
-  , lfCreditText :: Maybe Text
-  , lfModificationAllowed :: Maybe Bool
-  , lfRedistributionAllowed :: Maybe Bool
-  , lfResaleAllowed :: Maybe Bool
-  , lfNftAllowed :: Maybe Bool
-  , lfSourceUrl :: Maybe Text
-  }
-
-instance FromJSON LicenseFields where
-  parseJSON = withObject "LicenseFields" $ \o ->
-    LicenseFields
-      <$> o .: "commercial"
-      <*> o .: "attribution_required"
-      <*> o .:? "credit_text"
-      <*> o .:? "modification_allowed"
-      <*> o .:? "redistribution_allowed"
-      <*> o .:? "resale_allowed"
-      <*> o .:? "nft_allowed"
-      <*> o .:? "source_url"
+-- 授權八維度中,節層 meta 直接管的那一組(不含 full_text——那是全域授權登記用,
+-- 節層不重複貼授權全文)。型別與解碼規則同樣與寫入方向共用一份
+-- (Aapms.Md.Render.NewLicense)。
 
 -- | @commercial@ \/ @attribution_required@ 缺漏要回 'SectionFieldMissing'(不是
 -- aeson 的通用錯誤訊息),所以先各自檢查鍵是否存在,存在才交給 'fromValue'。
-licenseFieldsOf :: Id -> Int -> Value -> Either MdError LicenseFields
+licenseFieldsOf :: Id -> Int -> Value -> Either MdError NewLicense
 licenseFieldsOf secId secLine v = do
   checkKey "commercial"
   checkKey "attribution_required"
-  either (Left . mdError secLine . SectionYaml secId) Right (fromValue v :: Either Text LicenseFields)
+  either (Left . mdError secLine . SectionYaml secId) Right (fromValue v :: Either Text NewLicense)
   where
     checkKey k = case v of
       Object o | KM.member (K.fromText k) o -> Right ()
@@ -330,13 +290,13 @@ toLicenses doc@Document {..} = do
       Right
         License
           { licMeta = meta
-          , licCommercial = lfCommercial lf
-          , licAttributionRequired = lfAttributionRequired lf
-          , licCreditText = lfCreditText lf
-          , licModificationAllowed = lfModificationAllowed lf
-          , licRedistributionAllowed = lfRedistributionAllowed lf
-          , licResaleAllowed = lfResaleAllowed lf
-          , licNftAllowed = lfNftAllowed lf
-          , licSourceUrl = lfSourceUrl lf
+          , licCommercial = nlcCommercial lf
+          , licAttributionRequired = nlcAttributionRequired lf
+          , licCreditText = nlcCreditText lf
+          , licModificationAllowed = nlcModificationAllowed lf
+          , licRedistributionAllowed = nlcRedistributionAllowed lf
+          , licResaleAllowed = nlcResaleAllowed lf
+          , licNftAllowed = nlcNftAllowed lf
+          , licSourceUrl = nlcSourceUrl lf
           , licFullText = Nothing
           }

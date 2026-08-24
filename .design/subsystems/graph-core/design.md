@@ -215,6 +215,16 @@ toLicenses :: Document -> Either MdError [License]
 renderDocument    :: Document -> Text
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
 overrideAt        :: Id -> Document -> Either MdError MetaOverride   -- 讀出某節目前的 override(store 樂觀鎖比對用)
+
+-- 節層 meta 區塊的另一半:型別專屬條目(2026-08-24,見下方 G2)
+newtype MetaExtras                                   -- 以「原始行」保存,不解 YAML
+extrasOf   :: Section -> MetaExtras
+extrasAt   :: Id -> Document -> Either MdError MetaExtras
+mergeExtras :: MetaExtras -> MetaExtras -> MetaExtras
+updateSectionExtras :: Id -> (MetaExtras -> MetaExtras) -> Document -> Either MdError Document
+payloadOverride :: NewSectionPayload -> MetaOverride
+payloadExtras   :: NewSectionPayload -> MetaExtras
+renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text   -- 兩半都要,少一半編不過
 updateSection     :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document
 updateSectionBody :: Id -> Text -> Document -> Either MdError Document
 appendSection     :: NewSection -> Document -> Either MdError Document
@@ -230,6 +240,15 @@ data NewSectionPayload
 removeSection     :: Id -> Document -> Either MdError Document
 newDocument       :: DocKind -> Meta -> Text -> Document
 ```
+
+**G2 定案(2026-08-24)——節層 meta 區塊在型別上切成兩半**:`MetaOverride` 只涵蓋 `Meta` 的十三欄,
+所以它當唯一管道時,`updateSection` 重寫 meta 區塊會**靜默刪掉**節的型別專屬條目(asset 的 `sha256` /
+`entry` / `ext` / `meta` / `license` / `author`、license 的八個授權維度)——這是已重現的資料破壞,
+而 `pack.md` 依 ADR-013 是素材中繼資料的真相。改法:另一半以 `MetaExtras`(**原始行**,不解 YAML)保存,
+`renderMetaBlock` **同時吃兩半**,少一半在型別上就寫不出來。判準是「鍵不在 `metaFieldOrder` 裡」而不是
+「已知的 asset 七欄 + license 八欄」,所以註冊表宣告的任意自訂欄位也一併保住;「頂層條目 = 第 0 欄的
+`key:` 行 + 其後縮排行」讓 `meta:` 的巢狀值整段留得住。`updateSectionExtras` 是契約 E 的
+`writeAssetFields` / `upsertLicense` 唯一走得通的路。
 
 **G1 定案(2026-08-24)**:`NewSection` 原本只有 `nsMeta :: MetaOverride` 一個管道,而 `MetaOverride`
 沒有 asset 的 `sha256` / `entry` / `ext` / `meta` / `license` / `author`,也沒有 license 的八個授權維度

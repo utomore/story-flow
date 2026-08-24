@@ -47,21 +47,25 @@ spec = do
             IO [Only Text]
         rows `shouldBe` []
 
-  describe "graph-core/F006 cabal 範圍" $ do
-    it "aapms-store.cabal 原始碼加回 Index/Query/Row 與 aapms-md 依賴" $ do
+  describe "graph-core/F006+F007+F008 cabal 範圍" $
+    -- graph-core/F008(Create/Edit/Node/Write)與 graph-core/F007(Tokenize)都已經
+    -- 落地,舊版斷言「cabal 原始碼仍不列出 F008 範圍的模組」(2026-08-22 版,F008
+    -- 尚未展開時寫的)因此過時、直接與現況矛盾,予以更新:現況是全部模組都已
+    -- 列在 exposed-modules 裡。
+    it "aapms-store.cabal 原始碼列出 Index/Query/Row/Tokenize/Create/Edit/Node/Write 與 aapms-md 依賴" $ do
       src <- readUtf8Source "aapms-store.cabal"
       mapM_
         (\present -> (present `T.isInfixOf` src) `shouldBe` True)
-        ["Aapms.Store.Index", "Aapms.Store.Query", "Aapms.Store.Row", "aapms-md"]
-
-    -- D8:Create/Edit/Node/Write 留給 graph-core/F008,本 feature 不加回。
-    -- 用換行收尾比對(而非裸子字串),避免 "Aapms.Store.Node" 誤中
-    -- "Aapms.Store.NodeSpec"(本 feature 的測試模組)。
-    it "aapms-store.cabal 原始碼仍不列出 F008 範圍的模組" $ do
-      src <- T.filter (/= '\r') <$> readUtf8Source "aapms-store.cabal"
-      mapM_
-        (\bad -> ((bad <> "\n") `T.isInfixOf` src) `shouldBe` False)
-        ["Aapms.Store.Write", "Aapms.Store.Create", "Aapms.Store.Node", "Aapms.Store.Edit"]
+        [ "Aapms.Store.Index"
+        , "Aapms.Store.Query"
+        , "Aapms.Store.Row"
+        , "Aapms.Store.Tokenize"
+        , "Aapms.Store.Create"
+        , "Aapms.Store.Edit"
+        , "Aapms.Store.Node"
+        , "Aapms.Store.Write"
+        , "aapms-md"
+        ]
 
   describe "graph-core/F005+F006 門面模組" $
     it "從 Aapms.Store(而非個別子模組)可以 import 並呼叫 openVault/initVaultAt/rebuildIndex/listNodes" $

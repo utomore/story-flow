@@ -1,8 +1,10 @@
 -- | graph-core\/F005:PRAGMA 設定、@schema_version@ 重建與 'IndexIssue'、
 -- vault 身分寫入。graph-core\/F006(T1)擴充:12 張表全建齊、三個新
--- 'IndexIssue' 建構子的 'renderIndexIssue'。
+-- 'IndexIssue' 建構子的 'renderIndexIssue'。graph-core\/F007 再擴充:
+-- @fts_tri@\/@fts_cjk@\/@fts_map@ 三張表、schemaVersion 2 → 3。
 module Aapms.Store.SchemaSpec (spec) where
 
+import Data.List (partition)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
@@ -18,12 +20,17 @@ import Test.Hspec
 testVaultId :: VaultId
 testVaultId = VaultId "vlt-7f3b2a91"
 
--- | design.md「索引結構」段落的 12 張表(不含兩張 FTS 表與 fts_map)。
--- | SQLite 回傳依 sqlite_master.name 字母序,不是 'indexTables' 的建表順序。
+-- | design.md「索引結構」段落的 12 張表 + graph-core\/F007 的三張 FTS 相關表
+-- (@fts_tri@\/@fts_cjk@\/@fts_map@),共 15 張——即 'indexTables' 的完整清單。
+-- __不含__ FTS5 幫兩張虛擬表自動生成的影子表(見 'isFtsShadowTable')。
+-- SQLite 回傳依 sqlite_master.name 字母序,不是 'indexTables' 的建表順序。
 expectedTables :: [Text]
 expectedTables =
   [ "assets"
   , "files"
+  , "fts_cjk"
+  , "fts_map"
+  , "fts_tri"
   , "levels"
   , "licenses"
   , "links"
@@ -36,14 +43,25 @@ expectedTables =
   , "tree_nodes"
   ]
 
+-- | @fts_tri@\/@fts_cjk@ 都不是 contentless(design.md\/F007「介面」註解:
+-- snippet() 要拿得到內容、要能整批刪列),FTS5 因此各自幫它們生出 5 張影子表
+-- (@_data@\/@_idx@\/@_content@\/@_docsize@\/@_config@)——這些不是本文檔宣告的
+-- 表,不列進 'expectedTables',測試裡濾掉即可。
+isFtsShadowTable :: Text -> Bool
+isFtsShadowTable t = any (`T.isPrefixOf` t) ["fts_tri_", "fts_cjk_"]
+
 spec :: Spec
 spec = describe "graph-core/F005 schema" $ do
-  it "T1: 12 張表全建齊,schemaVersion(2)寫入 meta_info" $
+  it "graph-core/F007: 15 張表全建齊(不含 FTS5 影子表),schemaVersion(3)寫入 meta_info" $
     withTempVault $ \dir -> do
       (conn, _issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
-      tables <- tableNames conn
-      tables `shouldBe` expectedTables
-      schemaVersion `shouldBe` 2
+      allTables <- tableNames conn
+      let (shadow, real) = partition isFtsShadowTable allTables
+      real `shouldBe` expectedTables
+      -- fts_tri / fts_cjk 各 5 張影子表
+      length shadow `shouldBe` 10
+      length allTables `shouldBe` 25
+      schemaVersion `shouldBe` 3
       currentVersion conn `shouldReturn` Just schemaVersion
       closeIndex conn
 

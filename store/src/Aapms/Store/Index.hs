@@ -64,7 +64,8 @@ import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Error (StoreError (..), trySqlite)
 import Aapms.Store.Marker (VaultHandle (..))
 import Aapms.Store.Row
-import Aapms.Store.Schema (IndexIssue (..))
+import Aapms.Store.Schema (IndexIssue (..), insertFtsRows)
+import Aapms.Store.Tokenize (ftsRowOf)
 import System.Directory
   ( doesDirectoryExist
   , getFileSize
@@ -178,7 +179,7 @@ indexOne vh rel = do
         Left mdErr -> pure (Right [ParseFailed relStr mdErr])
         Right doc -> case planWrite (vhRegistry vh) relStr doc of
           Left issue -> pure (Right [issue])
-          Right (kind, warnings, action) -> do
+          Right (kind, warnings, anyNodes, action) -> do
             outcome <-
               try
                 ( trySqlite . withTransaction (vhConn vh) $ do
@@ -188,6 +189,10 @@ indexOne vh rel = do
                       "INSERT INTO files(path, mtime, size, doc_kind) VALUES (?, ?, ?, ?)"
                       (rel, mtime, size, renderDocKind kind)
                     action (vhConn vh) rel
+                    -- graph-core/F007:FTS 列與節點列同一個交易內一起進退,
+                    -- 不會出現「節點在、FTS 沒進」的半殘狀態。純函式的預切
+                    -- ('ftsRowOf')已經在交易外算完(ADR-022),這裡只是落地。
+                    insertFtsRows (vhConn vh) (map ftsRowOf anyNodes)
                 ) ::
                 IO (Either DuplicateAssetNameException (Either StoreError ()))
             pure $ case outcome of
@@ -198,34 +203,57 @@ indexOne vh rel = do
 -- | 把 'parseDocument' 的結果轉成「這是哪種文件、@checkMeta@ 警告、要執行的
 -- 寫入動作」。@LevelDoc@ 額外跑 'buildTree' 驗證;兩者都是純函式,交易外執行
 -- (ADR-022)。
+-- | 第三個元素是這份文件的全部節點(統一視角),graph-core\/F007 用來算
+-- 'Aapms.Store.Tokenize.ftsRowOf' 寫入 FTS——本來只餵給 'metaIssues',現在
+-- 一併回傳給 'indexOne'(骨架清單外的接線,委派已授權)。
 planWrite
   :: TypeRegistry
   -> FilePath
   -> Document
-  -> Either IndexIssue (DocKind, [IndexIssue], Connection -> Text -> IO ())
+  -> Either IndexIssue (DocKind, [IndexIssue], [AnyNode], Connection -> Text -> IO ())
 planWrite registry relStr doc = case docKind doc of
   TopicDoc -> case toTopic doc of
     Left e -> Left (ParseFailed relStr e)
     Right (mainE, frags) ->
       let anyNodes = NEntity mainE : map NEntity frags
-       in Right (TopicDoc, metaIssues relStr registry anyNodes, \conn rel -> writeTopic conn rel mainE frags)
+       in Right
+            ( TopicDoc
+            , metaIssues relStr registry anyNodes
+            , anyNodes
+            , \conn rel -> writeTopic conn rel mainE frags
+            )
   LevelDoc -> case toLevel doc of
     Left e -> Left (ParseFailed relStr e)
     Right (lvl, nodes) -> case buildTree lvl nodes of
       Left errs -> Left (TreeInvalid relStr errs)
       Right _tree ->
         let anyNodes = NLevel lvl : map NNode nodes
-         in Right (LevelDoc, metaIssues relStr registry anyNodes, \conn rel -> writeLevel conn rel lvl nodes)
+         in Right
+              ( LevelDoc
+              , metaIssues relStr registry anyNodes
+              , anyNodes
+              , \conn rel -> writeLevel conn rel lvl nodes
+              )
   PackDoc -> case toPack doc of
     Left e -> Left (ParseFailed relStr e)
     Right (pck, assets) ->
       let anyNodes = NPack pck : map NAsset assets
-       in Right (PackDoc, metaIssues relStr registry anyNodes, \conn rel -> writePack conn rel pck assets)
+       in Right
+            ( PackDoc
+            , metaIssues relStr registry anyNodes
+            , anyNodes
+            , \conn rel -> writePack conn rel pck assets
+            )
   LicenseDoc -> case toLicenses doc of
     Left e -> Left (ParseFailed relStr e)
     Right lics ->
       let anyNodes = map NLicense lics
-       in Right (LicenseDoc, metaIssues relStr registry anyNodes, \conn rel -> writeLicenses conn rel lics)
+       in Right
+            ( LicenseDoc
+            , metaIssues relStr registry anyNodes
+            , anyNodes
+            , \conn rel -> writeLicenses conn rel lics
+            )
 
 -- | 對一份文件的全部節點跑 'checkMeta',收集有警告的節點,轉成
 -- 'Aapms.Store.Schema.MetaWarningsFound'。__不影響__索引與否,純附帶回報。

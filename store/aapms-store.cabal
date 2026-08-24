@@ -60,14 +60,18 @@ test-suite aapms-store-test
         Aapms.Store.AtomicSpec
         Aapms.Store.ErrorSpec
         Aapms.Store.Fixtures
+        Aapms.Store.FacetSpec
+        Aapms.Store.Gens
         Aapms.Store.IndexSpec
         Aapms.Store.MarkerSpec
         Aapms.Store.NodeSpec
         Aapms.Store.QuerySpec
         Aapms.Store.RebuildSpec
         Aapms.Store.RowSpec
+        Aapms.Store.SearchSpec
         Aapms.Store.SchemaSpec
         Aapms.Store.StaleSpec
+        Aapms.Store.TokenizeSpec
         Aapms.StoreSpec
     build-depends:
         , aeson
@@ -77,6 +81,8 @@ test-suite aapms-store-test
         , directory
         , filepath
         , hspec
+        , hedgehog
+        , hspec-hedgehog
         , sqlite-simple
         , aapms-core
         , aapms-md

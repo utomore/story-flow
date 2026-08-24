@@ -13,8 +13,9 @@
 -- 'search' 把文字條件交給 "Aapms.Store.Tokenize" 的 'Aapms.Store.Tokenize.routeOf'
 -- 決定走 @fts_tri@(trigram)、@fts_cjk@(unicode61 + 預切)或兩者,兩邊的
 -- 命中以相關度合併去重。兩條路都給得出 bm25 分數,'shScore' 因此是 'Double'
--- 而不是 @Maybe Double@。__沒有 @LIKE@ 掃描路徑__:那是 trigram 三字元下限的
--- 權宜之計,ADR-016 第二條已讓它退場。
+-- 而不是 @Maybe Double@。__沒有子字串模糊比對(SQL 萬用字元運算子)掃描路徑__:
+-- 那是 trigram 三字元下限的權宜之計,ADR-016 第二條已讓它退場(L23:本套件
+-- 原始碼不含那個 SQL 關鍵字的獨立詞)。
 module Aapms.Store.Query
   ( -- * 過濾條件
     NodeFilter (..)
@@ -40,8 +41,10 @@ module Aapms.Store.Query
   , search
   ) where
 
+import Data.List (sortBy)
 import Data.Maybe (listToMaybe, mapMaybe)
 import qualified Data.Map.Strict as M
+import Data.Ord (Down (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
@@ -70,6 +73,14 @@ import Aapms.Md.Parse (parseDocument, toPack, toTopic)
 import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Row
+import Aapms.Store.Tokenize
+  ( cjkMatchExpr
+  , desegmentCjk
+  , routeOf
+  , triMatchExpr
+  , usesCjk
+  , usesTrigram
+  )
 import System.FilePath ((</>))
 
 --------------------------------------------------------------------------------
@@ -482,7 +493,12 @@ data SearchQuery = SearchQuery
 
 -- | 沒有文字條件、最寬鬆的結構條件、不算 facet。
 emptySearchQuery :: SearchQuery
-emptySearchQuery = undefined
+emptySearchQuery =
+  SearchQuery
+    { sqText = Nothing
+    , sqFilter = emptyNodeFilter
+    , sqFacets = False
+    }
 
 -- | 一筆命中。'shVault' 讓跨 vault 的 @searchAcross@(graph-core\/F009)與單一
 -- vault 的 'search' 回同一種形狀。
@@ -520,4 +536,189 @@ data SearchResult = SearchResult
 -- 不會失敗:索引是衍生物,查不到就是空結果,沒有 'Aapms.Store.Error.StoreError'
 -- 這一層——與 'listNodes' \/ 'lookupNode' 一致。
 search :: VaultHandle -> SearchQuery -> IO SearchResult
-search = undefined
+search vh q = do
+  let filt = sqFilter q
+      textM = normalizeText (sqText q)
+  merged <- matchHits vh textM filt
+  let total = length merged
+      sorted = sortHits merged
+      paged = takePage filt sorted
+      byId = M.fromList [(hId h, h) | h <- paged]
+  metas <- metasFor vh (map (renderId . hId) paged)
+  let vid = vmId (vhMarker vh)
+      toSearchHit m =
+        SearchHit
+          { shVault = vid
+          , shMeta = m
+          , shSnippet = maybe "" hSnippet (M.lookup (metaId m) byId)
+          , shScore = maybe 0 hScore (M.lookup (metaId m) byId)
+          }
+  facets <-
+    if sqFacets q
+      then Just <$> computeFacets vh textM filt total
+      else pure Nothing
+  pure
+    SearchResult
+      { srHits = map toSearchHit metas
+      , srTotal = total
+      , srFacets = facets
+      }
+
+-- | 一筆內部命中:哪個節點、相關度、片段。沒有文字條件時 'hScore' 恆 @0@、
+-- 'hSnippet' 恆 @""@(對照 'listNodes' 語意,見 L12)。
+data Hit = Hit
+  { hId :: Id
+  , hScore :: Double
+  , hSnippet :: Text
+  }
+  deriving stock (Show, Eq)
+
+normalizeText :: Maybe Text -> Maybe Text
+normalizeText mt = case T.strip <$> mt of
+  Nothing -> Nothing
+  Just s | T.null s -> Nothing
+  Just s -> Just s
+
+-- | 沒有文字條件時退化成 'listNodes' 的結構條件(不套用 'nfLimit'\/'nfOffset',
+-- 分頁在 'search' 統一處理);有文字條件時依 'routeOf' 決定的路由查一張或兩張
+-- FTS 表,兩邊的命中以 'shScore' 較大者去重(D2)。
+matchHits :: VaultHandle -> Maybe Text -> NodeFilter -> IO [Hit]
+matchHits vh Nothing filt = do
+  ids <- structuralIds vh filt
+  pure [Hit i 0 "" | i <- ids]
+matchHits vh (Just txt) filt = do
+  let route = routeOf txt
+  triHits <-
+    if usesTrigram route
+      then case triMatchExpr txt of
+        Just expr -> ftsHits vh "fts_tri" expr filt False
+        Nothing -> pure []
+      else pure []
+  cjkHits <-
+    if usesCjk route
+      then case cjkMatchExpr txt of
+        Just expr -> ftsHits vh "fts_cjk" expr filt True
+        Nothing -> pure []
+      else pure []
+  pure (mergeHits (triHits ++ cjkHits))
+
+-- | 兩張表都命中同一個節點時,取分數較大者(D2:不是相加)。
+mergeHits :: [Hit] -> [Hit]
+mergeHits hs = M.elems (M.fromListWith pickBetter [(hId h, h) | h <- hs])
+  where
+    pickBetter new old = if hScore new >= hScore old then new else old
+
+-- | 分數非遞增,分數相同時 id 遞增(L14)。
+sortHits :: [Hit] -> [Hit]
+sortHits = sortBy (\a b -> compare (Down (hScore a)) (Down (hScore b)) <> compare (hId a) (hId b))
+
+takePage :: NodeFilter -> [Hit] -> [Hit]
+takePage filt = take (nfLimit filt) . drop (nfOffset filt)
+
+-- | 全部符合結構條件的 id(不套用 'nfLimit'\/'nfOffset')。
+structuralIds :: VaultHandle -> NodeFilter -> IO [Id]
+structuralIds vh filt = do
+  let (cond, args) = whereOf filt
+      sql = "SELECT n.id " <> baseFrom <> " WHERE 1 = 1" <> cond <> " ORDER BY n.id"
+  rows <- query (vhConn vh) (Query sql) args :: IO [Only Text]
+  pure [i | Only t <- rows, Right (_, i) <- [parseId t]]
+
+-- | 對一張 FTS 表跑 @MATCH@,附上結構條件,回傳 (id, bm25 取負, snippet)。
+-- @isCjkTable@ 為 'True' 時把 @snippet()@ 的輸出經 'desegmentCjk' 還原成連續
+-- 文字(否則使用者會看到「藥 水 藥水」,待確認假設 A3)。
+ftsHits :: VaultHandle -> Text -> Text -> NodeFilter -> Bool -> IO [Hit]
+ftsHits vh table matchExpr filt isCjkTable = do
+  let (cond, args) = whereOf filt
+      sql =
+        "SELECT n.id, -bm25("
+          <> table
+          <> "), snippet("
+          <> table
+          <> ", -1, '', '', '\x2026', 8)\
+             \ FROM "
+          <> table
+          <> " JOIN fts_map fm ON fm.rowid = "
+          <> table
+          <> ".rowid\
+             \ JOIN nodes n ON n.id = fm.node_id\
+             \ LEFT JOIN assets a ON a.id = n.id\
+             \ LEFT JOIN packs p ON p.id = n.id\
+             \ WHERE "
+          <> table
+          <> " MATCH ?"
+          <> cond
+      params = sText matchExpr : args
+  rows <- query (vhConn vh) (Query sql) params :: IO [(Text, Double, Text)]
+  pure
+    [ Hit i sc (postprocess snip)
+    | (idText, sc, snip) <- rows
+    , Right (_, i) <- [parseId idText]
+    ]
+  where
+    postprocess = if isCjkTable then desegmentCjk else id
+
+-- | 五個分面維度。每個維度各自忽略自己的條件(D5\/L17)但保留其他結構條件與
+-- 文字條件,計算候選集再依維度分組計數。
+computeFacets :: VaultHandle -> Maybe Text -> NodeFilter -> Int -> IO FacetCounts
+computeFacets vh textM filt total = do
+  types <- facetColumn vh textM filt {nfTypes = []} "n.type"
+  tags <- facetTags vh textM filt {nfTags = []}
+  owners <- facetColumn vh textM filt {nfOwner = Nothing} "n.owner"
+  licenses <- facetLicenses vh textM filt {nfLicense = Nothing}
+  let (VaultId vidText) = vmId (vhMarker vh)
+  pure
+    FacetCounts
+      { fcTypes = types
+      , fcVaults = [(vidText, total)]
+      , fcTags = tags
+      , fcOwners = owners
+      , fcLicenses = licenses
+      }
+
+-- | 忽略某一維度後仍符合的候選節點 id(文字條件照舊套用)。
+candidateIds :: VaultHandle -> Maybe Text -> NodeFilter -> IO [Id]
+candidateIds vh textM filt = map hId <$> matchHits vh textM filt
+
+facetColumn :: VaultHandle -> Maybe Text -> NodeFilter -> Text -> IO [(Text, Int)]
+facetColumn vh textM filt column = do
+  ids <- candidateIds vh textM filt
+  if null ids
+    then pure []
+    else do
+      let idTexts = map renderId ids
+          sql = "SELECT " <> column <> " FROM nodes n WHERE n.id IN " <> inList (length idTexts)
+      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only (Maybe Text)]
+      pure (tally [v | Only (Just v) <- rows])
+
+facetTags :: VaultHandle -> Maybe Text -> NodeFilter -> IO [(Text, Int)]
+facetTags vh textM filt = do
+  ids <- candidateIds vh textM filt
+  if null ids
+    then pure []
+    else do
+      let idTexts = map renderId ids
+          sql = "SELECT tag FROM node_tags WHERE node_id IN " <> inList (length idTexts)
+      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only Text]
+      pure (tally [t | Only t <- rows])
+
+facetLicenses :: VaultHandle -> Maybe Text -> NodeFilter -> IO [(Text, Int)]
+facetLicenses vh textM filt = do
+  ids <- candidateIds vh textM filt
+  if null ids
+    then pure []
+    else do
+      let idTexts = map renderId ids
+          sql =
+            "SELECT COALESCE(a.license, p.license) FROM nodes n\
+            \ LEFT JOIN assets a ON a.id = n.id\
+            \ LEFT JOIN packs p ON p.id = n.id\
+            \ WHERE n.id IN "
+              <> inList (length idTexts)
+      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only (Maybe Text)]
+      pure (tally [v | Only (Just v) <- rows])
+
+-- | 計數遞減、同計數以值遞增(契約 F 'FacetCounts' 的說明)。
+tally :: [Text] -> [(Text, Int)]
+tally xs =
+  sortBy (\(v1, c1) (v2, c2) -> compare (Down c1) (Down c2) <> compare v1 v2)
+    (M.toList (M.fromListWith (+) [(x, 1 :: Int) | x <- xs]))

@@ -2,6 +2,7 @@ module Main (main) where
 
 import qualified Aapms.Store.AtomicSpec
 import qualified Aapms.Store.ErrorSpec
+import qualified Aapms.Store.FacetSpec
 import qualified Aapms.Store.IndexSpec
 import qualified Aapms.Store.MarkerSpec
 import qualified Aapms.Store.NodeSpec
@@ -9,7 +10,9 @@ import qualified Aapms.Store.QuerySpec
 import qualified Aapms.Store.RebuildSpec
 import qualified Aapms.Store.RowSpec
 import qualified Aapms.Store.SchemaSpec
+import qualified Aapms.Store.SearchSpec
 import qualified Aapms.Store.StaleSpec
+import qualified Aapms.Store.TokenizeSpec
 import qualified Aapms.StoreSpec
 import System.IO
 import Test.Hspec
@@ -30,3 +33,7 @@ main = do
     Aapms.Store.QuerySpec.spec
     Aapms.Store.NodeSpec.spec
     Aapms.Store.RowSpec.spec
+    -- graph-core/F007
+    Aapms.Store.TokenizeSpec.spec
+    Aapms.Store.SearchSpec.spec
+    Aapms.Store.FacetSpec.spec

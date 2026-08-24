@@ -109,10 +109,13 @@ spec = describe "graph-core/F005 vault marker" $ do
         (\bad -> (bad `T.isInfixOf` src) `shouldBe` False)
         ["XdgConfig", "getXdgDirectory", "searchUp", "vaults.toml", "AAPMS_HOME"]
 
-  describe "indexTables(graph-core/F006 擴充後)" $
-    it "12 張表,meta_info 仍是第一張" $ do
-      length indexTables `shouldBe` 12
+  describe "indexTables(graph-core/F007 擴充後)" $
+    it "15 張表(F006 的 12 張 + F007 的 fts_tri/fts_cjk/fts_map),meta_info 仍是第一張,\
+       \fts_map 是最後一張" $ do
+      length indexTables `shouldBe` 15
       take 1 indexTables `shouldBe` ["meta_info"]
+      -- D3(resetSchema 以反向順序 DROP,fts_map 要排最後,先砍掉建在它上面的觸發器)
+      drop 14 indexTables `shouldBe` ["fts_map"]
 
 -- | 手寫一份 marker 檔(略過 initVaultAt),驗證 'readMarker' 對壞欄位的訊息。
 expectInvalidField :: FilePath -> Text -> Text -> IO ()

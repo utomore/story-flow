@@ -51,9 +51,15 @@ module Aapms.Store.Tokenize
   , ftsPhrase
   ) where
 
-import Aapms.Core.AnyNode (AnyNode)
+import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
+import Aapms.Core.Asset (Asset (..), LogicalName (..))
+import Aapms.Core.Entity (Entity (..))
 import Aapms.Core.Id (Id)
+import Aapms.Core.License (License (..))
+import Aapms.Core.Meta (Meta (..))
+import Aapms.Core.Pack (Pack (..))
 import Data.Text (Text)
+import qualified Data.Text as T
 
 --------------------------------------------------------------------------------
 -- 字元判定
@@ -61,18 +67,29 @@ import Data.Text (Text)
 -- | 中日韓字元。判斷錯的代價不對稱:多收一個字元只是多幾個 token,漏掉一個
 -- 字元就是永遠搜不到,所以假名與諺文也算進來。
 isCjk :: Char -> Bool
-isCjk = undefined
+isCjk c =
+  inRange 0x4E00 0x9FFF -- CJK 統一表意文字
+    || inRange 0x3400 0x4DBF -- CJK 統一表意文字擴展 A
+    || inRange 0xF900 0xFAFF -- CJK 相容表意文字
+    || inRange 0x3040 0x309F -- 平假名
+    || inRange 0x30A0 0x30FF -- 片假名
+    || inRange 0xAC00 0xD7A3 -- 諺文音節
+    || inRange 0x1100 0x11FF -- 諺文字母
+    || inRange 0x3130 0x318F -- 諺文相容字母
+  where
+    n = fromEnum c
+    inRange lo hi = n >= lo && n <= hi
 
 -- | 這段文字裡有沒有任何中日韓字元。
 hasCjk :: Text -> Bool
-hasCjk = undefined
+hasCjk = T.any isCjk
 
 -- | 極大的中日韓連續段,依出現順序。非中日韓字元是分段點,空段不回傳。
 --
 -- 分段是為了不讓 bigram 跨越非中日韓字元:「台灣 日本」若產生「灣日」,
 -- 搜「灣日」會誤中一筆語意上不存在的結果。
 cjkRuns :: Text -> [Text]
-cjkRuns = undefined
+cjkRuns = filter (not . T.null) . T.split (not . isCjk)
 
 --------------------------------------------------------------------------------
 -- 索引側
@@ -107,15 +124,50 @@ data FtsRow = FtsRow
 
 -- | 節點 → 六欄原文。純投影,不做切詞。
 rawFtsText :: AnyNode -> FtsText
-rawFtsText = undefined
+rawFtsText n =
+  FtsText
+    { ftTitle = metaTitle m
+    , ftSummary = metaSummary m
+    , ftBody = bodyOf n
+    , ftAliases = T.unwords (metaAliases m)
+    , ftTags = T.unwords (metaTags m)
+    , ftName = nameOf n
+    }
+  where
+    m = anyMeta n
+
+    bodyOf (NEntity e) = entBody e
+    bodyOf (NAsset a) = astBody a
+    bodyOf (NPack p) = pckBody p
+    bodyOf (NLicense l) = maybe "" id (licFullText l)
+    bodyOf (NLevel _) = ""
+    bodyOf (NNode _) = ""
+
+    nameOf (NAsset a) = maybe "" (\(LogicalName t) -> t) (astName a)
+    nameOf _ = ""
 
 -- | 逐欄套用 'cjkSegment'。
 segmentFtsText :: FtsText -> FtsText
-segmentFtsText = undefined
+segmentFtsText ft =
+  FtsText
+    { ftTitle = cjkSegment (ftTitle ft)
+    , ftSummary = cjkSegment (ftSummary ft)
+    , ftBody = cjkSegment (ftBody ft)
+    , ftAliases = cjkSegment (ftAliases ft)
+    , ftTags = cjkSegment (ftTags ft)
+    , ftName = cjkSegment (ftName ft)
+    }
 
 -- | 寫入端的單一入口(「模組間公開介面」的 Index → Tokenize)。
 ftsRowOf :: AnyNode -> FtsRow
-ftsRowOf = undefined
+ftsRowOf n =
+  FtsRow
+    { frNode = metaId (anyMeta n)
+    , frTri = raw
+    , frCjk = segmentFtsText raw
+    }
+  where
+    raw = rawFtsText n
 
 -- | 把一段文字預切成 @fts_cjk@ 用的 token 串:先所有 unigram、再所有 bigram,
 -- 以單一空白分隔。非中日韓字元一律丟棄。
@@ -133,7 +185,12 @@ ftsRowOf = undefined
 -- 端('cjkMatchExpr')對同一段輸入只會產生其中一種,片語比對因此不會跨過
 -- unigram\/bigram 的交界。
 cjkSegment :: Text -> Text
-cjkSegment = undefined
+cjkSegment t = T.unwords (unigrams ++ bigrams)
+  where
+    runs = cjkRuns t
+    unigrams = concatMap (map T.singleton . T.unpack) runs
+    bigrams = concatMap bigramsOf runs
+    bigramsOf r = zipWith (\a b -> T.pack [a, b]) (T.unpack r) (drop 1 (T.unpack r))
 
 -- | 'cjkSegment' 的還原:把 token 串併回連續文字,重疊的 bigram 只保留一次。
 -- 供 @fts_cjk@ 的 @snippet()@ 輸出還原成人看得懂的片段。
@@ -141,8 +198,29 @@ cjkSegment = undefined
 -- @
 -- "金 門 建 築 金門 門建 建築" -> "金門建築"
 -- @
+--
+-- __實作備註(spec-gaps G3)__:重建演算法逐一嘗試把相鄰 unigram 併入目前
+-- 累積的 run,判準是「下一個尚未消耗的 bigram token 內容是否等於
+-- 上一個累積字元 + 下一個 unigram」。這對 'cjkSegment' 真正產出的字串(呼叫
+-- 端唯一會餵進來的東西)在絕大多數輸入下都能正確還原;但當同一個 unigram
+-- 內容重複出現、且剛好落在真正的 run 邊界附近時,單靠 token 字串本身不足以
+-- 唯一決定原本的分段位置(見 spec-gaps.md G3)。
 desegmentCjk :: Text -> Text
-desegmentCjk = undefined
+desegmentCjk t = T.unwords (chain unigrams bigrams)
+  where
+    ws = T.words t
+    (unigrams, bigrams) = span ((== 1) . T.length) ws
+
+    chain [] _ = []
+    chain [u] _ = [u]
+    chain (u1 : u2 : us) bs = case bs of
+      (b : bs') | b == u1 <> u2 -> extend (u1 <> u2) us bs'
+      _ -> u1 : chain (u2 : us) bs
+
+    extend acc [] _ = [acc]
+    extend acc (u : us) bs = case bs of
+      (b : bs') | b == T.takeEnd 1 acc <> u -> extend (acc <> u) us bs'
+      _ -> acc : chain (u : us) bs
 
 --------------------------------------------------------------------------------
 -- 查詢側
@@ -160,28 +238,55 @@ data SearchRoute
 
 -- | 這條路由要不要查 @fts_tri@。
 usesTrigram :: SearchRoute -> Bool
-usesTrigram = undefined
+usesTrigram TrigramOnly = True
+usesTrigram CjkOnly = False
+usesTrigram BothIndexes = True
 
 -- | 這條路由要不要查 @fts_cjk@。
 usesCjk :: SearchRoute -> Bool
-usesCjk = undefined
+usesCjk TrigramOnly = False
+usesCjk CjkOnly = True
+usesCjk BothIndexes = True
 
 -- | 依查詢字串的長度與字元類別決定路由(「模組間公開介面」的 Query → Tokenize)。
 -- 判斷對象是去掉頭尾空白之後的字串。
 routeOf :: Text -> SearchRoute
-routeOf = undefined
+routeOf t
+  | not (hasCjk s) = TrigramOnly
+  | T.length s < 3 = CjkOnly
+  | otherwise = BothIndexes
+  where
+    s = T.strip t
 
 -- | @fts_tri@ 的 @MATCH@ 運算式。去掉頭尾空白後為空字串時回 'Nothing'。
+--
+-- 逐詞加雙引號(關掉運算子語意)後以 @AND@ 相連:要求每個詞都出現,詞與詞
+-- 之間不要求相鄰(「查詢字串同時含好幾個詞」比「詞剛好連續出現」更常是
+-- 使用者的意圖)。
 triMatchExpr :: Text -> Maybe Text
-triMatchExpr = undefined
+triMatchExpr t
+  | T.null s = Nothing
+  | otherwise = Just (T.intercalate " AND " (map ftsQuoted (T.words s)))
+  where
+    s = T.strip t
 
 -- | @fts_cjk@ 的 @MATCH@ 運算式。查詢字串不含中日韓字元時回 'Nothing'
 -- ——那種查詢該走 @fts_tri@。
 --
 -- 多段中日韓的輸入(如「台灣 建築」)取全部 bigram 做單一片語比對會過度嚴格,
--- 所以各段之間以 @AND@ 連接,段內才用片語。
+-- 所以各段之間以 @AND@ 連接,段內才用片語。每段只用 bigram(不含 unigram)
+-- 組成片語:單一 bigram 的片語即是「這兩個字元相鄰出現」,對長度 >= 2 的段
+-- 正是子字串比對要的語意;長度 1 的段沒有 bigram,直接以該字元本身當作
+-- (加了引號的)詞比對。
 cjkMatchExpr :: Text -> Maybe Text
-cjkMatchExpr = undefined
+cjkMatchExpr t
+  | not (hasCjk s) = Nothing
+  | otherwise = Just (T.intercalate " AND " (map segmentExpr (cjkRuns s)))
+  where
+    s = T.strip t
+    segmentExpr r =
+      let bs = filter ((== 2) . T.length) (T.words (cjkSegment r))
+       in if null bs then ftsQuoted r else ftsPhrase (T.unwords bs)
 
 --------------------------------------------------------------------------------
 -- FTS5 字面字串
@@ -192,9 +297,9 @@ cjkMatchExpr = undefined
 -- 「blue-potion」時那個減號會被解讀成 NOT。加雙引號可以全部關掉,內部的雙引號
 -- 則以重複兩次跳脫。
 ftsQuoted :: Text -> Text
-ftsQuoted = undefined
+ftsQuoted t = "\"" <> T.replace "\"" "\"\"" t <> "\""
 
 -- | 把已經是空白分隔的 token 串包成片語查詢:要求這些 token 在文件中__連續
 -- 出現__,所以「金門建築」不會誤中只含「金門」與不相鄰的「建築」的文件。
 ftsPhrase :: Text -> Text
-ftsPhrase = undefined
+ftsPhrase t = ftsQuoted (T.unwords (T.words t))

@@ -67,7 +67,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | (舊流程) | sonnet | — | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | (舊流程) | sonnet | — | sonnet | impl-done |
+| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | **重跑中**:spec-done(G1 + G2) |
 | store-vault-handle | F005 | F005-store-vault-handle.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | pending |
@@ -84,7 +84,7 @@ subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
 
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
-| (尚無) | | | | | |
+| F007 | 1 | `SearchSpec.hs:163` E6:`shSnippet` 應含「藥水」,實得 `"魔法藥 水 瓶"` | E6 + A3 + L4 | **spec bug** | 停下,回報開發者。**編排者實測歸因**:`desegmentCjk(完整 cjkSegment 輸出)` 正確還原且 **L4 成立**;但 FTS5 的 `snippet()` 回的是**片段**(欄位的一段視窗),不是完整的 `cjkSegment t`——L4 對片段沒有定義任何行為,A3 卻要求把 `snippet()` 的輸出餵給它。impl 滿足了所有 law,qa 逐字轉錄 E6,兩邊都沒錯,是 spec 把函式用在定義域外 |
 
 ## 待確認假設彙總
 

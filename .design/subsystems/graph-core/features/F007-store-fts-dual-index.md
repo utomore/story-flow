@@ -70,7 +70,6 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 | `segmentFtsText :: FtsText -> FtsText` | 對六個欄位逐一套用 `cjkSegment` | `store/src/Aapms/Store/Tokenize.hs:113` |
 | `ftsRowOf :: AnyNode -> FtsRow` | 給出一個節點在兩張 FTS 表裡的完整內容 | `store/src/Aapms/Store/Tokenize.hs:117` |
 | `cjkSegment :: Text -> Text` | 把文字預切成 unigram + bigram 的空白分隔串,非中日韓字元丟棄 | `store/src/Aapms/Store/Tokenize.hs:135` |
-| `desegmentCjk :: Text -> Text` | 把預切串併回連續文字,重疊的 bigram 只保留一次 | `store/src/Aapms/Store/Tokenize.hs:144` |
 | `usesTrigram :: SearchRoute -> Bool` | 這條路由要不要查 `fts_tri` | `store/src/Aapms/Store/Tokenize.hs:162` |
 | `usesCjk :: SearchRoute -> Bool` | 這條路由要不要查 `fts_cjk` | `store/src/Aapms/Store/Tokenize.hs:166` |
 | `routeOf :: Text -> SearchRoute` | 依查詢字串的長度與字元類別決定走哪張(或哪兩張)表 | `store/src/Aapms/Store/Tokenize.hs:171` |
@@ -88,18 +87,31 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 `SearchQuery` `Query.hs:472`、`SearchHit` `Query.hs:489`、`FacetCounts` `Query.hs:501`、
 `SearchResult` `Query.hs:511`。
 
+> **2026-08-24 修訂(spec-gaps G4 / G5 的裁決)**:`desegmentCjk :: Text -> Text` 已從介面**移除**。
+> 它唯一的消費者是 `search` 的 CJK 片段還原路徑,而該路徑依 A3 改走 `fts_tri` 的原文之後,這個函式
+> 不再有任何呼叫端;連帶撤掉 L4(見「Laws」)。介面因此是 20 條,不是 21 條。
+
 `search` 的行為約定(全部由下方 Laws 釘死,這裡只列不變量):結果不失敗;沒有文字條件時退化成
 `listNodes`;有文字條件時每筆命中都有正的相關度與非空片段;兩張表都命中的節點只回一筆;`srTotal`
 不受分頁影響;facet 計數排除該 facet 自己的條件。
 
 ## Laws(行為性質)
 
+> **2026-08-24 修訂**:L4 與 L23 已撤銷(開發者裁決,spec-gaps G3 / G4 / G5),原文以刪除線保留並附
+> 撤銷理由,**編號不重編**(其餘 law 與其測試不受影響)。**生效的是 22 條**:L1–L3、L5–L22、L24。
+
 **切詞(純函式)**
 
 - **L1**:對所有 `t`,`T.words (cjkSegment t)` 的每個 token 都只由 `isCjk` 為真的字元組成,且長度是 1 或 2
 - **L2**:對所有 `t`,`T.filter isCjk t` 的每個字元都以一個長度 1 的 token 出現在 `cjkSegment t` 裡,順序與原文相同
 - **L3**:對所有 `t`,`cjkSegment t` 裡長度 2 的 token 多重集合,等於「對 `cjkRuns t` 的每一段取相鄰重疊字元對」的多重集合(所以「台灣 日本」不產生「灣日」)
-- **L4**:對所有 `t`,`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)`
+- ~~**L4**:對所有 `t`,`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)`~~
+  **(2026-08-24 撤銷,開發者裁決;spec-gaps G4 / G5)**——「先所有 unigram、再所有 bigram」的表示法
+  本來就不是為了可逆而設計的:當同一個字元的重複剛好落在兩個 `cjkRuns` 段的邊界上,`cjkSegment`
+  對兩個 `cjkRuns` 不同的輸入會給出**逐字元相同**的輸出,任何確定性的 `desegmentCjk` 都不可能同時
+  等於兩個不同的 `T.unwords (cjkRuns _)`,這條 law 在數學上不可滿足。它原本的唯一用途是替 A3 的
+  snippet 還原背書,而 A3 已改走 `fts_tri` 的原文,`desegmentCjk` 連同這條 law 一併退場。
+  **qa 不再需要 L4 的測試**(編號保留為空位,不重編其餘 law)
 - **L5**:對所有不含中日韓字元的 `t`(含空字串),`cjkSegment t == ""` 且 `hasCjk t == False`
 - **L6**:對所有 `t`,`hasCjk t == T.any isCjk t == not (null (cjkRuns t))`
 
@@ -127,7 +139,13 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 - **L20**:對所有檔案 `f` 與查詢 `q`,連續 `indexFile vh f` 兩次之後 `search vh q` 的結果,與只做一次時相同(FTS 不留重複列)
 - **L21**:對所有檔案 `f`,`unindexFile vh f` 之後,`f` 裡的任何節點都不再出現在任何 `search vh q` 的 `srHits` 中
 - **L22**(ADR-016 第四條):把 `meta_info` 的 `schema_version` 改成任何不等於 `schemaVersion` 的值,再 `openVault` + `rebuildIndex`,則對所有 `q`,`search vh q` 的結果與改動前相同,且 `openVault` 回報的 `IndexIssue` 含一筆 `SchemaRebuilt`(索引是衍生物;切詞規則改版只靠這條路徑生效,不寫遷移)
-- **L23**:`store/src` 底下所有 `.hs` 原始碼都不含 `LIKE` 這個 SQL 關鍵字(不分大小寫的獨立詞)——ADR-016 第二條的可執行形式
+- ~~**L23**:`store/src` 底下所有 `.hs` 原始碼都不含 `LIKE` 這個 SQL 關鍵字(不分大小寫的獨立詞)~~
+  **(2026-08-24 撤銷,開發者裁決;spec-gaps G3)**——用文字掃描斷言「某個關鍵字不在原始碼裡」
+  分不出註解與程式碼,這正是它撞到骨架自身 Haddock 註解的原因;而且它斷言的是**原始碼的字面**,
+  不是任何可觀察的行為,不屬於 law 的範疇。它想保證的事(沒有第三條掃描路徑)已由 **L9 / L10**
+  涵蓋:查詢一定走 trigram 或 cjk 兩條 FTS 路徑之一,兩條路的成立與否完全由 `routeOf` /
+  `triMatchExpr` / `cjkMatchExpr` 決定,沒有留給子字串掃描的位置。ADR-016 第二條由 L9 / L10 背書。
+  **qa 不再需要 L23 的測試**(編號保留為空位,不重編其餘 law)
 - **L24**:對所有純 ASCII 的查詢字串 `t`,`search` 對 `t` 與對 `T.toUpper t` 回相同的 `srHits`
 
 ## Examples
@@ -237,12 +255,23 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
   *否決:一律套用完整條件*——當下少寫一個「條件可逐項組裝」的結構,但選了一個 tag 之後 tag 側欄
   只會剩那一個值,使用者換不掉;三個月後要補這件事,得把已經拼成單一字串的 WHERE 子句拆回可
   組裝的資料,而那時 `searchAcross`(F009)也已經建立在同一段程式碼上。
+- **D6:`shSnippet` 的唯一來源是 `fts_tri` 的原文,不論命中來自哪張表**(2026-08-24 開發者裁決,
+  spec-gaps G5;A3 是它的完整敘述)。
+  *否決:`fts_cjk` 命中時用該表的 `snippet()` 再還原*——`fts_cjk` 存的是「先所有 unigram、再所有
+  bigram」的 token 串,而 `snippet()` 回的是**一段視窗**,不是某個 `t` 的完整 `cjkSegment` 輸出;
+  還原函式的定義域從一開始就對不上,E6 觀察到的「魔法藥 水 瓶」是這個定義域錯配的必然結果,
+  不是實作瑕疵。
+  *否決:改 `cjkSegment` 的輸出格式讓它可逆*(例如在 bigram 區塊前插一個邊界標記)——那會動到
+  E1–E3 已釘死的字面輸出、動到已寫入的索引內容(要 bump `schemaVersion`),而且是為了一個
+  **只有呈現層在用**的需求去改**索引的表示法**,方向相反。
+  代價:CJK-only 的查詢在 `fts_tri` 上沒有 `MATCH`,片段要從欄位內容自行取窗,不能用 FTS5 的
+  `snippet()` 輔助函式。這條可逆(換回 `snippet()` 只影響片段的字面),但它是對外可觀察的行為。
 
 ## 骨架
 
 | 檔案 | 內容 |
 |---|---|
-| `store/src/Aapms/Store/Tokenize.hs` | **新建**。`FtsText` / `FtsRow` / `SearchRoute` 三個型別;`isCjk` / `hasCjk` / `cjkRuns` / `rawFtsText` / `segmentFtsText` / `ftsRowOf` / `cjkSegment` / `desegmentCjk` / `usesTrigram` / `usesCjk` / `routeOf` / `triMatchExpr` / `cjkMatchExpr` / `ftsQuoted` / `ftsPhrase` 的簽名,本體全為 `undefined`。純模組,不 import SQLite |
+| `store/src/Aapms/Store/Tokenize.hs` | **新建**。`FtsText` / `FtsRow` / `SearchRoute` 三個型別;`isCjk` / `hasCjk` / `cjkRuns` / `rawFtsText` / `segmentFtsText` / `ftsRowOf` / `cjkSegment` / `usesTrigram` / `usesCjk` / `routeOf` / `triMatchExpr` / `cjkMatchExpr` / `ftsQuoted` / `ftsPhrase` 的簽名,本體全為 `undefined`。純模組,不 import SQLite。(2026-08-24 修訂:`desegmentCjk` 已移除,見 A3 / L4) |
 | `store/src/Aapms/Store/Schema.hs` | `schemaVersion` 改 `3`;`indexTables` 尾端加三張表;`schemaDDL` 加 `fts_tri` / `fts_cjk` / `fts_map` 與 `fts_map_after_delete` 觸發器;`prepareConnection` 加 `PRAGMA recursive_triggers = ON`;新增 `insertFtsRows` 簽名(本體 `undefined`) |
 | `store/src/Aapms/Store/Query.hs` | 新增 `SearchQuery` / `SearchHit` / `FacetCounts` / `SearchResult` 四個型別與 `emptySearchQuery` / `search` 的簽名(本體 `undefined`),並加進模組匯出清單 |
 
@@ -271,12 +300,22 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
   FTS 列也不會出現在結果裡(只會浪費空間,不會答錯)。
   → **影響**:若日後換 SQLite 版本導致觸發器不再被叫起,正確性仍然成立,只需補一次
   `rebuildIndex` 前的整批清空。
-- **A3**:契約 F 沒有規定 `snippet` 的形狀。
+- **A3**(2026-08-24 依開發者裁決改寫,原版見 spec-gaps G5):契約 F 沒有規定 `snippet` 的形狀。
   → **採取**:純文字、不含任何標記(不選 HTML 或其他標記語言,那是呈現層的事),省略號 `…`;
-  `fts_cjk` 命中時把 `snippet()` 的輸出經 `desegmentCjk` 還原成連續文字再回傳(否則使用者會看到
-  「藥 水 藥水」)。
-  → **影響**:若上層要高亮,改的是 `SearchHit` 加一個欄位或改 `snippet()` 的 open / close 參數,
-  不動查詢結構。
+  **`shSnippet` 一律取自該節點在 `fts_tri` 裡的內容,與這一筆命中來自哪張表無關**。`fts_tri` 存的是
+  **原文**(trigram tokenizer 不做應用層預切),取出來就是連續、人看得懂的文字;`fts_cjk` 存的是
+  預切後的 n-gram 串,它的視窗片段**不是原文的子字串**(會是「魔法藥 水 瓶」這種東西),不能拿來
+  當 `shSnippet`。
+  → **spec 對片段的要求只有兩條**(其餘屬實作層級):
+  1. 有文字條件且該節點命中時,`shSnippet` 非空;沒有文字條件時為 `""`(L12)
+  2. 查詢字串(去頭尾空白後)在該節點的 `fts_tri` 原文六欄中確實出現時,`shSnippet` **必須包含它**
+     ——E6 的「`shSnippet` 含『藥水』」由這一條保證
+  → **視窗的挑法屬實作層級**:先找完整查詢字串、再找個別詞、都對不上時取第一個非空欄位的開頭,
+  長度取多少,都由 impl 決定。CJK-only 的查詢(如二字詞)在 `fts_tri` 上沒有 `MATCH`,FTS5 的
+  `snippet()` 輔助函式因此不可用,片段要由 `fts_tri` 的欄位內容自行取窗——這是「不論命中來自哪張表
+  都從 `fts_tri` 取」的直接後果,不是額外的設計負擔。
+  → **影響**:`desegmentCjk` 因此失去唯一的消費者,已從介面與骨架移除,L4 一併撤銷(見「Laws」)。
+  若上層要高亮,改的是 `SearchHit` 加一個欄位,不動查詢結構。
 - **A4**:純 ASCII 的一、二字元查詢(E14)在雙索引下必定空結果——trigram 有三字元下限,`fts_cjk`
   不收非中日韓內容,而 `LIKE` 已依 ADR-016 第二條退場。
   → **採取**:接受並寫成 Example,不特例處理。
@@ -305,15 +344,34 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
   皆為 0、片段皆為空,對照 `listNodes` 語意),兩張表都命中時取分數較大者(D2),再依
   「分數遞減、id 遞增」排序(L14)後套用 `nfLimit`/`nfOffset`。Facet 的五個維度各自忽略自己
   的過濾條件(D5)、保留其餘結構條件與文字條件重新算候選集,再依維度分組計數
-- **修正了骨架本身的一處 `LIKE` 獨立詞**(`Query.hs:16` 模組 Haddock,qa 已記錄為 G3 的一部分):
-  改寫措辭讓 L23(原始碼不含 `LIKE` 獨立詞)在字面讀法下對本次改動後的檔案成立;G3 問的語意
-  問題(「原始碼」是否排除 Haddock 註解)本身仍未解,狀態維持 open
-- **新增 spec-gaps G4**:`L4`(`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)` 對所有
-  `t`)在 `cjkSegment` 既定的「先 unigram 再 bigram」輸出格式下,對特定含重複字元、且重複點
-  剛好落在 run 邊界的病態輸入**在數學上不可能**被任何 `desegmentCjk` 實作滿足(可構造出
-  `cjkRuns` 不同但 `cjkSegment` 輸出逐字元相同的一對輸入)。已實作一個貪婪還原演算法,對
-  E1–E3 與絕大多數真實輸入正確,僅病態輸入類別下可能偏離;详見 spec-gaps.md G4。**因此本
-  feature 即使測試全綠也不得標 `done`**,已將 frontmatter 的 `status` 設為 `in-progress`
+- **G3 / L23(2026-08-24 開發者裁決後已 resolved)**:上一輪 impl 曾把
+  `Query.hs:16` 模組 Haddock 裡的獨立詞 `LIKE` 改寫掉,讓 L23 字面上勉強成立,但 G3 問的語意
+  問題(「原始碼」算不算含 Haddock 註解)本身沒解掉。開發者裁決直接**撤掉 L23**——它想保證的
+  「沒有子字串模糊比對路徑」已由 L9\/L10 的路由 law 涵蓋,不需要再靠文字掃描斷言。spec 的
+  Laws 段已刪除線標記 L23 並附撤銷理由;模組 Haddock 現在改成引用 L9\/L10。G3 狀態
+  resolved,不再是待辦
+- **G4\/G5(2026-08-24 開發者裁決後已 resolved)**:上一輪 impl 曾發現 `L4`
+  (`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)` 對所有 `t`)在數學上不可能對所有
+  輸入成立(`cjkSegment` 的「先 unigram 再 bigram」表示法本來就不可逆),已實作一個貪婪還原
+  演算法當權宜之計並記錄 spec-gaps G4;同時 G5 指出 A3 原本要求的「`fts_cjk` 命中時把
+  `snippet()` 經 `desegmentCjk` 還原」在數學上也行不通(`snippet()` 給的是片段視窗,不是完整
+  `cjkSegment` 輸出,片段輸入下 `desegmentCjk` 給出 `"魔法藥 水 瓶"` 這種接不回去的結果)。
+  開發者裁決:**`desegmentCjk` 整個撤除**(已從 `Tokenize.hs` 的介面與骨架移除),**`L4` 撤銷**,
+  **A3 改寫**成本文檔目前的版本——`shSnippet` 一律取自 `fts_tri` 的原文,與命中來自哪張表無關。
+  本輪 impl(定點重填 `ftsHits`)依新 A3\/D6 落實:`ftsHits` 只負責 `MATCH` 與結構過濾,片段
+  由新增的私有 helper `ftsTriSnippets`(批次查 `fts_tri` 六欄原文,避免 N+1)與 `snippetOf`
+  (純函式:找得到 `queryText` 就以出現位置裁窗、找不到就退回第一個非空欄位開頭,兩側裁斷處補
+  `…`)算出。`cabal repl` 手動驗證過 E6 情境(`fts_tri` 存 `"魔法藥水瓶"`、查詢 `"藥水"` 經
+  `fts_cjk` 命中):`shSnippet` 得到完整的 `"魔法藥水瓶"`,含查詢字串。G4\/G5 狀態 resolved
+- **實作筆記(本輪新增)**:`ftsHits` 原本嘗試在同一句 SQL 裡把 `MATCH` 查詢與 `fts_tri` 的片段
+  來源接成一次 JOIN(`table` 上跑 `MATCH`\/`bm25()`,另外再 `JOIN fts_tri ft` 取六欄原文);
+  `table == "fts_tri"` 時這是對同一張虛擬表接兩次。`cabal repl` 實測 SQLite 回報
+  `ambiguous column name`(FTS5 的 `MATCH`\/`bm25()` 認的是隱藏欄位的表名,不是 SQL 別名,把
+  同一張表接兩次會讓這個隱藏欄位撞名;連 `WHERE m MATCH ?` 這種把主查詢也改用別名的寫法都不
+  行,SQLite 回報 `no such column: m`——這個 SQLite\/FTS5 build 的 `MATCH` 只認得到字面表名)。
+  改成兩次獨立查詢:`ftsHits` 只查 `MATCH` + 結構條件拿 `(id, score)`,片段交給
+  `ftsTriSnippets` 對命中的 id 集合單獨查一次 `fts_tri`(不牽涉 `MATCH`,沒有自我 JOIN 問題)。
+  這屬純實作層級的 SQL 寫法選擇,不影響 'ftsHits' 對外的行為契約
 - 依規則本 impl 不寫、不讀任何 `store/test/` 底下的檔案;上面提到的 `cabal build` 會連帶連結
   `aapms-store-test` 執行檔(該套件的預設 build target 行為),但沒有執行測試、也沒有開檔看
   測試內容

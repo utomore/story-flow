@@ -8,7 +8,6 @@
 -- L1  cjkSegment 的 token 只由 CJK 字元組成、長度 1 或 2  -> prop_L1
 -- L2  unigram token 依序覆蓋原文全部 CJK 字元             -> prop_L2
 -- L3  bigram 多重集合 = 各 cjkRuns 段的相鄰字元對          -> prop_L3
--- L4  desegmentCjk . cjkSegment == T.unwords . cjkRuns    -> prop_L4
 -- L5  不含 CJK 字元的文字 cjkSegment 為空、hasCjk 為否     -> prop_L5
 -- L6  hasCjk 三種等價定義                                  -> prop_L6
 -- L7  rawFtsText 六欄逐一符合 Meta 投影規則                -> prop_L7
@@ -22,9 +21,6 @@
 -- E4  routeOf 三條路由各一                                  -> test_E4
 -- E5  ftsQuoted 的 "-" 與雙引號跳脫                          -> test_E5
 -- @
---
--- L23(store\/src 不含獨立詞 @LIKE@)不在本檔:撞到 spec 對「原始碼」是否含
--- Haddock 註解的模糊點,已記 spec-gaps.md 的 G3,停下該項。
 module Aapms.Store.TokenizeSpec (spec) where
 
 import Control.Monad (forM_)
@@ -69,11 +65,6 @@ spec = describe "graph-core/F007 Tokenize" $ do
             adjacentPairs run = [T.take 2 (T.drop i run) | i <- [0 .. T.length run - 2]]
             expected = concatMap adjacentPairs (cjkRuns t)
         sort bigrams === sort expected
-
-    it "L4: desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)" $
-      hedgehog $ do
-        t <- forAll genCjkRunsText
-        desegmentCjk (cjkSegment t) === T.unwords (cjkRuns t)
 
     it "L5: 不含 CJK 字元的文字(含空字串),cjkSegment 為空、hasCjk 為否" $
       hedgehog $ do

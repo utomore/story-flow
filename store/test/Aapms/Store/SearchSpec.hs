@@ -23,9 +23,6 @@
 -- E13 查無此文字時空結果、不是錯誤                                 -> test_E13
 -- E14 純 ASCII 二字查詢"ui"因雙索引已知代價回空結果                -> test_E14
 -- @
---
--- L23(store\/src 不含獨立詞 @LIKE@)不在本檔:見 "Aapms.Store.TokenizeSpec" 開頭
--- 的說明與 spec-gaps.md 的 G3。
 module Aapms.Store.SearchSpec (spec) where
 
 import Control.Monad (forM_)

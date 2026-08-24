@@ -13,9 +13,14 @@
 -- 'search' 把文字條件交給 "Aapms.Store.Tokenize" 的 'Aapms.Store.Tokenize.routeOf'
 -- 決定走 @fts_tri@(trigram)、@fts_cjk@(unicode61 + 預切)或兩者,兩邊的
 -- 命中以相關度合併去重。兩條路都給得出 bm25 分數,'shScore' 因此是 'Double'
--- 而不是 @Maybe Double@。__沒有子字串模糊比對(SQL 萬用字元運算子)掃描路徑__:
--- 那是 trigram 三字元下限的權宜之計,ADR-016 第二條已讓它退場(L23:本套件
--- 原始碼不含那個 SQL 關鍵字的獨立詞)。
+-- 而不是 @Maybe Double@。__只有這兩條路,沒有第三條__:ADR-016 第二條讓
+-- @LIKE@ 子字串掃描退場(它是 trigram 三字元下限的權宜之計),而 L9 \/ L10
+-- 把「每個查詢字串走哪一條」完全釘死在 'Aapms.Store.Tokenize.routeOf' 與兩個
+-- @MATCH@ 運算式上,沒有留給第三種比對方式的位置。
+--
+-- 'shSnippet' __一律取自 @fts_tri@ 的原文__,與這一筆命中來自哪張表無關
+-- (graph-core\/F007 的不可逆決定 D6):@fts_cjk@ 存的是預切後的 n-gram 串,
+-- 它的視窗片段不是原文的子字串,不能給人看。
 module Aapms.Store.Query
   ( -- * 過濾條件
     NodeFilter (..)
@@ -75,7 +80,6 @@ import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Row
 import Aapms.Store.Tokenize
   ( cjkMatchExpr
-  , desegmentCjk
   , routeOf
   , triMatchExpr
   , usesCjk
@@ -591,13 +595,13 @@ matchHits vh (Just txt) filt = do
   triHits <-
     if usesTrigram route
       then case triMatchExpr txt of
-        Just expr -> ftsHits vh "fts_tri" expr filt False
+        Just expr -> ftsHits vh "fts_tri" expr txt filt
         Nothing -> pure []
       else pure []
   cjkHits <-
     if usesCjk route
       then case cjkMatchExpr txt of
-        Just expr -> ftsHits vh "fts_cjk" expr filt True
+        Just expr -> ftsHits vh "fts_cjk" expr txt filt
         Nothing -> pure []
       else pure []
   pure (mergeHits (triHits ++ cjkHits))
@@ -623,18 +627,36 @@ structuralIds vh filt = do
   rows <- query (vhConn vh) (Query sql) args :: IO [Only Text]
   pure [i | Only t <- rows, Right (_, i) <- [parseId t]]
 
--- | 對一張 FTS 表跑 @MATCH@,附上結構條件,回傳 (id, bm25 取負, snippet)。
--- @isCjkTable@ 為 'True' 時把 @snippet()@ 的輸出經 'desegmentCjk' 還原成連續
--- 文字(否則使用者會看到「藥 水 藥水」,待確認假設 A3)。
-ftsHits :: VaultHandle -> Text -> Text -> NodeFilter -> Bool -> IO [Hit]
-ftsHits vh table matchExpr filt isCjkTable = do
+-- | 對一張 FTS 表跑 @MATCH@,附上結構條件,回傳每個命中節點的
+-- (id, bm25 取負, 片段)。
+--
+-- 參數依序是:@table@ 要 @MATCH@ 的表名(@fts_tri@ 或 @fts_cjk@)、
+-- @matchExpr@ 該表對應的 @MATCH@ 運算式、@queryText@ 使用者原本的查詢字串
+-- (已去頭尾空白)、@filt@ 結構條件。
+--
+-- __片段一律取自該節點在 @fts_tri@ 的六欄原文__,與 @table@ 是哪一張無關
+-- (不可逆決定 D6 \/ 待確認假設 A3)。@fts_cjk@ 存的是「先所有 unigram、再所有
+-- bigram」的 token 串,@snippet()@ 對它取出的視窗不是原文的子字串,接不回
+-- 連續文字。spec 對片段只要求兩件事:有文字條件且命中時非空;@queryText@ 在
+-- 該節點的 @fts_tri@ 原文裡確實出現時,片段必須包含它。視窗怎麼挑(先找完整
+-- 查詢字串、再找個別詞、都對不上時取第一個非空欄位的開頭,長度取多少)是實作
+-- 層級的選擇。
+--
+-- 注意 CJK-only 的查詢(如二字詞)在 @fts_tri@ 上沒有 @MATCH@,FTS5 的
+-- @snippet()@ 輔助函式因此不可用,片段要由 @fts_tri@ 的欄位內容自行取窗。
+--
+-- __實作筆記__:取片段__不__與 @MATCH@ 查詢同一句 SQL 自我 JOIN @fts_tri@
+-- (@table == "fts_tri"@ 時會把同一張虛擬表接兩次)——實測 FTS5 的
+-- @MATCH@\/@bm25()@ 認的是隱藏欄位「表名」而非 SQL 別名,同一句話裡出現兩次
+-- 會讓 SQLite 回報 @ambiguous column name@。因此片段改由 'ftsTriSnippets'
+-- batch 成獨立一次查詢,不受 @table@ 是哪一張影響。
+ftsHits :: VaultHandle -> Text -> Text -> Text -> NodeFilter -> IO [Hit]
+ftsHits vh table matchExpr queryText filt = do
   let (cond, args) = whereOf filt
       sql =
         "SELECT n.id, -bm25("
           <> table
-          <> "), snippet("
-          <> table
-          <> ", -1, '', '', '\x2026', 8)\
+          <> ")\
              \ FROM "
           <> table
           <> " JOIN fts_map fm ON fm.rowid = "
@@ -648,14 +670,94 @@ ftsHits vh table matchExpr filt isCjkTable = do
           <> " MATCH ?"
           <> cond
       params = sText matchExpr : args
-  rows <- query (vhConn vh) (Query sql) params :: IO [(Text, Double, Text)]
+  rows <- query (vhConn vh) (Query sql) params :: IO [(Text, Double)]
+  let hits = [(i, sc) | (idText, sc) <- rows, Right (_, i) <- [parseId idText]]
+  snippets <- ftsTriSnippets vh queryText (map fst hits)
+  pure [Hit i sc (M.findWithDefault "" i snippets) | (i, sc) <- hits]
+
+-- | 一批命中節點 → 各自的 'snippetOf' 結果,一次查詢(避免 N+1)。查不到
+-- @fts_tri@ 列的 id(理論上不會發生,兩張表的列同進同出)乾脆不放進 map,
+-- 'ftsHits' 用 'M.findWithDefault' 落到空字串。
+ftsTriSnippets :: VaultHandle -> Text -> [Id] -> IO (M.Map Id Text)
+ftsTriSnippets _ _ [] = pure M.empty
+ftsTriSnippets vh queryText ids = do
+  let idTexts = map renderId ids
+      sql =
+        "SELECT n.id, ft.title, ft.summary, ft.body, ft.aliases, ft.tags, ft.name\
+        \ FROM nodes n\
+        \ JOIN fts_map fm ON fm.node_id = n.id\
+        \ JOIN fts_tri ft ON ft.rowid = fm.rowid\
+        \ WHERE n.id IN "
+          <> inList (length idTexts)
+  rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [FtsTriRow]
   pure
-    [ Hit i sc (postprocess snip)
-    | (idText, sc, snip) <- rows
-    , Right (_, i) <- [parseId idText]
-    ]
+    (M.fromList
+      [ (i, snippetOf queryText (ftsTriColumns r))
+      | r <- rows
+      , Right (_, i) <- [parseId (ftrId r)]
+      ])
+
+-- | 一列 @fts_tri@ 原文:命中節點的 id 與六欄原文,順序對應 SQL 的
+-- @SELECT@(D6:片段一律從這裡取)。
+data FtsTriRow = FtsTriRow
+  { ftrId :: Text
+  , ftrTitle :: Text
+  , ftrSummary :: Text
+  , ftrBody :: Text
+  , ftrAliases :: Text
+  , ftrTags :: Text
+  , ftrName :: Text
+  }
+
+instance FromRow FtsTriRow where
+  fromRow =
+    FtsTriRow
+      <$> field -- n.id
+      <*> field -- ft.title
+      <*> field -- ft.summary
+      <*> field -- ft.body
+      <*> field -- ft.aliases
+      <*> field -- ft.tags
+      <*> field -- ft.name
+
+ftsTriColumns :: FtsTriRow -> [Text]
+ftsTriColumns r = [ftrTitle r, ftrSummary r, ftrBody r, ftrAliases r, ftrTags r, ftrName r]
+
+-- | 從 @fts_tri@ 六欄原文取一段片段(A3\/D6)。先找 'queryText' 在哪一欄裡以
+-- 連續子字串出現,取到就以那個出現位置為中心裁窗、片段裡必定含
+-- 'queryText'(spec 對片段的第二條要求);沒有任何一欄含 'queryText' 時,
+-- 退而取第一個非空欄位的開頭。裁掉的地方補一個省略號 @…@。視窗長度、挑選
+-- 順序都是實作層級的選擇,spec 未逐字規定。
+snippetOf :: Text -> [Text] -> Text
+snippetOf queryText cols = case windowed of
+  Just s -> s
+  Nothing -> case filter (not . T.null) cols of
+    (c : _) -> truncateFront c
+    [] -> ""
   where
-    postprocess = if isCjkTable then desegmentCjk else id
+    windowed
+      | T.null queryText = Nothing
+      | otherwise =
+          listToMaybe
+            [ truncateBack before <> queryText <> truncateFront after
+            | c <- cols
+            , not (T.null c)
+            , let (before, rest) = T.breakOn queryText c
+            , not (T.null rest)
+            , let after = T.drop (T.length queryText) rest
+            ]
+
+    truncateBack t
+      | T.length t > snippetContext = "\x2026" <> T.takeEnd snippetContext t
+      | otherwise = t
+
+    truncateFront t
+      | T.length t > snippetContext = T.take snippetContext t <> "\x2026"
+      | otherwise = t
+
+-- | 片段視窗一側取多少字元(不含省略號),實作層級的選擇。
+snippetContext :: Int
+snippetContext = 24
 
 -- | 五個分面維度。每個維度各自忽略自己的條件(D5\/L17)但保留其他結構條件與
 -- 文字條件,計算候選集再依維度分組計數。

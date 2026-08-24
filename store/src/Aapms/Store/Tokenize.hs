@@ -36,7 +36,6 @@ module Aapms.Store.Tokenize
   , segmentFtsText
   , ftsRowOf
   , cjkSegment
-  , desegmentCjk
 
     -- * 查詢側:路由與 MATCH 運算式
   , SearchRoute (..)
@@ -184,6 +183,12 @@ ftsRowOf n =
 -- token 就是這些字串本身,長度 1 的 token 永遠不等於長度 2 的 token,而查詢
 -- 端('cjkMatchExpr')對同一段輸入只會產生其中一種,片語比對因此不會跨過
 -- unigram\/bigram 的交界。
+--
+-- __這個表示法是單向的,沒有反函式__(graph-core\/F007 D6;spec-gaps G4 \/ G5):
+-- 同一個字元的重複剛好落在兩個 'cjkRuns' 段的邊界上時,兩個 'cjkRuns' 不同的
+-- 輸入會給出逐字元相同的輸出,分段資訊已經遺失。所以__不要__再加一個
+-- @desegmentCjk@:需要給人看的連續文字時,一律從 @fts_tri@ 的原文取
+-- (@Aapms.Store.Query@ 的 'Aapms.Store.Query.shSnippet',見 D6)。
 cjkSegment :: Text -> Text
 cjkSegment t = T.unwords (unigrams ++ bigrams)
   where
@@ -191,36 +196,6 @@ cjkSegment t = T.unwords (unigrams ++ bigrams)
     unigrams = concatMap (map T.singleton . T.unpack) runs
     bigrams = concatMap bigramsOf runs
     bigramsOf r = zipWith (\a b -> T.pack [a, b]) (T.unpack r) (drop 1 (T.unpack r))
-
--- | 'cjkSegment' 的還原:把 token 串併回連續文字,重疊的 bigram 只保留一次。
--- 供 @fts_cjk@ 的 @snippet()@ 輸出還原成人看得懂的片段。
---
--- @
--- "金 門 建 築 金門 門建 建築" -> "金門建築"
--- @
---
--- __實作備註(spec-gaps G3)__:重建演算法逐一嘗試把相鄰 unigram 併入目前
--- 累積的 run,判準是「下一個尚未消耗的 bigram token 內容是否等於
--- 上一個累積字元 + 下一個 unigram」。這對 'cjkSegment' 真正產出的字串(呼叫
--- 端唯一會餵進來的東西)在絕大多數輸入下都能正確還原;但當同一個 unigram
--- 內容重複出現、且剛好落在真正的 run 邊界附近時,單靠 token 字串本身不足以
--- 唯一決定原本的分段位置(見 spec-gaps.md G3)。
-desegmentCjk :: Text -> Text
-desegmentCjk t = T.unwords (chain unigrams bigrams)
-  where
-    ws = T.words t
-    (unigrams, bigrams) = span ((== 1) . T.length) ws
-
-    chain [] _ = []
-    chain [u] _ = [u]
-    chain (u1 : u2 : us) bs = case bs of
-      (b : bs') | b == u1 <> u2 -> extend (u1 <> u2) us bs'
-      _ -> u1 : chain (u2 : us) bs
-
-    extend acc [] _ = [acc]
-    extend acc (u : us) bs = case bs of
-      (b : bs') | b == T.takeEnd 1 acc <> u -> extend (acc <> u) us bs'
-      _ -> acc : chain (u : us) bs
 
 --------------------------------------------------------------------------------
 -- 查詢側

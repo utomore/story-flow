@@ -3,9 +3,9 @@ id: F004
 type: feature
 title: md-unified-sections
 description: 分節引擎接統一 Meta;新增 pack.md/licenses.md 解析與位元組保留寫回
-status: in-progress
+status: done
 created: 2026-08-23
-updated: 2026-08-24
+updated: 2026-08-25
 depends-on: [F001, F002]
 related-adr: [ADR-002, ADR-009, ADR-010, ADR-013]
 related-feature: []

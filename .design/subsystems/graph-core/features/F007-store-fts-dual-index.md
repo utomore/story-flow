@@ -3,9 +3,9 @@ id: F007
 type: feature
 title: store-fts-dual-index
 description: FTS5 trigram 與 unicode61 雙索引、查詢路由、分數合併與 facet
-status: in-progress
+status: done
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-25
 depends-on: [F001, F005, F006]
 related-adr: [ADR-013, ADR-016]
 related-feature: []

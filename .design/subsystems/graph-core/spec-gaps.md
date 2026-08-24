@@ -20,7 +20,7 @@ parent: graph-core
   `toPack` / `toLicenses` 驗證的完整新節;F008 的驗收標準「`createPackFile` 在指定目錄寫出 `pack.md`,
   節的順序與給定順序相同」因此做不下去
 - **需要 spec 回答什麼**:節層的型別專屬欄位要走哪個管道?
-- **狀態**:**resolved**(2026-08-24 開發者裁決)——`NewSection` 改成對節點種類做 sum
+- 狀態:resolved (2026-08-24 開發者裁決)——`NewSection` 改成對節點種類做 sum
   (`NewSectionPayload` = `NSFragment` / `NSAsset` / `NSLicense` / `NSNode`,封閉建構子),
   `addSection` 維持單一入口依 payload 分派。已回寫 `design.md` 契約 D;
   `createPackFile` 第三參數連帶由 `[NewAsset]` 改為 `[NewSection]`(契約 E)
@@ -40,7 +40,7 @@ parent: graph-core
   `sha256: deadbeef1234` / `entry: PNG/a.png` 的 asset 節呼叫
   `updateSection aid (\o -> o { moSummary = Just "after" })`,寫回後那兩行消失
 - **為什麼沒被測到**:`md/test/` 沒有任何測試把 `updateSection` 與 `sha256` 放在一起
-- **狀態**:**resolved**(2026-08-24,F004 重跑完成並經編排者以原重現案例驗證:`SHA256_KEPT True` / `ENTRY_KEPT True` / `SUMMARY_NEW True`)。原處置:由 **F004 重跑**修復(2026-08-24 開發者裁決),與 G1 同一個根
+- 狀態:resolved (2026-08-24,F004 重跑完成並經編排者以原重現案例驗證:`SHA256_KEPT True` / `ENTRY_KEPT True` / `SUMMARY_NEW True`)。原處置:由 **F004 重跑**修復(2026-08-24 開發者裁決),與 G1 同一個根
   (`MetaOverride` 是唯一管道),一併處理:`Render` 要支援 payload 專屬欄位的序列化,
   並新增 payload 保留的編輯路徑讓 `updateSection` 不再吃掉節專屬欄位
 
@@ -61,13 +61,13 @@ parent: graph-core
 - 需要 spec 回答什麼:L23 的「原始碼」是否排除 Haddock 註解?若排除,要不要把
   `Query.hs:16` 的骨架註解改寫(拿掉獨立詞 `LIKE`,例如改成 `%LIKE%` 或拆成
   `LI` <> `KE`)當作骨架修訂的一部分一併發下來,讓這條 Law 對「現在的骨架」就是可驗證的?
-- 狀態:open(**impl 附註,2026-08-24**:骨架註解 `Query.hs:16` 已由 impl 改寫,拿掉了獨立詞
+- 當初的處置(已被下方的 resolved 取代,保留原文供追溯)(**impl 附註,2026-08-24**:骨架註解 `Query.hs:16` 已由 impl 改寫,拿掉了獨立詞
   `LIKE`——這是註解文字的實作層級調整,不是骨架簽名\/型別,依 spec-roles.md 屬 impl 自主權
   範圍。字面讀法之下,`store/src` 現在確實不含獨立詞 `LIKE`(已用
   `grep -rniE "\bLIKE\b" store/src/` 覆核)。但 G3 問的「原始碼是否排除 Haddock 註解」這個
   語意問題本身仍未解:qa 若已依字面讀法寫死斷言字串,或未來任何人在註解裡再次寫下這個詞,
   同樣的爭議會重演,狀態維持 open 讓編排者\/開發者定調)
-- **狀態:resolved**(2026-08-24 開發者裁決 → spec 已修訂):**L23 撤銷**,F007 spec 的 Laws 段以刪除線
+- 狀態:resolved (2026-08-24 開發者裁決 → spec 已修訂):**L23 撤銷**,F007 spec 的 Laws 段以刪除線
   保留原文並附撤銷理由,編號不重編;`Query.hs` 的模組 Haddock 改成引用 L9 / L10(「只有兩條路,沒有
   第三條」)。qa 不再需要 L23 的測試,`TokenizeSpec.hs` / `SearchSpec.hs` 開頭關於 L23 的說明可一併移除
 
@@ -97,7 +97,7 @@ parent: graph-core
   `desegmentCjk`,若整個函式留 `undefined`,會連帶讓所有 CJK 命中路徑的片段輸出崩潰,影響
   範圍遠大於這個病態子集;因此選擇實作可用版本 + 記錄此 gap,而非整項停工。若編排者認為這個
   處置不恰當(應該整項停工等 spec 修訂),請指示回退
-- **狀態:resolved**(2026-08-24 開發者裁決 → spec 已修訂):**L4 撤銷**,且 `desegmentCjk` 在失去
+- 狀態:resolved (2026-08-24 開發者裁決 → spec 已修訂):**L4 撤銷**,且 `desegmentCjk` 在失去
   snippet 這個唯一消費者後**整個從介面與骨架移除**(`Tokenize.hs` 的匯出與定義都已刪除,`cjkSegment`
   的 Haddock 加了「這個表示法是單向的,沒有反函式」的說明防止有人再加回去)。qa 要刪掉
   `TokenizeSpec.hs` 的 `prop_L4` 與對 `desegmentCjk` 的 import
@@ -119,7 +119,7 @@ parent: graph-core
   編排者建議的方向:`fts_tri` 存的是**原始文字**(trigram tokenizer 不做應用層預切),
   所以 snippet 從 `fts_tri` 的內容取就是自然的連續文字,`desegmentCjk` 可以整個退出 snippet 路徑;
   L4 則應改成有條件的 law 或直接撤掉
-- **狀態**:**resolved**(2026-08-24 開發者裁決,見下)
+- 狀態:resolved (2026-08-24 開發者裁決,見下)
 
 ---
 

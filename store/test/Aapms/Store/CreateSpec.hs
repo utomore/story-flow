@@ -7,10 +7,11 @@
 -- L9   createPackFile 順序保持                      -> prop_L9
 -- L10  createTopicFile 落點                          -> prop_L10
 -- L11  createLevelFile 產出可解析的 Level             -> prop_L11
--- L12a addSection AtEnd 追加不動前面                  -> test_L12a
--- L12b addSection UnderParent 只在插入點動刀           -> test_E12(即 L12b 的具體案例)
+-- L12a addSection AtEnd 追加不動前面(G14 裁決後含插入點行尾但書) -> test_L12a
+-- L12b addSection UnderParent 只在插入點動刀(G14 裁決後含插入點行尾但書) -> test_E12(即 L12b 的具體案例)
 -- L12c UnderParent 兩條失敗路徑不寫檔                  -> test_E13 / test_E14
 -- L13  deleteNode 的兩種模式                          -> prop_L13
+-- L25  createPackFile 的 pack 專屬七欄往返(2026-08-25 G17 裁決,__現在會紅__,見模組說明) -> test_E22
 -- E1   createTopicFile 正常路徑                       -> test_E1
 -- E2   createLevelFile 根 Node                        -> test_E2
 -- E3   createPackFile 節順序                          -> test_E3
@@ -19,7 +20,22 @@
 -- E12  UnderParent 正常路徑                           -> test_E12
 -- E13  UnderParent 父節點不存在                        -> test_E13
 -- E14  UnderParent 父節點已達六級                       -> test_E14
+-- E22  createPackFile 七個 pack 專屬欄位全給非預設值    -> test_E22
 -- @
+--
+-- __編排者歸因(第二輪,2026-08-25)__:
+--
+-- * 'levelE12Md' 原本從三級標題直接跳到六級(@HeadingSkip 3 6@),不是合法的 Level 檔
+--   (ADR-009 標題階層必須逐級遞增)。已改成收束(3)之後接深一(4)→深二(5)→最深(6)逐級鋪下去,
+--   序幕\/開場\/收束的順序與 id 不變(E12\/E13 依賴那個順序)。
+-- * L9 的 generator 曾經跨迭代重用同一批 @nsId@,而短 id 依 ADR-014 是__vault 內__唯一,不是
+--   __檔案內__唯一——同一個 vault 裡兩個檔用同一個 id 本來就不合法。'l9SamplePools' 現在三組
+--   彼此__完全不相交__。
+--
+-- __L25\/E22(G17)__:'createPackFile' 現在被驗出把 'NewPack' 的七個 pack 專屬欄位全部
+-- 丟掉(重讀後全解成 'Nothing' \/ 'AiUnknown')。這是 @aapms-md@ 檔案層缺對稱節層
+-- @MetaExtras@ 機制的根因,F004 正在另一條線補;__本檔的 test_E22 現在就是紅的,而且會一直
+-- 紅到 F004 那一半落地為止__——這是它的工作,不弱化、不標 pending、不因為現在做不到而放寬。
 module Aapms.Store.CreateSpec (spec) where
 
 import Control.Monad (forM_)
@@ -33,7 +49,7 @@ import Aapms.Core.Id (Id, Ref (..), localRef)
 import Aapms.Core.Level (Level (..), Node (..), NodeKind (..))
 import Aapms.Core.Link (Link (..), LinkKind (Involves))
 import Aapms.Core.Meta (Meta (..), Revision (..), Source (..), Status (..), TypeKey (..))
-import Aapms.Core.Pack (AiDisclosure (..))
+import Aapms.Core.Pack (AiDisclosure (..), Author (..), Pack (..))
 import Aapms.Core.Registry
   ( Family (FEntity)
   , TypeDecl (..)
@@ -49,6 +65,7 @@ import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Create
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Fixtures
+import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault, vhRoot)
 import Aapms.Store.Schema (VaultKind (StoryVault))
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
@@ -117,6 +134,20 @@ mkEntity ty _ title =
 
 parseOrFail :: T.Text -> IO Document
 parseOrFail raw = either (\e -> fail ("解析失敗:" <> show e)) pure (parseDocument raw)
+
+-- | G14 裁決:插入一節之後,除了插入點之前那一段之外,其餘每一節都必須逐位元組不變。
+-- 插入點之前那一段__只__允許差在尾端補上的行尾(@blankTail@ 冪等,已是空行結尾就不動)——
+-- 機械判定是 @T.stripEnd@ 之後兩者相同。'strictBytes' 給所有其他節用,'looseBytes' 只給
+-- 插入點前一段用。
+strictBytesUnchanged :: Document -> Document -> Id -> Expectation
+strictBytesUnchanged beforeDoc afterDoc sid =
+  fmap renderSection (find ((== sid) . secId) (docSections afterDoc))
+    `shouldBe` fmap renderSection (find ((== sid) . secId) (docSections beforeDoc))
+
+insertionPointBytesUnchangedModuloBlankTail :: Document -> Document -> Id -> Expectation
+insertionPointBytesUnchangedModuloBlankTail beforeDoc afterDoc sid =
+  fmap (T.stripEnd . renderSection) (find ((== sid) . secId) (docSections afterDoc))
+    `shouldBe` fmap (T.stripEnd . renderSection) (find ((== sid) . secId) (docSections beforeDoc))
 
 --------------------------------------------------------------------------------
 -- E1 / L10: createTopicFile
@@ -247,10 +278,43 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
               map (metaId . astMeta) assets `shouldBe` ids
 
   --------------------------------------------------------------------------------
+  -- L25 / E22(2026-08-25 G17 裁決):createPackFile 的 pack 專屬七欄往返。
+  -- __現在會紅,而且要一直紅到 F004 補上檔案層 extras 為止——這正是它的價值,不弱化__。
+
+  describe "L25 / E22: createPackFile 的 pack 專屬七欄往返(G17,現在會紅,見模組說明)" $
+    it "E22: 七個 pack 專屬欄位全給非預設值,重讀後 toPack 解出的 Pack 七欄逐欄等於傳入的 NewPack" $
+      withFreshVault $ \vh -> do
+        let npNonDefault =
+              (mkPack "packs/e22-fixture")
+                { npVendor = Just "Kenney"
+                , npArchive = Just "packs/kenney-ui.zip"
+                , npSha256 = Just (Sha256 "aa1122334455aa1122334455aa1122334455aa1122334455aa1122334455aa")
+                , npLicense = Just (localRef (idOf "lic-0000000a"))
+                , npAuthor = Just (Author "Kenney" (Just "https://kenney.nl") Nothing)
+                , npSourceUrl = Just "https://kenney.nl/assets/ui-pack"
+                , npAiDisclosure = AiNone
+                }
+            secs = [mkAssetSection (idOf "ast-0000000e") "e22"]
+        r <- createPackFile vh npNonDefault secs
+        case r of
+          Left e -> expectationFailure ("預期成功,得到 " <> show e)
+          Right cr -> do
+            raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+            doc <- parseOrFail raw
+            (pck, _assets) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc)
+            pckVendor pck `shouldBe` npVendor npNonDefault
+            pckArchive pck `shouldBe` npArchive npNonDefault
+            pckSha256 pck `shouldBe` npSha256 npNonDefault
+            pckLicense pck `shouldBe` npLicense npNonDefault
+            pckAuthor pck `shouldBe` npAuthor npNonDefault
+            pckSourceUrl pck `shouldBe` npSourceUrl npNonDefault
+            pckAiDisclosure pck `shouldBe` npAiDisclosure npNonDefault
+
+  --------------------------------------------------------------------------------
   -- addSection:L12a(AtEnd)、E10(BadSectionPayload)
 
-  describe "L12a: addSection AtEnd 追加在檔尾、不動前面既有節" $
-    it "對主題檔追加一個片段:前面兩節位元組不變,新節排在最後,toTopic 仍成功" $
+  describe "L12a: addSection AtEnd 追加在檔尾、不動前面既有節(G14 裁決:插入點前一段允許 blankTail 補行尾)" $
+    it "對主題檔追加一個片段:插入點之前的既有節(ent-00000003)至多差在補行尾,更早的節(ent-00000002)逐位元組不變,新節排在最後,toTopic 仍成功" $
       withIndexedStoryVault $ \vh -> do
         let topicPath = "characters/test-character.md"
         beforeDoc <- parseOrFail =<< (orDie =<< readTextFile (vhRoot vh </> topicPath))
@@ -267,9 +331,10 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> crId cr `shouldBe` idOf "ent-00000009"
         afterDoc <- parseOrFail =<< (orDie =<< readTextFile (vhRoot vh </> topicPath))
-        forM_ [idOf "ent-00000002", idOf "ent-00000003"] $ \sid ->
-          fmap renderSection (find ((== sid) . secId) (docSections afterDoc))
-            `shouldBe` fmap renderSection (find ((== sid) . secId) (docSections beforeDoc))
+        -- ent-00000002 在插入點(檔尾追加的插入點是原本最後一節 ent-00000003)之前,不受但書影響
+        strictBytesUnchanged beforeDoc afterDoc (idOf "ent-00000002")
+        -- ent-00000003 是 AtEnd 的插入點前一段,至多允許補行尾(blankTail 冪等)
+        insertionPointBytesUnchangedModuloBlankTail beforeDoc afterDoc (idOf "ent-00000003")
         map secId (docSections afterDoc)
           `shouldBe` map secId (docSections beforeDoc) ++ [idOf "ent-00000009"]
         _ <- either (\e -> fail ("toTopic 失敗:" <> show e)) pure (toTopic afterDoc)
@@ -297,7 +362,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
   -- addSection UnderParent:E12(=L12b)、E13、E14(=L12c 的兩條失敗路徑)
 
   describe "L12b / E12 / L12c / E13 / E14: addSection UnderParent" $ do
-    it "E12/L12b: 插在「開場」之後、「收束」之前;nsLevel(呼叫端故意給 2)被 headingDepthFor 推導的 4 覆寫;插入點前後位元組不變" $
+    it "E12/L12b: 插在「開場」之後、「收束」之前;nsLevel(呼叫端故意給 2)被 headingDepthFor 推導的 4 覆寫;插入點之後逐位元組不變,插入點前一段(開場)至多差在補行尾" $
       withE12Vault $ \vh -> do
         beforeDoc <- parseOrFail =<< (orDie =<< readTextFile (levelE12AbsPath vh))
         let newNode =
@@ -308,16 +373,18 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = "新節點內文"
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "nod-e0000001") (UnderParent (idOf "nod-e0000002")) newNode
+        r <- addSection vh (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000002")) newNode
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> crId cr `shouldBe` idOf "nod-e0000004"
         afterDoc <- parseOrFail =<< (orDie =<< readTextFile (levelE12AbsPath vh))
+        -- 開場(nod-e0000002)的子樹是空的(k=0),所以插入點前一段就是開場自己
         map secId (docSections afterDoc)
-          `shouldBe` map idOf ["nod-e0000001", "nod-e0000002", "nod-e0000004", "nod-e0000003", "nod-e0000005"]
-        forM_ [idOf "nod-e0000001", idOf "nod-e0000002", idOf "nod-e0000003", idOf "nod-e0000005"] $ \sid ->
-          fmap renderSection (find ((== sid) . secId) (docSections afterDoc))
-            `shouldBe` fmap renderSection (find ((== sid) . secId) (docSections beforeDoc))
+          `shouldBe` map idOf ["nod-e0000001", "nod-e0000002", "nod-e0000004", "nod-e0000003", "nod-e0000006", "nod-e0000007", "nod-e0000005"]
+        strictBytesUnchanged beforeDoc afterDoc (idOf "nod-e0000001")
+        insertionPointBytesUnchangedModuloBlankTail beforeDoc afterDoc (idOf "nod-e0000002")
+        forM_ [idOf "nod-e0000003", idOf "nod-e0000006", idOf "nod-e0000007", idOf "nod-e0000005"] $
+          strictBytesUnchanged beforeDoc afterDoc
         case find ((== idOf "nod-e0000004") . secId) (docSections afterDoc) of
           Just sec -> secLevel sec `shouldBe` 4
           Nothing -> expectationFailure "找不到新節"
@@ -339,7 +406,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = ""
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "nod-e0000001") (UnderParent missing) newNode
+        r <- addSection vh (idOf "lvl-e0000001") (UnderParent missing) newNode
         r `shouldBe` Left (SectionMissing levelE12RelPath missing)
         afterRaw <- orDie =<< readTextFile (levelE12AbsPath vh)
         afterRaw `shouldBe` beforeRaw
@@ -355,7 +422,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = ""
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "nod-e0000001") (UnderParent (idOf "nod-e0000005")) newNode
+        r <- addSection vh (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000005")) newNode
         r `shouldBe` Left (NodeDepthExceeded (idOf "nod-e0000005") 7)
         afterRaw <- orDie =<< readTextFile (levelE12AbsPath vh)
         afterRaw `shouldBe` beforeRaw
@@ -451,17 +518,20 @@ mkAssetSection i label =
             }
     }
 
--- | L9 用的三組代表性 id 池:單一元素、逆序、四元素洗牌。
+-- | L9 用的三組代表性 id 池:單一元素、逆序、四元素洗牌。__三組彼此完全不相交__
+-- (編排者歸因:短 id 依 ADR-014 是 vault 內唯一,不是檔案內唯一;三組全在同一個
+-- 'withFreshVault' 裡跑,跨組重複的 id 本來就會撞 @nodes.id@ 主鍵)。
 l9SamplePools :: [[Id]]
 l9SamplePools =
   [ [idOf "ast-00000001"]
-  , [idOf "ast-00000003", idOf "ast-00000002", idOf "ast-00000001"]
+  , [idOf "ast-00000006", idOf "ast-00000005", idOf "ast-00000004"]
   , [idOf "ast-0000000d", idOf "ast-0000000a", idOf "ast-0000000c", idOf "ast-0000000b"]
   ]
 
 --------------------------------------------------------------------------------
 -- E12 / E13 / E14 用的 Level 檔 fixture:序幕(根,2級)→ 開場(3級)、收束(3級,
--- 與開場同層兄弟)、最深(6級,緊接收束之後,供 E14 用)。
+-- 與開場同層兄弟),收束之後__逐級遞增__鋪到深一(4級)→深二(5級)→最深(6級,供 E14 用)。
+-- ADR-009 標題階層即樹,不可跳級(編排者歸因:原本從 3 級直接跳到 6 級,不是合法 Level 檔)。
 
 levelE12RelPath :: FilePath
 levelE12RelPath = "levels/e12-fixture.md"
@@ -505,6 +575,18 @@ levelE12Md =
     , "kind: scene"
     , "```"
     , ""
+    , "#### 深一 {#nod-e0000006}"
+    , ""
+    , "```meta"
+    , "kind: scene"
+    , "```"
+    , ""
+    , "##### 深二 {#nod-e0000007}"
+    , ""
+    , "```meta"
+    , "kind: scene"
+    , "```"
+    , ""
     , "###### 最深 {#nod-e0000005}"
     , ""
     , "```meta"
@@ -512,11 +594,14 @@ levelE12Md =
     , "```"
     ]
 
+-- | 編排者歸因(第二輪):原本忘了 'rebuildIndex','locate' 因此在索引裡查不到任何 id,
+-- 全部回 'NodeNotFound'——這不是 spec bug,是這個 fixture helper 本身漏了一步。
 withE12Vault :: (VaultHandle -> IO a) -> IO a
 withE12Vault act = withTempVault $ \dir -> do
   _ <- orDie =<< initVaultAt dir StoryVault "e12-fixture"
   writeFiles dir [(levelE12RelPath, levelE12Md)]
   (vh, _issues) <- orDie =<< openVault regWithTypes dir
+  _ <- orDie =<< rebuildIndex vh
   r <- act vh
   closeVault vh
   pure r

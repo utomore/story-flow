@@ -43,9 +43,11 @@ import Aapms.Md.Render (renderSection)
 import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Fixtures
-import Aapms.Store.Marker (VaultHandle, vhConn, vhRoot)
+import Aapms.Store.Index (rebuildIndex)
+import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault, vhConn, vhRoot)
 import Aapms.Store.Query (linksFrom)
 import Aapms.Store.Row (insertSql, nodeColumnList, nodeFields)
+import Aapms.Store.Schema (VaultKind (AssetVault))
 import Aapms.Store.Write
 import System.FilePath ((</>))
 
@@ -262,8 +264,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
   --------------------------------------------------------------------------------
   describe "L8: upsertLicense" $
     it "讀回相等(除 licMeta 的 metaRevision/metaUpdated 與 licFullText 外);對同一個 id 呼叫兩次節數不變" $
-      withIndexedAssetVault $ \vh -> do
-        let licensesPath = "licenses.md"
+      withLicenseVault $ \vh -> do
         doc0 <- rereadDoc vh licensesPath
         existing0 <- either (\e -> fail ("toLicenses 失敗:" <> show e)) pure (toLicenses doc0)
         orig <- case find ((== idOf "lic-0000000a") . metaId . licMeta) existing0 of
@@ -332,6 +333,49 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         case r of
           Left (SqliteError _) -> pure ()
           other -> expectationFailure ("預期 Left (SqliteError _),得到 " <> show other)
+
+--------------------------------------------------------------------------------
+-- L8 用:__不沿用__ F006 遺留的 "Aapms.Store.Fixtures" asset vault fixture——那份 fixture
+-- 把 licenses.md 放在 vault 根目錄,與 system.md:439 明訂的 @library/licenses.md@ 目錄配置
+-- 不符(編排者已列入 arch-audit 階段閘門,qa 不用修 F006 的 fixture)。impl 的 upsertLicense
+-- 是對的,走的是 @library/licenses.md@;本檔因此自己建一個路徑正確的最小授權登記檔。
+
+licensesPath :: FilePath
+licensesPath = "library/licenses.md"
+
+licenseVaultContent :: Text
+licenseVaultContent =
+  T.unlines
+    [ "---"
+    , "id: lic-00000001"
+    , "vault: liftgame-assets"
+    , "type: asset-license"
+    , "title: 授權登記"
+    , "status: canon"
+    , "source: human"
+    , "created: 2026-08-10"
+    , "updated: 2026-08-10"
+    , "---"
+    , ""
+    , "本檔登記授權條款。"
+    , ""
+    , "## CC0 {#lic-0000000a}"
+    , ""
+    , "```meta"
+    , "commercial: true"
+    , "attribution_required: false"
+    , "```"
+    ]
+
+withLicenseVault :: (VaultHandle -> IO a) -> IO a
+withLicenseVault act = withTempVault $ \dir -> do
+  _ <- orDie =<< initVaultAt dir AssetVault "writespec-license-fixture"
+  writeFiles dir [(licensesPath, licenseVaultContent)]
+  (vh, _issues) <- orDie =<< openVault testRegistry dir
+  _ <- orDie =<< rebuildIndex vh
+  r <- act vh
+  closeVault vh
+  pure r
 
 --------------------------------------------------------------------------------
 -- 小工具

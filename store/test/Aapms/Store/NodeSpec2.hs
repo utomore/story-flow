@@ -2,10 +2,11 @@
 -- 外加 'Aapms.Store.Create.sanitizeFileName'(檔名淨化,同樣是純函式,獨立於
 -- "Aapms.Store.CreateSpec" 之外收在這裡)。__命名避開既有的 F006 "Aapms.Store.NodeSpec"__。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@,
+-- 2026-08-25 第二輪裁決後的版本:G13 改寫 L20、fixture 依編排者歸因修正)
 --
 -- @
--- L20  sanitizeFileName 的值域                          -> prop_L20 / test_E11
+-- L20  sanitizeFileName 的值域(G13 裁決後改寫)          -> prop_L20 / test_E11 / test_E19 / test_E20 / test_E21
 -- L21  headingDepthFor                                   -> prop_L21
 -- L22  subtreeIds 與 subtreeAfter 一致                   -> prop_L22
 -- L23  validateLevelDoc 等價於兩段驗證                    -> prop_L23
@@ -15,7 +16,15 @@
 -- E13  UnderParent 父節點不存在(headingDepthFor 部分)    -> 見 Aapms.Store.CreateSpec E13(此檔另以 headingDepthFor 直接驗證)
 -- E14  UnderParent 父節點已達六級(headingDepthFor 部分)  -> 見 Aapms.Store.CreateSpec E14(此檔另以 headingDepthFor 直接驗證)
 -- E18  isRootNode 三分支各一(根/非根/不存在)             -> test_E18
+-- E19  sanitizeFileName 全空白\/全句點 → fb              -> test_E19
+-- E20  sanitizeFileName 全非法字元 → 對應數量的 "-"       -> test_E20
+-- E21  sanitizeFileName 合法字元原樣回傳(含詞中空白)      -> test_E21
 -- @
+--
+-- __編排者歸因(第二輪)__:'goodLevelMd' 原本從三級標題直接跳到六級(@HeadingSkip 3 6@),
+-- 不是合法的 Level 檔——ADR-009「標題階層即樹」下標題階層必須逐級遞增,不能跳級。已改成
+-- 序幕(2)→開場(3)→深一(4)→深二(5)→最深(6)、收束(3,與開場同層的兄弟,在整條深鏈之後)
+-- 逐級鋪下去。
 --
 -- 'Aapms.Store.Node.isRootNode' 曾經__沒有獨立的 Law 或 Example__(spec-gaps G9),
 -- 2026-08-25 開發者裁決補上 L24 與 E18:id 不在文件裡時回 @Left (SectionMissing path id)@,
@@ -43,8 +52,16 @@ import Aapms.Store.Node (headingDepthFor, isRootNode, subtreeAfter, subtreeIds, 
 levelFilePath :: FilePath
 levelFilePath = "levels/node-spec2-fixture.md"
 
--- | 合法的 Level 檔:序幕(2級,根)→ 開場(3級)、收束(3級,與開場同層的兄弟)→
--- 最深(6級,緊接收束之後,用來覆蓋 L21 的深度上限邊界)。
+-- | 合法的 Level 檔,標題階層__逐級遞增__(ADR-009,不可跳級):
+--
+-- @
+-- 序幕(2,根)
+--   └ 開場(3)
+--       └ 深一(4)
+--           └ 深二(5)
+--               └ 最深(6,覆蓋 L21 的深度上限邊界)
+-- 收束(3,與開場同層的兄弟,整條深鏈之後)
+-- @
 goodLevelMd :: Text
 goodLevelMd =
   T.unlines
@@ -75,13 +92,25 @@ goodLevelMd =
     , "kind: cast"
     , "```"
     , ""
-    , "### 收束 {#nod-90000003}"
+    , "#### 深一 {#nod-90000005}"
+    , ""
+    , "```meta"
+    , "kind: scene"
+    , "```"
+    , ""
+    , "##### 深二 {#nod-90000006}"
     , ""
     , "```meta"
     , "kind: scene"
     , "```"
     , ""
     , "###### 最深 {#nod-90000004}"
+    , ""
+    , "```meta"
+    , "kind: scene"
+    , "```"
+    , ""
+    , "### 收束 {#nod-90000003}"
     , ""
     , "```meta"
     , "kind: scene"
@@ -162,12 +191,16 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
           (self : _) -> forM_ after $ \s -> secLevel s `shouldSatisfy` (> secLevel self)
           [] -> after `shouldBe` [] -- haddock:「節不存在時是空清單」
 
-    it "序幕(根,2級)的子樹依序是開場、收束、最深(三節皆在其後且 secLevel > 2)" $
+    it "序幕(根,2級)的子樹依序是開場、深一、深二、最深、收束(五節皆在其後且 secLevel > 2)" $
       map secId (subtreeAfter goodDoc (idOf "nod-90000001"))
-        `shouldBe` [idOf "nod-90000002", idOf "nod-90000003", idOf "nod-90000004"]
+        `shouldBe` [idOf "nod-90000002", idOf "nod-90000005", idOf "nod-90000006", idOf "nod-90000004", idOf "nod-90000003"]
 
-    it "開場(3級)的子樹為空(收束緊接其後但同為 3 級,不是子節點)" $
-      subtreeAfter goodDoc (idOf "nod-90000002") `shouldBe` []
+    it "開場(3級)的子樹是深一、深二、最深(收束是它的兄弟,3級不 >3,不算子節點)" $
+      map secId (subtreeAfter goodDoc (idOf "nod-90000002"))
+        `shouldBe` [idOf "nod-90000005", idOf "nod-90000006", idOf "nod-90000004"]
+
+    it "收束(3級,檔尾)的子樹為空" $
+      subtreeAfter goodDoc (idOf "nod-90000003") `shouldBe` []
 
   describe "L23: validateLevelDoc 等價於「toLevel 成功且 buildTree 回 Right」" $ do
     it "合法的 Level 檔:validateLevelDoc 回 Right ()" $
@@ -195,23 +228,34 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
             expected = secId sec == firstId
         isRootNode levelFilePath goodDoc (secId sec) `shouldBe` Right expected
 
-  describe "L20 / E11: sanitizeFileName" $ do
+  describe "L20 / E11 / E19 / E20 / E21: sanitizeFileName(2026-08-25 G13 裁決:替換策略,清空定義收窄)" $ do
     it "E11: sanitizeFileName \"第一章: 序幕 \" \"ent-7f3b2a91\" == \"第一章- 序幕\"" $
       sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91" `shouldBe` "第一章- 序幕"
 
-    it "L20: t 被清空時(只含非法字元/控制字元/空白)結果等於 fb" $
+    it "E19: 全空白 / 全句點的 t 才算被清空 → 回 fb" $ do
+      sanitizeFileName "   " "ent-7f3b2a91" `shouldBe` "ent-7f3b2a91"
+      sanitizeFileName "..." "ent-7f3b2a91" `shouldBe` "ent-7f3b2a91"
+
+    it "E20: 全非法字元 → 對應數量的 \"-\"(不是 fb;G13 裁決的分岔點)" $ do
+      sanitizeFileName "<" "ent-7f3b2a91" `shouldBe` "-"
+      sanitizeFileName "<>?" "ent-7f3b2a91" `shouldBe` "---"
+
+    it "E21: 只含合法字元、無頭尾空白/句點時逐字回傳(含詞中空白)" $
+      sanitizeFileName "琳達 的筆記" "ent-7f3b2a91" `shouldBe` "琳達 的筆記"
+
+    it "L20 第 2 條:t 的每個字元都是空白或句點時(機械定義的「被清空」),結果等於 fb" $
       hedgehog $ do
         fb <- forAll genFallback
-        badOnly <- forAll (Gen.text (Range.linear 0 10) genOnlyStrippable)
-        sanitizeFileName badOnly fb === fb
+        blanked <- forAll (Gen.text (Range.linear 0 10) genBlankOrDot)
+        sanitizeFileName blanked fb === fb
 
-    it "L20: t 只含合法字元且無頭尾空白時結果等於 t" $
+    it "L20 第 4 條:t 只含合法字元且無頭尾空白/句點時結果等於 t" $
       hedgehog $ do
         fb <- forAll genFallback
         t <- forAll genCleanName
         sanitizeFileName t fb === t
 
-    it "L20: 對任意 t 與非空 fb,結果不含非法字元/控制字元,且不以空白或句點開頭/結尾" $
+    it "L20 第 1 條:對任意 t 與合法 fb,結果不含非法字元/控制字元,且不以空白或句點開頭/結尾" $
       hedgehog $ do
         fb <- forAll genFallback
         t <- forAll genMixedName
@@ -224,6 +268,13 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
             assert (T.last r /= ' ' && T.last r /= '.')
           else success
 
+    it "L20 第 3 條:t 只由非法字元組成時,r 是對應數量的 \"-\"(不算被清空,不回 fb)" $
+      hedgehog $ do
+        fb <- forAll genFallback
+        n <- forAll (Gen.int (Range.linear 1 8))
+        t <- forAll (Gen.text (Range.singleton n) (Gen.element illegalChars))
+        sanitizeFileName t fb === T.replicate n "-"
+
 --------------------------------------------------------------------------------
 -- sanitizeFileName 用的產生器
 
@@ -233,9 +284,9 @@ illegalChars = "<>:\"/\\|?*"
 genFallback :: Gen Text
 genFallback = Gen.text (Range.linear 1 12) (Gen.element (['a' .. 'z'] ++ ['0' .. '9']))
 
--- | 只由「會被淨化掉」的字元組成:非法字元、控制字元、空白、句點(頭尾會被去掉)。
-genOnlyStrippable :: Gen Char
-genOnlyStrippable = Gen.choice [Gen.element illegalChars, Gen.element (" ." :: String), pure '\t']
+-- | L20 第 2 條「被清空」的機械定義:__只__由空白或句點組成(G13 裁決收窄,不再含非法字元)。
+genBlankOrDot :: Gen Char
+genBlankOrDot = Gen.element (" ." :: String)
 
 -- | 合法、不含頭尾空白\/句點的檔名字元(中文與 ASCII 字母數字)。
 genCleanChar :: Gen Char

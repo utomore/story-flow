@@ -29,16 +29,16 @@ module Aapms.Store.Node
 
 import Aapms.Core.Id (Id)
 import Aapms.Md.Document (Document, Section)
-import Aapms.Store.Edit (StoreWriteError)
+import Aapms.Store.Error (StoreError)
 
 -- 層級 ------------------------------------------------------------------------
 
 -- | 在指定父節點底下新增一個子節點時,新節該用第幾級標題(父節點層級 + 1)。
 --
--- 父節點不在文件裡回 'Aapms.Store.Edit.SectionMissing';算出來超過六級回
--- 'Aapms.Store.Edit.NodeDepthExceeded' —— Markdown 只有六級標題,再深就沒有
+-- 父節點不在文件裡回 'Aapms.Store.Error.SectionMissing';算出來超過六級回
+-- 'Aapms.Store.Error.NodeDepthExceeded' —— Markdown 只有六級標題,再深就沒有
 -- 合法的表示法。
-headingDepthFor :: FilePath -> Document -> Id -> Either StoreWriteError Int
+headingDepthFor :: FilePath -> Document -> Id -> Either StoreError Int
 headingDepthFor = undefined
 
 -- 子樹 ------------------------------------------------------------------------
@@ -57,14 +57,14 @@ subtreeIds = undefined
 -- | 這個 id 是不是該 Level 檔的根 Node(frontmatter 的 @root@ \/ 第一個節)。
 --
 -- 根 Node 刪不得:刪了整份 Level 檔就解析不出 @root@。
-isRootNode :: FilePath -> Document -> Id -> Either StoreWriteError Bool
+isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool
 isRootNode = undefined
 
 -- 驗證 ------------------------------------------------------------------------
 
 -- | 編輯後的 Level 檔仍然合法嗎。__在寫檔之前__呼叫。
 --
--- 解析失敗回 'Aapms.Store.Edit.MdWriteFailed',樹不合法回
--- 'Aapms.Store.Edit.TreeInvalidOnWrite'。
-validateLevelDoc :: FilePath -> Document -> Either StoreWriteError ()
+-- 解析失敗回 'Aapms.Store.Error.MdWriteFailed',樹不合法回
+-- 'Aapms.Store.Error.TreeInvalidOnWrite'。
+validateLevelDoc :: FilePath -> Document -> Either StoreError ()
 validateLevelDoc = undefined

@@ -3,7 +3,7 @@ id: F004
 type: feature
 title: md-unified-sections
 description: 分節引擎接統一 Meta;新增 pack.md/licenses.md 解析與位元組保留寫回
-status: done
+status: in-progress
 created: 2026-08-23
 updated: 2026-08-25
 depends-on: [F001, F002]
@@ -38,16 +38,40 @@ Markdown 檔是唯一的真相來源(ADR-002),所以本套件的正確性直接�
 與型別專屬那一半(`MetaExtras`,其餘的頂層條目)。`renderMetaBlock` 必須同時吃兩半,少一半在型別上
 就寫不出來;`updateSection` 只讓呼叫端碰前一半,後一半以原始行逐字帶過去。
 
+### 2026-08-25 追加:`insertSection`(F008 假設 A5 的裁決)
+
+本輪之後 `Aapms.Md.Render` 只剩 `appendSection`(追加在整份文件末尾),F004 當初移除了舊的
+`insertSection`。ADR-009 說 Level 檔的樹狀結構**就是**標題階層,所以「只能追加」等價於
+「在第三章第二節底下再加一個場景」做不到——契約 E 的 `addSection` 有 `SectionPlacement = AtEnd |
+UnderParent Id`,`UnderParent` 那一支在 md 這一層沒有對應的函式可呼叫,F008 因此撞牆。
+
+開發者裁決:現在就補上。契約 D 已回寫
+
+```haskell
+-- 插在指定父節點的子樹之後(= 成為它的最後一個子節點);nsLevel 必須等於父節點的 secLevel + 1
+insertSection :: Id -> NewSection -> Document -> Either MdError Document
+```
+
+`appendSection` **不動**——兩者是同一個插入邏輯的兩個特化(「插在檔尾」與「插在某棵子樹之後」),
+但「1,693 節的文件末尾追加一節,前面 1,693 節位元組不變」這條驗收標準直接掛在 `appendSection` 上,
+把它改寫成 `insertSection` 的一個 wrapper 會讓那條標準多繞一層才驗得到。
+
+同一次閘門另外裁決了三條假設(A8 / A9 / A10,見「已裁決紀錄」),其中 A8 帶來本輪**唯一的型別變更**:
+`MdErrorKind` 追加 `HeadingTooDeep Int Int`。它擋的是「父節點已經在第 6 級,底下加不了子節點」——
+Level 的章節樹夠深就會撞到,是真實的作者情境而不是程式 bug,所以不與 `HeadingSkip`(呼叫端把
+`nsLevel` 算錯)共用一個建構子。
+
 ## 對應的 Level 2 契約
 
 - **契約 D(`aapms-md`)全部**:`DocKind` / `Document` / `parseDocument` / `docKind` /
   `toTopic` / `toLevel` / `toPack` / `toLicenses` / `renderDocument` / `updateFrontmatter` /
-  `overrideAt` / `updateSection` / `updateSectionBody` / `appendSection` / `removeSection` /
-  `newDocument`,以及 2026-08-24 回寫的 `NewSection` / `NewSectionPayload` / `NewAsset` /
-  `NewLicense` / `NewNode`
+  `overrideAt` / `updateSection` / `updateSectionBody` / `appendSection` / `insertSection` /
+  `removeSection` / `newDocument`,以及 2026-08-24 回寫的 `NewSection` / `NewSectionPayload` /
+  `NewAsset` / `NewLicense` / `NewNode`(`insertSection` 是 2026-08-25 回寫的)
 - **「模組間公開介面」的 `aapms-md` ↔ `aapms-core`**(含 `MetaOverride` 這個 md 與 store 共用的
   「只改部分欄位」DTO)
-- **契約 G 的 `MdError`**;資料流管線「讀取」的 `parseDocument → docKind → to*` 一段與「寫入」的
+- **契約 G 的 `MdError`**(2026-08-25 裁決 A8:`MdErrorKind` 追加 `HeadingTooDeep`,契約 G 的錯誤
+  清單要跟著補);資料流管線「讀取」的 `parseDocument → docKind → to*` 一段與「寫入」的
   「aapms-md 寫回」一段;design.md 的**「節層繼承規則」表格**
 
 **超出契約 D 逐字清單的部分**(`MetaExtras` / `extrasOf` / `extrasAt` / `mergeExtras` /
@@ -67,7 +91,8 @@ Markdown 檔是唯一的真相來源(ADR-002),所以本套件的正確性直接�
 | `AssetFields` | 刪除 | — | 併入 `NewAsset`(原本只有讀方向認得這組欄位,寫方向沒有——這正是 G1/G2 的根) |
 | `LicenseFields` | 刪除 | — | 併入 `NewLicense` |
 | `MetaOverride` | **不動** | `Aapms.Md.Inherit:45-59`,十三個 `Maybe` 欄位 | 節層對 `Meta` 欄位的覆寫。**刻意不擴充**:它是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則 |
-| `DocKind` / `Document` / `Section` / `MdError` / `MdErrorKind` | 不動 | 同上一輪 | 檔案身分、原始切片、錯誤與行號 |
+| `DocKind` / `Document` / `Section` / `MdError` | 不動 | 同上一輪 | 檔案身分、原始切片、錯誤與行號 |
+| `MdErrorKind` | **追加一個建構子** | `HeadingTooDeep Int Int`(父節點層級, 算出來的層級),`md/src/Aapms/Md/Error.hs:59`(`renderMdErrorKind` 的分支在 `md/src/Aapms/Md/Error.hs:100`,本體 `undefined`,訊息原文見 L39 / E21) | 「插入的節算出來的標題層級超過 Markdown 的六級上限」。既有 14 個建構子與它們的 `renderMdErrorKind` 訊息**一個字都沒動**(2026-08-25 裁決 A8) |
 
 **「頂層條目」的定義**(`MetaExtras` 與 `extrasOf` 共用,是本 feature 唯一的新語法規則):meta 區塊
 fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 開頭的那一行** + 其後所有「縮排行或
@@ -97,6 +122,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 改寫某節的 `Meta` 欄位;**該節的型別專屬條目、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:103` |
 | `updateSectionBody :: Id -> Text -> Document -> Either MdError Document` | 只換某節的正文 | `md/src/Aapms/Md/Render.hs:353` |
 | `appendSection :: NewSection -> Document -> Either MdError Document` | 在文件最後一節之後追加一個新節;沒有節時追加在 preamble 之後 | `md/src/Aapms/Md/Render.hs:321` |
+| `insertSection :: Id -> NewSection -> Document -> Either MdError Document` | 在指定父節點的**子樹之後**插入新節(= 成為它的**最後一個**子節點);`nsLevel` 必須等於父節點的 `secLevel + 1`,且不得 > 6 | `md/src/Aapms/Md/Render.hs:482` |
 | `removeSection :: Id -> Document -> Either MdError Document` | 刪掉某節連同它的 meta 區塊與正文 | `md/src/Aapms/Md/Render.hs:343` |
 | `newDocument :: DocKind -> Meta -> Text -> Document` | 從零產生一份只有 frontmatter 與正文、還沒有任何節的文件 | `md/src/Aapms/Md/Render.hs:458` |
 
@@ -223,6 +249,68 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 - **L27**:對所有 `d`、`i`,`overrideAt i d` 與「`d` 中 `i` 那一節的 meta 區塊解出的 `MetaOverride`」
   相同;節沒有 meta 區塊時為 `emptyOverride`;節不存在時回 `Left (mdError 1 (UnknownSectionId i))`。
 
+**在父節點底下插入(2026-08-25 裁決)**
+
+以下這一組的共同記號:`p` 是 `d` 中任一節,`pid = secId p`,`j` 是 `p` 在 `docSections d` 中的索引
+(0 起算)。`p` 的**子樹**定義為 `subtree p d = takeWhile ((> secLevel p) . secLevel) (drop (j + 1)
+(docSections d))`——`p` 之後、`secLevel` 一路都大於 `secLevel p` 的**最長前綴**;**插入索引**
+`k = j + 1 + length (subtree p d)`。「合法插入」指同時滿足三個前置條件:`pid` 出現在 `sectionIds d`、
+`nsId ns` **未**出現在 `sectionIds d`、`nsLevel ns == secLevel p + 1` 且 `nsLevel ns <= 6`。
+
+- **L32**(插入位置):對所有 `d`、`p`、合法插入的 `ns`,`insertSection pid ns d == Right d'` 且
+  `sectionIds d'` 恰好是 `sectionIds d` 在索引 `k` 處插入 `nsId ns`(其餘元素順序不變)。特別地,
+  `p` 至少有一個子節點時,`d'` 中緊接在新節**之前**的那一節**不是** `p`,而是 `subtree p d` 的最後
+  一個節——「插在父節點正後方」會變成插在既有子節點**之前**,那不是本函式的語意。
+- **L33**(ADR-010 位元組保留):同 L32 的前提,`d'` 中每一個 `secId /= nsId ns` 的節,其
+  `secHeadingRaw` 與 `secMetaRaw` 與 `d` 中同 id 的節**逐位元組相同**;`secBodyRaw` 也逐位元組相同,
+  **唯一例外**是索引 `k - 1` 的那一節(即 `subtree p d` 的最後一節,子樹為空時就是 `p` 自己)——而
+  且**只有當它還沒有以空行結尾時**,才在**尾端**補齊。規則與 `appendSection` 共用同一個
+  `blankTail`(`md/src/Aapms/Md/Render.hs:438`),而 `blankTail` 是**冪等**的:原文已以兩個行尾結尾
+  時**原樣回傳**、以一個行尾結尾時補一個、空字串補一個、其餘補兩個。所以插入點前一節的位元組
+  **不是必然會動**——絕大多數格式正常的檔案上它一個位元組都不動。`docFrontRaw` 與 `docPreamble`
+  一律逐位元組不變。
+- **L34**(新節的內容):同 L32 的前提,`d'` 中 `nsId ns` 那一節的 `secHeadingRaw` / `secMetaRaw` /
+  `secLevel` / `secTitle` / `secId` 與
+  `mkSection (docEnding d) (nsLevel ns) (nsId ns) (nsTitle ns) (Just (nsPayload ns)) (nsBody ns)`
+  相同(新節的 meta 區塊因此同樣由 `payloadOverride` 與 `payloadExtras` 兩半組出來);`secBodyRaw`
+  在新節**不是** `d'` 的最後一節時等於 `blankTail (docEnding d) (nsBody ns)`——同樣是冪等的,
+  `nsBody ns` 已以空行結尾時原樣採用;新節是最後一節時等於 `nsBody ns`。
+- **L35**(可解析):同 L32 的前提,若 `parseDocument (renderDocument d)` 成功,則
+  `parseDocument (renderDocument d')` 也成功,解出的 `Document` 的 `sectionIds` 與 `d'` 相同,且
+  `nsId ns` 那一節解回來的 `secLevel == nsLevel ns`、`secTitle == nsTitle ns`、`secId == nsId ns`。
+  依 `docKind d` 對應的 `to*`(`toTopic` / `toLevel` / `toPack` / `toLicenses`)在變換前成功時,
+  變換後也成功,且新節點的 `metaId` 等於 `nsId ns`。
+- **L36**(樹合法性與父子關係):對所有 `toLevel` 成功的 Level 檔 `d`、其中任一節 `p`、任一合法插入
+  且 `nsPayload ns == NSNode ov (NewNode k')` 的 `ns`,令 `Right d' = insertSection pid ns d`、
+  `Right (lvl, ns0) = toLevel d`、`Right (lvl', ns1) = (parseDocument (renderDocument d') >>= toLevel)`,
+  則:(a) `lvl' == lvl`;(b) `ns1` 中 `metaId . nodMeta == nsId ns` 的那一個節點滿足
+  `nodParent == Just pid`、`nodKind == k'`,且 `nodOrder` 等於「`ns0` 中 `nodParent == Just pid` 的
+  節點數 + 1」(= 成為 `p` 的最後一個子節點);(c) `ns0` 的每一個節點在 `ns1` 中都有對應且
+  `nodMeta` / `nodParent` / `nodOrder` / `nodKind` / `nodEntities` 逐一相等(插入不重編任何既有節點的
+  `order`);(d) `Aapms.Core.Tree.buildTree lvl' ns1` 成功。
+- **L37**(退化為 `appendSection`):對所有 `d` 與 `d` 的**最後一節** `p`,任一合法插入的 `ns`,
+  `renderDocument <$> insertSection pid ns d == renderDocument <$> appendSection ns d`。
+  (父節點是最後一節時它的子樹必為空,插入索引就是檔尾。)
+- **L38**(錯誤路徑,含檢查順序):對所有 `d`、`pid`、`ns`,`insertSection pid ns d` 依**下列順序**
+  取第一個成立的分支,四者都不成立才回 `Right`(`p` 指 `pid` 那一節):
+  1. `pid` 不在 `sectionIds d` → `Left (mdError 1 (UnknownSectionId pid))`
+  2. `nsId ns` 已在 `sectionIds d` → `Left (mdError 1 (DuplicateSectionId (nsId ns)))`
+  3. `nsLevel ns /= secLevel p + 1` → `Left (mdError 1 (HeadingSkip (secLevel p) (nsLevel ns)))`
+  4. `nsLevel ns > 6` → `Left (mdError 1 (HeadingTooDeep (secLevel p) (nsLevel ns)))`
+
+  **3 在 4 之前**,所以第 4 條只有在 `nsLevel ns == secLevel p + 1 && nsLevel ns > 6` 時才觸發,
+  也就是**父節點恰好在第 6 級**——那正是它要表達的事(父節點已經到底,底下加不了子節點)。
+  兩者拆開的理由(2026-08-25 裁決 A8):第 3 條在正常流程永遠不該觸發(契約 E 明訂 `nsLevel` 由
+  store 的 `headingDepthFor` 推導、不由呼叫端給),它觸發就是程式 bug,不需要專用的使用者訊息;
+  第 4 條是**真實的作者情境**——Level 的章節樹夠深就會撞到,而且有明確的下一步可以講。
+  非擋不可的理由:層級 > 6 的標題 `Aapms.Md.Lexer.parseHeadingLine` 根本不當標題看
+  (`md/src/Aapms/Md/Lexer.hs:99`),插下去會被靜默併進前一節的正文——擋在這裡比讓資料悄悄變形好。
+- **L39**(`HeadingTooDeep` 的訊息):對所有 `parent`、`cur`,
+  `renderMdError (mdError l (HeadingTooDeep parent cur))` 的結果以 `第 <l> 行:` 開頭,且訊息中
+  同時出現 `T.replicate cur "#"`、`T.replicate parent "#"` 與**下一步的指引文字**
+  「請改插到較淺的父節點底下,或先把這條分支中間的層級壓平」(契約 G:每個建構子的 `render*`
+  訊息要說出下一步該做什麼)。既有 14 個建構子的訊息**逐字不變**(回歸 law)。
+
 **既有匯出的回歸 law(行為不得改變)**
 
 - **L28**:對所有 `d`、`i`、`title`,`renameSection i title d == Right d'` 時 `d'` 中 `i` 那一節的
@@ -249,6 +337,18 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | E8 | 節的 meta 區塊含區塊風格的巢狀值 `meta:` + 兩行縮排的 `width:` / `height:`,呼叫任一 `updateSection` | 三行整段逐字保留、順序不變 | 多行頂層條目 |
 | E9 | `appendSection` 的 `nsId` 與既有節撞號 | `Left (MdError 1 (DuplicateSectionId nsId))` | 例外路徑 |
 | E10 | 五份 frontmatter:`type: level` / `type: asset-pack` / `type: asset-license` / `type: character` / 完全沒有 `type` | `docKind` 依序為 `LevelDoc` / `PackDoc` / `LicenseDoc` / `TopicDoc` / `TopicDoc` | 四種身分 + 未知 fallback |
+| E11 | Level 檔:`## 第三章 {#nod-0003}` 底下依序有 `### 第一節 {#nod-0010}`、`### 第二節 {#nod-0011}`,而 `nod-0011` 底下還有 `#### 場景 A {#nod-0020}`;檔尾另有 `## 第四章 {#nod-0004}`。對 `nod-0003` 呼叫 `insertSection` 插入 `nsLevel = 3` 的 `nod-0030`(payload `NSNode ov (NewNode KScene)`) | `sectionIds` = `[…, nod-0003, nod-0010, nod-0011, nod-0020, nod-0030, nod-0004]`——新節排在 `nod-0020` **之後**、`nod-0004` **之前**;`toLevel` 解回的 `nod-0030` 的 `nodParent == Just nod-0003`、`nodOrder == 3`、`nodKind == KScene`;`nod-0010` / `nod-0011` / `nod-0020` / `nod-0004` 的 `nodParent` 與 `nodOrder` 不變 | **「子樹之後」而非「父節點正後方」**(本次裁決的核心) |
+| E12 | 同 E11 的檔(`nod-0020` 的正文**已經**以空行結尾,是格式正常的檔案),插入之後逐節比對位元組 | **每一節**(含 `nod-0020` 自己)的 `renderSection` 逐位元組不變;`docFrontRaw` / `docPreamble` 不變。再取一份 `nod-0020` 正文**沒有**以空行結尾的變體,則只有 `nod-0020` 的 `secBodyRaw` 尾端補齊,其餘仍逐位元組不變 | ADR-010 位元組保留;`blankTail` 冪等,格式正常的檔案上插入點也一個位元組都不動 |
+| E13 | 1,693 節的合成 Level 檔,對**中間**某個有子樹的節呼叫 `insertSection` | 除插入點前一節的正文尾端外,其餘 1,692 節的 `renderSection` 逐位元組不變;結果能再 `parseDocument` + `toLevel`,產出的 `[Node]` 餵給 `Aapms.Core.Tree.buildTree` 成功 | 極值(與 E5 對稱,測試內生成器合成) |
+| E14 | 父節點是文件的**最後一節** `p`(level 2),`nsLevel = 3` | `renderDocument` 的結果與同一個 `ns` 走 `appendSection` **逐位元組相同** | 退化為 `appendSection`(L37) |
+| E15 | 新節插在中間,`nsBody = "內文"`(不以行尾結尾) | 下一節的標題**不會**黏在 `內文` 後面;`renderDocument` → `parseDocument` 解回的節數 = 原節數 + 1,且新節的 `secTitle` 正確 | 新節這一側的行尾補齊(L34) |
+| E16 | 對不存在的父節點 id `nod-9999` 呼叫 `insertSection` | `Left (MdError 1 (UnknownSectionId nod-9999))` | 例外路徑:父節點不存在 |
+| E17 | 父節點是 `## {#nod-0003}`(level 2),傳入 `nsLevel = 4` | `Left (MdError 1 (HeadingSkip 2 4))` | 例外路徑:`nsLevel /= secLevel(父) + 1` |
+| E18 | 父節點是 `###### {#nod-0006}`(level 6),傳入 `nsLevel = 7`(第 3 條檢查 `7 == 6 + 1` 會過) | `Left (MdError 1 (HeadingTooDeep 6 7))`;文件未產生 | 例外路徑:算出來的層級 > 6(2026-08-25 新增的建構子) |
+| E19 | 父節點存在,但 `nsId` 與既有節撞號**且** `nsLevel` 也錯(例如父在 level 2、`nsLevel = 5`) | `Left (MdError 1 (DuplicateSectionId nsId))`——撞號優先於層級 | 多重錯誤時的檢查順序(L38) |
+| E20 | 父節點是 `###### {#nod-0006}`(level 6),傳入 `nsLevel = 9`(第 3 條檢查就不過) | `Left (MdError 1 (HeadingSkip 6 9))`,**不是** `HeadingTooDeep` | 第 3 條先於第 4 條:呼叫端算錯 `nsLevel` 與「父節點已到底」是兩件事 |
+| E21 | `renderMdError (MdError 12 (HeadingTooDeep 6 7))` | `第 12 行:標題層級 #######(第 7 級)超過 Markdown 的六級上限,父節點 ###### 已經在第 6 級,底下加不了子節點了:請改插到較淺的父節點底下,或先把這條分支中間的層級壓平` | 契約 G:訊息要說出**下一步**(L39) |
+| E22 | 既有 14 個 `MdErrorKind` 建構子各取一個代表值,呼叫 `renderMdError` | 訊息與上一輪**逐字相同** | **回歸例**:追加建構子不得動到既有訊息 |
 
 ## 依賴
 
@@ -285,7 +385,10 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 - **依賴誰**:`aapms-md` → `aapms-core`(唯一的套件相依,本次**不新增任何 build-depends**;
   `Data.Aeson` 已是既有相依)
 - **誰會依賴它**:`aapms-store`(`Index.hs` / `Query.hs` 走讀取方向,`Create.hs` / `Write.hs` /
-  `Node.hs` / `Edit.hs` 走寫回方向)
+  `Node.hs` / `Edit.hs` 走寫回方向)。`insertSection` 的唯一已知呼叫端是契約 E 的
+  `addSection … (UnderParent pid) …`(F008 / store-write-operations):契約 E 明寫「`UnderParent` 時
+  `nsLevel` 由 `headingDepthFor` 推導,不由呼叫端給」,所以 L38 第 3 條的層級檢查在正常路徑上永遠
+  不會觸發——它擋的是 store 那邊推導錯了的情況,是防線不是主要流程
 - **新增的依賴邊**:
   - **模組內部**:`Aapms.Md.Parse` → `Aapms.Md.Render`(取用 `NewAsset` / `NewLicense` 與其
     `FromJSON` 實例)。方向不可反轉:`Aapms.Md.Render` **不得** import `Aapms.Md.Parse`,否則成環
@@ -324,14 +427,37 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 
 | 檔案 | 內容 |
 |---|---|
-| `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整 |
+| `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整。**2026-08-25 追加**:`insertSection` 的簽名與匯出(`md/src/Aapms/Md/Render.hs:482`),本體 `undefined` |
 | `md/src/Aapms/Md/Parse.hs` | 刪除 `AssetFields` / `LicenseFields` 及其實例,改用 `Aapms.Md.Render` 的 `NewAsset` / `NewLicense`;`toPack` / `toLicenses` / `licenseFieldsOf` 的欄位名機械性更名(行為不變) |
+| `md/src/Aapms/Md/Error.hs` | **2026-08-25 裁決 A8**:`MdErrorKind` 追加 `HeadingTooDeep Int Int` 建構子與其 haddock(`:53-59`);`renderMdErrorKind` 對應分支本體 `undefined`(`:100`),訊息原文由 impl 照 L39 / E21 轉錄。既有 14 個建構子與它們的訊息**一個字都沒動** |
 | `md/src/Aapms/Md/Inherit.hs` | **未改動**(刻意):`MetaOverride` 是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提 |
 
 **本體為 `undefined` 的函數**(impl 只准替換這些,不得改動任何簽名與型別):
 `updateSection`、`reserialize`(私有)、`extrasOf`、`extrasAt`、`mergeExtras`、
 `updateSectionExtras`、`payloadOverride`、`payloadExtras`、`appendSection`、`mkSection`、
-`renderMetaBlock`。
+`renderMetaBlock`,以及 **2026-08-25 追加的 `insertSection`(`Render.hs`)與 `renderMdErrorKind` 的
+`HeadingTooDeep` 分支(`Error.hs`)**。
+
+**`HeadingTooDeep` 的 `renderMdErrorKind` 分支也是 `undefined`**(`md/src/Aapms/Md/Error.hs:100`,
+2026-08-25 編排者裁決)。建構子定義與它的 haddock(`:53-59`)**保留**——那是型別,屬骨架。
+
+理由是**這條測試要有真正的紅綠**。錯誤訊息的原文確實就是規格(契約 G 要求每個建構子的 `render*`
+訊息說出下一步該做什麼),但正因為如此才更不該由設計寫進骨架:L39 / E21 逐字斷言那串訊息,若訊息由
+設計寫進 `Error.hs`、同一串字又由設計寫進本文檔、再由 qa 從本文檔抄進測試,三個地方是**同一個來源**,
+那條斷言**恆真**,驗證不了任何東西(`spec-roles.md`:「該紅卻綠的測試一律退回重寫」)。留 `undefined`
+之後這條鏈才成立——impl 從 spec 轉錄一次進 `Error.hs`、qa 從 spec 轉錄一次進斷言,**兩次獨立轉錄**;
+impl 少一個全形冒號、漏掉「請改插到較淺的父節點底下」那個子句,E21 就會紅。那一次紅燈就是它的價值。
+
+**impl 這一輪要改 `Error.hs`,但只准填 `HeadingTooDeep _ _ ->` 那一個分支的本體**(逐字照 L39 / E21
+的訊息原文轉錄);既有 14 個分支的本體、`MdError` / `MdErrorKind` 的型別定義與 `mdError` /
+`renderMdError` 一律不得更動。
+
+**2026-08-25 這一輪只有 `insertSection` 是紅的**:上一輪的十一個函數本體已交付並全綠(285 examples /
+0 failures 是本輪的基準線),impl 這一輪只需要填 `insertSection` 一個本體。`appendSection` 不得改寫成
+`insertSection` 的 wrapper(理由見「目的」段);`Aapms.Md.Render` **不得** import `Aapms.Md.Parse`
+(會成環),所以「父節點的子樹」只能由 `docSections` 的 `secLevel` 直接算,不得借用
+`Aapms.Md.Parse.structure`。`md/aapms-md.cabal` 不動:`Aapms.Md` 以 `module Aapms.Md.Render` 整模組
+re-export,新匯出自動涵蓋。
 
 **未改動、行為與上一輪相同的匯出**:`renderDocument` / `renderSection` / `overrideAt` /
 `updateSectionBody` / `removeSection` / `renameSection` / `replacePreamble` / `updateFrontmatter` /
@@ -383,6 +509,83 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
   改成 re-export」。依據:契約 D 說這組 DTO 屬於 `aapms-md`;兩份定義同時存在時,store 一旦
   `import Aapms.Md` 就會產生名稱衝突。→ 影響:編排者需要在 F007 / F008 收斂時裁決由誰刪除;在那之前
   `aapms-store` 仍然編得過(它目前不 import `Aapms.Md.Render`)。
+
+## 已裁決紀錄(2026-08-25 spec 閘門)
+
+A8 / A9 / A10 是 2026-08-25 這一輪提上閘門的三條待確認假設,**已由開發者裁決**。原文逐字保留供追溯,
+每條開頭補上裁決結果與理由;spec 的 Laws、Examples 與骨架已依裁決改寫。
+
+- **A8 → 裁決:一半照做,一半推翻。`nsLevel` 不符**維持** `HeadingSkip`;「算出來的層級 > 6」
+  **新增** `HeadingTooDeep Int Int`(父節點層級, 算出來的層級)。**
+  - **理由(開發者)**:兩條路徑**性質不同**,不該共用一個建構子。`nsLevel` 不符在正常流程永遠不該
+    觸發(契約 E 明訂 `nsLevel` 由 store 的 `headingDepthFor` 推導、不由呼叫端給),它觸發就是 store
+    有 bug,不需要專用的使用者訊息;而「層級 > 6」是**真實的使用者情境**(Level 的章節樹夠深就會
+    撞到),而且有明確的下一步可以講。契約 G 要求每個建構子的 `render*` 訊息說出下一步該做什麼,
+    拿 `HeadingSkip`(語意是「標題從第 a 級跳到第 b 級」)去表達「太深了」,說出來的事跟實際發生的
+    事不符。
+  - **落實**:`md/src/Aapms/Md/Error.hs:59` 追加建構子、`:100` 追加 `renderMdErrorKind` 分支(本體 `undefined`,訊息原文寫在 L39 / E21 由 impl 轉錄)(既有 14 個建構子與其訊息
+    逐字未動);L38 拆成四條檢查、新增 L39 釘住訊息;E18 改回 `HeadingTooDeep`、新增 E20(第 3 條先於
+    第 4 條)/ E21(訊息原文)/ E22(既有訊息回歸)。
+  - **我原本的分析(逐字保留)**:「`insertSection` 的三條錯誤路徑**沿用既有的 `MdErrorKind`
+    建構子**(`UnknownSectionId` / `DuplicateSectionId` / `HeadingSkip`),不新增建構子。契約 D 只
+    寫了『`nsLevel` 必須等於父節點的 `secLevel + 1`』,沒說違反時回哪一個錯誤值。」以下是當時附上的
+    選項與代價,裁決選了我列的 **b 的一半**——只為「層級 > 6」新增,`nsLevel` 不符維持既有建構子:
+  - 層級自答:出現在邊界上?**會**(`MdError` 是契約 G 的對外型別,`aapms-store` 要 pattern match
+    並轉譯成使用者訊息);改錯驚動其他模組?**要**(store 的錯誤轉譯與 F008 的 `addSection`)
+  - 選項:a) 沿用三個既有建構子——當下成本 0(本次委派明令只准改 `Render.hs`,`Error.hs` 動不了),
+    三個月後代價:`HeadingSkip prev cur` 的訊息是「標題層級跳級:`###` 之後不能直接接 `#####`」,
+    在「層級比父節點淺」(父在 level 3、`nsLevel = 2`)這種情況下措辭不精確;而且「層級不符」與
+    「層級 > 6」兩種不同的失敗原因回**同一個值**,呼叫端分不開,只能靠數字自己推。
+    b) 新增 `HeadingDepthMismatch Int Int`(期望層級, 實際層級)與 `HeadingTooDeep Int`——當下成本:
+    要改 `md/src/Aapms/Md/Error.hs` 的 `MdErrorKind` 與 `renderMdErrorKind`(本次委派禁止),且
+    `aapms-store` 若對 `MdErrorKind` 有窮舉 `case` 會一起編不過;三個月後代價:錯誤訊息精確、呼叫端
+    分得開,代價只是 `MdErrorKind` 多兩個建構子。
+  - 傾向:a。前提是「本次的檔案範圍只有 `Render.hs`」——這是委派指示給的硬約束,不是我的判斷;
+    另外 `HeadingSkip 6 7` 這個特例的訊息「`######` 之後不能直接接 `#######`」讀起來其實是對的,
+    只有「比父節點淺」那個特例措辭歪掉。可逆性:**有條件可逆**——新增建構子是加法,`insertSection`
+    只有一行 `Left (…)` 要換;條件是「已經流到使用者眼前的錯誤訊息措辭可以改」。
+  - 暫採:a → 影響:若裁決要新增建構子,改 `Error.hs` 的 `MdErrorKind` + `renderMdErrorKind`,並把
+    本文檔 L38 第 3 條與 E17 / E18 的預期值換掉;`insertSection` 的**簽名不變**。
+- **A9 → 裁決:接受,照做。**「與 `appendSection` 一致,而且你論證的前提成立(`allocateId` 查的是會
+  過時的索引)。」L38 第 2 條與 E19 維持原樣。以下為原文逐字保留:
+- **A9**(2026-08-25):`insertSection` **也檢查 `nsId` 撞號**,回 `DuplicateSectionId`。契約 D 的原文
+  只約束 `nsLevel`,沒提撞號。
+  - 層級自答:出現在邊界上?**會**(公開函式的前置條件);改錯驚動其他模組?**要**(F008 的
+    `addSection` 要據此決定要不要自己先查一次)
+  - 選項:a) 檢查——當下成本 0(`appendSection` 已有同一個 guard);三個月後代價:與
+    `appendSection`(L18)對稱,兩條插入路徑的前置條件一致,呼叫端只要記一條規則。
+    b) 不檢查,讓撞號的文件產生出來——當下成本 0;三個月後代價:`lexDocument` 會在**下一次讀檔**
+    才報 `DuplicateSectionId`,而那時檔案已經落盤、可能已經進 git;依 ADR-002 Markdown 是唯一真相,
+    產生一份自己解不回來的真相是最貴的一種錯。
+  - 傾向:a。依賴的前提要講明:契約 E 的 `allocateId` 會 salt 遞增重試到不撞,看起來 md 這層是重複
+    檢查——但 `allocateId` 查的是**索引**,而索引會過時(`refreshStale` 存在正是因為如此),所以這層
+    檢查不是冗餘的。可逆性:**可逆**(拿掉一個 guard,沒有格式或訊息殘留)。
+  - 暫採:a → 影響:若裁決不檢查,刪掉 L38 第 2 條與 E19,`insertSection` 簽名不變。
+- **A10 → 裁決:接受,但措辭收窄。**開發者讀過 `md/src/Aapms/Md/Render.hs:438` 的 `blankTail`,指出
+  它是**冪等**的——文字已經以空行結尾時原樣回傳。所以正確的說法不是「插入**必然**動到位元組」,而是
+  「**只有當插入點之前那一段還沒有以空行結尾時**,才會補齊行尾」;而且這不是 `insertSection` 新引入
+  的讓步,`appendSection` 早就走同一個 `blankTail`,它的 haddock 也早就論證過「被動到的是插入點,
+  不是未經修改的區塊」。**我下面原文中「必然」這個字用錯了**,L33 / L34 已改成收窄版本,E12 也改成
+  正例(格式正常的檔案上插入點一個位元組都不動)+ 變體的兩段式。以下為原文逐字保留:
+- **A10**(2026-08-25):插入**必然**動到兩段位元組:(i) 插入點**之前**那一節(`p` 的子樹最後一節,
+  子樹為空時就是 `p` 自己)的 `secBodyRaw` 尾端補到剛好隔一個空行;(ii) 新節**不是**最後一節時,
+  它自己的 `secBodyRaw` 也要補,否則下一節的標題會黏在新節正文最後一行後面。委派指示的驗收標準是
+  「插入一節之後,其他每一節的位元組必須逐字不變」,(i) 是這句話的例外。
+  - 層級自答:出現在邊界上?**會**(ADR-010 的驗收標準與 P0 契約測試直接觀察輸出位元組);
+    改錯驚動其他模組?**要**(會進 git 歷史的排版決定,與「不可逆決定」第 3 條同一類)
+  - 選項:a) 照 `appendSection` 的既有規則,兩處都用同一個 `blankTail` 補到「剛好隔一個空行」——
+    當下成本 0;三個月後代價:插入點前一節的**尾端**位元組會變(只在尾端加空白字元),ADR-010 的
+    驗收標準要寫成「除插入點外逐字不變」,而不是無條件的「每一節逐字不變」。
+    b) 一個位元組都不補,原樣接起來——當下成本 0;三個月後代價:前一節正文沒有結尾換行時,新節的
+    標題會黏在它最後一行後面,`parseDocument` 直接解不回來(entity-graph-core/F003 已經踩過這個坑,
+    `blankTail` 的註解就是它的墓碑);而且工具產生的段落與作者手寫的長得不一樣,而 Vault 是給人看的
+    git repo。
+  - 傾向:a,且**兩條插入路徑共用同一個 `blankTail`**——`appendSection` 與 `insertSection` 若產生不同
+    排版,同一份檔案的 `git diff` 會依「這一節是怎麼加進來的」而不同,那是最難查的那種不一致。
+    可逆性:**有條件可逆**——換一個 pad 函式是一行的事,但**已經寫出去的檔案不會回頭重排**,條件是
+    「接受歷史檔案殘留舊排版」(與 A2 同一個性質)。
+  - 暫採:a → 影響:若裁決要求「一個位元組都不補」,L33 的例外條款與 L34 的 `blankTail` 條款拿掉,
+    `insertSection` 得自己處理黏行問題(等於把 F003 的坑再挖一次);簽名不變。
 
 ## 實作備註
 

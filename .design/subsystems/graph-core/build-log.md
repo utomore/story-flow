@@ -45,6 +45,8 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | D10 | 階段三改用 0.8.7 的三角色流程(spec / qa / impl),qa 只讀 spec 寫測試且**不得自行引入相依**。專案目前只有 hspec,沒有 property-based 框架(`legacy/assetdb` 用過 QuickCheck) | **開發者裁決:引入 hedgehog**。四個 test-suite 加相依,law 寫成 property。不影響 production library 的零相依斷言(`boundary-rules.md`:測試不在依賴圖裡) | F007 / F008 / F009 的 qa |
 | G1 | F004 實作時回報:契約 E 的 `NewSection` 只有 `nsMeta :: MetaOverride`,而 `MetaOverride` 沒有 asset 的 `sha256` / `entry` / … 也沒有 license 的八個維度 → `appendSection` / `addSection` 寫不出能通過 `toPack` / `toLicenses` 驗證的完整新節,擋住 F008 的驗收 | **開發者裁決:A —— `NewSection` 改成對節點種類做 sum**(`NewSectionPayload` = `NSFragment` / `NSAsset` / `NSLicense` / `NSNode`,封閉建構子),`addSection` 維持單一入口。與契約 A 的 `AnyNode` / `LinkKind` 同模式。**不採**塞進 `MetaOverride`——那是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提。已回寫契約 D | F004(既有 `NewSection` 要改)/ F008 |
 | D7 | F001 設計回報:契約 C 把 `TypeRegistry` 放 `aapms-types`,但 `checkMeta`(core)要吃它而 types 已依賴 core → 相依環 | **編排者裁決(未經開發者,閘門再確認)**:純型別 `Family` / `TypeDecl` / `TypeRegistry` / `NamingVocab` / `lookupType` 定義在 `aapms-core`,`aapms-types` 只有 `locateRegistry` / `loadRegistry` 與 TOML 解析並 re-export。與「內部模組劃分」表和現有程式碼一致,已回寫契約 C | F001 / F002 |
+| D11 | F008 spec 查出:`service/src/Aapms/Service.hs:130` 有 `import Aapms.Store.Edit (Located (..), locate, locateNode)`,而 `locateNode` 不存在,且 `Edit` 是 F008 明訂的**內部模組** | `cabal.project` 目前把 `service/` 註解掉(D1 凍結),不影響 P1 建置。**記在這裡:P3 重建 `service` 時這一行要改成走 `Aapms.Store` 門面**,不得直接摸內部模組 | P3 `service` |
+| D12 | 兩個 spec subagent 都回報 `codegraph.json` 過時:仍列出 `1f004f2` 已刪的 D8 遺留測試檔,`StoreError` 也還是 6 個建構子 | **委派 qa / impl 之前由編排者跑一次 `knot extract`**,否則 qa 的導航會查到不存在的測試檔。圖過期時任何基於它的結論不採信 | W6 qa / impl |
 
 **澄清後仍懸著、交給 subagent 當待確認假設的點**(開發者已知):
 
@@ -76,6 +78,23 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 
 `aapms-store.cabal` 是 W6 兩個 feature 的共用檔(都要加模組),**由編排者單線改**,不讓平行的 spec
 subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
+
+## 自裁清單
+
+(spec subagent 判定為「實作層級」而自行決定、**不上閘門**的事;出處標「編排者降級」者是
+subagent 原本要上閘門、經編排者重跑層級兩問後降下來的。供事後抽查:抽查發現裁錯層級
+(其實動到了邊界),代表層級門檻要收緊。「抽查」欄留白 = 還沒查過。)
+
+| 來源 | 判斷 | 抽查 |
+|---|---|---|
+| F004 S1 | `insertSection` 放在既有的 `Aapms.Md.Render`,不新開模組(`Aapms.Md` 以整模組 re-export,cabal 不用改) | |
+| F004 S2 | 骨架本體寫成 point-free 的 `insertSection = undefined` | |
+| F004 S3 | 「父節點的子樹」以 `secLevel` 前綴定義,不借用 `Aapms.Md.Parse.structure`(後者會造成 import 成環) | |
+| F004 S4 | 多重錯誤同時成立時固定成「父節點不存在 → 撞號 → 層級」的檢查順序(釘死 qa 才寫得出斷言) | |
+| F008 S1 | `renderStoreError` 的 15 個新建構子分支寫成 `Ctor _ -> undefined`,F005 已實作的 6 個分支原樣保留 | |
+| F008 S2 | `WriteResult (..)` 由 `Aapms.Store.Write` re-export 隨門面出去(subagent 自答「邊界 會」,但契約 E 已寫 `… -> IO (Either StoreError WriteResult)`,門面缺它等於契約簽名寫不出來,屬契約遵循而非新決定) | |
+| F008 S3 | `Node.hs` / `Create.hs` 的 `import Aapms.Store.Edit` 改成 `import Aapms.Store.Error`,`Node` 因此不再依賴 `Edit` | |
+| F008 S4 | `Create.hs` 的 `NewSection` 家族區段用純 `--` 註解而非 haddock named chunk | |
 
 ## 仲裁紀錄
 
@@ -109,6 +128,9 @@ subagent 同時碰;骨架的整波編譯檢查也由編排者跑。
 | F008 A4 | `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 的永久歸屬是 `aapms-md`(契約 D),但 `md/` 不在骨架清單裡 | 暫時定義在 `Aapms.Store.Create` | **推翻**(2026-08-25):F004 的 G2 重跑已把這五個型別放進 `Aapms.Md.Render`,兩份定義逐欄相同。`Aapms.Store.Create` 刪本地定義改 re-export |
 | F008 A5 | `addSection` 對 `LevelDoc` 只能追加在文件末尾(F004 已移除 `insertSection`),無法在中段父節點底下插入 | `nsLevel` 由呼叫端給,寫檔前以 `validateLevelDoc` 把關 | **推翻**(2026-08-25 開發者裁決):現在就補 `insertSection`。契約 D 加 `insertSection :: Id -> NewSection -> Document -> Either MdError Document`;契約 E 的 `addSection` 加 `SectionPlacement = AtEnd | UnderParent Id`,`UnderParent` 時 `nsLevel` 由既有的 `headingDepthFor` 推導(呼叫端自算等於父子關係有兩個真相來源)。**F004 因此重新打開** |
 | F008 A6 | `Aapms.Store` 門面沒有 re-export 本 feature 的四個模組,而該檔不在骨架清單裡 | 不動它,qa / impl 直接 import 內部模組 | **接受並補上**(2026-08-25):門面不完整會逼 `service` 記得 import 內部模組,兩行的事 |
+| F004 A8 | `insertSection` 的三條錯誤路徑沿用既有 `MdErrorKind` 建構子(委派指示只准改 `Render.hs`,加不了建構子)。代價:「`nsLevel` 不符」與「層級 > 6」共用 `HeadingSkip`,呼叫端分不開,且後者語意明顯不符(沒有東西被跳過) | 兩條都回 `HeadingSkip (secLevel 父) (nsLevel ns)` | **部分推翻**(2026-08-25 開發者裁決):**只為「層級 > 6」新增 `HeadingTooDeep`**。兩條路徑性質不同——`nsLevel` 不符在 `UnderParent` 下永遠不該發生(契約 E 明訂 `nsLevel` 由 `headingDepthFor` 推導),觸發即 store 有 bug,維持 `HeadingSkip`;「層級 > 6」是真實使用者情境(章節樹夠深就撞得到)且有明確的下一步可講,契約 G 要求每一則訊息說出下一步 |
+| F004 A9 | `insertSection` 也檢查 `nsId` 撞號(契約 D 原文只約束 `nsLevel`) | 檢查,與 `appendSection` 一致 | **接受**(2026-08-25):前提成立——`allocateId` 查的是會過時的索引,這層檢查不冗餘 |
+| F004 A10 | 插入「必然」動到兩段位元組(插入點前一節的正文尾端、新節自己的尾端),是 ADR-010 位元組保留的例外 | 寫死進 L33 / L34 | **接受但措辭收窄**(2026-08-25 編排者查證):`Render.hs:438` 的 `blankTail` 是**冪等**的,文字已以空行結尾時原樣回傳。所以不是「必然動到」,而是「**只有當插入點之前那一段還沒有以空行結尾時**才補齊行尾」;且這不是 `insertSection` 新引入的讓步,`appendSection` 早就走同一個 `blankTail`。契約卡措辭照此收窄後回寫 |
 | F007(全部) | — | — | **未記錄**:W6 的 spec 閘門結論沒有寫進本表,F007 已 impl-done 無從補。下一波起確保 spec subagent 的回報當場彙整 |
 
 ## 階段結果

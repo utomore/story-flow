@@ -7,7 +7,8 @@
 -- graph-core\/F005 交付了讀取管線的第一段:@openVault@:讀 marker → 開索引 →
 -- schema 判斷。graph-core\/F006 接上索引維護(@rebuildIndex@\/@refreshStale@\/
 -- @indexFile@\/@unindexFile@)與單一 vault 查詢(@lookupNode@\/@listNodes@ 等,
--- 不含全文檢索);寫入(graph-core\/F008)與跨 vault 讀(graph-core\/F009)接手後
+-- 不含全文檢索);graph-core\/F008 接上寫入('Aapms.Store.Create' 的建檔\/增節\/
+-- 刪除與 'Aapms.Store.Write' 的改寫\/配號);跨 vault 讀(graph-core\/F009)接手後
 -- 這份門面清單會再擴充。
 --
 -- 典型用法:
@@ -22,19 +23,26 @@
 --
 -- 'Aapms.Store.Row' __不__ re-export——那是內部列轉換,呼叫端只透過
 -- 'Aapms.Store.Index'\/'Aapms.Store.Query' 的函式互動,不直接碰
--- @SQLData@\/@FromRow@ 這層。
+-- @SQLData@\/@FromRow@ 這層。同理 'Aapms.Store.Edit'(寫入紀律)與
+-- 'Aapms.Store.Node'(Level 樹的純推導)是 graph-core\/F008 的內部模組,不進門面;
+-- 它們的結果型別 'Aapms.Store.Edit.WriteResult' 由 'Aapms.Store.Write' 帶進來
+-- ——契約 E 的寫入組回的就是它,門面少了它等於少一半簽名。
 module Aapms.Store
   ( module Aapms.Store.Atomic
+  , module Aapms.Store.Create
   , module Aapms.Store.Error
   , module Aapms.Store.Index
   , module Aapms.Store.Marker
   , module Aapms.Store.Query
   , module Aapms.Store.Schema
+  , module Aapms.Store.Write
   ) where
 
 import Aapms.Store.Atomic
+import Aapms.Store.Create
 import Aapms.Store.Error
 import Aapms.Store.Index
 import Aapms.Store.Marker
 import Aapms.Store.Query
 import Aapms.Store.Schema
+import Aapms.Store.Write

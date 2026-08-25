@@ -40,6 +40,7 @@ module Aapms.Md.Render
 
     -- * 新節
   , appendSection
+  , insertSection
   , mkSection
 
     -- * 節的建構 DTO(graph-core/F004,payload 對節點種類做 sum)
@@ -442,6 +443,44 @@ blankTail le t
   | otherwise = t <> nl <> nl
   where
     nl = renderLineEnding le
+
+-- | 在指定父節點的__子樹之後__插入新節,新節因此成為該父節點的
+-- __最後一個子節點__(graph-core/F004,2026-08-25 開發者裁決 F008/A5)。
+--
+-- ADR-009 說 Level 檔的樹狀結構__就是__標題階層,所以「插在樹的哪個位置」
+-- 等價於「插在檔案的哪一行」;只有 'appendSection' 就代表「在第三章第二節底下
+-- 再加一個場景」做不到。
+--
+-- == 插入點
+--
+-- 父節點 @p@ 的__子樹__ = @p@ 之後、'secLevel' 一路都大於 @secLevel p@ 的
+-- __最長前綴__;新節插在那一段之後(子樹為空時就緊接在 @p@ 之後)。所以新節
+-- 是 @p@ 的最後一個子節點,而不是第一個 —— 「插在父節點正後方」會變成插在
+-- 既有子節點__之前__。
+--
+-- 插入點__之前__那一段的結尾照 'blankTail' 補齊,與 'appendSection' 同一個
+-- 規則。'blankTail' 是__冪等__的:那一段已經以空行結尾時原樣回傳,一個位元組
+-- 都不動;只有它還沒以空行結尾時才補。被動到的是插入點,不是「未經修改的
+-- 區塊」,所以不違反 ADR-010(與 'appendSection' 同一個論證)。
+--
+-- == 錯誤
+--
+-- 四條例外路徑,依此順序取第一個成立的(2026-08-25 裁決 A8):
+--
+-- * 父節點不存在 → @'UnknownSectionId' parent@,與 'updateSection' 一致
+-- * @nsId@ 與既有節撞號 → @'DuplicateSectionId' nsId@,與 'appendSection' 一致
+-- * @nsLevel@ 不等於 @'secLevel' p + 1@ → @'HeadingSkip' ('secLevel' p) nsLevel@。
+--   契約 E 明訂 @nsLevel@ 由 @aapms-store@ 的 @headingDepthFor@ 推導、不由呼叫端
+--   給,所以這條在正常流程__永遠不該觸發__;它觸發就是呼叫端算錯了
+-- * 算出來的層級 > 6 → @'HeadingTooDeep' ('secLevel' p) nsLevel@(父節點已經在
+--   第 6 級,底下加不了子節點)。這是__真實的作者情境__而不是程式 bug,所以
+--   給它自己的建構子與自己的下一步指引;而且層級 > 6 的標題
+--   'Aapms.Md.Lexer.parseHeadingLine' 根本不當標題看,插下去會被靜默併進前一
+--   節的正文 —— 擋在這裡比讓資料悄悄變形好
+--
+-- 與 'appendSection' 一樣__不驗證__節的業務欄位是否與檔案身分相符。
+insertSection :: Id -> NewSection -> Document -> Either MdError Document
+insertSection = undefined
 
 -- | 刪除節,連同它的 meta 區塊與正文。
 removeSection :: Id -> Document -> Either MdError Document

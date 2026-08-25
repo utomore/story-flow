@@ -16,6 +16,13 @@
 -- 因此本 feature 的四個模組__不得出現 @withTransaction@__,也不得在任何
 -- SQLite 呼叫之間插入檔案 IO ——這是可稽核的結構約束,不是需要判斷的規則。
 --
+-- == 錯誤型別
+--
+-- 本模組__不定義錯誤型別__:寫入路徑的十五個失敗原因是
+-- 'Aapms.Store.Error.StoreError' 的建構子(design.md 契約 G ——
+-- @StoreError@ 是 @aapms-store@ 的唯一錯誤型別,由各 feature 擴充,不得另立
+-- 平行型別再橋接)。
+--
 -- == 為什麼重讀檔案而不信任索引裡的 revision
 --
 -- 作者可能剛用編輯器改過,索引還沒 refresh。拿過時的 revision 去比對,樂觀鎖
@@ -24,12 +31,8 @@
 -- 殘留競態見 "Aapms.Store.Atomic":重讀與 rename 之間的毫秒級窗口是 F005 明確
 -- 接受的風險,本 feature 沿用同一個結論。
 module Aapms.Store.Edit
-  ( -- * 錯誤(契約 G 的寫入組)
-    StoreWriteError (..)
-  , renderStoreWriteError
-
-    -- * 結果
-  , WriteResult (..)
+  ( -- * 結果
+    WriteResult (..)
 
     -- * 短路組合
   , (>>?)
@@ -58,64 +61,12 @@ module Aapms.Store.Edit
 
 import Data.Text (Text)
 import Aapms.Core.Id (Id)
-import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Revision, TypeKey)
-import Aapms.Core.Tree (TreeError)
+import Aapms.Core.Meta (Revision)
 import Aapms.Md.Document (DocKind, Document, LineEnding)
 import Aapms.Md.Error (MdError)
 import Aapms.Store.Error (StoreError)
 import Aapms.Store.Marker (VaultHandle)
 import Aapms.Store.Schema (IndexIssue)
-
--- 錯誤 ------------------------------------------------------------------------
-
--- | 寫入路徑的失敗原因(契約 G:每個建構子的 'renderStoreWriteError' 都要說出
--- 下一步該做什麼)。
---
--- __本型別是暫居__(F008 待確認假設 A2):契約 E 寫的是
--- 'Aapms.Store.Error.StoreError',但本 feature 的骨架路徑清單不含 @Error.hs@,
--- 加不了建構子。'WriteStore' 是通往既有 'StoreError' 的唯一橋。把這些建構子併進
--- 'StoreError' 之後,本型別整組刪除、簽名裡的 @StoreWriteError@ 換成
--- @StoreError@ 即可,語意一個字都不會變。
-data StoreWriteError
-  = -- | 既有的落地錯誤(讀寫檔、marker、SQLite)原樣往上帶
-    WriteStore StoreError
-  | -- | 索引裡查不到這個 id
-    NodeNotFound Id
-  | -- | 索引說某檔有這一節,重讀檔案卻找不到 —— 索引過時,不是資料不見
-    SectionMissing FilePath Id
-  | -- | 節點 id、呼叫端手上的 revision、檔案裡的實際 revision
-    RevisionMismatch Id Revision Revision
-  | -- | 檔案、'Aapms.Md.Error.MdError'。md 的編輯\/解析函式回 'Left'
-    MdWriteFailed FilePath MdError
-  | -- | 檔案、'Aapms.Core.Tree.TreeError' 清單。編輯後的 Level 樹不合法,__寫檔之前__就中止
-    TreeInvalidOnWrite FilePath [TreeError]
-  | -- | 檔案、原因。__檔案已經落地__,只有索引沒跟上;'Aapms.Store.Index.rebuildIndex' 修得回來
-    IndexUpdateFailed FilePath Text
-  | -- | 呼叫端明確指定的路徑已經有檔案(推導出來的路徑會自動遞增,不走這裡)
-    FileAlreadyExists FilePath
-  | -- | 型別註冊表查不到這個型別該落在哪個目錄
-    RegistryDirUnknown TypeKey
-  | -- | 對非 asset 的節點呼叫 'Aapms.Store.Write.writeAssetFields'
-    NotAnAsset Id
-  | -- | 對非 license 的節點呼叫 'Aapms.Store.Write.upsertLicense'
-    NotALicense Id
-  | -- | 目標節點、目標檔案的種類。'Aapms.Store.Create.addSection' 的
-    -- 'Aapms.Store.Create.NewSectionPayload' 與檔案種類不相容
-    BadSectionPayload Id DocKind
-  | -- | 節點、要刪的那一筆關聯。一筆都沒命中時回這個而不是靜默成功
-    LinkNotFound Id Link
-  | -- | 被刪的節點、指向它的 (來源節點, 關聯)。'DeleteSafe' 專用
-    ReferencedBy Id [(Id, Link)]
-  | -- | Level 的根 Node 刪不得(刪了就解析不出 @root@),請改刪整份 Level 檔
-    CannotDeleteRootNode Id
-  | -- | 父節點、算出來的標題層級。Markdown 只有六級標題
-    NodeDepthExceeded Id Int
-  deriving stock (Show, Eq)
-
--- | 繁中訊息,__每一則說出下一步該做什麼__(契約 G)。
-renderStoreWriteError :: StoreWriteError -> Text
-renderStoreWriteError = undefined
 
 -- 結果 ------------------------------------------------------------------------
 
@@ -137,18 +88,18 @@ data WriteResult = WriteResult
 
 -- | @Either@ 短路的 IO 鏈。每個寫入路徑都是五到七個「失敗就回 'Left'」的步驟。
 (>>?)
-  :: IO (Either StoreWriteError a)
-  -> (a -> IO (Either StoreWriteError b))
-  -> IO (Either StoreWriteError b)
+  :: IO (Either StoreError a)
+  -> (a -> IO (Either StoreError b))
+  -> IO (Either StoreError b)
 (>>?) = undefined
 
 infixl 1 >>?
 
 -- | 純函式那一段接進同一條鏈。
 (?>>)
-  :: Either StoreWriteError a
-  -> (a -> IO (Either StoreWriteError b))
-  -> IO (Either StoreWriteError b)
+  :: Either StoreError a
+  -> (a -> IO (Either StoreError b))
+  -> IO (Either StoreError b)
 (?>>) = undefined
 
 infixl 1 ?>>
@@ -169,17 +120,17 @@ data Located = Located
   deriving stock (Show, Eq)
 
 -- | 一張 @nodes@ 表裝所有節點,所以定位只要一次查詢。查不到回 'NodeNotFound'。
-locate :: VaultHandle -> Id -> IO (Either StoreWriteError Located)
+locate :: VaultHandle -> Id -> IO (Either StoreError Located)
 locate = undefined
 
 -- 讀與解析 ---------------------------------------------------------------------
 
 -- | 重讀檔案並切塊。@rel@ 是 Vault 相對路徑,同時當作錯誤訊息的原點。
-readDocument :: VaultHandle -> FilePath -> IO (Either StoreWriteError Document)
+readDocument :: VaultHandle -> FilePath -> IO (Either StoreError Document)
 readDocument = undefined
 
--- | md 的編輯函式回的 'MdError' 包成 'StoreWriteError'。
-orMd :: FilePath -> Either MdError a -> Either StoreWriteError a
+-- | md 的編輯函式回的 'MdError' 包成 'StoreError'。
+orMd :: FilePath -> Either MdError a -> Either StoreError a
 orMd = undefined
 
 -- 樂觀鎖 -----------------------------------------------------------------------
@@ -188,7 +139,7 @@ orMd = undefined
 --
 -- 不符即 'RevisionMismatch',而呼叫端在這之後才會碰到 'commit' ——
 -- __一個位元組都不會被寫出去__(system.md 全域錯誤處理策略第 6 條)。
-checkRevision :: Id -> Revision -> Revision -> Either StoreWriteError ()
+checkRevision :: Id -> Revision -> Revision -> Either StoreError ()
 checkRevision = undefined
 
 -- 落地 ------------------------------------------------------------------------
@@ -209,11 +160,11 @@ commit
   -- ^ 這次寫入的主體 id(回傳用)
   -> Revision
   -- ^ 寫入後的新 revision
-  -> IO (Either StoreWriteError WriteResult)
+  -> IO (Either StoreError WriteResult)
 commit = undefined
 
 -- | 刪檔 → 清索引。順序與寫入時一致:檔案是真相,索引跟著走。
-dropFile :: VaultHandle -> FilePath -> IO (Either StoreWriteError ())
+dropFile :: VaultHandle -> FilePath -> IO (Either StoreError ())
 dropFile = undefined
 
 -- | 建出檔案所在的目錄。

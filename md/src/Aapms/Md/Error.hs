@@ -48,6 +48,15 @@ data MdErrorKind
     HeadingSkip Int Int
   | -- | 根層級, 這一個層級
     HeadingAboveRoot Int Int
+  | -- | 父節點層級, 算出來的層級。插入一個節時算出來的標題層級超過 Markdown 的
+    -- 六級上限(graph-core/F004,2026-08-25 裁決 A8)。
+    --
+    -- 與 'HeadingSkip' 分開是因為__性質不同__:'HeadingSkip' 在
+    -- 'Aapms.Md.Render.insertSection' 上只會由呼叫端算錯 @nsLevel@ 造成
+    -- (契約 E 明訂 @nsLevel@ 由 store 的 @headingDepthFor@ 推導),那是程式
+    -- 的 bug;而層級超過 6 是__真實的作者情境__——Level 的章節樹夠深就會撞到,
+    -- 而且有明確的下一步可以講。
+    HeadingTooDeep Int Int
   | UnterminatedMetaBlock
   | MissingNodeKind Id
   | -- | frontmatter 宣告的 root, 實際的第一個節
@@ -86,6 +95,9 @@ renderMdErrorKind = \case
     "標題層級跳級:" <> hashes prev <> " 之後不能直接接 " <> hashes cur
   HeadingAboveRoot root cur ->
     "標題層級 " <> hashes cur <> " 比根層級 " <> hashes root <> " 還淺"
+  -- 訊息原文是規格,寫在 F004 的 L39 / E21;骨架留 undefined,好讓那條逐字
+  -- 斷言有真正的紅綠(spec 寫一次、impl 轉錄一次,兩次獨立轉錄才驗得到東西)
+  HeadingTooDeep _ _ -> undefined
   UnterminatedMetaBlock ->
     "```meta 區塊沒有結尾的 ```"
   MissingNodeKind i ->

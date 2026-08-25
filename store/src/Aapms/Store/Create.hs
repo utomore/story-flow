@@ -1,12 +1,17 @@
--- | 建檔、增節、刪除,以及寫入路徑的全部輸入 DTO(graph-core\/F008)。
+-- | 建檔、增節、刪除,以及寫入路徑的輸入 DTO(graph-core\/F008)。
 --
 -- 「改寫既有節點」在 "Aapms.Store.Write",「Level 樹的純推導」在
--- "Aapms.Store.Node";共用的紀律在 "Aapms.Store.Edit"。
+-- "Aapms.Store.Node";共用的紀律在 "Aapms.Store.Edit";失敗原因在
+-- "Aapms.Store.Error"。
+--
+-- __一個新節的形狀不是本模組定義的__:'NewSection' 家族住在 "Aapms.Md.Render"
+-- (design.md 契約 D),本模組只 re-export ——序列化規則只有一份,它的輸入形狀
+-- 自然也只該有一份。
 --
 -- == 檔案放哪裡
 --
 -- 目錄是__宣告式__的:'Aapms.Core.Registry.lookupDir' 查型別註冊表,查不到就回
--- 'Aapms.Store.Edit.RegistryDirUnknown' 而不是默默丟進 vault 根目錄。否則
+-- 'Aapms.Store.Error.RegistryDirUnknown' 而不是默默丟進 vault 根目錄。否則
 -- 「新增一種型別不必改程式」這條垂直切片會在「檔案該放哪」這一步破掉。Level 檔的
 -- 目錄硬編為 @levels\/@ ——@level@ 是保留鍵,不可能出現在註冊表裡。pack.md 的目錄
 -- 由呼叫端給('npDir'):一個 pack 的目錄同時是它散檔的根,只有 @asset-ingest@
@@ -26,7 +31,7 @@ module Aapms.Store.Create
   , NewLevel (..)
   , NewPack (..)
 
-    -- * 輸入:一個新的節
+    -- * 輸入:一個新的節(定義在 "Aapms.Md.Render",本模組只 re-export)
   , NewSection (..)
   , NewSectionPayload (..)
   , NewAsset (..)
@@ -39,6 +44,7 @@ module Aapms.Store.Create
   , DeleteResult (..)
 
     -- * 建立
+  , SectionPlacement (..)
   , createTopicFile
   , createLevelFile
   , createPackFile
@@ -51,17 +57,22 @@ module Aapms.Store.Create
   , sanitizeFileName
   ) where
 
-import Data.Aeson (Value)
 import Data.Text (Text)
-import Aapms.Core.Asset (LogicalName, Sha256)
+import Aapms.Core.Asset (Sha256)
 import Aapms.Core.Id (Id, Ref)
 import Aapms.Core.Level (NodeKind)
 import Aapms.Core.Link (Link)
 import Aapms.Core.Meta (Revision, Source, Status, Timeline, TypeKey)
 import Aapms.Core.Pack (AiDisclosure, Author)
 import Aapms.Core.Registry (TypeRegistry)
-import Aapms.Md.Inherit (MetaOverride)
-import Aapms.Store.Edit (StoreWriteError)
+import Aapms.Md.Render
+  ( NewAsset (..)
+  , NewLicense (..)
+  , NewNode (..)
+  , NewSection (..)
+  , NewSectionPayload (..)
+  )
+import Aapms.Store.Error (StoreError)
 import Aapms.Store.Marker (VaultHandle)
 import Aapms.Store.Schema (IndexIssue)
 
@@ -85,7 +96,7 @@ data NewEntity = NewEntity
   , neSource :: Source
   , nePath :: Maybe FilePath
   -- ^ Vault 相對路徑;@Nothing@ = 依註冊表 @dir@ + 標題推導(撞名遞增)。
-  -- 明確給了卻已經有檔案時回 'Aapms.Store.Edit.FileAlreadyExists' ——那是指定,
+  -- 明確給了卻已經有檔案時回 'Aapms.Store.Error.FileAlreadyExists' ——那是指定,
   -- 不是推導,不該悄悄換掉
   }
   deriving stock (Show, Eq)
@@ -128,92 +139,15 @@ data NewPack = NewPack
   }
   deriving stock (Show, Eq)
 
--- 輸入:一個新的節 ---------------------------------------------------------------
+-- 輸入:一個新的節(re-export)-----------------------------------------------------
 
--- | 一個新的節,四種文件共用(契約 D,2026-08-24 的 G1 裁決)。
+-- NewSection / NewSectionPayload / NewAsset / NewLicense / NewNode 定義在
+-- Aapms.Md.Render(design.md 契約 D 就把它們寫在 md 那一節;graph-core/F004 的
+-- G2 重跑已經落地)。本模組只 re-export,呼叫端因此不必知道一個新節的形狀是誰
+-- 定的 —— 它是 md 的序列化輸入,store 只是把它轉交出去。
 --
--- @nsId@ 由呼叫端先以 'Aapms.Store.Write.allocateId' 配好再傳進來 —— md 那一層
--- 不知道怎麼配 id,而配號需要索引在場(ADR-014)。
-data NewSection = NewSection
-  { nsId :: Id
-  , nsLevel :: Int
-  -- ^ 標題層級(@##@ = 2)。主題檔的片段恆為 2;Level 檔的節由
-  -- 'Aapms.Store.Node.headingDepthFor' 由父節點推導
-  , nsTitle :: Text
-  , nsBody :: Text
-  , nsPayload :: NewSectionPayload
-  }
-  deriving stock (Show, Eq)
-
--- | 節的專屬欄位,__對節點種類做 sum__(G1 定案)。
---
--- 'MetaOverride' 只涵蓋 'Aapms.Core.Meta.Meta' 的欄位,沒有 asset 的
--- @sha256@ \/ @entry@ \/ @ext@ \/ @meta@ \/ @license@ \/ @author@,也沒有
--- license 的八個授權維度 —— 少了這條管道就寫不出能通過
--- 'Aapms.Md.Parse.toPack' \/ 'Aapms.Md.Parse.toLicenses' 驗證的完整新節。
---
--- __不採__「把 asset \/ license 欄位塞進 'MetaOverride'」:那個型別是 md 與
--- store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則。
--- 做成封閉 sum 的好處與契約 A 的 'Aapms.Core.AnyNode.AnyNode' 相同:新增節點
--- 種類時編譯器會列出所有待處理處,而 'addSection' 維持單一入口。
-data NewSectionPayload
-  = -- | 主題檔的片段
-    NSFragment MetaOverride
-  | -- | @pack.md@ 的一筆 asset
-    NSAsset MetaOverride NewAsset
-  | -- | @licenses.md@ 的一種授權
-    NSLicense MetaOverride NewLicense
-  | -- | Level 檔的一個節點
-    NSNode MetaOverride NewNode
-  deriving stock (Show, Eq)
-
--- | asset 的專屬欄位(與 'Aapms.Core.Asset.Asset' 逐欄對應,扣掉 'Aapms.Core.Meta.Meta'
--- 與正文)。
---
--- @sha256@ \/ @entry@ 是必填而非 'Maybe':'Aapms.Core.Asset.Asset' 的對應欄位就
--- 不是 'Maybe',寫不出這兩欄的節解析回來一定失敗。它們由 @asset-ingest@ 算好,
--- 本子系統不算雜湊(契約卡「明確不做」)。
-data NewAsset = NewAsset
-  { naName :: Maybe LogicalName
-  , naSha256 :: Sha256
-  , naEntry :: Text
-  , naExt :: Maybe Text
-  , naKindMeta :: Value
-  -- ^ kind 專屬 JSON(@image@ 的寬高、@audio@ 的長度……),不開新欄位
-  , naLicense :: Maybe Ref
-  , naAuthor :: Maybe Text
-  }
-  deriving stock (Show, Eq)
-
--- | 授權的八個維度(與 'Aapms.Core.License.License' 對應,扣掉
--- 'Aapms.Core.Meta.Meta' 與 @full_text@)。
---
--- @full_text@ 不在這裡:@licenses.md@ 的節不重複貼授權全文
--- ('Aapms.Md.Parse.toLicenses' 解出來恆為 'Nothing')。
--- @commercial@ 與 @attribution_required@ 是 'Bool' 而非 'Maybe' 'Bool':
--- 它們缺漏是錯誤(design.md 契約卡),其餘六項缺漏為 'Nothing'。
-data NewLicense = NewLicense
-  { nlcCommercial :: Bool
-  , nlcAttributionRequired :: Bool
-  , nlcCreditText :: Maybe Text
-  , nlcModificationAllowed :: Maybe Bool
-  , nlcRedistributionAllowed :: Maybe Bool
-  , nlcResaleAllowed :: Maybe Bool
-  , nlcNftAllowed :: Maybe Bool
-  , nlcSourceUrl :: Maybe Text
-  }
-  deriving stock (Show, Eq)
-
--- | Level 檔的一個節點的專屬欄位。
---
--- 只有 @kind@ 一欄:@parent@ 與 @order@ 由標題階層推導(ADR-009),
--- 'Aapms.Core.Level.nodEntities' 由 @involves@ \/ @references@ 兩種關聯推導
--- ('Aapms.Md.Parse.toLevel'),兩者都不該由呼叫端重複指定 —— 指定了就會有兩個
--- 真相來源。
-newtype NewNode = NewNode
-  { nnKind :: NodeKind
-  }
-  deriving stock (Show, Eq)
+-- nsId 由呼叫端先以 allocateId 配好再傳進來:md 那一層不知道怎麼配 id,而配號
+-- 需要索引在場(ADR-014)。
 
 -- 結果 ------------------------------------------------------------------------
 
@@ -247,10 +181,24 @@ data DeleteResult = DeleteResult
 
 -- 建立 ------------------------------------------------------------------------
 
+-- | 新節要落在哪裡(契約 E,2026-08-25 裁決)。
+--
+-- 用__封閉 sum__ 而不是 @Maybe Id@:落點種類日後若要再長(例如「插在某個兄弟
+-- 之前」),編譯器會列出所有待處理處 ——與 'Aapms.Core.AnyNode.AnyNode' \/
+-- 'Aapms.Md.Render.NewSectionPayload' \/ 'DeleteMode' 同一個模式。
+data SectionPlacement
+  = -- | 追加在檔尾('Aapms.Md.Render.appendSection')
+    AtEnd
+  | -- | 插在指定父節點的子樹之後,成為它的最後一個子節點
+    -- ('Aapms.Md.Render.insertSection')。__只有 @LevelDoc@ 用得到__:另外三種
+    -- 文件的節是平的
+    UnderParent Id
+  deriving stock (Show, Eq)
+
 -- | 建一份新的主題檔。
 --
 -- 落點依註冊表的 @dir@('Aapms.Core.Registry.lookupDir');查不到回
--- 'Aapms.Store.Edit.RegistryDirUnknown'。註冊表由呼叫端傳入而不是取自
+-- 'Aapms.Store.Error.RegistryDirUnknown'。註冊表由呼叫端傳入而不是取自
 -- 'Aapms.Store.Marker.vhRegistry' ——契約 E 的簽名如此,而且建檔是唯一「用哪一份
 -- 註冊表決定落點」有可能與索引時不同的場合(@service@ 可能先做過型別遷移)。
 --
@@ -260,7 +208,7 @@ createTopicFile
   :: VaultHandle
   -> TypeRegistry
   -> NewEntity
-  -> IO (Either StoreWriteError CreateResult)
+  -> IO (Either StoreError CreateResult)
 createTopicFile = undefined
 
 -- | 建一份新的 Level 檔,連同它的根 Node。
@@ -271,15 +219,15 @@ createLevelFile
   :: VaultHandle
   -> TypeRegistry
   -> NewLevel
-  -> IO (Either StoreWriteError CreateResult)
+  -> IO (Either StoreError CreateResult)
 createLevelFile = undefined
 
 -- | 在 'npDir' 寫出一份 @pack.md@,節的順序與給定順序__相同__。
 --
--- 第三個參數是 @[NewSection]@ 而不是契約 E 寫的 @[NewAsset]@(F008 待確認假設
--- A1):G1 之後 'NewAsset' 只剩 asset 專屬七欄,組不出節的標題與節層 meta。
+-- 第三個參數是 @[NewSection]@ 而不是 @[NewAsset]@(2026-08-25 已回寫契約 E):
+-- G1 之後 'NewAsset' 只剩 asset 專屬七欄,組不出節的標題與節層 meta。
 -- 每一節的 'nsPayload' 必須是 'NSAsset',否則回
--- 'Aapms.Store.Edit.BadSectionPayload' ——@pack.md@ 的節只能是 asset。
+-- 'Aapms.Store.Error.BadSectionPayload' ——@pack.md@ 的節只能是 asset。
 --
 -- 與 'addSection' 走同一條序列化路徑,「順序相同」因此是結構上的結果,不是另外
 -- 維護的一條規則。
@@ -287,31 +235,41 @@ createPackFile
   :: VaultHandle
   -> NewPack
   -> [NewSection]
-  -> IO (Either StoreWriteError CreateResult)
+  -> IO (Either StoreError CreateResult)
 createPackFile = undefined
 
--- | 往既有檔案的__檔尾__追加一個節:片段 \/ asset \/ license \/ node,依
--- 'nsPayload' 分派。
+-- | 往既有檔案加一個節:片段 \/ asset \/ license \/ node,依
+-- 'Aapms.Md.Render.nsPayload' 分派。
 --
 -- 第二個參數是__檔案層主體__的 id(用來定位檔案);傳節的 id 回
--- 'Aapms.Store.Edit.BadSectionPayload'。@licenses.md@ 的檔案層是容器不是節點
+-- 'Aapms.Store.Error.BadSectionPayload'。@licenses.md@ 的檔案層是容器不是節點
 -- ('Aapms.Md.Parse.toLicenses' 只回 @[License]@),所以那一種文件以檔案裡任一
 -- 既有 license 節的 id 定位。
 --
+-- 第三個參數是__落點__('SectionPlacement',2026-08-25 裁決):
+--
+-- * 'AtEnd' —— 追加在檔尾,'Aapms.Md.Render.appendSection';
+--   __不動前面任何一節的位元組__(ADR-010)
+-- * @'UnderParent' p@ —— 插在父節點 @p@ 的子樹之後,
+--   'Aapms.Md.Render.insertSection';此時 @nsLevel@ __由本層以__
+--   'Aapms.Store.Node.headingDepthFor' __推導__(= @secLevel p + 1@),
+--   __不看呼叫端給的值__ ——呼叫端自己算標題層級等於讓父子關係有兩個真相來源。
+--   @p@ 不在檔案裡回 'Aapms.Store.Error.SectionMissing',推導出來超過六級回
+--   'Aapms.Store.Error.NodeDepthExceeded',兩者都在寫檔之前,檔案位元組不變
+--
 -- payload 與目標檔案的 'Aapms.Md.Document.DocKind' 必須相容
 -- (@TopicDoc@↔@NSFragment@、@PackDoc@↔@NSAsset@、@LicenseDoc@↔@NSLicense@、
--- @LevelDoc@↔@NSNode@),不符回 'Aapms.Store.Edit.BadSectionPayload' 且不寫檔。
---
--- 追加__不動前面任何一節的位元組__(ADR-010;'Aapms.Md.Render.appendSection' 的
--- 保證)。@LevelDoc@ 額外在寫檔前跑 'Aapms.Store.Node.validateLevelDoc'。
+-- @LevelDoc@↔@NSNode@),不符回 'Aapms.Store.Error.BadSectionPayload' 且不寫檔。
+-- @LevelDoc@ 額外在寫檔前跑 'Aapms.Store.Node.validateLevelDoc'。
 --
 -- 檔案層主體的 revision 走完會 +1:這是樂觀鎖的另一半,不遞增的話兩個並發的
 -- 'addSection' 拿同一個 revision 都會通過。
 addSection
   :: VaultHandle
   -> Id
+  -> SectionPlacement
   -> NewSection
-  -> IO (Either StoreWriteError CreateResult)
+  -> IO (Either StoreError CreateResult)
 addSection = undefined
 
 -- 刪除 ------------------------------------------------------------------------
@@ -322,20 +280,20 @@ addSection = undefined
 --   連同檔內全部節
 -- * 主題檔的片段 \/ pack.md 的 asset \/ licenses.md 的 license → 該一節
 -- * Level 檔的 Node → 該節__與它整棵子樹__('Aapms.Store.Node.subtreeIds');
---   根 Node 回 'Aapms.Store.Edit.CannotDeleteRootNode',請改刪整份 Level 檔
+--   根 Node 回 'Aapms.Store.Error.CannotDeleteRootNode',請改刪整份 Level 檔
 --
 -- 第三個參數是被刪目標的 revision:刪除也走樂觀鎖,否則「作者剛改完、Agent 拿
 -- 舊資料刪掉」會靜默生效。
 --
 -- 'DeleteSafe' 對__每一個__要消失的 id 做被引用檢查,任何一個被指向就整份拒絕
--- ('Aapms.Store.Edit.ReferencedBy',且檔案未動);'DeleteForce' 照刪並把被打斷的
+-- ('Aapms.Store.Error.ReferencedBy',且檔案未動);'DeleteForce' 照刪並把被打斷的
 -- 關聯放進 'drBrokenLinks'。
 deleteNode
   :: VaultHandle
   -> Id
   -> Revision
   -> DeleteMode
-  -> IO (Either StoreWriteError DeleteResult)
+  -> IO (Either StoreError DeleteResult)
 deleteNode = undefined
 
 -- 檔名 ------------------------------------------------------------------------

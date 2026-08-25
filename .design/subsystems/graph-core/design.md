@@ -356,6 +356,11 @@ data SearchResult = SearchResult { srHits :: [SearchHit], srTotal :: Int, srFace
 不得另立平行的錯誤型別再橋接——契約 E 的每個函式都寫 `Either StoreError a`,多一個型別就是多一套
 `render*` 與多一次翻譯,`service` 也會看到兩種形狀。
 
+**唯一錯誤型別成立的前提**(2026-08-25):錯誤型別住的模組可以依賴 `aapms-core` 與 `aapms-md` 的
+型別(`Id` / `Link` / `Revision` / `TypeKey` / `TreeError` / `DocKind` / `MdError`),但**不得 import
+任何 `Aapms.Store.*`**。全套件的失敗都收斂到一個型別,而那個型別又被每一個模組 import——它一旦
+反向依賴任何 store 模組就是相依環,「唯一」也就維持不住。
+
 ## 內部模組劃分(Internal Modules)
 
 | 模組 | 單一職責 | 套件 |
@@ -400,7 +405,7 @@ workspace 給路徑 → openVault:讀 marker(id / kind)→ 開索引
 ```text
 NewEntity / NewAsset / MetaOverride / AssetPatch(來自 service 或 asset-ingest)
   → allocateId(新節點)/ 讀回目標檔案比對 expected revision(樂觀鎖),不符即拒絕
-  → aapms-md 寫回:updateSection / appendSection / updateFrontmatter,未改區塊逐字保留
+  → aapms-md 寫回:updateSection / appendSection / insertSection / updateFrontmatter,未改區塊逐字保留
   → 原子寫入(暫存檔 + rename)
   → indexFile:以 file_path 級聯刪除該檔舊記錄後整檔重建
   → 回傳 CreateResult / WriteResult(新 revision);索引失敗回 IndexUpdateFailed(檔案已落地)
@@ -615,7 +620,10 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
   持續綠);繼承規則照本文件表格——pack.md 的節層 `type` 不繼承且缺漏是錯誤;
   `toPack` 把檔案層轉成 `Pack`、每節轉成 `Asset`;`toLicenses` 每節一個 `License`,八個維度缺漏為
   `Nothing` 而非錯誤(`commercial` 與 `attribution_required` 除外,缺漏是錯誤);`appendSection`
-  在 1,693 節的文件末尾追加一節,前面 1,693 節位元組不變;`MdError` 指出行號
+  在 1,693 節的文件末尾追加一節,前面 1,693 節位元組不變;`insertSection` 在中間插一節,
+  其餘每一節位元組不變——**唯一的例外是插入點之前那一段的行尾**:它還沒有以空行結尾時會被補齊
+  (`blankTail` 冪等,已經是空行結尾就原樣不動),`appendSection` 走的是同一條規則,
+  被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010;`MdError` 指出行號
 - **明確不做**:不碰檔案系統與索引;不驗證關聯目標;不算 sha256(`asset-ingest` 給)
 
 ### store-vault-handle

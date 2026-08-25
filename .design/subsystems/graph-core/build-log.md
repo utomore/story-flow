@@ -106,6 +106,8 @@ subagent 原本要上閘門、經編排者重跑層級兩問後降下來的。�
 | F007 | 1 | `SearchSpec.hs:163` E6:`shSnippet` 應含「藥水」,實得 `"魔法藥 水 瓶"` | E6 + A3 + L4 | **spec bug** | 停下,回報開發者。**編排者實測歸因**:`desegmentCjk(完整 cjkSegment 輸出)` 正確還原且 **L4 成立**;但 FTS5 的 `snippet()` 回的是**片段**(欄位的一段視窗),不是完整的 `cjkSegment t`——L4 對片段沒有定義任何行為,A3 卻要求把 `snippet()` 的輸出餵給它。impl 滿足了所有 law,qa 逐字轉錄 E6,兩邊都沒錯,是 spec 把函式用在定義域外 |
 | F007 | 2 | (無新紅燈) | — | — | spec 修訂後重跑:**111 examples / 0 failures**。E6 由修正 spec(snippet 改取 `fts_tri` 原文)而非弱化斷言達成 |
 | F004 | 1 | `L9` / `L10`(`renderMetaBlock` 行序列與行數) | L9 原文 | **qa 誤讀** | qa 自行歸因並修正:L9 原文明寫 `moLinks = Just (_:_)` 產生「`links:` 加每個關聯一行」,但 qa 的計數 helper 把每個有值欄位一律算 1 行,漏算這條例外。改 `fieldLineCount` 後兩條轉綠,其餘 283 個 example 未動 |
+| F004 | 1(W6) | `InsertSectionSpec.hs:467` E13:1,693 節 Level 檔插入後 `buildTree` 回 `MultipleRoots` | E13 原文 | **qa 誤讀** | 斷言逐字轉錄 E13 沒錯,但 `synthLevelMd` 合成出 1,692 個同層 `##` 章節 = 1,692 個 root。`buildTree`(`core/src/Aapms/Core/Tree.hs:100-104`)明訂恰好一個 root(ADR-004 嚴格樹、契約 A 的 `lvlRoot` 單數、回傳單一 `NodeTree`),回 `MultipleRoots` 是正確行為。E13 的前提「合法 Level 檔」從未被滿足。退回 qa 改 fixture 成單根,三段斷言不得弱化 |
+| F004 | 1(W6) | `RegressionLawsSpec.hs:236` L30:`metaTitle = "0o0"` 時 `decodeFrontmatter (renderFrontmatter m le) /= Right m` | L30 原文 | **impl 錯** | `looksNumeric`(`Render.hs:820-825`)的字元白名單 `+-.eExXaAbBcCdDfF_` 涵蓋 `0x` 十六進位卻漏 `0o` 八進位 → `"0o0"` 判定不需引號 → 寫成 `title: 0o0` → YAML 讀回是整數 0,往返失真。**編排者獨立重跑未重現**(hedgehog 隨機種子),但正因如此它是會隨機引爆的地雷,不是偶發雜訊。程式碼雖是前一輪交付,L30 是 F004 自己的 law 且 F004 現為 in-progress,故歸本輪範圍。退回 impl 補白名單 |
 
 ## 待確認假設彙總
 

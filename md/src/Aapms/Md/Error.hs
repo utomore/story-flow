@@ -97,7 +97,16 @@ renderMdErrorKind = \case
     "標題層級 " <> hashes cur <> " 比根層級 " <> hashes root <> " 還淺"
   -- 訊息原文是規格,寫在 F004 的 L39 / E21;骨架留 undefined,好讓那條逐字
   -- 斷言有真正的紅綠(spec 寫一次、impl 轉錄一次,兩次獨立轉錄才驗得到東西)
-  HeadingTooDeep _ _ -> undefined
+  HeadingTooDeep parent cur ->
+    "標題層級 "
+      <> hashes cur
+      <> "(第 "
+      <> T.pack (show cur)
+      <> " 級)超過 Markdown 的六級上限,父節點 "
+      <> hashes parent
+      <> " 已經在第 "
+      <> T.pack (show parent)
+      <> " 級,底下加不了子節點了:請改插到較淺的父節點底下,或先把這條分支中間的層級壓平"
   UnterminatedMetaBlock ->
     "```meta 區塊沒有結尾的 ```"
   MissingNodeKind i ->

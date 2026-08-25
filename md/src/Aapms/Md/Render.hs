@@ -480,7 +480,32 @@ blankTail le t
 --
 -- 與 'appendSection' 一樣__不驗證__節的業務欄位是否與檔案身分相符。
 insertSection :: Id -> NewSection -> Document -> Either MdError Document
-insertSection = undefined
+insertSection pid NewSection {..} doc@Document {..} = case sectionById pid doc of
+  Nothing -> Left (mdError 1 (UnknownSectionId pid))
+  Just p
+    | any ((== nsId) . secId) docSections -> Left (mdError 1 (DuplicateSectionId nsId))
+    | nsLevel /= secLevel p + 1 -> Left (mdError 1 (HeadingSkip (secLevel p) nsLevel))
+    | nsLevel > 6 -> Left (mdError 1 (HeadingTooDeep (secLevel p) nsLevel))
+    | otherwise -> Right doc {docSections = before' ++ [newSec'] ++ after}
+    where
+      -- p 之前(含 p)的節數,即 p 在 docSections 中的索引(design.md 的 j)
+      j = length (takeWhile ((/= pid) . secId) docSections)
+      -- p 的子樹:p 之後、secLevel 一路都大於 secLevel p 的最長前綴
+      subtreeLen = length (takeWhile ((> secLevel p) . secLevel) (drop (j + 1) docSections))
+      -- 插入索引 k = j + 1 + length (subtree p d)
+      k = j + 1 + subtreeLen
+      (before, after) = splitAt k docSections
+      -- before 恆非空(k >= j + 1 >= 1):插入點之前那一節(子樹最後一節,子樹
+      -- 為空時就是 p 自己)的正文尾端補到剛好隔一個空行,blankTail 冪等
+      before' = case reverse before of
+        [] -> []
+        (lastB : earlier) ->
+          reverse (lastB {secBodyRaw = blankTail docEnding (secBodyRaw lastB)} : earlier)
+      newSec = mkSection docEnding nsLevel nsId nsTitle (Just nsPayload) nsBody
+      -- 新節不是 d' 的最後一節時,正文尾端也補齊,否則下一節標題會黏上來
+      newSec'
+        | null after = newSec
+        | otherwise = newSec {secBodyRaw = blankTail docEnding (secBodyRaw newSec)}
 
 -- | 刪除節,連同它的 meta 區塊與正文。
 removeSection :: Id -> Document -> Either MdError Document
@@ -797,7 +822,7 @@ looksNumeric t = case T.uncons t of
   Nothing -> False
   Just (c, _) ->
     (isDigit c || c == '+' || c == '-' || c == '.')
-      && T.all (\x -> isDigit x || x `elem` ("+-.eExXaAbBcCdDfF_" :: String)) t
+      && T.all (\x -> isDigit x || x `elem` ("+-.eExXoObB_aAcCdDfF" :: String)) t
 
 -- | 雙引號字串。YAML 的雙引號風格支援反斜線跳脫。
 quote :: Text -> Text

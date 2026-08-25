@@ -92,7 +92,7 @@ Level 的章節樹夠深就會撞到,是真實的作者情境而不是程式 bug
 | `LicenseFields` | 刪除 | — | 併入 `NewLicense` |
 | `MetaOverride` | **不動** | `Aapms.Md.Inherit:45-59`,十三個 `Maybe` 欄位 | 節層對 `Meta` 欄位的覆寫。**刻意不擴充**:它是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則 |
 | `DocKind` / `Document` / `Section` / `MdError` | 不動 | 同上一輪 | 檔案身分、原始切片、錯誤與行號 |
-| `MdErrorKind` | **追加一個建構子** | `HeadingTooDeep Int Int`(父節點層級, 算出來的層級),`md/src/Aapms/Md/Error.hs:59`(`renderMdErrorKind` 的分支在 `md/src/Aapms/Md/Error.hs:100`,本體 `undefined`,訊息原文見 L39 / E21) | 「插入的節算出來的標題層級超過 Markdown 的六級上限」。既有 14 個建構子與它們的 `renderMdErrorKind` 訊息**一個字都沒動**(2026-08-25 裁決 A8) |
+| `MdErrorKind` | **追加一個建構子** | `HeadingTooDeep Int Int`(父節點層級, 算出來的層級),`md/src/Aapms/Md/Error.hs:59`(`renderMdErrorKind` 的分支在 `md/src/Aapms/Md/Error.hs:100`,本體 `undefined`,訊息原文見 L39 / E21) | 「插入的節算出來的標題層級超過 Markdown 的六級上限」。既有 15 個建構子與它們的 `renderMdErrorKind` 訊息**一個字都沒動**,追加後 `MdErrorKind` 共 **16** 個(2026-08-25 裁決 A8;計數更正見 spec-gaps G6) |
 
 **「頂層條目」的定義**(`MetaExtras` 與 `extrasOf` 共用,是本 feature 唯一的新語法規則):meta 區塊
 fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 開頭的那一行** + 其後所有「縮排行或
@@ -309,7 +309,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
   `renderMdError (mdError l (HeadingTooDeep parent cur))` 的結果以 `第 <l> 行:` 開頭,且訊息中
   同時出現 `T.replicate cur "#"`、`T.replicate parent "#"` 與**下一步的指引文字**
   「請改插到較淺的父節點底下,或先把這條分支中間的層級壓平」(契約 G:每個建構子的 `render*`
-  訊息要說出下一步該做什麼)。既有 14 個建構子的訊息**逐字不變**(回歸 law)。
+  訊息要說出下一步該做什麼)。既有 15 個建構子的訊息**逐字不變**(回歸 law)。
 
 **既有匯出的回歸 law(行為不得改變)**
 
@@ -348,7 +348,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | E19 | 父節點存在,但 `nsId` 與既有節撞號**且** `nsLevel` 也錯(例如父在 level 2、`nsLevel = 5`) | `Left (MdError 1 (DuplicateSectionId nsId))`——撞號優先於層級 | 多重錯誤時的檢查順序(L38) |
 | E20 | 父節點是 `###### {#nod-0006}`(level 6),傳入 `nsLevel = 9`(第 3 條檢查就不過) | `Left (MdError 1 (HeadingSkip 6 9))`,**不是** `HeadingTooDeep` | 第 3 條先於第 4 條:呼叫端算錯 `nsLevel` 與「父節點已到底」是兩件事 |
 | E21 | `renderMdError (MdError 12 (HeadingTooDeep 6 7))` | `第 12 行:標題層級 #######(第 7 級)超過 Markdown 的六級上限,父節點 ###### 已經在第 6 級,底下加不了子節點了:請改插到較淺的父節點底下,或先把這條分支中間的層級壓平` | 契約 G:訊息要說出**下一步**(L39) |
-| E22 | 既有 14 個 `MdErrorKind` 建構子各取一個代表值,呼叫 `renderMdError` | 訊息與上一輪**逐字相同** | **回歸例**:追加建構子不得動到既有訊息 |
+| E22 | 既有 15 個 `MdErrorKind` 建構子各取一個代表值,呼叫 `renderMdError` | 訊息與上一輪**逐字相同** | **回歸例**:追加建構子不得動到既有訊息 |
 
 ## 依賴
 
@@ -429,7 +429,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 |---|---|
 | `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整。**2026-08-25 追加**:`insertSection` 的簽名與匯出(`md/src/Aapms/Md/Render.hs:482`),本體 `undefined` |
 | `md/src/Aapms/Md/Parse.hs` | 刪除 `AssetFields` / `LicenseFields` 及其實例,改用 `Aapms.Md.Render` 的 `NewAsset` / `NewLicense`;`toPack` / `toLicenses` / `licenseFieldsOf` 的欄位名機械性更名(行為不變) |
-| `md/src/Aapms/Md/Error.hs` | **2026-08-25 裁決 A8**:`MdErrorKind` 追加 `HeadingTooDeep Int Int` 建構子與其 haddock(`:53-59`);`renderMdErrorKind` 對應分支本體 `undefined`(`:100`),訊息原文由 impl 照 L39 / E21 轉錄。既有 14 個建構子與它們的訊息**一個字都沒動** |
+| `md/src/Aapms/Md/Error.hs` | **2026-08-25 裁決 A8**:`MdErrorKind` 追加 `HeadingTooDeep Int Int` 建構子與其 haddock(`:53-59`);`renderMdErrorKind` 對應分支本體 `undefined`(`:100`),訊息原文由 impl 照 L39 / E21 轉錄。既有 15 個建構子與它們的訊息**一個字都沒動** |
 | `md/src/Aapms/Md/Inherit.hs` | **未改動**(刻意):`MetaOverride` 是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提 |
 
 **本體為 `undefined` 的函數**(impl 只准替換這些,不得改動任何簽名與型別):
@@ -449,7 +449,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 impl 少一個全形冒號、漏掉「請改插到較淺的父節點底下」那個子句,E21 就會紅。那一次紅燈就是它的價值。
 
 **impl 這一輪要改 `Error.hs`,但只准填 `HeadingTooDeep _ _ ->` 那一個分支的本體**(逐字照 L39 / E21
-的訊息原文轉錄);既有 14 個分支的本體、`MdError` / `MdErrorKind` 的型別定義與 `mdError` /
+的訊息原文轉錄);既有 15 個分支的本體、`MdError` / `MdErrorKind` 的型別定義與 `mdError` /
 `renderMdError` 一律不得更動。
 
 **2026-08-25 這一輪只有 `insertSection` 是紅的**:上一輪的十一個函數本體已交付並全綠(285 examples /
@@ -523,7 +523,7 @@ A8 / A9 / A10 是 2026-08-25 這一輪提上閘門的三條待確認假設,**已
     撞到),而且有明確的下一步可以講。契約 G 要求每個建構子的 `render*` 訊息說出下一步該做什麼,
     拿 `HeadingSkip`(語意是「標題從第 a 級跳到第 b 級」)去表達「太深了」,說出來的事跟實際發生的
     事不符。
-  - **落實**:`md/src/Aapms/Md/Error.hs:59` 追加建構子、`:100` 追加 `renderMdErrorKind` 分支(本體 `undefined`,訊息原文寫在 L39 / E21 由 impl 轉錄)(既有 14 個建構子與其訊息
+  - **落實**:`md/src/Aapms/Md/Error.hs:59` 追加建構子、`:100` 追加 `renderMdErrorKind` 分支(本體 `undefined`,訊息原文寫在 L39 / E21 由 impl 轉錄)(既有 15 個建構子與其訊息
     逐字未動);L38 拆成四條檢查、新增 L39 釘住訊息;E18 改回 `HeadingTooDeep`、新增 E20(第 3 條先於
     第 4 條)/ E21(訊息原文)/ E22(既有訊息回歸)。
   - **我原本的分析(逐字保留)**:「`insertSection` 的三條錯誤路徑**沿用既有的 `MdErrorKind`

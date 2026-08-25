@@ -9,6 +9,7 @@ import qualified Aapms.Md.EditLawsSpec
 import qualified Aapms.Md.ErrorSpec
 import qualified Aapms.Md.HeadingSpec
 import qualified Aapms.Md.InheritSpec
+import qualified Aapms.Md.InsertSectionSpec
 import qualified Aapms.Md.LexerSpec
 import qualified Aapms.Md.NewSectionLawsSpec
 import qualified Aapms.Md.ParseEntitySpec
@@ -46,3 +47,4 @@ main = do
     describe "graph-core/F004 Laws: NewSectionPayload/appendSection/mkSection(L13-L18,L21)" Aapms.Md.NewSectionLawsSpec.spec
     describe "graph-core/F004 Laws: docKind(L22)" Aapms.Md.DocKindLawSpec.spec
     describe "graph-core/F004 Laws: 回歸(L1,L19,L20,L23-L31)" Aapms.Md.RegressionLawsSpec.spec
+    describe "graph-core/F004(2026-08-25) insertSection(L32-L39,E11-E22)" Aapms.Md.InsertSectionSpec.spec

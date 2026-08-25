@@ -5,7 +5,7 @@ title: graph-core-spec-gaps
 description: graph-core 委派過程中 qa / impl 撞到的 spec 缺口與裁決
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-25
 parent: graph-core
 ---
 
@@ -138,3 +138,95 @@ parent: graph-core
   路由 law 涵蓋:查詢一定走 trigram 或 cjk 兩條 FTS 路徑之一,沒有第三條路
 
 **執行**:由 spec 角色修訂 F007 的 spec 與骨架,再重跑受影響的 qa 與 impl。
+
+## G9(F008 / qa)
+
+- **模糊點**:`Aapms.Store.Node.isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool`
+  (骨架 `Node.hs:60`)__沒有任何 Law 或 Example 定義它的行為__。它的 haddock 只說「這個 id
+  是不是該 Level 檔的根 Node」,對「`id` 不在檔案裡時」該回 `Right False`(不是根,合法回答)
+  還是 `Left (SectionMissing _ id)`(id 查無此節,錯誤)完全沒有著墨——兩種讀法都與
+  「是不是根 Node」這句話字面相容
+- **卡住的項目**:`isRootNode` 的 property test 與 example test,整條停下,本檔（`NodeSpec2.hs`）
+  未對它寫任何斷言
+- **需要 spec 回答什麼**:`isRootNode` 對「`id` 不在 `doc` 裡」這個輸入該回什麼?比照
+  `headingDepthFor` / `subtreeAfter`(haddock 明說「節不存在時是空清單」)訂出對稱的規則,
+  或者乾脆補一條 Law
+- 狀態:open
+
+## G7(F008 / qa)—— 已縮小範圍:`SqliteError` 的既有訊息與 L15 字面不符
+
+- **模糊點**:L15 要求「`renderStoreError e` 非空,且含至少一個以『請』起頭的子句」,範圍是
+  `StoreError` 的全部 21 個建構子,__含 F005 已實作的 6 個__(spec 明說這 6 個應為綠)。
+  但 `Aapms.Store.Error.renderStoreError` 對 `SqliteError` 的既有實作(`Error.hs:96-97`)是
+  `"索引操作失敗 —— " <> msg <> ";可以嘗試重新開啟 vault"`——用「可以嘗試」收尾,**不含任何
+  以「請」起頭的子句**。這與 F005 原本 `Aapms.Store.ErrorSpec` 的 `actionable` 判準
+  (「請」/「改用」/「可以」/「才」四選一)不同;F008 的 L15 字面把可接受的動詞窄化成只剩「請」
+- **已排除的偽陽性**:同一輪還發現 `VaultAlreadyInitialized`(F005 既有,亦應綠)的訊息
+  「……不會覆寫;如需重建,請先手動移除該檔案」__其實有__以「請」起頭的子句(在 ASCII 逗號
+  `,` 之後),第一版測試的 `hasQingClause` 判準漏了 ASCII 逗號這個分句符號,已在
+  `StoreErrorL15Spec.hs` 修正、該筆現在正確判定為綠——只有 `SqliteError` 是真正的字面不符
+- **卡住的項目**:`StoreErrorL15Spec.hs` 對 `SqliteError` 的「含以請起頭的子句」斷言;已改寫成
+  一則刻意會紅、標明「spec-gaps G7」的測試,而不是悄悄放寬判準讓它變綠
+- **需要 spec 回答什麼**:L15 的「以『請』起頭的子句」是否要放寬回 F005 `actionable` 的四選一
+  (「請」/「改用」/「可以」/「才」),或者 `SqliteError` 的訊息文字要改成含「請」的子句(例如
+  「……；請嘗試重新開啟 vault」)?這是文字選擇,但既然 L15 把它寫成可機械驗證的斷言,誰改
+  由開發者定
+- 狀態:open
+
+## G8(F008 / qa)
+
+- **模糊點**:E6「人為製造碰撞」的情境是「索引裡已存在 `newId p c t 0` 與 `newId p c t 1`
+  兩個 id;`allocateId vh p c` 回 `Right i`,且 `i` 與那兩個都不同(實作上即 salt = 2 的
+  那一個)」。但 `allocateId :: VaultHandle -> IdPrefix -> Text -> IO (Either StoreError Id)`
+  的簽名__沒有時間注入點__——`t`(`newId` 的第三個參數)是 `allocateId` 內部呼叫
+  `getCurrentTime`(或等價機制)取得的,呼叫端無從得知、也無法控制它會在呼叫的哪一刻取樣
+- **卡住的項目**:E6 本身。要「人為製造碰撞」必須預先把 `newId p c t 0` / `newId p c t 1`
+  寫進索引,但這需要**先知道** `allocateId` 這次呼叫內部即將使用的確切 `t`——這在公開介面上
+  觀察不到,也控制不到(呼叫兩次 `allocateId` 之間去猜測、去外部量測目前時間再手算
+  `newId`,仍可能與函式內部實際取樣的時間點有微秒級落差,導致預先插入的 id 根本不是它會
+  嘗試的那個候選)。`WriteSpec.hs` 因此只測了 L14(連續呼叫互異,每次把結果寫回索引)與
+  L14b/E15(索引查詢失敗即失敗,用 `DROP TABLE nodes` 觸發,不需要預測碰撞),E6 整項停下
+- **需要 spec 回答什麼**:`allocateId` 要不要在契約 E 之外另開一個__僅供測試\/可控時間源__的
+  管道(例如帶一個 `UTCTime` 參數的內部變體,契約 E 的 `allocateId` 只是取現在時間再呼叫它)?
+  或者 E6 改成只斷言「碰撞後 salt 會遞增」這個性質、不要求可從外部精確重現特定的碰撞情境?
+- 狀態:open
+
+## G12(F008 / qa)
+
+- **模糊點**:L17 第三個子句要求「所有檔案 IO(`readTextFile` / `atomicWriteText` /
+  `removeFile` / `createDirectoryIfMissing`)與所有 md 序列化都不在任何 SQLite 呼叫的括號內」。
+  前兩個子句(`withTransaction` 出現 0 次、不出現字面量 `"BEGIN"` / `"COMMIT"`;
+  `Database.SQLite.Simple` 只在 `Edit` / `Write` 被 import)是單純的關鍵字\/import 行掃描,
+  機械可判定。但「X 是否巢狀在 Y 呼叫的括號內」是一個**語法樹層級的問題**,單純掃字串
+  (數括號深度、找關鍵字出現的相對位置)在真實的多行 `do` \/ `let` \/ 縮排排版下容易做出
+  偽陽性(把沒有巢狀關係、只是剛好在附近的兩段程式碼判定成巢狀)或偽陰性(漏掉真正巢狀的情況,
+  例如經過一層 helper 函式間接呼叫)。這已經超出「掃原始碼有沒有出現某個獨立詞」這個 Law 字面
+  定義的機械驗證範圍——與 `spec-gaps.md` 的 G3(F007,同樣是「文字掃描分不出語法結構」)同一個根
+- **卡住的項目**:L17 的第三個子句,`WriteLockBudgetSpec.hs` 只驗證前兩個子句,第三個子句
+  整項停下,不寫斷言(不腦補一個容易誤判的文字掃描規則來假裝涵蓋)
+- **需要 spec 回答什麼**:第三個子句要不要降級為「code review 檢查項」而不是 qa 的自動化測試
+  (由 `/arch-audit` 或人工審查在 impl 交付時檢查),或者能不能提供一個機械可判定的替代形式
+  (例如：要求 SQLite 呼叫全部集中在具名的一小組函式內,qa 只需驗證檔案 IO \/ md 序列化的呼叫點
+  不落在那組函式的原始碼範圍內——這仍然是文字掃描,但至少把「巢狀」換成「是否在同一個具名定義
+  的範圍內」,少了括號配對的模糊地帶)?
+- 狀態:open
+
+## G6(F004 / qa)
+
+- 模糊點:F004 spec(2026-08-25 追加段)在多處敘述「既有 14 個建構子」(`MdErrorKind` 扣掉新增的
+  `HeadingTooDeep` 之後),包括 L39「既有 14 個建構子的訊息逐字不變(回歸 law)」與 E22「既有 14 個
+  `MdErrorKind` 建構子各取一個代表值」。實際數 `md/src/Aapms/Md/Error.hs:33-71` 的 `data MdErrorKind`
+  定義,扣掉 `HeadingTooDeep` 是 **15 個**:`NoFrontmatter` / `UnterminatedFrontmatter` /
+  `FrontmatterYaml` / `SectionYaml` / `HeadingWithoutId` / `DuplicateSectionId` / `IdPrefixMismatch` /
+  `HeadingSkip` / `HeadingAboveRoot` / `UnterminatedMetaBlock` / `MissingNodeKind` / `RootMismatch` /
+  `RequiredFieldMissing` / `SectionFieldMissing` / `UnknownSectionId`——與 `md/test/Aapms/Md/ErrorSpec.hs`
+  既有的「每一種錯誤都有非空訊息」測試枚舉的清單一致(該測試同樣是 15 筆)
+- 卡住的項目:E22 的字面數字(「14 個」)與骨架\/既有測試對不上,不影響能不能寫斷言(15 個建構子
+  的清單是機械可數的事實,不是行為推論),只是 spec 原文的計數有誤,回報供編排者修訂措辭
+- 需要 spec 回答什麼:F004 spec 的「既有 14 個建構子」是否應更正為「既有 15 個建構子」(L39 與
+  E22 兩處一併改)?
+- **qa 已完成的處置**(未整項停工):`Aapms.Md.InsertSectionSpec` 的 E22 測試依**實際的 15 個**既有
+  建構子撰寫(與 `ErrorSpec.hs` 既有清單一致),逐字轉錄自現行(本次委派未改動)的
+  `renderMdErrorKind`;L39 的回歸半句(既有建構子訊息不變)由 E22 覆蓋,不受此計數誤差影響
+  (L39 前半句——`HeadingTooDeep` 訊息本身——單獨有測試覆蓋,見同檔 L39)
+- 狀態:resolved (2026-08-25,spec 措辭修正:既有建構子數 14 → 15)

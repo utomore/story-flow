@@ -59,6 +59,7 @@ test-suite aapms-md-test
         Aapms.Md.Gens
         Aapms.Md.HeadingSpec
         Aapms.Md.InheritSpec
+        Aapms.Md.InsertSectionSpec
         Aapms.Md.LexerSpec
         Aapms.Md.NewSectionLawsSpec
         Aapms.Md.ParseEntitySpec

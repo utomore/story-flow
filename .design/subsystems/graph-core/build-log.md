@@ -24,7 +24,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段一 純層 | W3 | manifest-schema-v2 | impl-done |
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | impl-done |
 | 階段二 解析與落地 | W5 | store-unified-index | impl-done |
-| 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | F007 impl-done;F008 spec-done,待 spec 更新 → qa ∥ impl |
+| 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | **impl-done**(F007 / F008;F004 因 A5 與 G17 兩度重開,亦已 done)|
 | 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
 
 ## 委派決策記錄
@@ -69,11 +69,11 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | core-unified-meta | F001 | F001-core-unified-meta.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | registry-family-and-naming | F002 | F002-registry-family-and-naming.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | manifest-schema-v2 | F003 | F003-manifest-schema-v2.md | (舊流程) | sonnet | — | sonnet | impl-done |
-| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse}.hs | opus | sonnet | sonnet | impl-done(G1 + G2 修復);**A5 裁決後重新打開**:加 `insertSection` |
+| md-unified-sections | F004 | F004-md-unified-sections.md | md/src/Aapms/Md/{Render,Parse,Error}.hs | opus | sonnet | sonnet | **impl-done**(共三輪:G1+G2 修復 → A5 加 `insertSection` → G17 加檔案層 `FrontExtras`)|
 | store-vault-handle | F005 | F005-store-vault-handle.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | impl-done |
-| store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs | opus | sonnet | sonnet | spec-done,待 spec 更新(A2/A3/A4/A5/A6)→ qa ∥ impl |
+| store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs、Error.hs、Store.hs | opus | sonnet | sonnet | **impl-done** |
 | store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新) | opus | sonnet | sonnet | pending |
 
 `aapms-store.cabal` 是 W6 兩個 feature 的共用檔(都要加模組),**由編排者單線改**,不讓平行的 spec

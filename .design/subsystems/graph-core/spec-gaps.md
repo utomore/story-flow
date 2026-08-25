@@ -335,3 +335,9 @@ parent: graph-core
   之後用另一條路徑補寫)?若需要,請對 `aapms-md` 開一個 feature/enhancement 補上檔案層
   extras 的寫入管道
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂,**實作待 F004**):`createPackFile` **本來就該**負責這七個欄位。**重新打開 F004**,替 `aapms-md` 補上**檔案層 extras** 的寫入管道(對稱節層的 `MetaExtras`),F008 的 `createPackFile` 接上它。F008 新增 **L25**(`createPackFile` 之後重讀,`toPack` 解出的 `Pack` 在 `pckVendor` / `pckArchive` / `pckSha256` / `pckLicense` / `pckAuthor` / `pckSourceUrl` / `pckAiDisclosure` 七欄逐欄等於傳入的 `NewPack`)與 **E22**(七欄全給非預設值),並在「實作備註 → 阻塞:L25 / E22 依賴 F004 的檔案層 extras」寫明:**這條 law 現在會紅,而且要一直紅到 F004 那一半落地為止,紅燈就是它的工作**;不得為了轉綠而寫弱、標 pending 或在 store 側手拼 frontmatter。編排者在 F004 交付後再委派一輪 F008 impl 接上
+- **impl 接上完成**(2026-08-25,第二輪委派):`aapms-md` 落地 `newDocumentWith` /
+  `packFrontExtras` / `NewPackFront` 之後,`createPackFile`(`Create.hs`)改用
+  `newDocumentWith PackDoc meta (packFrontExtras front) npBody` 取代原本的 `newDocument`;
+  `front` 是私有的 `NewPack → NewPackFront` 逐欄映射(七欄同形,只換前綴 `np` → `npf`),
+  沒有在 store 側自己拼任何 frontmatter 字串。`cabal test aapms-store` 連跑三次皆
+  **208 examples, 0 failures**,L25 / E22 轉綠,其餘 207 條維持全綠

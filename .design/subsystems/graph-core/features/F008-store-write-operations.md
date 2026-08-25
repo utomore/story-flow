@@ -3,7 +3,7 @@ id: F008
 type: feature
 title: store-write-operations
 description: vault 的建檔、增節、改寫、刪除與短 id 配號,全部走樂觀鎖與原子寫入
-status: in-progress
+status: done
 created: 2026-08-24
 updated: 2026-08-25
 depends-on: [F004, F006]

@@ -86,11 +86,14 @@ import Aapms.Md.Render
   ( NewAsset (..)
   , NewLicense (..)
   , NewNode (..)
+  , NewPackFront (..)
   , NewSection (..)
   , NewSectionPayload (..)
   , appendSection
   , insertSection
   , newDocument
+  , newDocumentWith
+  , packFrontExtras
   , removeSection
   , updateFrontmatter
   )
@@ -398,7 +401,17 @@ createPackFile vh NewPack {..} sections = case find (not . isAssetPayload . nsPa
                 , metaCreated = today
                 , metaUpdated = today
                 }
-            doc0 = newDocument PackDoc meta npBody
+            front =
+              NewPackFront
+                { npfVendor = npVendor
+                , npfArchive = npArchive
+                , npfSha256 = npSha256
+                , npfLicense = npLicense
+                , npfAuthor = npAuthor
+                , npfSourceUrl = npSourceUrl
+                , npfAiDisclosure = npAiDisclosure
+                }
+            doc0 = newDocumentWith PackDoc meta (packFrontExtras front) npBody
         case orMd relPath (foldM (flip appendSection) doc0 sections) of
           Left e -> pure (Left e)
           Right doc1 -> do

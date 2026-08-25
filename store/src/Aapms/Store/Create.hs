@@ -66,24 +66,53 @@ module Aapms.Store.Create
   , sanitizeFileName
   ) where
 
+import Control.Monad (foldM)
+import Data.Char (isControl, isSpace)
+import Data.List (find)
 import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Time (getCurrentTime, utctDay)
 import Aapms.Core.Asset (Sha256)
-import Aapms.Core.Id (Id, Ref)
+import Aapms.Core.Id (Id, IdPrefix (..), Ref, localRef, renderId)
 import Aapms.Core.Level (NodeKind)
 import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Revision, Source, Status, Timeline, TypeKey)
+import Aapms.Core.Meta (Meta (..), Revision (..), Source, Status, Timeline, TypeKey (..), bumpRevision)
 import Aapms.Core.Pack (AiDisclosure, Author)
-import Aapms.Core.Registry (TypeRegistry)
+import Aapms.Core.Registry (TypeRegistry, lookupDir)
+import Aapms.Md.Document (DocKind (..), Document, sectionIds)
+import Aapms.Md.Error (MdError)
+import Aapms.Md.Inherit (emptyOverride)
 import Aapms.Md.Render
   ( NewAsset (..)
   , NewLicense (..)
   , NewNode (..)
   , NewSection (..)
   , NewSectionPayload (..)
+  , appendSection
+  , insertSection
+  , newDocument
+  , removeSection
+  , updateFrontmatter
   )
-import Aapms.Store.Error (StoreError)
-import Aapms.Store.Marker (VaultHandle)
+import Aapms.Store.Edit
+  ( Located (..)
+  , WriteResult (..)
+  , checkRevision
+  , commit
+  , currentMetaAt
+  , dropFile
+  , locate
+  , orMd
+  , readDocument
+  , vaultAbsPath
+  )
+import Aapms.Store.Error (StoreError (..))
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
+import Aapms.Store.Node (headingDepthFor, isRootNode, subtreeIds, validateLevelDoc)
+import Aapms.Store.Query (linksTo)
 import Aapms.Store.Schema (IndexIssue)
+import Aapms.Store.Write (allocateId)
+import System.Directory (doesFileExist)
 
 -- 輸入:整份新檔 -----------------------------------------------------------------
 
@@ -218,7 +247,59 @@ createTopicFile
   -> TypeRegistry
   -> NewEntity
   -> IO (Either StoreError CreateResult)
-createTopicFile = undefined
+createTopicFile vh reg NewEntity {..} = case lookupDir reg neType of
+  Nothing -> pure (Left (RegistryDirUnknown neType))
+  Just dir -> do
+    t <- getCurrentTime
+    let today = utctDay t
+    idR <- allocateId vh PEnt neTitle t
+    case idR of
+      Left e -> pure (Left e)
+      Right newId' -> do
+        pathR <- resolvePath vh dir neTitle newId' nePath
+        case pathR of
+          Left e -> pure (Left e)
+          Right relPath -> do
+            let meta =
+                  Meta
+                    { metaId = newId'
+                    , metaVault = vmId (vhMarker vh)
+                    , metaType = neType
+                    , metaTitle = neTitle
+                    , metaSummary = neSummary
+                    , metaTags = neTags
+                    , metaStatus = neStatus
+                    , metaTimeline = neTimeline
+                    , metaAliases = neAliases
+                    , metaLinks = neLinks
+                    , metaSource = neSource
+                    , metaRevision = Revision 1
+                    , metaCreated = today
+                    , metaUpdated = today
+                    }
+                doc = newDocument TopicDoc meta neBody
+            result <- commit vh relPath doc newId' (Revision 1)
+            pure (fmap toCreateResult result)
+
+-- | 一份新檔的落點:呼叫端明確給了路徑就照給的用(已存在則 'FileAlreadyExists');
+-- 否則依 'sanitizeFileName' 從標題推導,撞名就在檔名主幹後面加 @-2@、@-3@……
+resolvePath :: VaultHandle -> FilePath -> Text -> Id -> Maybe FilePath -> IO (Either StoreError FilePath)
+resolvePath vh _ _ _ (Just p) = do
+  exists <- doesFileExist (vaultAbsPath vh p)
+  pure $ if exists then Left (FileAlreadyExists p) else Right p
+resolvePath vh dir title fallbackId Nothing = do
+  let base = sanitizeFileName title (renderId fallbackId)
+  findFreePath vh dir base (0 :: Int)
+
+findFreePath :: VaultHandle -> FilePath -> Text -> Int -> IO (Either StoreError FilePath)
+findFreePath vh dir base n = do
+  let name = if n == 0 then base <> ".md" else base <> "-" <> T.pack (show (n + 1)) <> ".md"
+      rel = dir <> "/" <> T.unpack name
+  exists <- doesFileExist (vaultAbsPath vh rel)
+  if exists then findFreePath vh dir base (n + 1) else pure (Right rel)
+
+toCreateResult :: WriteResult -> CreateResult
+toCreateResult wr = CreateResult (wrId wr) (wrPath wr) (wrRevision wr) (wrIssues wr)
 
 -- | 建一份新的 Level 檔,連同它的根 Node。
 --
@@ -229,7 +310,52 @@ createLevelFile
   -> TypeRegistry
   -> NewLevel
   -> IO (Either StoreError CreateResult)
-createLevelFile = undefined
+createLevelFile vh _reg NewLevel {..} = do
+  t <- getCurrentTime
+  let today = utctDay t
+  lvlIdR <- allocateId vh PLvl nlTitle t
+  case lvlIdR of
+    Left e -> pure (Left e)
+    Right lvlId -> do
+      pathR <- resolvePath vh "levels" nlTitle lvlId nlPath
+      case pathR of
+        Left e -> pure (Left e)
+        Right relPath -> do
+          rootIdR <- allocateId vh PNod nlRootTitle t
+          case rootIdR of
+            Left e -> pure (Left e)
+            Right rootId -> do
+              let meta =
+                    Meta
+                      { metaId = lvlId
+                      , metaVault = vmId (vhMarker vh)
+                      , metaType = TypeKey "level"
+                      , metaTitle = nlTitle
+                      , metaSummary = nlSummary
+                      , metaTags = []
+                      , metaStatus = nlStatus
+                      , metaTimeline = Nothing
+                      , metaAliases = []
+                      , metaLinks = []
+                      , metaSource = nlSource
+                      , metaRevision = Revision 1
+                      , metaCreated = today
+                      , metaUpdated = today
+                      }
+                  doc0 = newDocument LevelDoc meta nlBody
+                  rootSection =
+                    NewSection
+                      { nsId = rootId
+                      , nsLevel = 2
+                      , nsTitle = nlRootTitle
+                      , nsBody = ""
+                      , nsPayload = NSNode emptyOverride (NewNode nlRootKind)
+                      }
+              case orMd relPath (appendSection rootSection doc0) of
+                Left e -> pure (Left e)
+                Right doc1 -> do
+                  result <- commit vh relPath doc1 lvlId (Revision 1)
+                  pure (fmap toCreateResult result)
 
 -- | 在 'npDir' 寫出一份 @pack.md@,節的順序與給定順序__相同__。
 --
@@ -245,7 +371,42 @@ createPackFile
   -> NewPack
   -> [NewSection]
   -> IO (Either StoreError CreateResult)
-createPackFile = undefined
+createPackFile vh NewPack {..} sections = case find (not . isAssetPayload . nsPayload) sections of
+  Just bad -> pure (Left (BadSectionPayload (nsId bad) PackDoc))
+  Nothing -> do
+    t <- getCurrentTime
+    let today = utctDay t
+        relPath = npDir <> "/pack.md"
+    pckIdR <- allocateId vh PPck npTitle t
+    case pckIdR of
+      Left e -> pure (Left e)
+      Right pckId -> do
+        let meta =
+              Meta
+                { metaId = pckId
+                , metaVault = vmId (vhMarker vh)
+                , metaType = TypeKey "asset-pack"
+                , metaTitle = npTitle
+                , metaSummary = npSummary
+                , metaTags = npTags
+                , metaStatus = npStatus
+                , metaTimeline = Nothing
+                , metaAliases = []
+                , metaLinks = []
+                , metaSource = npSource
+                , metaRevision = Revision 1
+                , metaCreated = today
+                , metaUpdated = today
+                }
+            doc0 = newDocument PackDoc meta npBody
+        case orMd relPath (foldM (flip appendSection) doc0 sections) of
+          Left e -> pure (Left e)
+          Right doc1 -> do
+            result <- commit vh relPath doc1 pckId (Revision 1)
+            pure (fmap toCreateResult result)
+  where
+    isAssetPayload (NSAsset _ _) = True
+    isAssetPayload _ = False
 
 -- | 往既有檔案加一個節:片段 \/ asset \/ license \/ node,依
 -- 'Aapms.Md.Render.nsPayload' 分派。
@@ -279,7 +440,76 @@ addSection
   -> SectionPlacement
   -> NewSection
   -> IO (Either StoreError CreateResult)
-addSection = undefined
+addSection vh targetId placement sec = do
+  locR <- locate vh targetId
+  case locR of
+    Left e -> pure (Left e)
+    Right loc
+      | not (payloadMatchesDocKind (nsPayload sec) (locKind loc)) ->
+          pure (Left (BadSectionPayload (nsId sec) (locKind loc)))
+      | locKind loc /= LicenseDoc, locAnchor loc /= Nothing ->
+          -- 第二個參數必須是檔案層主體的 id;傳節的 id 回 BadSectionPayload。
+          -- licenses.md 是唯一的例外(容器不是節點,以任一既有 license 節定位)。
+          pure (Left (BadSectionPayload (nsId sec) (locKind loc)))
+      | otherwise -> do
+          docR <- readDocument vh (locPath loc)
+          case docR of
+            Left e -> pure (Left e)
+            Right doc -> case placement of
+              AtEnd -> proceedAdd vh loc doc targetId sec appendSection
+              UnderParent p -> case headingDepthFor (locPath loc) doc p of
+                Left e -> pure (Left e)
+                Right depth -> proceedAdd vh loc doc targetId (sec {nsLevel = depth}) (insertSection p)
+
+payloadMatchesDocKind :: NewSectionPayload -> DocKind -> Bool
+payloadMatchesDocKind (NSFragment _) TopicDoc = True
+payloadMatchesDocKind (NSAsset _ _) PackDoc = True
+payloadMatchesDocKind (NSLicense _ _) LicenseDoc = True
+payloadMatchesDocKind (NSNode _ _) LevelDoc = True
+payloadMatchesDocKind _ _ = False
+
+-- | 'addSection' 兩種落點共用的後半段:視情況把檔案層主體的 revision +1、
+-- (@LevelDoc@)重新驗證整棵樹,最後落地。
+proceedAdd
+  :: VaultHandle
+  -> Located
+  -> Document
+  -> Id
+  -> NewSection
+  -> (NewSection -> Document -> Either MdError Document)
+  -> IO (Either StoreError CreateResult)
+proceedAdd vh loc doc targetId sec insertFn =
+  case orMd (locPath loc) (insertFn sec doc) of
+    Left e -> pure (Left e)
+    Right doc1 -> do
+      today <- utctDay <$> getCurrentTime
+      -- licenses.md 的檔案層是容器,不是索引裡的節點,沒有可比對的 revision
+      -- 可 bump;另外三種文件的檔案層主體本來就是 targetId 本身。
+      revE <-
+        if locKind loc == LicenseDoc
+          then pure (Right Nothing)
+          else pure (Just <$> currentMetaAt (locPath loc) (locKind loc) targetId (locAnchor loc) doc)
+      case revE of
+        Left e -> pure (Left e)
+        Right curMetaM -> do
+          let bumpedM = bumpRevision today <$> curMetaM
+              newRev = maybe (Revision 1) metaRevision bumpedM
+              doc2E = case bumpedM of
+                Nothing -> Right doc1
+                Just bumped -> orMd (locPath loc) (updateFrontmatter (const bumped) doc1)
+          case doc2E of
+            Left e -> pure (Left e)
+            Right doc2 ->
+              case locKind loc of
+                LevelDoc -> case validateLevelDoc (locPath loc) doc2 of
+                  Left e -> pure (Left e)
+                  Right () -> finishAdd vh loc doc2 sec newRev
+                _ -> finishAdd vh loc doc2 sec newRev
+
+finishAdd :: VaultHandle -> Located -> Document -> NewSection -> Revision -> IO (Either StoreError CreateResult)
+finishAdd vh loc doc2 sec newRev = do
+  result <- commit vh (locPath loc) doc2 (nsId sec) newRev
+  pure (fmap (\wr -> CreateResult (nsId sec) (wrPath wr) newRev (wrIssues wr)) result)
 
 -- 刪除 ------------------------------------------------------------------------
 
@@ -303,7 +533,53 @@ deleteNode
   -> Revision
   -> DeleteMode
   -> IO (Either StoreError DeleteResult)
-deleteNode = undefined
+deleteNode vh i expected mode = do
+  locR <- locate vh i
+  case locR of
+    Left e -> pure (Left e)
+    Right loc -> do
+      docR <- readDocument vh (locPath loc)
+      case docR of
+        Left e -> pure (Left e)
+        Right doc -> do
+          let rootCheckE =
+                if locKind loc == LevelDoc
+                  then isRootNode (locPath loc) doc i
+                  else Right False
+          case rootCheckE of
+            Left e -> pure (Left e)
+            Right True -> pure (Left (CannotDeleteRootNode i))
+            Right False ->
+              case currentMetaAt (locPath loc) (locKind loc) i (locAnchor loc) doc of
+                Left e -> pure (Left e)
+                Right curMeta -> case checkRevision i expected (metaRevision curMeta) of
+                  Left e -> pure (Left e)
+                  Right () -> do
+                    let victims = case locAnchor loc of
+                          Nothing -> i : sectionIds doc
+                          Just _ -> subtreeIds doc i
+                    refs <- gatherReferrers vh victims
+                    case mode of
+                      DeleteSafe | not (null refs) -> pure (Left (ReferencedBy i refs))
+                      _ -> performDelete vh loc doc i victims refs
+
+gatherReferrers :: VaultHandle -> [Id] -> IO [(Id, Link)]
+gatherReferrers vh victims = do
+  results <- mapM (linksTo vh . localRef) victims
+  pure [(metaId m, l) | rs <- results, (m, l) <- rs]
+
+performDelete :: VaultHandle -> Located -> Document -> Id -> [Id] -> [(Id, Link)] -> IO (Either StoreError DeleteResult)
+performDelete vh loc doc i victims refs = case locAnchor loc of
+  Nothing -> do
+    result <- dropFile vh (locPath loc)
+    pure (fmap (const (DeleteResult (locPath loc) victims refs [])) result)
+  Just _ -> case orMd (locPath loc) (foldM (flip removeSection) doc victims) of
+    Left e -> pure (Left e)
+    Right doc1 -> do
+      -- commit 的 Revision 參數只用來組回傳的 WriteResult;'DeleteResult' 沒有
+      -- revision 欄位,這裡寫哪個值都不影響任何可觀察行為
+      result <- commit vh (locPath loc) doc1 i (Revision 1)
+      pure (fmap (\wr -> DeleteResult (locPath loc) victims refs (wrIssues wr)) result)
 
 -- 檔名 ------------------------------------------------------------------------
 
@@ -313,4 +589,13 @@ deleteNode = undefined
 -- @\<\>:\"\/\\|?*@ 與控制字元換成 @-@,去掉頭尾空白與句點(Windows 不接受以句點
 -- 結尾的檔名);全部被清掉時退回第二個參數(慣例上是該節點的短 id)。
 sanitizeFileName :: Text -> Text -> Text
-sanitizeFileName = undefined
+sanitizeFileName t fb =
+  let replaced = T.map replaceChar t
+      trimmed = T.dropWhileEnd trimChar (T.dropWhile trimChar replaced)
+   in if T.null trimmed then fb else trimmed
+  where
+    trimChar c = isSpace c || c == '.'
+    replaceChar c
+      | c `elem` ("<>:\"/\\|?*" :: String) = '-'
+      | isControl c = '-'
+      | otherwise = c

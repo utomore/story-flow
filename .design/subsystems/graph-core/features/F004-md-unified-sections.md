@@ -61,6 +61,39 @@ insertSection :: Id -> NewSection -> Document -> Either MdError Document
 Level 的章節樹夠深就會撞到,是真實的作者情境而不是程式 bug,所以不與 `HeadingSkip`(呼叫端把
 `nsLevel` 算錯)共用一個建構子。
 
+### 2026-08-25 追加:檔案層的 extras 機制(spec-gaps G17,**G2 在檔案層的鏡像**)
+
+F008 的 impl 在實作 `createPackFile` 時查出:`NewPack` 帶進來的七個 pack 專屬欄位
+(`npVendor` / `npArchive` / `npSha256` / `npLicense` / `npAuthor` / `npSourceUrl` /
+`npAiDisclosure`)**一個都寫不進檔案**,重讀後 `toPack` 全部解成 `Nothing` / `AiUnknown`。
+
+根因與 G2 **完全同構,只是換一層**:`Aapms.Core.Json` 的 `FromJSON Pack`(`core/src/Aapms/Core/Json.hs:282-293`)
+把七個 pack 專屬欄位與 `Meta` 的十四欄**攤平在同一層 frontmatter 物件**解碼;但 `Aapms.Md.Render`
+對外的**檔案層**寫入介面(`newDocument` / `renderFrontmatter` / `updateFrontmatter`)只吃 `Meta`,
+`frontmatterFieldOrder` 寫死十四欄,**沒有任何管道多寫欄位進去**。節層有 `MetaExtras` /
+`payloadExtras` / `renderMetaBlock` 處理型別專屬欄位,**檔案層沒有對稱的機制**。
+
+| | 節層(G2,2026-08-24 已修) | 檔案層(G17,本次) |
+|---|---|---|
+| 判準 | 鍵不在 `metaFieldOrder` 裡 | 鍵不在 `frontmatterFieldOrder` 裡 |
+| 讀 | `extrasOf` / `extrasAt` | `frontExtrasOf` |
+| 兩半的序列化 | `renderMetaBlock` | `renderFrontmatterWith` |
+| 從零產生 | `mkSection` | `newDocumentWith` |
+| 改 `Meta` 那一半 | `updateSection`(保住 extras) | `updateFrontmatter`(**本輪要保住 extras**) |
+| 改專屬那一半 | `updateSectionExtras` | `updateFrontmatterExtras` |
+| 由 DTO 產生條目 | `payloadExtras` | `packFrontExtras` |
+| 專屬欄位的 DTO | `NewAsset` / `NewLicense` | `NewPackFront` |
+| 條目的載體型別 | `MetaExtras` | `FrontExtras`(= `MetaExtras` 的 **newtype**,A11) |
+| 合併 | `mergeExtras` | `mergeFrontExtras`(一行 wrapper,**不複製邏輯**) |
+
+**開發者裁決(2026-08-25)**:重新打開 F004,補上檔案層的 extras 機制。依 ADR-013,`pack.md` 是素材
+中繼資料的**真相**——丟掉 vendor 與 license 等於丟掉「這批素材能不能商用」。
+
+G17 能潛伏到 F008 才被 impl 用眼睛看出來,是因為**沒有任何 law 測檔案層的往返**(E3 只驗 `crPath`
+與 asset 節順序),所以測試套件全線是綠的。本輪因此**必有一條往返 law**(L44):帶專屬欄位的檔案層
+frontmatter 寫出去再讀回來,七個欄位逐欄相等。判準沿用 G2 的作法——「鍵不在 `frontmatterFieldOrder`
+裡」就是 extras,而不是列舉已知的 pack 七欄,這樣註冊表宣告的任意自訂欄位也一併保住。
+
 ## 對應的 Level 2 契約
 
 - **契約 D(`aapms-md`)全部**:`DocKind` / `Document` / `parseDocument` / `docKind` /
@@ -76,7 +109,11 @@ Level 的章節樹夠深就會撞到,是真實的作者情境而不是程式 bug
 
 **超出契約 D 逐字清單的部分**(`MetaExtras` / `extrasOf` / `extrasAt` / `mergeExtras` /
 `updateSectionExtras` / `payloadOverride` / `payloadExtras`):見「待確認假設」A1,需要編排者把契約 D
-補齊。不動契約 A / B / C / E / F。
+補齊。**2026-08-25 追加的檔案層那一組**(`FrontExtras` / `frontExtrasOf` / `renderFrontmatterWith` /
+`newDocumentWith` / `updateFrontmatterExtras` / `NewPackFront` / `packFrontExtras`)**編排者已回寫進
+契約 D**(2026-08-25,含「G17 定案」段落);本文檔的簽名以 `design.md` 為準、逐字一致。`mergeFrontExtras`
+是唯一超出契約 D 逐字清單的一條(`mergeExtras` 的一行 wrapper)。`updateFrontmatter` 的**簽名不變**,
+只有語意收緊(不得吃掉專屬條目)。不動契約 A / B / C / E / F。
 
 ## 數據
 
@@ -87,7 +124,9 @@ Level 的章節樹夠深就會撞到,是真實的作者情境而不是程式 bug
 | `NewAsset` | 新增 | `{ naName :: Maybe LogicalName, naSha256 :: Sha256, naEntry :: Text, naExt :: Maybe Text, naKindMeta :: Value, naLicense :: Maybe Ref, naAuthor :: Maybe Text }` | asset 的節層專屬欄位清單與必填/選填劃分(**讀寫共用同一份**) |
 | `NewLicense` | 新增 | `{ nlcCommercial :: Bool, nlcAttributionRequired :: Bool, nlcCreditText :: Maybe Text, nlcModificationAllowed, nlcRedistributionAllowed, nlcResaleAllowed, nlcNftAllowed :: Maybe Bool, nlcSourceUrl :: Maybe Text }` | 節層授權八維度的清單與必填/選填劃分(讀寫共用同一份) |
 | `NewNode` | 新增 | `newtype NewNode = NewNode { nnKind :: NodeKind }` | Level 節點的專屬欄位只有 `kind`(`parent`/`order`/`entities` 由推導而來,不得重複指定) |
-| `MetaExtras` | 新增 | `newtype MetaExtras = MetaExtras { extraLines :: [Text] }`,每個元素是**一行、不含行尾** | 一個 meta 區塊裡**不屬於 `Meta`** 的頂層條目的**原始位元組** |
+| `MetaExtras` | 新增 | `newtype MetaExtras = MetaExtras { extraLines :: [Text] }`,每個元素是**一行、不含行尾** | 一個 meta 區塊裡**不屬於 `Meta`** 的頂層條目的**原始位元組**(**節層**) |
+| `FrontExtras` | **新增(2026-08-25,G17)** | `newtype FrontExtras = FrontExtras { unFrontExtras :: MetaExtras }` | 一份 frontmatter 裡**鍵不在 `frontmatterFieldOrder`** 的頂層條目的**原始位元組**(**檔案層**)。**是 newtype 不是別名**(A11 裁決):底層表示與 `MetaExtras` 相同,`splitEntries` / `entryKey` / `mergeExtras` 那組機制**一份就夠**,本型別只在邊界拆包(`unFrontExtras` / `coerce`);包一層換到的是「節層 extras 餵進檔案層」**編不過**——那種混用不會報錯,只會安靜地寫出髒資料,而本子系統已被同類缺陷咬過兩次 |
+| `NewPackFront` | **新增(2026-08-25,G17)** | `{ npfVendor :: Maybe Text, npfArchive :: Maybe FilePath, npfSha256 :: Maybe Sha256, npfLicense :: Maybe Ref, npfAuthor :: Maybe Author, npfSourceUrl :: Maybe Text, npfAiDisclosure :: AiDisclosure }` | `pack.md` **檔案層**的專屬欄位清單與必填/選填劃分,逐欄照抄 `Pack`(扣掉 `pckMeta` 與 `pckBody`)。**只有寫方向**:讀方向是 `Aapms.Core.Json` 的 `FromJSON Pack`(F001 定的全系統唯一解碼規則),md 不得再定義第二份;兩者對得上靠 L44 的往返 law。欄位前綴 `npf` 而非 store `NewPack` 的 `np`——那是**另一個 DTO**(還帶 `npDir` / `npTitle` / `npTags` 等),同名選擇器會在 store `import Aapms.Md` 時衝突 |
 | `AssetFields` | 刪除 | — | 併入 `NewAsset`(原本只有讀方向認得這組欄位,寫方向沒有——這正是 G1/G2 的根) |
 | `LicenseFields` | 刪除 | — | 併入 `NewLicense` |
 | `MetaOverride` | **不動** | `Aapms.Md.Inherit:45-59`,十三個 `Maybe` 欄位 | 節層對 `Meta` 欄位的覆寫。**刻意不擴充**:它是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則 |
@@ -116,40 +155,58 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `renderDocument :: Document -> Text` | 把分節結構還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:87` |
-| `updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document` | 改寫檔案層 frontmatter | `md/src/Aapms/Md/Render.hs:436` |
-| `overrideAt :: Id -> Document -> Either MdError MetaOverride` | 讀出某節目前的 `Meta` 覆寫 | `md/src/Aapms/Md/Render.hs:115` |
-| `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 改寫某節的 `Meta` 欄位;**該節的型別專屬條目、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:103` |
-| `updateSectionBody :: Id -> Text -> Document -> Either MdError Document` | 只換某節的正文 | `md/src/Aapms/Md/Render.hs:353` |
-| `appendSection :: NewSection -> Document -> Either MdError Document` | 在文件最後一節之後追加一個新節;沒有節時追加在 preamble 之後 | `md/src/Aapms/Md/Render.hs:321` |
-| `insertSection :: Id -> NewSection -> Document -> Either MdError Document` | 在指定父節點的**子樹之後**插入新節(= 成為它的**最後一個**子節點);`nsLevel` 必須等於父節點的 `secLevel + 1`,且不得 > 6 | `md/src/Aapms/Md/Render.hs:482` |
-| `removeSection :: Id -> Document -> Either MdError Document` | 刪掉某節連同它的 meta 區塊與正文 | `md/src/Aapms/Md/Render.hs:343` |
-| `newDocument :: DocKind -> Meta -> Text -> Document` | 從零產生一份只有 frontmatter 與正文、還沒有任何節的文件 | `md/src/Aapms/Md/Render.hs:458` |
+| `renderDocument :: Document -> Text` | 把分節結構還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:122` |
+| `updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document` | 改寫檔案層 frontmatter 的 `Meta` 欄位;**該檔的檔案層型別專屬條目、`docPreamble` 與每一節皆不動**(2026-08-25 語意收緊,簽名不變) | `md/src/Aapms/Md/Render.hs:662` |
+| `overrideAt :: Id -> Document -> Either MdError MetaOverride` | 讀出某節目前的 `Meta` 覆寫 | `md/src/Aapms/Md/Render.hs:155` |
+| `updateSection :: Id -> (MetaOverride -> MetaOverride) -> Document -> Either MdError Document` | 改寫某節的 `Meta` 欄位;**該節的型別專屬條目、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:138` |
+| `updateSectionBody :: Id -> Text -> Document -> Either MdError Document` | 只換某節的正文 | `md/src/Aapms/Md/Render.hs:555` |
+| `appendSection :: NewSection -> Document -> Either MdError Document` | 在文件最後一節之後追加一個新節;沒有節時追加在 preamble 之後 | `md/src/Aapms/Md/Render.hs:446` |
+| `insertSection :: Id -> NewSection -> Document -> Either MdError Document` | 在指定父節點的**子樹之後**插入新節(= 成為它的**最後一個**子節點);`nsLevel` 必須等於父節點的 `secLevel + 1`,且不得 > 6 | `md/src/Aapms/Md/Render.hs:516` |
+| `removeSection :: Id -> Document -> Either MdError Document` | 刪掉某節連同它的 meta 區塊與正文 | `md/src/Aapms/Md/Render.hs:545` |
+| `newDocument :: DocKind -> Meta -> Text -> Document` | 從零產生一份只有 frontmatter 與正文、還沒有任何節的文件 | `md/src/Aapms/Md/Render.hs:689` |
 
 ### 契約 D 之外(本次新增,待編排者補進契約 D,見 A1)
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `newtype MetaExtras = MetaExtras { extraLines :: [Text] }` | 一組型別專屬條目的原始行 | `md/src/Aapms/Md/Render.hs:145` |
-| `extrasOf :: Section -> MetaExtras` | 取出某節 meta 區塊裡的型別專屬條目 | `md/src/Aapms/Md/Render.hs:155` |
-| `extrasAt :: Id -> Document -> Either MdError MetaExtras` | 同上,以節 id 定位(與 `overrideAt` 對稱) | `md/src/Aapms/Md/Render.hs:160` |
-| `mergeExtras :: MetaExtras -> MetaExtras -> MetaExtras` | 合併兩組專屬條目,同鍵時**第一個參數贏** | `md/src/Aapms/Md/Render.hs:168` |
-| `updateSectionExtras :: Id -> (MetaExtras -> MetaExtras) -> Document -> Either MdError Document` | 改寫某節的型別專屬條目;**該節的 `Meta` 欄位、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:177` |
-| `payloadOverride :: NewSectionPayload -> MetaOverride` | 取出 payload 的 `Meta` 那一半 | `md/src/Aapms/Md/Render.hs:291` |
-| `payloadExtras :: NewSectionPayload -> MetaExtras` | 取出 payload 的型別專屬那一半 | `md/src/Aapms/Md/Render.hs:306` |
-| `renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text` | 把兩半序列化成一個完整的 ` ```meta ` 區塊 | `md/src/Aapms/Md/Render.hs:564` |
-| `mkSection :: LineEnding -> Int -> Id -> Text -> Maybe NewSectionPayload -> Text -> Section` | 由零件組一個新的節 | `md/src/Aapms/Md/Render.hs:419` |
+| `newtype MetaExtras = MetaExtras { extraLines :: [Text] }` | 一組型別專屬條目的原始行 | `md/src/Aapms/Md/Render.hs:195` |
+| `extrasOf :: Section -> MetaExtras` | 取出某節 meta 區塊裡的型別專屬條目 | `md/src/Aapms/Md/Render.hs:205` |
+| `extrasAt :: Id -> Document -> Either MdError MetaExtras` | 同上,以節 id 定位(與 `overrideAt` 對稱) | `md/src/Aapms/Md/Render.hs:234` |
+| `mergeExtras :: MetaExtras -> MetaExtras -> MetaExtras` | 合併兩組專屬條目,同鍵時**第一個參數贏** | `md/src/Aapms/Md/Render.hs:244` |
+| `updateSectionExtras :: Id -> (MetaExtras -> MetaExtras) -> Document -> Either MdError Document` | 改寫某節的型別專屬條目;**該節的 `Meta` 欄位、標題行、正文與其他節皆不動** | `md/src/Aapms/Md/Render.hs:257` |
+| `payloadOverride :: NewSectionPayload -> MetaOverride` | 取出 payload 的 `Meta` 那一半 | `md/src/Aapms/Md/Render.hs:376` |
+| `payloadExtras :: NewSectionPayload -> MetaExtras` | 取出 payload 的型別專屬那一半 | `md/src/Aapms/Md/Render.hs:395` |
+| `renderMetaBlock :: MetaOverride -> MetaExtras -> LineEnding -> Text` | 把兩半序列化成一個完整的 ` ```meta ` 區塊 | `md/src/Aapms/Md/Render.hs:924` |
+| `mkSection :: LineEnding -> Int -> Id -> Text -> Maybe NewSectionPayload -> Text -> Section` | 由零件組一個新的節 | `md/src/Aapms/Md/Render.hs:621` |
+
+### 檔案層的兩半(2026-08-25 新增,G17)
+
+**契約 D 已由編排者回寫**(2026-08-25 A11 裁決之後),下表的簽名與 `design.md` 契約 D **逐字一致**。
+唯一**超出**契約 D 逐字清單的是 `mergeFrontExtras` —— 它是 `mergeExtras` 的一行 wrapper,存在的理由
+只是讓 `updateFrontmatterExtras` 的呼叫端(E27、契約 E 的 `writeAssetFields` 那一類)不必手動拆包再
+包回去;編排者可自行決定要不要一併列進契約 D。
+
+| 簽名 | 語意(做什麼) | 骨架位置 |
+|---|---|---|
+| `newtype FrontExtras = FrontExtras { unFrontExtras :: MetaExtras }` | 檔案層的型別專屬條目。**`MetaExtras` 的 newtype,不是別名**(2026-08-25 裁決 A11):底層表示與 `splitEntries` / `entryKey` / `mergeExtras` 那組機制**一份就夠**,newtype 只在邊界拆包;包一層是為了讓「節層 extras 餵進檔案層」**編不過**,而不是安靜地寫出髒資料 | `md/src/Aapms/Md/Render.hs:788` |
+| `frontExtrasOf :: Document -> FrontExtras` | 取出檔案層 frontmatter 裡**鍵不在 `frontmatterFieldOrder`** 的頂層條目(與 `extrasOf` 同一條規則,欄位清單換一份) | `md/src/Aapms/Md/Render.hs:806` |
+| `mergeFrontExtras :: FrontExtras -> FrontExtras -> FrontExtras` | `mergeExtras` 的檔案層版本,**一行 wrapper**(`coerce mergeExtras`),語意逐字相同 | `md/src/Aapms/Md/Render.hs:815` |
+| `renderFrontmatterWith :: Meta -> FrontExtras -> LineEnding -> Text` | 把檔案層的兩半序列化成 frontmatter 內容(不含 `---` 界線);`renderMetaBlock` 在檔案層的對應物 | `md/src/Aapms/Md/Render.hs:828` |
+| `newDocumentWith :: DocKind -> Meta -> FrontExtras -> Text -> Document` | 從零產生一份**帶檔案層專屬欄位**的文件;`pack.md` 只能走這一支 | `md/src/Aapms/Md/Render.hs:836` |
+| `updateFrontmatterExtras :: (FrontExtras -> FrontExtras) -> Document -> Either MdError Document` | 改寫檔案層的型別專屬條目;**`Meta` 欄位、`docPreamble` 與每一節皆不動**(與 `updateSectionExtras` 對稱) | `md/src/Aapms/Md/Render.hs:847` |
+| `data NewPackFront = NewPackFront { npfVendor :: Maybe Text, npfArchive :: Maybe FilePath, npfSha256 :: Maybe Sha256, npfLicense :: Maybe Ref, npfAuthor :: Maybe Author, npfSourceUrl :: Maybe Text, npfAiDisclosure :: AiDisclosure }` | `pack.md` 檔案層的專屬欄位(寫方向 DTO) | `md/src/Aapms/Md/Render.hs:861` |
+| `packFrontExtras :: NewPackFront -> FrontExtras` | 把七個檔案層專屬欄位序列化成 `FrontExtras` 的行;`payloadExtras` 在檔案層的對應物 | `md/src/Aapms/Md/Render.hs:891` |
 
 ### 既有匯出(本次未改動,登記以求介面表完整)
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `renderSection :: Section -> Text` | 把一個節還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:91` |
-| `renameSection :: Id -> Text -> Document -> Either MdError Document` | 只換某節標題行的標題文字(層級與 `{#id}` 保留) | `md/src/Aapms/Md/Render.hs:376` |
-| `replacePreamble :: Text -> Document -> Document` | 只換 frontmatter 與第一個節之間的正文 | `md/src/Aapms/Md/Render.hs:399` |
-| `renderFrontmatter :: Meta -> LineEnding -> Text` | 把完整 `Meta` 序列化成 frontmatter 內容(不含 `---` 界線) | `md/src/Aapms/Md/Render.hs:505` |
-| `frontmatterFieldOrder :: [Text]` | frontmatter 的固定欄位順序 | `md/src/Aapms/Md/Render.hs:476` |
-| `metaFieldOrder :: [Text]` | ` ```meta ` 區塊裡屬於 `Meta` 的那一半的固定欄位順序,同時是「哪些鍵不是型別專屬條目」的唯一判準 | `md/src/Aapms/Md/Render.hs:538` |
+| `renderSection :: Section -> Text` | 把一個節還原成 Markdown 文字 | `md/src/Aapms/Md/Render.hs:126` |
+| `renameSection :: Id -> Text -> Document -> Either MdError Document` | 只換某節標題行的標題文字(層級與 `{#id}` 保留) | `md/src/Aapms/Md/Render.hs:578` |
+| `replacePreamble :: Text -> Document -> Document` | 只換 frontmatter 與第一個節之間的正文 | `md/src/Aapms/Md/Render.hs:601` |
+| `renderFrontmatter :: Meta -> LineEnding -> Text` | 把完整 `Meta` 序列化成 frontmatter 內容(不含 `---` 界線)。2026-08-25 起是 `renderFrontmatterWith` 在**沒有檔案層專屬欄位**時的特化(L42),輸出逐位元組不變 | `md/src/Aapms/Md/Render.hs:744` |
+| `frontmatterFieldOrder :: [Text]` | frontmatter 的固定欄位順序 | `md/src/Aapms/Md/Render.hs:707` |
+| `metaFieldOrder :: [Text]` | ` ```meta ` 區塊裡屬於 `Meta` 的那一半的固定欄位順序,同時是「哪些鍵不是型別專屬條目」的唯一判準 | `md/src/Aapms/Md/Render.hs:898` |
 
 ## Laws(行為性質)
 
@@ -265,7 +322,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
   `secHeadingRaw` 與 `secMetaRaw` 與 `d` 中同 id 的節**逐位元組相同**;`secBodyRaw` 也逐位元組相同,
   **唯一例外**是索引 `k - 1` 的那一節(即 `subtree p d` 的最後一節,子樹為空時就是 `p` 自己)——而
   且**只有當它還沒有以空行結尾時**,才在**尾端**補齊。規則與 `appendSection` 共用同一個
-  `blankTail`(`md/src/Aapms/Md/Render.hs:438`),而 `blankTail` 是**冪等**的:原文已以兩個行尾結尾
+  `blankTail`(`md/src/Aapms/Md/Render.hs:472`),而 `blankTail` 是**冪等**的:原文已以兩個行尾結尾
   時**原樣回傳**、以一個行尾結尾時補一個、空字串補一個、其餘補兩個。所以插入點前一節的位元組
   **不是必然會動**——絕大多數格式正常的檔案上它一個位元組都不動。`docFrontRaw` 與 `docPreamble`
   一律逐位元組不變。
@@ -311,6 +368,64 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
   「請改插到較淺的父節點底下,或先把這條分支中間的層級壓平」(契約 G:每個建構子的 `render*`
   訊息要說出下一步該做什麼)。既有 15 個建構子的訊息**逐字不變**(回歸 law)。
 
+**G17:檔案層的兩半(2026-08-25 這一輪的核心)**
+
+以下這一組的共同記號:`d` 是任一由 `parseDocument` 成功解析出的 `Document`,`m :: Meta`、
+`le :: LineEnding`、`fx :: FrontExtras`、`npf :: NewPackFront`、`f :: Meta -> Meta`、
+`g :: FrontExtras -> FrontExtras` 為任意值;`lines fx` 是 `extraLines (unFrontExtras fx)` 的簡寫,
+`emptyFront` 是 `FrontExtras (MetaExtras [])`。「**良型 extras**」指 `FrontExtras` 中每個頂層條目的
+鍵都**不在** `frontmatterFieldOrder` 裡(由 L40 與 L48 保證所有來源都滿足它,`mergeFrontExtras`
+也保持它)。
+
+- **L40**(檔案層專屬條目的判準,對稱 L7):對所有 `d`,`lines (frontExtrasOf d)` 恰好是
+  `docFrontRaw d` **去掉開頭界線的行尾字元之後**那一段中,**鍵不在 `frontmatterFieldOrder`** 的
+  頂層條目的所有行,逐字相同、相對順序與原文相同;且其中不含任何鍵在 `frontmatterFieldOrder` 中的
+  條目。「頂層條目」與「鍵」的定義與節層**同一份**(見「數據」段)。沒有這種條目時為 `emptyFront`。
+  **不解 YAML**:frontmatter 的 YAML 壞掉時 `frontExtrasOf` 照樣回得出行,不回 `Left`。
+- **L41**(檔案層兩半的序列化,對稱 L9):對所有 `m`、`fx`、`le`,`renderFrontmatterWith m fx le` 的
+  行序列 = `F ++ lines fx`,每行以 `renderLineEnding le` 結尾;其中 `F` 是「`m` 依
+  `frontmatterFieldOrder` 每一欄各自產生的行」(每個欄位都輸出,`links` 為多行)。也就是說:
+  **`lines fx` 逐字、逐序、原封不動地出現在最後一段**。
+- **L42**(回歸 law,對稱 L10):對所有 `m`、`le`,
+  `renderFrontmatterWith m emptyFront le == renderFrontmatter m le`(逐位元組)。兩半設計
+  **不得改變**沒有檔案層專屬欄位時的排版。
+- **L43**(`newDocument` 是特化):對所有 `k`、`m`、`b`,
+  `newDocumentWith k m emptyFront b == newDocument k m b`。
+- **L44**(**檔案層往返 —— G17 的直接否證形式**):對所有 `m`(`metaType m == TypeKey "asset-pack"`、
+  `metaId m` 的前綴為 `PPck`)、任一 `npf`、任一 `b`,令
+  `d0 = newDocumentWith PackDoc m (packFrontExtras npf) b`、
+  `Right (pck, _) = parseDocument (renderDocument d0) >>= toPack`,則**七個欄位逐欄相等**:
+  `pckVendor pck == npfVendor npf`、`pckArchive pck == npfArchive npf`、
+  `pckSha256 pck == npfSha256 npf`、`pckLicense pck == npfLicense npf`、
+  `pckAuthor pck == npfAuthor npf`、`pckSourceUrl pck == npfSourceUrl npf`、
+  `pckAiDisclosure pck == npfAiDisclosure npf`。
+  (`pckMeta pck == m`、`pckBody pck == T.strip b` 由既有的 L25 / L30 覆蓋,不在本條重複。)
+- **L45**(**`updateFrontmatter` 不吃掉專屬條目** —— G2 在檔案層的對稱處置):對所有 `d`、`f`,若
+  `updateFrontmatter f d == Right d'`,則 `frontExtrasOf d' == frontExtrasOf d`(行的內容逐字相同,
+  順序相同,不多不少)。特別地,對 L44 的 `d0`(先 `renderDocument` → `parseDocument` 成
+  `d`)與任一 `f`,`updateFrontmatter f d` 之後再 `toPack`,七個欄位**仍逐欄等於 `npf`**。
+- **L46**(冪等,對稱 L8):對所有 `d`,`updateFrontmatter id d >>= updateFrontmatter id` 與
+  `updateFrontmatter id d` 產生的 `renderDocument` 結果相同。(專屬條目一律排在 `Meta` 欄位**之後**,
+  所以既有檔案的 frontmatter 行序**只重排一次**。)
+- **L47**(`updateFrontmatterExtras` 的對稱保留):對所有 `d`、`g`,若
+  `updateFrontmatterExtras g d == Right d'`,則 (a) `d'` 的 `docPreamble` 與每一節的 `renderSection`
+  **逐位元組不變**(對稱 L26);(b) `decodeFrontmatter (docFrontRaw d')` 與
+  `decodeFrontmatter (docFrontRaw d)` 解出的 `Meta` **相等**(`Meta` 那一半一欄都不動);
+  (c) `g` 的輸出為**良型 extras** 時,`frontExtrasOf d' == g (frontExtrasOf d)`。
+  frontmatter 的 YAML 壞掉時回 `Left (mdError 1 (FrontmatterYaml msg))` 且 `docFrontRaw` **不覆蓋**
+  (與 `updateFrontmatter` 同一條規則:`Meta` 那一半要原樣寫回去,就得先讀得懂它)。
+- **L48**(`packFrontExtras` 的鍵集合,對稱 L11):對所有 `npf`,`lines (packFrontExtras npf)`
+  切出來的條目,其鍵**依序**取自 `vendor` / `archive` / `sha256` / `license` / `author` /
+  `source_url` / `ai_disclosure`(= `Pack` 的欄位順序),且**都不在 `frontmatterFieldOrder` 裡**
+  (兩半的鍵集合不相交);值為 `Nothing` 的欄位、以及 `npfAiDisclosure == AiUnknown` 時的
+  `ai_disclosure`,**不產生行**——與 `FromJSON Pack` 的 `.:?` / `.!= AiUnknown` 對「鍵不存在」的
+  處置一致,寫出去再解回來是同一份值(L44 因此對七欄全 `Nothing` 的 `npf` 也成立)。
+- **L49**(`mergeFrontExtras` 就是 `mergeExtras`,**不得有第二份實作**;A11 裁決的可機械驗證形式):
+  對所有 `a`、`b :: FrontExtras`,
+  `mergeFrontExtras a b == FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))`。
+  L12 對 `mergeExtras` 所述的鍵集合、逐字取值與順序性質因此**原封不動地**適用於檔案層,不另外
+  重述一遍——重述就是規則有了第二份來源,而那正是 G1 / G2 / G17 的共同根。
+
 **既有匯出的回歸 law(行為不得改變)**
 
 - **L28**:對所有 `d`、`i`、`title`,`renameSection i title d == Right d'` 時 `d'` 中 `i` 那一節的
@@ -339,7 +454,7 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | E10 | 五份 frontmatter:`type: level` / `type: asset-pack` / `type: asset-license` / `type: character` / 完全沒有 `type` | `docKind` 依序為 `LevelDoc` / `PackDoc` / `LicenseDoc` / `TopicDoc` / `TopicDoc` | 四種身分 + 未知 fallback |
 | E11 | Level 檔:`## 第三章 {#nod-0003}` 底下依序有 `### 第一節 {#nod-0010}`、`### 第二節 {#nod-0011}`,而 `nod-0011` 底下還有 `#### 場景 A {#nod-0020}`;檔尾另有 `## 第四章 {#nod-0004}`。對 `nod-0003` 呼叫 `insertSection` 插入 `nsLevel = 3` 的 `nod-0030`(payload `NSNode ov (NewNode KScene)`) | `sectionIds` = `[…, nod-0003, nod-0010, nod-0011, nod-0020, nod-0030, nod-0004]`——新節排在 `nod-0020` **之後**、`nod-0004` **之前**;`toLevel` 解回的 `nod-0030` 的 `nodParent == Just nod-0003`、`nodOrder == 3`、`nodKind == KScene`;`nod-0010` / `nod-0011` / `nod-0020` / `nod-0004` 的 `nodParent` 與 `nodOrder` 不變 | **「子樹之後」而非「父節點正後方」**(本次裁決的核心) |
 | E12 | 同 E11 的檔(`nod-0020` 的正文**已經**以空行結尾,是格式正常的檔案),插入之後逐節比對位元組 | **每一節**(含 `nod-0020` 自己)的 `renderSection` 逐位元組不變;`docFrontRaw` / `docPreamble` 不變。再取一份 `nod-0020` 正文**沒有**以空行結尾的變體,則只有 `nod-0020` 的 `secBodyRaw` 尾端補齊,其餘仍逐位元組不變 | ADR-010 位元組保留;`blankTail` 冪等,格式正常的檔案上插入點也一個位元組都不動 |
-| E13 | 1,693 節的合成 Level 檔,對**中間**某個有子樹的節呼叫 `insertSection` | 除插入點前一節的正文尾端外,其餘 1,692 節的 `renderSection` 逐位元組不變;結果能再 `parseDocument` + `toLevel`,產出的 `[Node]` 餵給 `Aapms.Core.Tree.buildTree` 成功 | 極值(與 E5 對稱,測試內生成器合成) |
+| E13 | 1,693 節的合成 Level 檔,對**中間**某個有子樹的節呼叫 `insertSection` | 除插入點前一節的正文尾端**可能**依 `blankTail` 補齊(該節已以空行結尾時連它也一個位元組都不動)之外,其餘 1,692 節的 `renderSection` 逐位元組不變;結果能再 `parseDocument` + `toLevel`,產出的 `[Node]` 餵給 `Aapms.Core.Tree.buildTree` 成功 | 極值(與 E5 對稱,測試內生成器合成) |
 | E14 | 父節點是文件的**最後一節** `p`(level 2),`nsLevel = 3` | `renderDocument` 的結果與同一個 `ns` 走 `appendSection` **逐位元組相同** | 退化為 `appendSection`(L37) |
 | E15 | 新節插在中間,`nsBody = "內文"`(不以行尾結尾) | 下一節的標題**不會**黏在 `內文` 後面;`renderDocument` → `parseDocument` 解回的節數 = 原節數 + 1,且新節的 `secTitle` 正確 | 新節這一側的行尾補齊(L34) |
 | E16 | 對不存在的父節點 id `nod-9999` 呼叫 `insertSection` | `Left (MdError 1 (UnknownSectionId nod-9999))` | 例外路徑:父節點不存在 |
@@ -349,6 +464,13 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | E20 | 父節點是 `###### {#nod-0006}`(level 6),傳入 `nsLevel = 9`(第 3 條檢查就不過) | `Left (MdError 1 (HeadingSkip 6 9))`,**不是** `HeadingTooDeep` | 第 3 條先於第 4 條:呼叫端算錯 `nsLevel` 與「父節點已到底」是兩件事 |
 | E21 | `renderMdError (MdError 12 (HeadingTooDeep 6 7))` | `第 12 行:標題層級 #######(第 7 級)超過 Markdown 的六級上限,父節點 ###### 已經在第 6 級,底下加不了子節點了:請改插到較淺的父節點底下,或先把這條分支中間的層級壓平` | 契約 G:訊息要說出**下一步**(L39) |
 | E22 | 既有 15 個 `MdErrorKind` 建構子各取一個代表值,呼叫 `renderMdError` | 訊息與上一輪**逐字相同** | **回歸例**:追加建構子不得動到既有訊息 |
+| E23 | `npf = NewPackFront (Just "Kenney") (Just "ui-pack.zip") (Just (Sha256 "deadbeef1234")) (Just (Ref Nothing lic0001)) (Just (Author "Kenney" (Just "https://kenney.nl") Nothing)) (Just "https://kenney.nl/assets/ui-pack") AiNone`,`d = newDocumentWith PackDoc m (packFrontExtras npf) "素材包說明"`,再 `renderDocument` → `parseDocument` → `toPack` | 七個欄位**逐欄等於給進去的值**(不是 `Nothing` / `AiUnknown`);`author` 的三個子欄位也逐欄相等 | **G17 的回歸例**(L44);巢狀物件 `author` 與四字面值 `ai_disclosure` 都走得通 |
+| E24 | 同 E23 的檔案,`updateFrontmatter (\mm -> mm { metaSummary = "after" })` 再 `renderDocument` | 輸出仍含 `vendor` / `archive` / `sha256` / `license` / `author` / `source_url` / `ai_disclosure` 七行(逐字);`toPack` 的七欄不變;`summary` 改成 `after` | **檔案層版的 E1**(L45,G2 在檔案層的對稱處置) |
+| E25 | `npf` 七欄全部是 `Nothing` / `AiUnknown` | `packFrontExtras npf == FrontExtras (MetaExtras [])`,且 `newDocumentWith PackDoc m (packFrontExtras npf) b` 與 `newDocument PackDoc m b` **逐位元組相同** | 空 extras 退化成既有路徑(L43 / L48) |
+| E26 | 主題檔的 frontmatter 含註冊表宣告的自訂欄位 `battle_power: 9000`,呼叫 `updateFrontmatter (\mm -> mm { metaStatus = Canon })` | `battle_power: 9000` **逐字保留**(排在 `links:` 之後);再呼叫一次 `updateFrontmatter id`,輸出**逐位元組不變**(冪等) | **未知欄位**也要保住,不只 pack 那七個(檔案層版的 E6;L45 + L46) |
+| E27 | 同 E23 的檔案,`updateFrontmatterExtras (mergeFrontExtras (packFrontExtras npf'))`,其中 `npf'` 只改 `npfLicense`、其餘同 `npf` | `license:` 那一行換成新值;`vendor` / `archive` / `sha256` 逐字不變;`decodeFrontmatter (docFrontRaw d')` 解出的 `Meta` 與呼叫前相同;`docPreamble` 與每一節逐位元組不變 | 檔案層專屬半邊的編輯路徑(對稱 E7;L47 + L49) |
+| E28 | frontmatter 的 YAML 壞掉(例如 `title: [unclosed`),呼叫 `updateFrontmatterExtras id` | `Left (MdError 1 (FrontmatterYaml _))`,`docFrontRaw` 一個位元組都沒動 | 例外路徑:改不動一份讀不懂的東西(L47) |
+| E29 | 任取一組 `a` / `b :: MetaExtras`(E7 那組即可),比對 `mergeFrontExtras (FrontExtras a) (FrontExtras b)` 與 `FrontExtras (mergeExtras a b)` | 兩者相等 | **wrapper 沒有第二份實作**(L49);A11 裁決「機制共用、型別分開」的機械驗證 |
 
 ## 依賴
 
@@ -376,7 +498,8 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 | `data Entity = Entity { entMeta :: Meta, entBody :: Text }` | `core/src/Aapms/Core/Entity.hs:12-17` | F001 | `toTopic` 的回傳型別 |
 | `data Level = Level { lvlMeta :: Meta, lvlRoot :: Id }`、`data Node = Node { nodMeta :: Meta, nodLevel :: Id, nodParent :: Maybe Id, nodOrder :: Int, nodKind :: NodeKind, nodEntities :: [Ref] }`、`data NodeKind = KScene \| KCast \| KCamera \| KInteraction \| KDialogue \| KBranch`、`renderNodeKind :: NodeKind -> Text` | `core/src/Aapms/Core/Level.hs:19-71` | F001 | `toLevel` 的回傳型別、`NewNode`、`moKind` 的序列化 |
 | `data Asset = Asset { astMeta :: Meta, astName :: Maybe LogicalName, astSha256 :: Sha256, astEntry :: Text, astExt :: Maybe Text, astKindMeta :: Value, astLicense :: Maybe Ref, astAuthor :: Maybe Text, astBody :: Text }`、`newtype Sha256 = Sha256 Text`、`newtype LogicalName = LogicalName Text` | `core/src/Aapms/Core/Asset.hs:17-46` | F001 | `toPack` 的回傳型別;**`NewAsset` 的欄位形狀逐欄照抄它**(扣掉 `astMeta` 與 `astBody`),`astSha256` / `astEntry` 非 `Maybe` 決定了 `naSha256` / `naEntry` 也非 `Maybe` |
-| `data Pack = Pack { pckMeta :: Meta, pckVendor :: Maybe Text, pckArchive :: Maybe FilePath, pckSha256 :: Maybe Sha256, pckLicense :: Maybe Ref, pckAuthor :: Maybe Author, pckSourceUrl :: Maybe Text, pckAiDisclosure :: AiDisclosure, pckBody :: Text }` | `core/src/Aapms/Core/Pack.hs:19-47` | F001 | `toPack` 的檔案層回傳型別 |
+| `data Pack = Pack { pckMeta :: Meta, pckVendor :: Maybe Text, pckArchive :: Maybe FilePath, pckSha256 :: Maybe Sha256, pckLicense :: Maybe Ref, pckAuthor :: Maybe Author, pckSourceUrl :: Maybe Text, pckAiDisclosure :: AiDisclosure, pckBody :: Text }`、`data AiDisclosure = AiUnknown \| AiNone \| AiAssisted \| AiGenerated`、`data Author = Author { authorName :: Text, authorUrl :: Maybe Text, authorContact :: Maybe Text }`(建構子皆 export) | `core/src/Aapms/Core/Pack.hs:19-47`(`AiDisclosure` `:19-25`、`Author` `:28-33`) | F001 | `toPack` 的檔案層回傳型別;**`NewPackFront` 的欄位形狀逐欄照抄 `Pack`**(扣掉 `pckMeta` 與 `pckBody`),`pckAiDisclosure` 非 `Maybe` 決定了 `npfAiDisclosure` 也非 `Maybe`(2026-08-25,G17;`aapms-md` 本次**新增** `import Aapms.Core.Pack`) |
+| `instance ToJSON Author` / `ToJSON AiDisclosure`(`renderAiDisclosure` 的四個字面值 `unknown` / `none` / `assisted` / `generated`);`instance FromJSON Pack`(`vendor` / `archive` / `sha256` / `license` / `author` / `source_url` 用 `.:?`,`ai_disclosure` 用 `.:? .!= AiUnknown`,與 `Meta` 十四欄**攤平在同一層**) | `core/src/Aapms/Core/Json.hs:106-127`(`AiDisclosure`)、`:257-266`(`Author`)、`:282-293`(`FromJSON Pack`) | F001 | `packFrontExtras` 的 `author` / `ai_disclosure` 兩欄借 `ToJSON` 產生 flow 值(與 `NewAsset` 的 `meta` 走 `renderValue` 同一個作法),**不在 md 另寫一套**;`FromJSON Pack` 是 L44 往返 law 的另一端。註:`Aapms.Core.Json` 的匯出清單是空的(`module Aapms.Core.Json ()`),只拿得到實例,拿不到 `renderAiDisclosure` 本身 |
 | `data License = License { licMeta :: Meta, licCommercial :: Bool, licAttributionRequired :: Bool, licCreditText :: Maybe Text, licModificationAllowed :: Maybe Bool, licRedistributionAllowed :: Maybe Bool, licResaleAllowed :: Maybe Bool, licNftAllowed :: Maybe Bool, licSourceUrl :: Maybe Text, licFullText :: Maybe Text }` | `core/src/Aapms/Core/License.hs:13-25` | F001 | `toLicenses` 的回傳型別;**`NewLicense` 的欄位形狀照抄它**(扣掉 `licMeta` 與 `licFullText`) |
 | `instance FromJSON Meta` / `Pack` / `Asset` / `License` / `TypeKey` / `VaultId` / `Revision` / `Status` / `Source` / `Timeline` / `Link` / `NodeKind` | `core/src/Aapms/Core/Json.hs:49-322` | F001 | 全系統唯一的 aeson 編碼規則;`NewAsset` / `NewLicense` 的 `FromJSON` 逐欄借用這些實例 |
 
@@ -392,7 +515,9 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
 - **新增的依賴邊**:
   - **模組內部**:`Aapms.Md.Parse` → `Aapms.Md.Render`(取用 `NewAsset` / `NewLicense` 與其
     `FromJSON` 實例)。方向不可反轉:`Aapms.Md.Render` **不得** import `Aapms.Md.Parse`,否則成環
-  - **套件之間**:無新增
+  - **套件之間**:無新增。**2026-08-25(G17)**:`Aapms.Md.Render` 新增
+    `import Aapms.Core.Pack (AiDisclosure, Author)`,impl 另需 `import Aapms.Core.Json ()`
+    (孤兒 `ToJSON` 實例)。兩者都在**既有的** `aapms-core` 相依裡,`md/aapms-md.cabal` **不動**
 - **可否與其他進行中任務平行開發**:**不可與 F007 / F008 平行**。`aapms-store` 的 `Create.hs`
   目前自己定義了一組同名的 `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` /
   `NewNode`(`store/src/Aapms/Store/Create.hs:137-216`),與本 feature 定義在 `Aapms.Md.Render` 的
@@ -422,12 +547,35 @@ fence 之間的行,依序切成條目;一個條目 = **第 0 欄起以 `<鍵>:` 
    `LicenseFields`)。
    - 否決「讀一份、寫一份」:必填 / 選填的劃分會分歧,而 G1 與 G2 正是「讀方向認得、寫方向不認得」
      這個分歧的兩個症狀。共用一份之後,「解得回來的形狀」與「寫得出去的形狀」在型別上是同一個。
+5. **檔案層的載體是 `FrontExtras`,即 `MetaExtras` 的 newtype:機制共用一份、型別分得開**
+   (2026-08-25 開發者裁決 A11;同時固定了 `pack.md` frontmatter 的行序,是會進 git 歷史的格式決定)。
+   - 否決「兩層共用同一個 `MetaExtras`」(這是 spec 原本的傾向,已被推翻):共用擋不住「把節層
+     extras 餵進 `renderFrontmatterWith`」,而那種混用**不會編譯錯誤**——多餘的鍵 `toPack` 一律
+     忽略,症狀是**安靜的髒資料**。本子系統已經被「安靜的資料遺失」咬過兩次(G2 在節層、G17 在
+     檔案層),**兩次都不是測試抓到的,是人讀出來的**;能用型別擋掉的第三次就不該留給人讀。
+   - 否決「另開一個**結構不同**的新型別」:那才會逼出第二份 `splitEntries` / `entryKey` /
+     `mergeExtras`,而「同一條解析規則兩份實作」正是第 4 條所否決的病。`newtype` 底下是同一個
+     表示,兩者因此**可以兼得**——這正是 newtype 存在的理由。落實成兩條硬規則:邊界只做拆包
+     (`unFrontExtras` / `coerce`),需要檔案層版本時寫**一行 wrapper**(`mergeFrontExtras`),
+     並由 **L49 / E29** 逐字釘住它等於 `mergeExtras`。
+   - 否決「檔案層專屬條目回到原位」:與第 3 條同一個論證(位置本身不是資料;`newDocumentWith`
+     產生的新檔沒有「原位」可言,兩條路徑會產生不同排版)。
+6. **`renderFrontmatter` / `newDocument` 保留為「沒有專屬欄位」的特化,而不是改簽名吃兩半**
+   (2026-08-25,G17)。
+   - 與節層**不同**的處置:節層直接把 `renderMetaBlock` 改成吃兩半,理由是「只要還存在一個只吃
+     `MetaOverride` 的公開版本,G2 就只是被繞過而不是被消滅」(A1)。檔案層之所以不照做,是因為
+     四種文件裡**有三種的 frontmatter 確實只有 `Meta`**,單半版本有真實用途;而真正危險的那條路
+     ——**整段重新序列化**(`updateFrontmatter`)——已經被強制走兩半版本。
+   - 代價寫明:呼叫端仍寫得出 `renderFrontmatter m le` 去產生 `pack.md` 的 frontmatter,那就是
+     資料遺失。以 L42 / L43 把兩者釘成「空 extras 的特化」,並在 haddock 明寫「寫 `pack.md` 用
+     它就是資料遺失」;若三個月後這條路真的被誤用,收斂方式是把兩個單半版本降為私有、改由
+     `renderFrontmatterWith` / `newDocumentWith` 單一入口——那是**加法之後的減法**,不需要改語意。
 
 ## 骨架
 
 | 檔案 | 內容 |
 |---|---|
-| `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整。**2026-08-25 追加**:`insertSection` 的簽名與匯出(`md/src/Aapms/Md/Render.hs:482`),本體 `undefined` |
+| `md/src/Aapms/Md/Render.hs` | `MetaExtras` / `NewSection` / `NewSectionPayload` / `NewAsset` / `NewLicense` / `NewNode` 型別與 `FromJSON NewAsset` / `FromJSON NewLicense` 實例;`extrasOf` / `extrasAt` / `mergeExtras` / `updateSectionExtras` / `payloadOverride` / `payloadExtras` 新簽名;`updateSection` / `reserialize` / `renderMetaBlock` / `mkSection` / `appendSection` 改簽名或改行為,本體為 `undefined`;匯出清單重整。**2026-08-25 追加**:`insertSection` 的簽名與匯出(`md/src/Aapms/Md/Render.hs:516`),本體 `undefined`。**2026-08-25 再追加(G17)**:`FrontExtras`(`:788`)與 `NewPackFront`(`:861`)兩個型別,以及 `frontExtrasOf`(`:806`)/ `mergeFrontExtras`(`:815`)/ `renderFrontmatterWith`(`:828`)/ `newDocumentWith`(`:836`)/ `updateFrontmatterExtras`(`:847`)/ `packFrontExtras`(`:891`)六個新簽名,本體一律 `undefined`;匯出清單新增一組「檔案層 frontmatter 的型別專屬那一半」;`updateFrontmatter` / `renderFrontmatter` / `newDocument` / `blankTail` 的 haddock 改寫(**本體未動**,見下) |
 | `md/src/Aapms/Md/Parse.hs` | 刪除 `AssetFields` / `LicenseFields` 及其實例,改用 `Aapms.Md.Render` 的 `NewAsset` / `NewLicense`;`toPack` / `toLicenses` / `licenseFieldsOf` 的欄位名機械性更名(行為不變) |
 | `md/src/Aapms/Md/Error.hs` | **2026-08-25 裁決 A8**:`MdErrorKind` 追加 `HeadingTooDeep Int Int` 建構子與其 haddock(`:53-59`);`renderMdErrorKind` 對應分支本體 `undefined`(`:100`),訊息原文由 impl 照 L39 / E21 轉錄。既有 15 個建構子與它們的訊息**一個字都沒動** |
 | `md/src/Aapms/Md/Inherit.hs` | **未改動**(刻意):`MetaOverride` 是 md 與 store 共用的節層繼承 DTO,污染它會動到 ADR-010 的前提 |
@@ -459,10 +607,46 @@ impl 少一個全形冒號、漏掉「請改插到較淺的父節點底下」那
 `Aapms.Md.Parse.structure`。`md/aapms-md.cabal` 不動:`Aapms.Md` 以 `module Aapms.Md.Render` 整模組
 re-export,新匯出自動涵蓋。
 
+### 2026-08-25 第三輪(G17,檔案層 extras)——impl 的作業範圍
+
+**本體為 `undefined` 的新函數**(impl 只准替換這些,不得改動任何簽名與型別):
+`frontExtrasOf`、`mergeFrontExtras`、`renderFrontmatterWith`、`newDocumentWith`、
+`updateFrontmatterExtras`、`packFrontExtras`(全部在 `md/src/Aapms/Md/Render.hs`)。
+
+**`FrontExtras` 的實作硬規則**(2026-08-25 裁決 A11,違反就是把 G1/G2/G17 的根再種一次):
+`FrontExtras` 底下就是 `MetaExtras`,所以 `splitEntries` / `entryKey` / `mergeExtras` 那一組機制
+**一份就夠**——`frontExtrasOf` 只是「換一份欄位清單 + 邊界拆包」,`mergeFrontExtras` 是
+`coerce mergeExtras` 或等價的一行 wrapper(L49 / E29 逐字釘住)。**不得**另寫第二份切段、取鍵或
+合併的邏輯。`frontExtrasOf` 與 `extrasOf` 兩者的差異只有兩點:比對的欄位清單
+(`frontmatterFieldOrder` vs `metaFieldOrder`),以及輸入取自 `docFrontRaw`(要先去掉開頭界線的
+行尾字元)而不是 `secMetaRaw` 的 fence 之間。
+
+**另外要改寫本體的既有函數**(**簽名一律不變**):
+
+| 函數 | 為什麼要改 | 判準 |
+|---|---|---|
+| `updateFrontmatter`(`:662`) | **這一輪的缺陷本身**。目前的本體用 `renderFrontmatter (f meta)` 整段重寫,只寫得出 `Meta` 十四欄,檔案層專屬條目**靜默消失**——G2 在檔案層的鏡像。改成先 `frontExtrasOf` 取出另一半、再走 `renderFrontmatterWith` | L45 / L46;E24 / E26 |
+| `renderFrontmatter`(`:744`) | 可選的收斂:改寫成 `renderFrontmatterWith m (FrontExtras (MetaExtras [])) le` 的特化,讓排版規則只有一份 | L42(輸出**逐位元組不變**,改不改都必須通過) |
+| `newDocument`(`:689`) | 同上,改寫成 `newDocumentWith k m (FrontExtras (MetaExtras [])) b` | L43 |
+
+**為什麼這三個的本體不留 `undefined`**(2026-08-25,委派指示的硬約束):本輪交付前的機械性查證要求
+`cabal test aapms-md` 維持 **309 examples / 0 failures**,而既有測試(`RenderSpec` / `EditSpec` /
+`RegressionLawsSpec`)直接呼叫這三個函數——把它們清成 `undefined` 會讓十幾條**與本輪無關**的既有
+測試變紅,那不是「該紅的紅」,是把基準線炸掉。所以 spec 這一輪**只加新的 `undefined` 簽名**,
+`updateFrontmatter` 的缺陷改由 **L45 / L46 + E24 / E26 的紅燈**驅動:qa 從 spec 翻出來的那幾條測試
+在 impl 動手前就是紅的,那一次紅燈就是這條缺陷的證據。`updateFrontmatter` 的 haddock 已標明
+「__本輪待實作__ …… 下面的本體**還沒**做這件事」,impl 不會漏看。
+
+**這一輪的 `Error.hs` / `Parse.hs` / `Inherit.hs` 一律不動**;`md/aapms-md.cabal` 不動
+(`Aapms.Md` 以 `module Aapms.Md.Render` 整模組 re-export,新匯出自動涵蓋);
+**`store/` / `core/` / `types/` / `md/test/` 一律不碰**(`store/` 正由平行的委派在改)。
+
 **未改動、行為與上一輪相同的匯出**:`renderDocument` / `renderSection` / `overrideAt` /
-`updateSectionBody` / `removeSection` / `renameSection` / `replacePreamble` / `updateFrontmatter` /
-`renderFrontmatter` / `frontmatterFieldOrder` / `newDocument` / `metaFieldOrder`,以及
+`updateSectionBody` / `removeSection` / `renameSection` / `replacePreamble` /
+`frontmatterFieldOrder` / `metaFieldOrder`,以及
 `Aapms.Md.Document` / `Aapms.Md.Error` / `Aapms.Md.Lexer` / `Aapms.Md.Yaml` 全部。
+`renderFrontmatter` 與 `newDocument` 的**輸出**也不變(L42 / L43 釘住),只有本體可能被收斂成
+兩半版本的特化;**唯一行為會變的既有匯出是 `updateFrontmatter`**(L45 / L46)。
 
 ## 待確認假設
 
@@ -510,10 +694,83 @@ re-export,新匯出自動涵蓋。
   `import Aapms.Md` 就會產生名稱衝突。→ 影響:編排者需要在 F007 / F008 收斂時裁決由誰刪除;在那之前
   `aapms-store` 仍然編得過(它目前不 import `Aapms.Md.Render`)。
 
+**A11 / A12 已於 2026-08-25 裁決**(A11 推翻、A12 接受,見「已裁決紀錄」);以下原文逐字保留供追溯,
+**不代表現行設計**。
+
+- **A11**(2026-08-25,G17):**檔案層與節層共用同一個 `MetaExtras` 載體型別**,而不是另開一個
+  `FrontExtras`。契約 D 現在只有節層那一半,沒說檔案層要不要獨立的型別。
+  - 層級自答:出現在邊界上?**會**(`MetaExtras` 是 md 對 store 的公開型別,F008 的
+    `createPackFile` / `writeAssetFields` 兩條路都會拿到它);改錯驚動其他模組?**要**
+    (store 的呼叫端簽名要跟著換型別)
+  - 選項:a) 共用 `MetaExtras`——當下成本 0(`mergeExtras` / 切段 / 取鍵一份就夠);三個月後代價:
+    型別上擋不住「把節層 extras 餵進 `renderFrontmatterWith`」這種呼叫端錯誤。真的發生時的症狀是
+    frontmatter 多出 `sha256:` 之類的鍵——`toPack` 仍解得回來(多餘的鍵一律忽略),所以會是一個
+    **安靜的髒資料**而不是編譯錯誤,靠 code review 抓。
+    b) 另開 `newtype FrontExtras`——當下成本:多一個型別、多一份 `mergeFrontExtras`,以及一份與
+    `splitEntries` / `entryKey` 逐行相同的切段邏輯(或把它們抽成共用私有函式,那其實就回到 a 的
+    資料表示);三個月後代價:兩份「頂層條目」規則遲早分歧,而那條規則正是 G2 / G17 的判準本身
+    ——分歧了就是同一個 bug 第三次。
+  - 傾向:**a**。依賴的前提要講明:`MetaExtras` 的欄位是 `[Text]`(原始行),它**不編碼**「哪些鍵
+    合法」這件事——那是取出者的判斷(`extrasOf` 用 `metaFieldOrder`、`frontExtrasOf` 用
+    `frontmatterFieldOrder`)。所以 b 換來的型別安全其實只是「這組行是從哪裡抽出來的」的標記,
+    而不是「這組行的鍵合法」的保證;要拿到後者得改成 `[(Text, [Text])]` 並在建構時驗鍵,那與 A4
+    的「原始行」決定衝突。可逆性:**可逆**——`newtype FrontExtras = FrontExtras MetaExtras` 是純
+    加法,五個新簽名各換一個型別,沒有格式或檔案殘留。
+  - 暫採:a → 影響:若裁決要獨立型別,`frontExtrasOf` / `renderFrontmatterWith` / `newDocumentWith` /
+    `updateFrontmatterExtras` / `packFrontExtras` 五條簽名的 `MetaExtras` 換成 `FrontExtras`,並補一個
+    `mergeFrontExtras`;L40 / L41 / L47 / L48 的型別名跟著換,語意一字不改。
+- **A12**(2026-08-25,G17):`updateFrontmatter` 的缺陷修復,**本體留在原地不清成 `undefined`**,
+  改由 law 的紅燈驅動。上一輪的作法(`updateSection` 被清成 `undefined`)與本輪的委派硬約束
+  「`cabal test aapms-md` 維持 309 examples / 0 failures」直接衝突。
+  - 層級自答:出現在邊界上?**不會**(這是交付程序的選擇,不是介面形狀);改錯驚動其他模組?
+    **要**——它決定 impl 那一輪的紅綠基準線長什麼樣,編排者的仲裁要據此歸因。因此列在這裡而不是
+    自裁清單。
+  - 選項:a) 本體留著,spec 用 L45 / L46 + E24 / E26 描述目標行為,haddock 標「本輪待實作」——
+    當下成本 0,基準線乾淨(309/0),qa 寫出來的新測試**該紅的紅**;三個月後代價:骨架裡出現一個
+    「簽名不是 `undefined`、但行為不符 spec」的函數,`/arch-audit` 的「骨架符合度」比對簽名時看不
+    出它待改,只有讀 haddock 與骨架段的人看得出來。
+    b) 清成 `undefined`——當下成本:`RenderSpec` / `EditSpec` / `RegressionLawsSpec` 裡十幾條與本輪
+    無關的既有測試會變紅,交付時無法回報 309/0,編排者要自己分辨「哪些紅是預期的」;三個月後
+    代價:0(那些紅在 impl 填完後就消失)。
+  - 傾向:**a**。依賴的前提要講明:a 只有在「qa 確實會從 L45 / L46 翻出測試」時才成立——若 qa 漏了
+    這兩條,缺陷會**再一次帶著全綠通過**,而那正是 G2 與 G17 兩次的失敗模式。所以 L45 / L46 與
+    E24 / E26 在本文檔裡刻意寫成**可機械對照的四條**,編排者在 qa 交付時要逐條點名對帳。
+    可逆性:**可逆**(改成 b 只是把一個本體換成 `undefined`)。
+  - 暫採:a → 影響:若裁決要 b,把 `updateFrontmatter` 的本體換成 `undefined`,交付回報改成
+    「309 examples / N failures,N 條全部歸因於本輪刻意清空的本體」並逐條列出。
+
 ## 已裁決紀錄(2026-08-25 spec 閘門)
 
-A8 / A9 / A10 是 2026-08-25 這一輪提上閘門的三條待確認假設,**已由開發者裁決**。原文逐字保留供追溯,
-每條開頭補上裁決結果與理由;spec 的 Laws、Examples 與骨架已依裁決改寫。
+A8 / A9 / A10 是 `insertSection` 那一輪提上閘門的三條待確認假設,A11 / A12 是**檔案層 extras
+(G17)那一輪**的兩條,**皆已由開發者裁決**。原文逐字保留供追溯,每條開頭補上裁決結果與理由;
+spec 的 Laws、Examples 與骨架已依裁決改寫。
+
+- **A11 → 裁決:推翻。改用 `newtype FrontExtras = FrontExtras MetaExtras`。**
+  - **理由(開發者)**:我原本的前提「另開型別會逼出第二份 `splitEntries` / `entryKey` /
+    `mergeExtras`」**只在「另開一個結構不同的新型別」時成立**。`newtype` 底下就是同一個表示,
+    機制完全共用(`coerce` 進出,或拆包再呼叫既有函式),**不會有第二份切段邏輯**——我把
+    「不重複實作」與「型別上分得開」講成了二選一,但這裡兩者可以兼得,**這正是 newtype 存在的
+    理由**。而我自己寫出來的代價是決定性的:共用型別**擋不住**「把節層 extras 餵進
+    `renderFrontmatterWith`」,症狀是**安靜的髒資料而非編譯錯誤**;本子系統已被「安靜的資料遺失」
+    咬過兩次(G2 節層、G17 檔案層),**兩次都不是測試抓到的,是人讀出來的**。能用型別擋掉的
+    第三次,就不該留給人讀。
+  - **落實**:`Render.hs` 加 `newtype FrontExtras = FrontExtras { unFrontExtras :: MetaExtras }`
+    並匯出型別與建構子(`:788`);`frontExtrasOf` / `renderFrontmatterWith` / `newDocumentWith` /
+    `updateFrontmatterExtras` / `packFrontExtras` 五條簽名改吃 `FrontExtras`;新增一行 wrapper
+    `mergeFrontExtras`(`:815`)。**未複製任何邏輯**:`splitEntries` / `entryKey` / `mergeExtras`
+    仍各只有一份,newtype 只在邊界拆包。新增 **L49 / E29** 逐字釘住
+    `mergeFrontExtras a b == FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))`,
+    讓「沒有第二份實作」變成可機械驗證的斷言;L40–L48 的型別名跟著換、語意一字未改;
+    「不可逆決定」第 5 條改寫成本裁決的版本(原傾向連同代價一併保留為被否決的選項)。
+    `design.md` 契約 D 已由編排者以 `FrontExtras` 回寫,本文檔簽名與它逐字一致。
+  - **我原本的分析(逐字保留)**:見下方「待確認假設」段的 A11 原文。
+- **A12 → 裁決:接受。**`updateFrontmatter` 的缺陷本體留在原地、不清成 `undefined`,由 L45 / L46 的
+  紅燈驅動。
+  - **理由(編排者)**:它現在的行為**確實會吃掉檔案層 extras**,所以新 law 對它就是紅的,效果
+    等同未實作標記;清成 `undefined` 反而會炸掉十幾條與本輪無關的既有測試。
+  - **落實**:骨架維持現狀(`:662` 本體未動,haddock 已標「__本輪待實作__」);spec 的
+    「骨架 → 2026-08-25 第三輪」段列出 impl 要改寫的三個既有本體。**編排者已接下我提的風險**:
+    qa 交付時對 **L45 / L46 / E24 / E26 逐條點名對帳**,不看總數。
 
 - **A8 → 裁決:一半照做,一半推翻。`nsLevel` 不符**維持** `HeadingSkip`;「算出來的層級 > 6」
   **新增** `HeadingTooDeep Int Int`(父節點層級, 算出來的層級)。**
@@ -561,7 +818,7 @@ A8 / A9 / A10 是 2026-08-25 這一輪提上閘門的三條待確認假設,**已
     檢查——但 `allocateId` 查的是**索引**,而索引會過時(`refreshStale` 存在正是因為如此),所以這層
     檢查不是冗餘的。可逆性:**可逆**(拿掉一個 guard,沒有格式或訊息殘留)。
   - 暫採:a → 影響:若裁決不檢查,刪掉 L38 第 2 條與 E19,`insertSection` 簽名不變。
-- **A10 → 裁決:接受,但措辭收窄。**開發者讀過 `md/src/Aapms/Md/Render.hs:438` 的 `blankTail`,指出
+- **A10 → 裁決:接受,但措辭收窄。**開發者讀過 `md/src/Aapms/Md/Render.hs:472` 的 `blankTail`,指出
   它是**冪等**的——文字已經以空行結尾時原樣回傳。所以正確的說法不是「插入**必然**動到位元組」,而是
   「**只有當插入點之前那一段還沒有以空行結尾時**,才會補齊行尾」;而且這不是 `insertSection` 新引入
   的讓步,`appendSection` 早就走同一個 `blankTail`,它的 haddock 也早就論證過「被動到的是插入點,

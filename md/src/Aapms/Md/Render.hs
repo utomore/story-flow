@@ -21,6 +21,27 @@
 -- 之後__靜默消失__(spec-gaps G2:依 ADR-013,@pack.md@ 是素材中繼資料的真相,
 -- 這是永久資料破壞)。現在 'renderMetaBlock' 必須同時吃兩半,少一半在型別上就
 -- 寫不出來。
+--
+-- == 檔案層 frontmatter 也有兩半(graph-core/F004 重跑,G17)
+--
+-- 同一個病在__檔案層__的鏡像。@pack.md@ 的 frontmatter 除了 'Meta' 的十四欄,
+-- 還有 @vendor@ \/ @archive@ \/ @sha256@ \/ @license@ \/ @author@ \/
+-- @source_url@ \/ @ai_disclosure@ 七個 pack 專屬欄位——"Aapms.Core.Json" 的
+-- @FromJSON Pack@ 把它們與 'Meta' __攤平在同一層物件__解碼,但寫入介面
+-- ('newDocument' \/ 'renderFrontmatter' \/ 'updateFrontmatter')只吃 'Meta',
+-- 'frontmatterFieldOrder' 又寫死十四欄,所以__沒有任何管道__把那七欄寫進檔案。
+--
+-- 處置與節層對稱,判準也一樣是「__鍵不在 'frontmatterFieldOrder' 裡__」而不是
+-- 列舉已知的 pack 七欄——註冊表宣告的任意自訂欄位因此一併保住。這一半的載體是
+-- 'FrontExtras',即 'MetaExtras' 的 __newtype__(2026-08-25 裁決 A11):底層
+-- 表示與機制完全共用(不得有第二份切段與取鍵的邏輯),但兩層在型別上分得開,
+-- 「節層 extras 餵進檔案層」因此編不過而不是安靜地寫出髒資料:
+--
+-- * 讀:'frontExtrasOf'(對稱 'extrasOf')
+-- * 寫:'renderFrontmatterWith' \/ 'newDocumentWith'(對稱 'renderMetaBlock')
+-- * 編輯:'updateFrontmatter' 保住專屬那一半、'updateFrontmatterExtras' 保住
+--   'Meta' 那一半(對稱 'updateSection' \/ 'updateSectionExtras')
+-- * 產生:'packFrontExtras'(對稱 'payloadExtras')
 module Aapms.Md.Render
   ( -- * 寫回
     renderDocument
@@ -58,6 +79,16 @@ module Aapms.Md.Render
   , frontmatterFieldOrder
   , newDocument
 
+    -- * 檔案層 frontmatter 的型別專屬那一半(graph-core/F004 重跑,G17)
+  , FrontExtras (..)
+  , frontExtrasOf
+  , mergeFrontExtras
+  , updateFrontmatterExtras
+  , renderFrontmatterWith
+  , newDocumentWith
+  , NewPackFront (..)
+  , packFrontExtras
+
     -- * meta 區塊序列化
   , renderMetaBlock
   , metaFieldOrder
@@ -79,6 +110,7 @@ import Aapms.Core.Id (Id, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (NodeKind, renderNodeKind)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta
+import Aapms.Core.Pack (AiDisclosure, Author)
 import Aapms.Md.Document
 import Aapms.Md.Error
 import Aapms.Md.Inherit
@@ -433,8 +465,10 @@ appendSection NewSection {..} doc@Document {..}
 -- 卻長得不像人寫的——而 Vault 是給人看的 git repo,工具產生的段落要與作者
 -- 手寫的分不出來。
 --
--- 這一個行尾是插入__必然__帶來的改動,不違反 ADR-010:被動到的是插入點,
--- 不是「未經修改的區塊」。
+-- 本函式是__冪等__的:原文已經以空行結尾時__原樣回傳,一個位元組都不動__。
+-- 所以插入點之前那一段的位元組__不是必然會動__——只有它還沒以空行結尾時才補,
+-- 格式正常的檔案上一個位元組都不動。真的需要補的那一個行尾也不違反 ADR-010:
+-- 被動到的是插入點,不是「未經修改的區塊」。
 blankTail :: LineEnding -> Text -> Text
 blankTail le t
   | T.null t = nl
@@ -613,6 +647,18 @@ mkSection le level i title mpayload body =
 -- 正是檔案層主體最常見的修改。
 --
 -- frontmatter 的 YAML 壞掉時回 'Left' 且__不覆蓋__:改不動一份讀不懂的東西。
+--
+-- __型別專屬條目原封不動__(graph-core/F004 重跑,G17;__本輪待實作__):@f@ 只
+-- 碰得到 'Meta' 那一半,'frontExtrasOf' 取出的那一半以原始行逐字帶過去,整段
+-- 重新序列化因此改走 'renderFrontmatterWith'。這是 G2 在節層踩過的坑的檔案層
+-- 鏡像——少了這一步,對 @pack.md@ 做任何一次 'updateFrontmatter' 都會吃掉
+-- @vendor@ \/ @archive@ \/ @sha256@ \/ @license@ \/ @author@ \/ @source_url@ \/
+-- @ai_disclosure@,而依 ADR-013 那是「這批素材能不能商用」的真相。
+-- 下面的本體__還沒__做這件事(仍只寫得出 'Meta' 十四欄),impl 這一輪要改寫它
+-- (簽名不變),判準見 F004 的 L45 \/ L46 與 E24 \/ E26。
+--
+-- 保留下來的專屬條目排在 'Meta' 欄位__之後__(與節層同一條規則,理由見 F004
+-- 「不可逆決定」第 3 條:回原位要多存一份位置資訊,而位置本身不是資料)。
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
 updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
   Left msg -> Left (mdError 1 (FrontmatterYaml msg))
@@ -635,6 +681,11 @@ updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
 -- @kind@ 存進 'Document' 的內部快取欄位,讓新建的 'Document' 呼叫
 -- 'Aapms.Md.Document.docKind' 立刻拿得到正確答案,不必先 'renderDocument' 再
 -- 'Aapms.Md.Parse.parseDocument' 繞一圈。
+--
+-- graph-core/F004 重跑(G17):這是 'newDocumentWith' 在__沒有檔案層專屬欄位__
+-- 時的特化(@'newDocument' k m b == 'newDocumentWith' k m ('FrontExtras' ('MetaExtras' [])) b@,
+-- F004 的 L43)。@pack.md@ 走 'newDocumentWith'——它的 frontmatter 有七個
+-- 'Meta' 表達不了的欄位。
 newDocument :: DocKind -> Meta -> Text -> Document
 newDocument kind meta body =
   Document
@@ -673,6 +724,14 @@ frontmatterFieldOrder =
 
 -- | 完整 'Meta' → frontmatter 內容(__不含__ @---@ 界線,含結尾行尾)。
 --
+-- graph-core/F004 重跑(G17):這是 'renderFrontmatterWith' 在__沒有檔案層專屬
+-- 欄位__時的特化(@'renderFrontmatter' m le ==
+-- 'renderFrontmatterWith' m ('FrontExtras' ('MetaExtras' [])) le@,F004 的 L42)。它保留下來是
+-- 因為四種文件裡有三種的 frontmatter 確實只有 'Meta';__但寫 @pack.md@ 時用它
+-- 就是資料遺失__,所以檔案層的整段重新序列化(即 'updateFrontmatter')一律走
+-- 兩半的那一支。
+
+--
 -- 與 'renderMetaBlock' 不同,'Meta' 的欄位沒有 'Maybe',所以__每個欄位都會
 -- 輸出__。空值(@summary: ""@、@tags: []@)照樣寫出來,讓 frontmatter 自我
 -- 說明有哪些欄位。純量的引號規則與 @links@ \/ @timeline@ 的風格與
@@ -710,6 +769,127 @@ renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFie
         [] -> ["links: []"]
         ls -> "links:" : map linkLine ls
       _ -> []
+
+-- 檔案層 frontmatter 的型別專屬那一半(graph-core/F004 重跑,G17)------------
+
+-- | 檔案層的型別專屬條目。__'MetaExtras' 的 newtype,不是別名__
+-- (2026-08-25 開發者裁決 A11)。
+--
+-- 底層表示與節層__完全相同__(就是「一組原始行」),所以 'splitEntries' \/
+-- 'entryKey' \/ 'mergeExtras' 那一組機制__一份就夠__,本型別只在邊界拆包
+-- ('unFrontExtras',或 @Data.Coerce.coerce@)——__不得__另寫第二份切段與取鍵
+-- 的邏輯,那條規則正是 G2 \/ G17 的判準本身,兩份實作遲早分歧。
+--
+-- 那為什麼還要包一層:兩層的__鍵清單不同__(節層是 'metaFieldOrder'、檔案層是
+-- 'frontmatterFieldOrder'),混用時 'Aapms.Md.Parse.toPack' 照樣解得回來(多餘
+-- 的鍵一律忽略),症狀是__安靜的髒資料而不是編譯錯誤__。本子系統已經被
+-- 「安靜的資料遺失」咬過兩次(G2 在節層、G17 在檔案層),__兩次都不是測試抓到
+-- 的,是人讀出來的__;能用型別擋掉的第三次就不該留給人讀。
+newtype FrontExtras = FrontExtras
+  { unFrontExtras :: MetaExtras
+  }
+  deriving stock (Show, Eq)
+
+-- | frontmatter 裡__鍵不在 'frontmatterFieldOrder' 中__的頂層條目,以原始行
+-- 保存。與節層的 'extrasOf' __同一條規則__(同一個「頂層條目」定義、同一組
+-- 切段與取鍵的邏輯),只是欄位清單換成 'frontmatterFieldOrder'。
+--
+-- 判準是「不在清單裡」而不是「列舉 pack 的七欄」:型別註冊表可以宣告任意
+-- 檔案層欄位,列舉法會讓同一個 bug 換一批欄位重演(與節層 G2 的論證相同)。
+--
+-- 'Document' 的 'docFrontRaw' 由__開頭界線 @---@ 的行尾字元起算__(見
+-- "Aapms.Md.Document" 的切片界線),那個行尾不是 YAML 內容,切段前要先去掉,
+-- 否則會多出一個鍵為空字串的假條目。
+--
+-- __不解 YAML__:壞掉的 frontmatter 照樣抽得出行,壞不壞是 'updateFrontmatter'
+-- 走 'Meta' 那一半時才會發現的事(與 'extrasOf' 同一個理由)。
+frontExtrasOf :: Document -> FrontExtras
+frontExtrasOf = undefined
+
+-- | 'mergeExtras' 的檔案層版本:__一行 wrapper__(@coerce mergeExtras@),
+-- 語意逐字相同(第一個參數為新,同鍵時它贏;順序是「@a@ 的條目依原序在前,
+-- @b@ 中鍵未被覆蓋的依原序在後」)。
+--
+-- 存在的理由只是讓 'updateFrontmatterExtras' 的呼叫端不必手動拆包再包回去;
+-- __不得複製 'mergeExtras' 的邏輯__。
+mergeFrontExtras :: FrontExtras -> FrontExtras -> FrontExtras
+mergeFrontExtras = undefined
+
+-- | 完整 'Meta' + 檔案層專屬條目 → frontmatter 內容(__不含__ @---@ 界線,
+-- 含結尾行尾)。'renderMetaBlock' 在檔案層的對應物,__兩半都要__。
+--
+-- 行序列固定是:'frontmatterFieldOrder' 依序產生的行,然後 @'extraLines'@
+-- 逐字。專屬條目排在 'Meta' 欄位__之後__而不是回到原位,理由與節層相同
+-- (F004「不可逆決定」第 3 條)。
+--
+-- @M@ 與 @ex@ 的鍵不重複是__前提__不是本函式的責任——由 'frontExtrasOf' 與
+-- 'packFrontExtras' 的鍵集合保證(F004 的 L40 \/ L48)。吃 'FrontExtras' 而不是
+-- 'MetaExtras',所以「把節層的 extras 餵進來」在__型別上就寫不出來__(A11)。
+renderFrontmatterWith :: Meta -> FrontExtras -> LineEnding -> Text
+renderFrontmatterWith = undefined
+
+-- | 從零產生一份帶__檔案層專屬欄位__的文件。'newDocument' 的兩半版本;
+-- @pack.md@ 只能走這一支('createPackFile' 的 @npVendor@ … 七欄靠它落地)。
+--
+-- 除了多吃一個 'FrontExtras',其餘與 'newDocument' 完全相同(三段切片的填法、
+-- 固定 'LF'、@kind@ 存進內部快取欄位)。
+newDocumentWith :: DocKind -> Meta -> FrontExtras -> Text -> Document
+newDocumentWith = undefined
+
+-- | 只改檔案層的型別專屬條目:'Meta' 那一半__一個欄位都不動__,'docPreamble'
+-- 與每一節__一個位元組都不動__。'updateSectionExtras' 在檔案層的對應物。
+--
+-- @'MetaOverride' -> 'MetaOverride'@ 在節層表達不了 asset 的專屬欄位,
+-- @'Meta' -> 'Meta'@ 在檔案層同樣表達不了 pack 的七欄——這是同一件事的兩層。
+--
+-- frontmatter 的 YAML 壞掉時回 @'Left' ('mdError' 1 ('FrontmatterYaml' msg))@
+-- 且__不覆蓋__:'Meta' 那一半要原樣寫回去,就得先讀得懂它。
+updateFrontmatterExtras :: (FrontExtras -> FrontExtras) -> Document -> Either MdError Document
+updateFrontmatterExtras = undefined
+
+-- | @pack.md@ 檔案層的專屬欄位,與 'Aapms.Core.Pack.Pack' 逐欄對應(扣掉
+-- 'Aapms.Core.Meta.Meta' 與正文)。'NewAsset' \/ 'NewLicense' 在檔案層的對應物。
+--
+-- __只有寫方向__:讀方向是 "Aapms.Core.Json" 的 @FromJSON Pack@,那是全系統
+-- 唯一的解碼規則(F001),md 不得再定義第二份。兩者對得上不靠型別,靠 F004 的
+-- __往返 law__ L44 —— G17 之所以能潛伏,正是因為以前沒有任何 law 測這個往返。
+--
+-- 欄位名前綴用 @npf@ 而不是 @aapms-store@ 的 @NewPack@ 那組 @np@:兩者是
+-- __不同的 DTO__(store 的 'NewPack' 還帶 @npDir@ \/ @npTitle@ \/ @npTags@ 等
+-- 建 'Meta' 與路徑要用的欄位),同名欄位選擇器會在 store 一旦
+-- @import Aapms.Md@ 時互相衝突。
+data NewPackFront = NewPackFront
+  { npfVendor :: Maybe Text
+  , npfArchive :: Maybe FilePath
+  -- ^ @'Nothing'@ = 散檔目錄,此時各 asset 的 @entry@ 是相對該目錄的路徑
+  , npfSha256 :: Maybe Sha256
+  , npfLicense :: Maybe Ref
+  , npfAuthor :: Maybe Author
+  , npfSourceUrl :: Maybe Text
+  , npfAiDisclosure :: AiDisclosure
+  -- ^ @'Aapms.Core.Pack.AiUnknown'@ = 不寫這一欄(@FromJSON Pack@ 的
+  -- @.:? \"ai_disclosure\" .!= AiUnknown@ 會解回同一個值)
+  }
+  deriving stock (Show, Eq)
+
+-- | 檔案層專屬欄位 → 'FrontExtras' 的行。'payloadExtras' 在檔案層的對應物。
+--
+-- 產生的鍵是固定的一組,且__與 'frontmatterFieldOrder' 不相交__:
+-- @vendor@ @archive@ @sha256@ @license@ @author@ @source_url@
+-- @ai_disclosure@,依此順序(= 'Aapms.Core.Pack.Pack' 的欄位順序,也是
+-- @FromJSON Pack@ 讀它們的順序)。
+--
+-- 值為 'Nothing'(以及 @npfAiDisclosure = 'Aapms.Core.Pack.AiUnknown'@)的欄位
+-- __不輸出__——與 @FromJSON Pack@ 對「鍵不存在」的處置一致,寫出去再解回來是
+-- 同一份值。
+--
+-- @author@ 是巢狀物件、@ai_disclosure@ 是四個字面值之一,兩者的文字形狀由
+-- "Aapms.Core.Json" 的 @ToJSON@ 實例決定(借 aeson 的編碼器產生 flow 值,
+-- 與 'NewAsset' 的 @meta@ 走 'renderValue' 同一個作法),不在本模組另寫一套
+-- ——那會變成第二個真相來源。其餘五欄是純量,走 'scalar'(@sha256@ 先解開
+-- 'Sha256' newtype、@license@ 先 'renderRef')。
+packFrontExtras :: NewPackFront -> FrontExtras
+packFrontExtras = undefined
 
 -- | 固定的欄位順序。entity-graph-core/F003 給的九個欄位順序原樣保留為子序列,
 -- @kind@ / @vault@ / @created@ / @updated@ 是實作補上的(實作備註 1)。

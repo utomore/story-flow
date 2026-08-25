@@ -36,17 +36,49 @@ module Aapms.Store.Write
   , allocateId
   ) where
 
+import Data.List (find)
 import Data.Text (Text)
-import Data.Time (UTCTime)
-import Aapms.Core.Asset (LogicalName)
-import Aapms.Core.Id (Id, IdPrefix, Ref)
-import Aapms.Core.License (License)
-import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Revision)
-import Aapms.Md.Inherit (MetaOverride)
-import Aapms.Store.Edit (WriteResult (..))
-import Aapms.Store.Error (StoreError)
-import Aapms.Store.Marker (VaultHandle)
+import Data.Time (UTCTime, getCurrentTime, utctDay)
+import Database.SQLite.Simple (Only (..), query)
+import Aapms.Core.Asset (Asset (..), LogicalName (..))
+import Aapms.Core.Id (Id, IdPrefix (..), Ref, VaultId, newId, renderId)
+import Aapms.Core.License (License (..))
+import Aapms.Core.Link (Link (..))
+import Aapms.Core.Meta (Meta (..), Revision (..), Source (..), Status (..), TypeKey (..), bumpRevision)
+import Aapms.Md.Document (DocKind (..), Document (..))
+import Aapms.Md.Inherit (MetaOverride (..), applyOverride, overrideOf)
+import Aapms.Md.Render
+  ( NewAsset (..)
+  , NewLicense (..)
+  , NewSection (..)
+  , NewSectionPayload (..)
+  , appendSection
+  , newDocument
+  , payloadExtras
+  , replacePreamble
+  , updateFrontmatter
+  , updateSection
+  , updateSectionBody
+  , updateSectionExtras
+  )
+import Aapms.Md.Parse (toLicenses)
+import Aapms.Store.Edit
+  ( Located (..)
+  , WriteResult (..)
+  , checkRevision
+  , commit
+  , currentAssetAt
+  , currentMetaAt
+  , ensureDir
+  , locate
+  , orMd
+  , readDocument
+  , sectionBodyRaw
+  , (>>?)
+  , (?>>)
+  )
+import Aapms.Store.Error (StoreError (..), trySqlite)
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 
 -- asset 的人給欄位 ---------------------------------------------------------------
 
@@ -91,7 +123,26 @@ writeMeta
   -> Revision
   -> (MetaOverride -> MetaOverride)
   -> IO (Either StoreError WriteResult)
-writeMeta = undefined
+writeMeta vh i expected f =
+  locate vh i >>? \loc ->
+    readDocument vh (locPath loc) >>? \doc ->
+      currentMetaAt (locPath loc) (locKind loc) i (locAnchor loc) doc ?>> \curMeta ->
+        checkRevision i expected (metaRevision curMeta) ?>> \() -> do
+          today <- utctDay <$> getCurrentTime
+          let bumped = bumpRevision today curMeta
+              newRev = metaRevision bumped
+              newUpdated = metaUpdated bumped
+              docE = case locAnchor loc of
+                Nothing ->
+                  let edited = applyOverride (f (overrideOf curMeta)) curMeta
+                   in orMd (locPath loc) (updateFrontmatter (const edited {metaRevision = newRev, metaUpdated = newUpdated}) doc)
+                Just secId ->
+                  orMd
+                    (locPath loc)
+                    (updateSection secId (\ov -> (f ov) {moRevision = Just newRev, moUpdated = Just newUpdated}) doc)
+          case docE of
+            Left e -> pure (Left e)
+            Right doc' -> commit vh (locPath loc) doc' i newRev
 
 -- | 改 asset 的人給欄位。目標不是 asset 時回 'Aapms.Store.Error.NotAnAsset'。
 --
@@ -103,7 +154,50 @@ writeAssetFields
   -> Revision
   -> AssetPatch
   -> IO (Either StoreError WriteResult)
-writeAssetFields = undefined
+writeAssetFields vh i expected AssetPatch {..} =
+  locate vh i >>? \loc -> case (locKind loc, locAnchor loc) of
+    (PackDoc, Just _) ->
+      readDocument vh (locPath loc) >>? \doc ->
+        currentAssetAt (locPath loc) i doc ?>> \curAsset ->
+          checkRevision i expected (metaRevision (astMeta curAsset)) ?>> \() -> do
+            today <- utctDay <$> getCurrentTime
+            let bumped = bumpRevision today (astMeta curAsset)
+                newRev = metaRevision bumped
+                newUpdated = metaUpdated bumped
+                mergedAsset =
+                  NewAsset
+                    { naName = applyPatchField apName (astName curAsset)
+                    , naSha256 = astSha256 curAsset
+                    , naEntry = astEntry curAsset
+                    , naExt = astExt curAsset
+                    , naKindMeta = astKindMeta curAsset
+                    , naLicense = applyPatchField apLicense (astLicense curAsset)
+                    , naAuthor = applyPatchField apAuthor (astAuthor curAsset)
+                    }
+                newExtras = payloadExtras (NSAsset (overrideOf (astMeta curAsset)) mergedAsset)
+            case orMd (locPath loc) (updateSectionExtras i (const newExtras) doc) of
+              Left e -> pure (Left e)
+              Right doc1 ->
+                case orMd
+                  (locPath loc)
+                  ( updateSection
+                      i
+                      ( \ov ->
+                          ov
+                            { moRevision = Just newRev
+                            , moUpdated = Just newUpdated
+                            , moTags = maybe (moTags ov) Just apTags
+                            }
+                      )
+                      doc1
+                  ) of
+                  Left e -> pure (Left e)
+                  Right doc2 -> commit vh (locPath loc) doc2 i newRev
+    _ -> pure (Left (NotAnAsset i))
+  where
+    applyPatchField :: Maybe (Maybe a) -> Maybe a -> Maybe a
+    applyPatchField Nothing cur = cur
+    applyPatchField (Just v) _ = v
 
 -- 正文 ------------------------------------------------------------------------
 
@@ -117,7 +211,29 @@ writeBody
   -> Revision
   -> Text
   -> IO (Either StoreError WriteResult)
-writeBody = undefined
+writeBody vh i expected body =
+  locate vh i >>? \loc ->
+    readDocument vh (locPath loc) >>? \doc ->
+      currentMetaAt (locPath loc) (locKind loc) i (locAnchor loc) doc ?>> \curMeta ->
+        checkRevision i expected (metaRevision curMeta) ?>> \() -> do
+          today <- utctDay <$> getCurrentTime
+          let bumped = bumpRevision today curMeta
+              newRev = metaRevision bumped
+              newUpdated = metaUpdated bumped
+              docE = case locAnchor loc of
+                Nothing ->
+                  let doc1 = replacePreamble body doc
+                   in orMd (locPath loc) (updateFrontmatter (const bumped) doc1)
+                Just secId ->
+                  case updateSectionBody secId (sectionBodyRaw (docEnding doc) body) doc of
+                    Left e -> Left (MdWriteFailed (locPath loc) e)
+                    Right doc1 ->
+                      orMd
+                        (locPath loc)
+                        (updateSection secId (\ov -> ov {moRevision = Just newRev, moUpdated = Just newUpdated}) doc1)
+          case docE of
+            Left e -> pure (Left e)
+            Right doc' -> commit vh (locPath loc) doc' i newRev
 
 -- 關聯 ------------------------------------------------------------------------
 
@@ -126,7 +242,12 @@ writeBody = undefined
 -- 關聯__只存在來源端__(ADR-002),所以這是單邊、單檔操作:目標端的檔案一個
 -- 位元組都不會被碰到。反向查詢由索引負責。
 addLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)
-addLink = undefined
+addLink vh i expected link =
+  locate vh i >>? \loc ->
+    readDocument vh (locPath loc) >>? \doc ->
+      currentMetaAt (locPath loc) (locKind loc) i (locAnchor loc) doc ?>> \curMeta ->
+        checkRevision i expected (metaRevision curMeta) ?>> \() ->
+          applyLinks vh loc doc curMeta i (metaLinks curMeta ++ [link])
 
 -- | 刪一筆關聯,以整筆 'Link' 比對(@kind@ + @target@ + @note@ 皆相同才算命中);
 -- 同一筆出現多次時全部刪掉。
@@ -137,7 +258,44 @@ addLink = undefined
 -- 比對的是__檔案裡寫的那個 'Aapms.Core.Id.Ref'__:作者寫
 -- @vlt-a0c4e1f8:ent-7f3a@ 時要以同樣的形式來刪。
 removeLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)
-removeLink = undefined
+removeLink vh i expected link =
+  locate vh i >>? \loc ->
+    readDocument vh (locPath loc) >>? \doc ->
+      currentMetaAt (locPath loc) (locKind loc) i (locAnchor loc) doc ?>> \curMeta ->
+        checkRevision i expected (metaRevision curMeta) ?>> \() ->
+          if link `notElem` metaLinks curMeta
+            then pure (Left (LinkNotFound i link))
+            else applyLinks vh loc doc curMeta i (filter (/= link) (metaLinks curMeta))
+
+-- | 'addLink' \/ 'removeLink' 共用:把算好的新關聯清單寫回,並讓 revision +1。
+applyLinks
+  :: VaultHandle -> Located -> Document -> Meta -> Id -> [Link] -> IO (Either StoreError WriteResult)
+applyLinks vh loc doc curMeta i newLinks = do
+  today <- utctDay <$> getCurrentTime
+  let bumped = bumpRevision today curMeta
+      newRev = metaRevision bumped
+      newUpdated = metaUpdated bumped
+      docE = case locAnchor loc of
+        Nothing -> orMd (locPath loc) (updateFrontmatter (const bumped {metaLinks = newLinks}) doc)
+        Just secId ->
+          orMd
+            (locPath loc)
+            ( updateSection
+                secId
+                -- 清空之後不留 `links: []` 這一行——沒有連結就是沒有這個鍵,
+                -- 與「原本就沒寫過」不可區分,L6 要求的往返恆等才成立。
+                ( \ov ->
+                    ov
+                      { moRevision = Just newRev
+                      , moUpdated = Just newUpdated
+                      , moLinks = if null newLinks then Nothing else Just newLinks
+                      }
+                )
+                doc
+            )
+  case docE of
+    Left e -> pure (Left e)
+    Right doc' -> commit vh (locPath loc) doc' i newRev
 
 -- 授權 ------------------------------------------------------------------------
 
@@ -154,7 +312,93 @@ removeLink = undefined
 -- 'Aapms.Core.Meta.metaRevision' ——契約 E 的簽名沒有獨立的 revision 參數,而
 -- 完整的 'License' 本來就帶著它。節不存在(新增)時不比對。
 upsertLicense :: VaultHandle -> License -> IO (Either StoreError WriteResult)
-upsertLicense = undefined
+upsertLicense vh lic = do
+  let path = licensesPath
+  docR <- readDocument vh path
+  case docR of
+    Left (FileReadFailed _ _) -> do
+      -- library/licenses.md 還不存在:先建一份空的容器檔
+      ensureDir vh path
+      t <- getCurrentTime
+      let containerMeta = freshLicensesContainerMeta (vmId (vhMarker vh)) t
+      upsertInto vh path (newDocument LicenseDoc containerMeta "") lic
+    Left e -> pure (Left e)
+    Right doc -> upsertInto vh path doc lic
+
+-- | @library\/licenses.md@ 是唯一固定路徑(system.md 的目錄配置);容器本身
+-- 不是節點,從不進索引,'metaId' 因此只是型別上必要的佔位,不會被任何查詢用到。
+licensesPath :: FilePath
+licensesPath = "library/licenses.md"
+
+freshLicensesContainerMeta :: VaultId -> UTCTime -> Meta
+freshLicensesContainerMeta vid t =
+  Meta
+    { metaId = newId PLic "licenses" t 0
+    , metaVault = vid
+    , metaType = TypeKey "asset-license"
+    , metaTitle = "Licenses"
+    , metaSummary = ""
+    , metaTags = []
+    , metaStatus = Canon
+    , metaTimeline = Nothing
+    , metaAliases = []
+    , metaLinks = []
+    , metaSource = Human
+    , metaRevision = Revision 1
+    , metaCreated = utctDay t
+    , metaUpdated = utctDay t
+    }
+
+upsertInto :: VaultHandle -> FilePath -> Document -> License -> IO (Either StoreError WriteResult)
+upsertInto vh path doc lic = case orMd path (toLicenses doc) of
+  Left e -> pure (Left e)
+  Right lics ->
+    let targetId = metaId (licMeta lic)
+     in case find ((== targetId) . metaId . licMeta) lics of
+          Just curLic -> case checkRevision targetId (metaRevision (licMeta lic)) (metaRevision (licMeta curLic)) of
+            Left e -> pure (Left e)
+            Right () -> overwriteLicense vh path doc targetId lic
+          Nothing -> appendLicense vh path doc lic
+
+licensePayloadOf :: License -> NewLicense
+licensePayloadOf License {..} =
+  NewLicense
+    { nlcCommercial = licCommercial
+    , nlcAttributionRequired = licAttributionRequired
+    , nlcCreditText = licCreditText
+    , nlcModificationAllowed = licModificationAllowed
+    , nlcRedistributionAllowed = licRedistributionAllowed
+    , nlcResaleAllowed = licResaleAllowed
+    , nlcNftAllowed = licNftAllowed
+    , nlcSourceUrl = licSourceUrl
+    }
+
+overwriteLicense :: VaultHandle -> FilePath -> Document -> Id -> License -> IO (Either StoreError WriteResult)
+overwriteLicense vh path doc targetId lic = do
+  today <- utctDay <$> getCurrentTime
+  let bumped = bumpRevision today (licMeta lic)
+      payload = licensePayloadOf lic
+  case orMd path (updateSectionExtras targetId (const (payloadExtras (NSLicense (overrideOf bumped) payload))) doc) of
+    Left e -> pure (Left e)
+    Right doc1 -> case orMd path (updateSection targetId (const (overrideOf bumped)) doc1) of
+      Left e -> pure (Left e)
+      Right doc2 -> commit vh path doc2 targetId (metaRevision bumped)
+
+appendLicense :: VaultHandle -> FilePath -> Document -> License -> IO (Either StoreError WriteResult)
+appendLicense vh path doc lic = do
+  let targetId = metaId (licMeta lic)
+      payload = licensePayloadOf lic
+      newSection =
+        NewSection
+          { nsId = targetId
+          , nsLevel = 2
+          , nsTitle = metaTitle (licMeta lic)
+          , nsBody = ""
+          , nsPayload = NSLicense (overrideOf (licMeta lic)) payload
+          }
+  case orMd path (appendSection newSection doc) of
+    Left e -> pure (Left e)
+    Right doc1 -> commit vh path doc1 targetId (metaRevision (licMeta lic))
 
 -- ID ---------------------------------------------------------------------------
 
@@ -177,4 +421,17 @@ upsertLicense = undefined
 -- 撞 @nodes.id@ 主鍵」的形式發現,修復要人工改檔案裡的 id 與所有指向它的關聯。
 -- 因此簽名帶失敗通道:查詢失敗回 'Aapms.Store.Error.SqliteError'。
 allocateId :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
-allocateId = undefined
+allocateId vh p c t = tryAlloc 0
+  where
+    tryAlloc :: Int -> IO (Either StoreError Id)
+    tryAlloc salt = do
+      let candidate = newId p c t salt
+      existsR <-
+        trySqlite
+          ( query (vhConn vh) "SELECT count(*) FROM nodes WHERE id = ?" (Only (renderId candidate)) ::
+              IO [Only Int]
+          )
+      case existsR of
+        Left e -> pure (Left e)
+        Right (Only n : _) | n > 0 -> tryAlloc (salt + 1)
+        Right _ -> pure (Right candidate)

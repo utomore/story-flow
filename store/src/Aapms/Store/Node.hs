@@ -28,8 +28,10 @@ module Aapms.Store.Node
   ) where
 
 import Aapms.Core.Id (Id)
-import Aapms.Md.Document (Document, Section)
-import Aapms.Store.Error (StoreError)
+import Aapms.Core.Tree (buildTree)
+import Aapms.Md.Document (Document (..), Section (..), sectionById)
+import Aapms.Md.Parse (toLevel)
+import Aapms.Store.Error (StoreError (..))
 
 -- 層級 ------------------------------------------------------------------------
 
@@ -39,20 +41,28 @@ import Aapms.Store.Error (StoreError)
 -- 'Aapms.Store.Error.NodeDepthExceeded' —— Markdown 只有六級標題,再深就沒有
 -- 合法的表示法。
 headingDepthFor :: FilePath -> Document -> Id -> Either StoreError Int
-headingDepthFor = undefined
+headingDepthFor path doc pid = case sectionById pid doc of
+  Nothing -> Left (SectionMissing path pid)
+  Just p ->
+    let depth = secLevel p + 1
+     in if depth > 6
+          then Left (NodeDepthExceeded pid depth)
+          else Right depth
 
 -- 子樹 ------------------------------------------------------------------------
 
 -- | 某一節之後、屬於它子樹的所有節(不含它自己)。節不存在時是空清單。
 subtreeAfter :: Document -> Id -> [Section]
-subtreeAfter = undefined
+subtreeAfter doc i = case break ((== i) . secId) (docSections doc) of
+  (_, s : rest) -> takeWhile ((> secLevel s) . secLevel) rest
+  (_, []) -> []
 
 -- | 某一節與它整棵子樹的 id,依文件順序;節本身排在最前面。
 --
 -- 刪一個 Node 就是刪它整棵子樹:留下孤兒節點會讓下一次
 -- 'Aapms.Core.Tree.buildTree' 直接失敗,整份 Level 檔進不了索引。
 subtreeIds :: Document -> Id -> [Id]
-subtreeIds = undefined
+subtreeIds doc i = i : map secId (subtreeAfter doc i)
 
 -- | 這個 id 是不是該 Level 檔的根 Node(frontmatter 的 @root@ \/ 第一個節)。
 --
@@ -69,7 +79,11 @@ subtreeIds = undefined
 -- 是兩件不同的事,合一會讓呼叫端分不出來 ——'Aapms.Store.Create.deleteNode' 會把
 -- 一個根本不存在的 id 當成「可以刪的非根節點」繼續往下走,錯誤就往下游飄。
 isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool
-isRootNode = undefined
+isRootNode path doc i = case sectionById i doc of
+  Nothing -> Left (SectionMissing path i)
+  Just _ -> case docSections doc of
+    (root : _) -> Right (secId root == i)
+    [] -> Left (SectionMissing path i)
 
 -- 驗證 ------------------------------------------------------------------------
 
@@ -78,4 +92,8 @@ isRootNode = undefined
 -- 解析失敗回 'Aapms.Store.Error.MdWriteFailed',樹不合法回
 -- 'Aapms.Store.Error.TreeInvalidOnWrite'。
 validateLevelDoc :: FilePath -> Document -> Either StoreError ()
-validateLevelDoc = undefined
+validateLevelDoc path doc = case toLevel doc of
+  Left e -> Left (MdWriteFailed path e)
+  Right (lvl, nodes) -> case buildTree lvl nodes of
+    Left errs -> Left (TreeInvalidOnWrite path errs)
+    Right _tree -> Right ()

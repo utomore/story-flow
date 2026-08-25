@@ -230,3 +230,108 @@ parent: graph-core
   `renderMdErrorKind`;L39 的回歸半句(既有建構子訊息不變)由 E22 覆蓋,不受此計數誤差影響
   (L39 前半句——`HeadingTooDeep` 訊息本身——單獨有測試覆蓋,見同檔 L39)
 - 狀態:resolved (2026-08-25,spec 措辭修正:既有建構子數 14 → 15)
+
+## G13(F008 / impl)—— `sanitizeFileName` 的 L20 與 E11 對同一件事給出不同答案
+
+- **模糊點**:L20「t 被清空時結果等於 fb」與 E11「`sanitizeFileName "第一章: 序幕 " fb` ==
+  `"第一章- 序幕"`(冒號換成 `-`)」隱含兩種互斥的清理策略。E11 要求非法字元被**替換**成
+  `-`(保留在結果裡,佔一個字元);但 `NodeSpec2.hs` 對 L20 的 property test 用
+  `genOnlyStrippable` 產生**只含**非法字元(觀察到的反例是單一字元 `"<"`)的輸入,斷言結果
+  等於 `fb`——若非法字元被替換成 `-`,單一 `"<"` 會變成 `"-"`(非空、非法字元清單也不含
+  `-`),不會落到「清空」分支。兩種讀法只有在「t 混合合法與非法字元」時才會一致(E11 正是
+  這種情況,兩種策略在此都給 `"第一章- 序幕"`);純非法字元組成的輸入時才會分岔
+- **卡住的項目**:L20 的「t 被清空時結果等於 fb」這條 property test。impl 已依 E11 逐字實作
+  「替換」策略(唯一有逐字文本釘死的行為),因此該 property test 目前為紅
+- **需要 spec 回答什麼**:非法字元(`< > : " / \ | ? *` 與控制字元)該**替換成 `-`**(E11 的
+  讀法)還是**整個移除**(L20 property test 的讀法)?兩者只有「純非法字元輸入」時行為不同,
+  但那正是這條 law 在測的情境
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**替換**。E11 的逐字例子是權威(逐字例子是最難被誤讀的一種 spec),`sanitizeFileName` 維持「非法字元換成 `-`」;改的是 **L20 的措辭**——「被清空」只指「去掉頭尾空白與 `.` 之後為空」,**不含**「輸入只由非法字元組成」。機械定義:`t` 的每一個字元都是空白或 `.`(空字串亦然)才算被清空。所以 `"<"` 的正確結果是 `"-"`、`"   "` 與 `"..."` 才回 `fb`;qa 的 `genOnlyStrippable` 要改成只產生空白與 `.`。F008 已改寫 L20(四條子句)並新增 **E19**(全空白 / 全 `.` → `fb`)、**E20**(`"<"` → `"-"`、`"<>?"` → `"---"`)、**E21**(合法字元原樣回傳)
+
+## G14(F008 / impl)—— L12a / L12b 的「前面節位元組不變」與 `appendSection` / `insertSection`
+  自身文件明載的行為衝突
+
+- **模糊點**:L12a「addSection vh i AtEnd s 成功之後前 n 節的 renderSection 位元組不變」與
+  L12b 的子句 2「該位置之前與之後的每一節的 renderSection 位元組都與呼叫前相同」都是全稱
+  斷言,不留例外。但 `Aapms.Md.Render.appendSection` / `insertSection`(F004 已交付、本 feature
+  不得修改)**自己的 haddock 明載**它們會用 `blankTail` 把插入點**前一節**的 `secBodyRaw`
+  補到剛好隔一個空行(若原本沒有的話),並主張「被動到的是插入點,不是『未經修改的區塊』,
+  所以不違反 ADR-010」——這條「插入點前一節可能被動」的但書,L12a / L12b 的文字都沒有繼承
+  過來
+- **已重現**(impl 這一輪,`Aapms.Store.Create` 呼叫 `appendSection` 走 F004 的既有實作,
+  未另寫序列化邏輯):對一份倒數第二節結尾只有單一 `\n`(無空行)的主題檔追加片段,
+  `appendSection` 依其文件行為把該節補成 `\n\n`,導致 `CreateSpec.hs` 的 L12a 測試(比對
+  該節 `renderSection` 逐字不變)為紅;`E12/L12b` 系列測試在能夠重現到這一步之前先撞上
+  G15(見下),尚未individually驗證是否也有同一個落差
+- **需要 spec 回答什麼**:L12a / L12b 是否要比照 `insertSection` 自己文件的但書,把「插入點
+  前一節的空行補齊」排除在「位元組不變」的斷言之外(即「不變」只保證**除插入點外**的節,
+  且插入點前一節僅允許『補齊到剛好一個空行』這一種變化)?
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**是**,L12a / L12b 照 F004 的 A10 收窄措辭改(同一個根,同一次裁決)。新措辭:插入一節之後其餘每一節位元組不變——**唯一的例外是插入點之前那一段的行尾**:它還沒有以空行結尾時會被補齊(`blankTail` 冪等,已經是空行結尾就原樣不動),`appendSection` 走同一條規則;被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010。F008 的 L12a / L12b 已改寫並新增「插入點行尾的但書」(附兩個機械可判定的推論供 qa 寫斷言:原本就以空行結尾 → 全檔不變;否則差異只允許在尾端、`T.stripEnd` 後逐位元組相同),E12 補註「`nod-b` 在插入點之後,不受但書影響」。**L3 / L6 / L16 不走插入路徑,那裡的「位元組不變」仍是無條件的**(已 grep 全文 `位元組` 逐處確認)
+
+## G15(F008 / impl)—— `Aapms.Store.Node` 的「新增的依賴邊」清單漏列 `validateLevelDoc`
+  需要的兩條邊
+
+- **模糊點**:F008 的「新增的依賴邊」逐條列出四個模組本次會新增的 import,對
+  `Aapms.Store.Node` 只列了 `Aapms.Core.Id`、`Aapms.Md.Document`、`Aapms.Store.Error`(且
+  明說「不再需要 `Aapms.Store.Edit`」),「實作階段還會新增」那個補充清單裡也完全沒有提到
+  `Node.hs`。但 L23 把 `validateLevelDoc` 的行為定義成「`toLevel doc` 成功且 `buildTree`
+  回 `Right`」——這兩個函式分別來自 `Aapms.Md.Parse` 與 `Aapms.Core.Tree`,不在上面任何一份
+  清單裡。不呼叫這兩個函式、只用 `Node.hs` 已授權的三個依賴,寫不出滿足 L23 的
+  `validateLevelDoc`(自己重寫一份等價的樹驗證邏輯,又違反「父子關係的標題層級只有一個
+  推導點」與「序列化規則只有一份」的知識歸屬原則)
+- **impl 已完成的處置**(未整項停工):`Node.hs` 補上 `Aapms.Md.Parse`(只用 `toLevel`)與
+  `Aapms.Core.Tree`(只用 `buildTree`)兩條依賴,`validateLevelDoc` 逐字依 L23 實作。這兩個
+  依賴都已經是 `aapms-store` 對 `aapms-md` / `aapms-core` 既有 `build-depends` 的一部分,
+  不新增套件層的邊,也不成環(`Aapms.Md.Parse` / `Aapms.Core.Tree` 都不 import 任何
+  `Aapms.Store.*`)
+- **已重現的後果**:`NodeSpec2.hs` 的「L23:合法的 Level 檔:validateLevelDoc 回 `Right ()`」
+  目前為紅——但歸因見下一條(G16),紅燈的直接原因是 fixture 本身未通過 `toLevel` 驗證,
+  不是這條依賴邊補齊與否
+- **需要 spec 回答什麼**:請把這兩條邊回寫進 design.md 的「新增的依賴邊」清單,補上
+  `Aapms.Store.Node → Aapms.Md.Parse(僅 toLevel)、Aapms.Core.Tree(僅 buildTree)`
+- 狀態:resolved (2026-08-25 編排者回寫 design.md):**不照字面登記每一條 import**——逐條列 `import Aapms.Core.Entity` 之類屬 Level 3 實作細節,`conventions.md` 的抽象邊界規範明文禁止寫進 Level 2 文檔。改為登記這兩條**確實屬於 Level 2、而 design.md 原本漏掉**的事實:① 寫入管線補上「寫檔前驗證(Level 檔):`toLevel` + `buildTree`,樹不合法即 `TreeInvalidOnWrite` 中止,檔案未動」一段;② 模組間公開介面的 `aapms-store → aapms-md` 列補「**並反向用 `to*` 讀回目標目前的 `Meta`**」(樂觀鎖來源是重讀的檔案而非索引),`→ aapms-core` 列補「`buildTree` 另在寫入路徑被呼叫一次」。impl 把共用的 `currentMetaAt` / `currentAssetAt` 集中放進 `Edit.hs` 屬實作自主權,編排者不介入。
+
+## G16(F008 / impl)—— `Aapms.Store.Write` / `Aapms.Store.Create` 需要的
+  `Aapms.Core.{Entity,Level,Pack}` 依賴邊未列在「新增的依賴邊」
+
+- **模糊點**:`writeMeta` / `writeBody` / `addLink` / `removeLink` 的 haddock 都明說「節與
+  檔案層主體都支援」,四種文件(`TopicDoc` / `LevelDoc` / `PackDoc` / `LicenseDoc`)通用。
+  要在寫入前用「重讀的檔案」取得目標**目前真正的 Meta**(不可逆決定 2),唯一的管道是
+  `Aapms.Md.Parse` 的 `toTopic` / `toLevel` / `toPack` / `toLicenses`,四者分別回傳
+  `Entity` / `(Level, [Node])` / `(Pack, [Asset])` / `[License]`——要取出裡面的 `Meta`
+  (`entMeta` / `lvlMeta` / `nodMeta` / `pckMeta` / `astMeta` / `licMeta`),就得 import
+  `Aapms.Core.Entity` / `Aapms.Core.Level` / `Aapms.Core.Pack`。但 F008 的「新增的依賴邊」
+  對 `Aapms.Store.Write` 只列了 `Aapms.Core.{Asset,Id,License,Link,Meta}`(缺 `Entity` /
+  `Level` / `Pack`),`Aapms.Store.Create` 同樣缺這三個(`deleteNode` 需要
+  `Aapms.Md.Document.sectionIds` 取得整檔 id 清單,也不在清單裡)
+- **impl 已完成的處置**(未整項停工):把「讀出目標目前的 Meta / Asset」這段共用邏輯集中放進
+  `Aapms.Store.Edit`(export 新增 `currentMetaAt` / `currentAssetAt`,供 `Write` 與
+  `Create` 一起用,理由與 `Edit.hs` 本來的定位「所有寫入路徑共用的那一條紀律」一致,不重複
+  寫兩份),`Edit.hs` 因此補上 `Aapms.Core.{Asset,Entity,Level,License,Pack}` 與
+  `Aapms.Md.Parse`;`Create.hs` 另外補 `Aapms.Md.Document`(`sectionIds` /
+  `Document`)。都是套件層既有 `build-depends` 範圍內的邊,不成環
+- **需要 spec 回答什麼**:請把上述邊回寫進 design.md;若編排者認為這些依賴不該集中在
+  `Edit.hs`(例如希望 `Write` / `Create` 各自 import),也請一併定調,impl 目前的擺放只是
+  「同一段邏輯只寫一份」的實作自主權選擇,不是契約要求
+- 狀態:resolved (2026-08-25 編排者回寫 design.md):**不照字面登記每一條 import**——逐條列 `import Aapms.Core.Entity` 之類屬 Level 3 實作細節,`conventions.md` 的抽象邊界規範明文禁止寫進 Level 2 文檔。改為登記這兩條**確實屬於 Level 2、而 design.md 原本漏掉**的事實:① 寫入管線補上「寫檔前驗證(Level 檔):`toLevel` + `buildTree`,樹不合法即 `TreeInvalidOnWrite` 中止,檔案未動」一段;② 模組間公開介面的 `aapms-store → aapms-md` 列補「**並反向用 `to*` 讀回目標目前的 `Meta`**」(樂觀鎖來源是重讀的檔案而非索引),`→ aapms-core` 列補「`buildTree` 另在寫入路徑被呼叫一次」。impl 把共用的 `currentMetaAt` / `currentAssetAt` 集中放進 `Edit.hs` 屬實作自主權,編排者不介入。
+
+## G17(F008 / impl)—— `createPackFile` 寫不出 Pack 專屬的 frontmatter 欄位
+
+- **模糊點**:`Aapms.Core.Json` 的 `FromJSON Pack` / `ToJSON Pack` 實例(`toPack` 實際依賴的
+  解碼路徑)把 `vendor` / `archive` / `sha256` / `license` / `author` / `source_url` /
+  `ai_disclosure` 這些 pack 專屬欄位,與 `Meta` 的 14 個欄位**攤平在同一層 frontmatter
+  物件**解碼。但 `Aapms.Md.Render` 對外公開的 frontmatter 寫入介面
+  (`newDocument` / `renderFrontmatter` / `updateFrontmatter`)只吃 `Meta`,`frontmatterFieldOrder`
+  是寫死的 14 個 `Meta` 欄位,沒有任何管道可以多寫幾個 pack 專屬欄位進去——節層有
+  `MetaExtras` / `payloadExtras` 處理型別專屬欄位,**檔案層沒有對應的機制**
+- **卡住的項目**:`createPackFile` 目前只寫出標準 `Meta` 欄位,`NewPack` 帶進來的
+  `npVendor` / `npArchive` / `npSha256` / `npLicense` / `npAuthor` / `npSourceUrl` /
+  `npAiDisclosure` 完全沒有落地——重讀後 `toPack` 會把這些欄位全部解成 `Nothing` /
+  `AiUnknown`,不是呼叫端給的值。**沒有任何 Law 或 Example 測到這個往返**(E3 只驗證
+  `crPath` 與 asset 節順序),所以測試套件目前全線是綠的,但這是可觀察到的真實資料遺失,
+  只是現有 spec 沒有斷言去抓
+- **不在 impl 授權範圍內的修法**:唯一的正確修法是替 `Aapms.Md.Render` 加一個檔案層的
+  「extras」機制(對稱 `MetaExtras`),但 `md/` 不在本次委派可修改的檔案清單內
+- **需要 spec 回答什麼**:`createPackFile` 是否本來就不該負責這些欄位(留給 `asset-ingest`
+  之後用另一條路徑補寫)?若需要,請對 `aapms-md` 開一個 feature/enhancement 補上檔案層
+  extras 的寫入管道
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂,**實作待 F004**):`createPackFile` **本來就該**負責這七個欄位。**重新打開 F004**,替 `aapms-md` 補上**檔案層 extras** 的寫入管道(對稱節層的 `MetaExtras`),F008 的 `createPackFile` 接上它。F008 新增 **L25**(`createPackFile` 之後重讀,`toPack` 解出的 `Pack` 在 `pckVendor` / `pckArchive` / `pckSha256` / `pckLicense` / `pckAuthor` / `pckSourceUrl` / `pckAiDisclosure` 七欄逐欄等於傳入的 `NewPack`)與 **E22**(七欄全給非預設值),並在「實作備註 → 阻塞:L25 / E22 依賴 F004 的檔案層 extras」寫明:**這條 law 現在會紅,而且要一直紅到 F004 那一半落地為止,紅燈就是它的工作**;不得為了轉綠而寫弱、標 pending 或在 store 側手拼 frontmatter。編排者在 F004 交付後再委派一輪 F008 impl 接上

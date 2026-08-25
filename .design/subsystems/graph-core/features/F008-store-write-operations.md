@@ -3,7 +3,7 @@ id: F008
 type: feature
 title: store-write-operations
 description: vault 的建檔、增節、改寫、刪除與短 id 配號,全部走樂觀鎖與原子寫入
-status: open
+status: in-progress
 created: 2026-08-24
 updated: 2026-08-25
 depends-on: [F004, F006]
@@ -48,21 +48,21 @@ related-feature: []
 | 型別 | 動作 | 定義 | 擁有的知識 |
 |---|---|---|---|
 | `StoreError` | **擴充**(+15 建構子) | `Error.hs:29`,新建構子從 `Error.hs:41` 起(`NodeNotFound` … `NodeDepthExceeded`) | 寫入路徑可能發生哪些失敗,以及每一種的下一步。**不另立平行型別**(design.md 契約 G) |
-| `WriteResult` | 新增 | `{ wrId :: Id, wrPath :: FilePath, wrRevision :: Revision, wrIssues :: [IndexIssue] }`,`Edit.hs:77` | 一次改寫之後,新的 revision 與索引附帶回報 |
-| `Located` | 新增 | `{ locPath :: FilePath, locAnchor :: Maybe Id, locKind :: DocKind }`,`Edit.hs:113` | 索引在寫入路徑上唯一的用途:目標住在哪個檔、哪一節、那是哪種文件 |
-| `NewEntity` | 新增 | `Create.hs:94` | 一份新主題檔的全部人給欄位(不含 revision / 日期——那些由本層填) |
-| `NewLevel` | 新增 | `Create.hs:115` | 一份新 Level 檔 + 它的根 Node |
-| `NewPack` | 新增 | `Create.hs:132` | 一份新 `pack.md` 的檔案層欄位與落點目錄 |
+| `WriteResult` | 新增 | `{ wrId :: Id, wrPath :: FilePath, wrRevision :: Revision, wrIssues :: [IndexIssue] }`,`Edit.hs:96` | 一次改寫之後,新的 revision 與索引附帶回報 |
+| `Located` | 新增 | `{ locPath :: FilePath, locAnchor :: Maybe Id, locKind :: DocKind }`,`Edit.hs:132` | 索引在寫入路徑上唯一的用途:目標住在哪個檔、哪一節、那是哪種文件 |
+| `NewEntity` | 新增 | `Create.hs:123` | 一份新主題檔的全部人給欄位(不含 revision / 日期——那些由本層填) |
+| `NewLevel` | 新增 | `Create.hs:144` | 一份新 Level 檔 + 它的根 Node |
+| `NewPack` | 新增 | `Create.hs:161` | 一份新 `pack.md` 的檔案層欄位與落點目錄 |
 | `NewSection` | **沿用 md** | `md/src/Aapms/Md/Render.hs:238`,`Create.hs` 只 re-export | 一個新節的共通骨架(四種文件共用) |
 | `NewSectionPayload` | **沿用 md** | `md/src/Aapms/Md/Render.hs:256` | 「這一節是哪一種節點」以及它專屬的欄位 |
 | `NewAsset` | **沿用 md** | `md/src/Aapms/Md/Render.hs:272` | 一筆 asset 的檔案事實(`sha256` / `entry` 由 `asset-ingest` 算好給) |
 | `NewLicense` | **沿用 md** | `md/src/Aapms/Md/Render.hs:289` | 一種授權允許什麼、要求什麼 |
 | `NewNode` | **沿用 md** | `md/src/Aapms/Md/Render.hs:306` | Level 節點唯一不能由標題階層推導的事實 |
-| `SectionPlacement` | 新增 | `AtEnd \| UnderParent Id`,`Create.hs:198` | 新節要落在檔尾還是某個父節點底下 |
-| `AssetPatch` | 新增 | `{ apName, apLicense, apAuthor, apTags }`,兩層 `Maybe`,`Write.hs:64` | **人可以改 asset 的哪些欄位**——`sha256` / `entry` / `ext` / `meta` 不在裡面是型別層的拒絕 |
-| `CreateResult` | 新增 | `{ crId, crPath, crRevision, crIssues }`,`Create.hs:167` | 剛建出來的節點的 id(呼叫端唯一拿不到其他來源的資訊) |
-| `DeleteMode` | 新增 | `DeleteSafe \| DeleteForce`,`Create.hs:178` | 被指向時要擋還是照刪 |
-| `DeleteResult` | 新增 | `{ drPath, drRemovedIds, drBrokenLinks, drIssues }`,`Create.hs:181` | 這次刪掉了哪些 id、打斷了哪些關聯 |
+| `SectionPlacement` | 新增 | `AtEnd \| UnderParent Id`,`Create.hs:227` | 新節要落在檔尾還是某個父節點底下 |
+| `AssetPatch` | 新增 | `{ apName, apLicense, apAuthor, apTags }`,兩層 `Maybe`,`Write.hs:96` | **人可以改 asset 的哪些欄位**——`sha256` / `entry` / `ext` / `meta` 不在裡面是型別層的拒絕 |
+| `CreateResult` | 新增 | `{ crId, crPath, crRevision, crIssues }`,`Create.hs:196` | 剛建出來的節點的 id(呼叫端唯一拿不到其他來源的資訊) |
+| `DeleteMode` | 新增 | `DeleteSafe \| DeleteForce`,`Create.hs:207` | 被指向時要擋還是照刪 |
+| `DeleteResult` | 新增 | `{ drPath, drRemovedIds, drBrokenLinks, drIssues }`,`Create.hs:210` | 這次刪掉了哪些 id、打斷了哪些關聯 |
 
 **知識歸屬的三條界線**(避免與既有模組重複持有同一個事實):
 
@@ -85,19 +85,19 @@ related-feature: []
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `createTopicFile :: VaultHandle -> TypeRegistry -> NewEntity -> IO (Either StoreError CreateResult)` | 建一份新的主題檔,落點依註冊表的 `dir` | `store/src/Aapms/Store/Create.hs:216` |
-| `createLevelFile :: VaultHandle -> TypeRegistry -> NewLevel -> IO (Either StoreError CreateResult)` | 建一份新的 Level 檔,連同它的根 Node | `store/src/Aapms/Store/Create.hs:227` |
-| `createPackFile :: VaultHandle -> NewPack -> [NewSection] -> IO (Either StoreError CreateResult)` | 在指定目錄寫出 `pack.md`,節的順序與給定順序相同 | `store/src/Aapms/Store/Create.hs:243` |
-| `data SectionPlacement = AtEnd \| UnderParent Id` | 新節落在檔尾,還是插在指定父節點底下 | `store/src/Aapms/Store/Create.hs:198` |
-| `addSection :: VaultHandle -> Id -> SectionPlacement -> NewSection -> IO (Either StoreError CreateResult)` | 往既有檔案加一個節,依 `nsPayload` 分派;`UnderParent` 時 `nsLevel` 由 `headingDepthFor` 推導,不由呼叫端給 | `store/src/Aapms/Store/Create.hs:276` |
-| `writeMeta :: VaultHandle -> Id -> Revision -> (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)` | 改一個既有節點的 `Meta` 欄位 | `store/src/Aapms/Store/Write.hs:88` |
-| `writeAssetFields :: VaultHandle -> Id -> Revision -> AssetPatch -> IO (Either StoreError WriteResult)` | 改一筆 asset 的人給欄位 | `store/src/Aapms/Store/Write.hs:100` |
-| `writeBody :: VaultHandle -> Id -> Revision -> Text -> IO (Either StoreError WriteResult)` | 換掉一個節點的正文 | `store/src/Aapms/Store/Write.hs:114` |
-| `addLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)` | 在來源節點上加一筆關聯 | `store/src/Aapms/Store/Write.hs:128` |
-| `removeLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)` | 從來源節點刪掉相符的關聯 | `store/src/Aapms/Store/Write.hs:139` |
-| `upsertLicense :: VaultHandle -> License -> IO (Either StoreError WriteResult)` | 把一種授權寫進該 vault 的 `licenses.md`(有就改、沒有就新增) | `store/src/Aapms/Store/Write.hs:156` |
-| `deleteNode :: VaultHandle -> Id -> Revision -> DeleteMode -> IO (Either StoreError DeleteResult)` | 刪一個節點;目標是什麼決定刪掉多少 | `store/src/Aapms/Store/Create.hs:300` |
-| `allocateId :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)` | 產生一個索引裡還沒有人用的短 id;候選恆為 `newId p c t salt`,`salt` 從 0 起遞增;**碰撞查詢失敗即失敗,不靜默照發**;**時間是明碼參數**(2026-08-25 G8 裁決) | `store/src/Aapms/Store/Write.hs:179` |
+| `createTopicFile :: VaultHandle -> TypeRegistry -> NewEntity -> IO (Either StoreError CreateResult)` | 建一份新的主題檔,落點依註冊表的 `dir` | `store/src/Aapms/Store/Create.hs:245` |
+| `createLevelFile :: VaultHandle -> TypeRegistry -> NewLevel -> IO (Either StoreError CreateResult)` | 建一份新的 Level 檔,連同它的根 Node | `store/src/Aapms/Store/Create.hs:308` |
+| `createPackFile :: VaultHandle -> NewPack -> [NewSection] -> IO (Either StoreError CreateResult)` | 在指定目錄寫出 `pack.md`,節的順序與給定順序相同 | `store/src/Aapms/Store/Create.hs:369` |
+| `data SectionPlacement = AtEnd \| UnderParent Id` | 新節落在檔尾,還是插在指定父節點底下 | `store/src/Aapms/Store/Create.hs:227` |
+| `addSection :: VaultHandle -> Id -> SectionPlacement -> NewSection -> IO (Either StoreError CreateResult)` | 往既有檔案加一個節,依 `nsPayload` 分派;`UnderParent` 時 `nsLevel` 由 `headingDepthFor` 推導,不由呼叫端給 | `store/src/Aapms/Store/Create.hs:437` |
+| `writeMeta :: VaultHandle -> Id -> Revision -> (MetaOverride -> MetaOverride) -> IO (Either StoreError WriteResult)` | 改一個既有節點的 `Meta` 欄位 | `store/src/Aapms/Store/Write.hs:120` |
+| `writeAssetFields :: VaultHandle -> Id -> Revision -> AssetPatch -> IO (Either StoreError WriteResult)` | 改一筆 asset 的人給欄位 | `store/src/Aapms/Store/Write.hs:151` |
+| `writeBody :: VaultHandle -> Id -> Revision -> Text -> IO (Either StoreError WriteResult)` | 換掉一個節點的正文 | `store/src/Aapms/Store/Write.hs:208` |
+| `addLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)` | 在來源節點上加一筆關聯 | `store/src/Aapms/Store/Write.hs:244` |
+| `removeLink :: VaultHandle -> Id -> Revision -> Link -> IO (Either StoreError WriteResult)` | 從來源節點刪掉相符的關聯 | `store/src/Aapms/Store/Write.hs:260` |
+| `upsertLicense :: VaultHandle -> License -> IO (Either StoreError WriteResult)` | 把一種授權寫進該 vault 的 `licenses.md`(有就改、沒有就新增) | `store/src/Aapms/Store/Write.hs:314` |
+| `deleteNode :: VaultHandle -> Id -> Revision -> DeleteMode -> IO (Either StoreError DeleteResult)` | 刪一個節點;目標是什麼決定刪掉多少 | `store/src/Aapms/Store/Create.hs:530` |
+| `allocateId :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)` | 產生一個索引裡還沒有人用的短 id;候選恆為 `newId p c t salt`,`salt` 從 0 起遞增;**碰撞查詢失敗即失敗,不靜默照發**;**時間是明碼參數**(2026-08-25 G8 裁決) | `store/src/Aapms/Store/Write.hs:423` |
 
 **`allocateId` 的時間為什麼是明碼參數**(2026-08-25 G8 裁決,契約 E 已回寫,`design.md:326`):
 與 `Aapms.Core.Id.newId` 一致。藏在函式內部取樣(`getCurrentTime`)的話,呼叫端就**無法
@@ -140,33 +140,33 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `(>>?) :: IO (Either StoreError a) -> (a -> IO (Either StoreError b)) -> IO (Either StoreError b)` | 失敗就短路的 IO 鏈 | `store/src/Aapms/Store/Edit.hs:90` |
-| `(?>>) :: Either StoreError a -> (a -> IO (Either StoreError b)) -> IO (Either StoreError b)` | 把純函式那一段接進同一條鏈 | `store/src/Aapms/Store/Edit.hs:99` |
-| `locate :: VaultHandle -> Id -> IO (Either StoreError Located)` | 說出目標住在哪個檔、哪一節、那是哪種文件 | `store/src/Aapms/Store/Edit.hs:123` |
-| `readDocument :: VaultHandle -> FilePath -> IO (Either StoreError Document)` | 重讀檔案並切塊 | `store/src/Aapms/Store/Edit.hs:129` |
-| `orMd :: FilePath -> Either MdError a -> Either StoreError a` | 把 md 的錯誤接上檔名 | `store/src/Aapms/Store/Edit.hs:133` |
-| `checkRevision :: Id -> Revision -> Revision -> Either StoreError ()` | 比對呼叫端手上的 revision 與檔案裡的實際值 | `store/src/Aapms/Store/Edit.hs:142` |
-| `commit :: VaultHandle -> FilePath -> Document -> Id -> Revision -> IO (Either StoreError WriteResult)` | 把已經算好的最終內容落地,並讓該檔的索引跟上 | `store/src/Aapms/Store/Edit.hs:154` |
-| `dropFile :: VaultHandle -> FilePath -> IO (Either StoreError ())` | 移除一份檔案與它的全部索引記錄 | `store/src/Aapms/Store/Edit.hs:167` |
-| `ensureDir :: VaultHandle -> FilePath -> IO ()` | 建出目標檔案所在的目錄 | `store/src/Aapms/Store/Edit.hs:175` |
-| `vaultAbsPath :: VaultHandle -> FilePath -> FilePath` | Vault 相對路徑 → 絕對路徑 | `store/src/Aapms/Store/Edit.hs:179` |
-| `sectionBodyRaw :: LineEnding -> Text -> Text` | 把正文包成節的正文切片形狀 | `store/src/Aapms/Store/Edit.hs:187` |
+| `(>>?) :: IO (Either StoreError a) -> (a -> IO (Either StoreError b)) -> IO (Either StoreError b)` | 失敗就短路的 IO 鏈 | `store/src/Aapms/Store/Edit.hs:109` |
+| `(?>>) :: Either StoreError a -> (a -> IO (Either StoreError b)) -> IO (Either StoreError b)` | 把純函式那一段接進同一條鏈 | `store/src/Aapms/Store/Edit.hs:118` |
+| `locate :: VaultHandle -> Id -> IO (Either StoreError Located)` | 說出目標住在哪個檔、哪一節、那是哪種文件 | `store/src/Aapms/Store/Edit.hs:142` |
+| `readDocument :: VaultHandle -> FilePath -> IO (Either StoreError Document)` | 重讀檔案並切塊 | `store/src/Aapms/Store/Edit.hs:182` |
+| `orMd :: FilePath -> Either MdError a -> Either StoreError a` | 把 md 的錯誤接上檔名 | `store/src/Aapms/Store/Edit.hs:188` |
+| `checkRevision :: Id -> Revision -> Revision -> Either StoreError ()` | 比對呼叫端手上的 revision 與檔案裡的實際值 | `store/src/Aapms/Store/Edit.hs:197` |
+| `commit :: VaultHandle -> FilePath -> Document -> Id -> Revision -> IO (Either StoreError WriteResult)` | 把已經算好的最終內容落地,並讓該檔的索引跟上 | `store/src/Aapms/Store/Edit.hs:211` |
+| `dropFile :: VaultHandle -> FilePath -> IO (Either StoreError ())` | 移除一份檔案與它的全部索引記錄 | `store/src/Aapms/Store/Edit.hs:232` |
+| `ensureDir :: VaultHandle -> FilePath -> IO ()` | 建出目標檔案所在的目錄 | `store/src/Aapms/Store/Edit.hs:245` |
+| `vaultAbsPath :: VaultHandle -> FilePath -> FilePath` | Vault 相對路徑 → 絕對路徑 | `store/src/Aapms/Store/Edit.hs:249` |
+| `sectionBodyRaw :: LineEnding -> Text -> Text` | 把正文包成節的正文切片形狀 | `store/src/Aapms/Store/Edit.hs:257` |
 
 ### 內部:Level 樹推導(`Aapms.Store.Node`)
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `headingDepthFor :: FilePath -> Document -> Id -> Either StoreError Int` | 在指定父節點底下新增子節點時,新節該用第幾級標題 | `store/src/Aapms/Store/Node.hs:41` |
-| `subtreeAfter :: Document -> Id -> [Section]` | 某一節之後、屬於它子樹的所有節 | `store/src/Aapms/Store/Node.hs:47` |
-| `subtreeIds :: Document -> Id -> [Id]` | 某一節與它整棵子樹的 id,依文件順序 | `store/src/Aapms/Store/Node.hs:54` |
-| `isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool` | 這個 id 是不是該 Level 檔的根 Node | `store/src/Aapms/Store/Node.hs:71` |
-| `validateLevelDoc :: FilePath -> Document -> Either StoreError ()` | 編輯後的 Level 檔還解析得回來、樹還合法嗎 | `store/src/Aapms/Store/Node.hs:80` |
+| `headingDepthFor :: FilePath -> Document -> Id -> Either StoreError Int` | 在指定父節點底下新增子節點時,新節該用第幾級標題 | `store/src/Aapms/Store/Node.hs:43` |
+| `subtreeAfter :: Document -> Id -> [Section]` | 某一節之後、屬於它子樹的所有節 | `store/src/Aapms/Store/Node.hs:55` |
+| `subtreeIds :: Document -> Id -> [Id]` | 某一節與它整棵子樹的 id,依文件順序 | `store/src/Aapms/Store/Node.hs:64` |
+| `isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool` | 這個 id 是不是該 Level 檔的根 Node | `store/src/Aapms/Store/Node.hs:81` |
+| `validateLevelDoc :: FilePath -> Document -> Either StoreError ()` | 編輯後的 Level 檔還解析得回來、樹還合法嗎 | `store/src/Aapms/Store/Node.hs:94` |
 
 ### 內部:檔名(`Aapms.Store.Create`)
 
 | 簽名 | 語意(做什麼) | 骨架位置 |
 |---|---|---|
-| `sanitizeFileName :: Text -> Text -> Text` | 標題 → 檔名主幹,保留中文原字元 | `store/src/Aapms/Store/Create.hs:315` |
+| `sanitizeFileName :: Text -> Text -> Text` | 標題 → 檔名主幹,保留中文原字元 | `store/src/Aapms/Store/Create.hs:591` |
 
 ## Laws(行為性質)
 
@@ -209,17 +209,39 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
   `levels/` 為前綴(`nlPath == Nothing` 時),且該檔 `toLevel` 成功、`lvlRoot` 等於唯一那個
   Node 的 `metaId`、`buildTree` 回 `Right`。
 - **L12a(`addSection AtEnd` 追加不動前面)**:對所有含 `n` 節的文件,
-  `addSection vh i AtEnd s` 成功之後前 `n` 節的 `renderSection` 位元組不變,新節排在最後;
-  且該檔對應的 `to*`(依 `DocKind`)仍然解析成功,多出來的那一筆節點的 `metaId` 等於 `nsId s`。
+  `addSection vh i AtEnd s` 成功之後前 `n` 節的 `renderSection` 位元組不變——**唯一的例外是
+  插入點之前那一段的行尾**(見下方「插入點行尾的但書」),即第 `n` 節(文件原本沒有任何節時
+  則是 `docPreamble`);新節排在最後;且該檔對應的 `to*`(依 `DocKind`)仍然解析成功,
+  多出來的那一筆節點的 `metaId` 等於 `nsId s`。
 - **L12b(`addSection (UnderParent p)` 只在插入點動刀,層級由父節點決定)**:對所有 Level 檔
   與其中的非根節點 `p`,設 `k = length (subtreeAfter doc p)`、`p` 在文件裡是第 `j` 節,則
   `addSection vh i (UnderParent p) s` 成功之後:
   1. 新節排在第 `j + k + 1` 個位置(= `p` 的子樹之後,成為它的最後一個子節點);
-  2. 該位置**之前與之後**的每一節的 `renderSection` 位元組都與呼叫前相同(ADR-010);
+  2. 該位置**之前與之後**的每一節的 `renderSection` 位元組都與呼叫前相同(ADR-010),
+     **唯一的例外是插入點之前那一節**——即第 `j + k` 節(`p` 的子樹的最後一節;子樹為空
+     時就是 `p` 自己)**的行尾**,見下方「插入點行尾的但書」。插入點**之後**的每一節
+     (含 E12 的 `nod-b`)一律逐位元組不變,沒有例外;
   3. 重新解析後,`nodParent` 該新節等於 `p`,且新節那一行的 `secLevel` 等於
      `secLevel p + 1` ——**與呼叫端傳進來的 `nsLevel s` 無關**(store 以
      `headingDepthFor` 覆寫);
   4. `toLevel` 成功且 `buildTree` 回 `Right`。
+
+  **插入點行尾的但書**(2026-08-25 開發者裁決,與 F004 的 A10 同一個根,措辭逐字對齊):
+  `addSection` 兩條路徑的序列化都由 `aapms-md` 提供(`appendSection` /
+  `insertSection`,F004),而它們共用同一個 `blankTail`
+  (`md/src/Aapms/Md/Render.hs:438`)。規則是:**插入一節之後,其餘每一節位元組不變——
+  唯一的例外是插入點之前那一段的行尾:它還沒有以空行結尾時會被補齊**
+  (`blankTail` **冪等**,已經是空行結尾就原樣不動,一個位元組都不補),`appendSection`
+  走的是同一條規則。**被動到的是插入點,而不是「未經修改的區塊」,不違反 ADR-010**。
+  兩個可機械判定的推論,qa 據此寫斷言:
+  - 插入點之前那一段**原本就以空行結尾**時,全檔逐位元組不變(除新節本身);
+  - 原本沒有以空行結尾時,那一段的差異**只允許出現在尾端**、且**只允許是補上行尾**
+    ——`T.stripEnd` 之後與呼叫前逐位元組相同。
+
+  這個但書只涵蓋**插入點之前那一段**;`docFrontRaw`、`docPreamble`(它不是插入點前一段時)
+  與插入點之後的每一節,一律逐位元組不變。L3 / L6 / L16 講的都是**沒有插入**的路徑
+  (`writeMeta` / `writeBody` / `addLink` / `removeLink` 與各條失敗路徑),不走
+  `appendSection` / `insertSection`,因此**不適用**這個但書,那裡的「位元組不變」仍是無條件的。
 - **L12c(`UnderParent` 的兩條失敗路徑不寫檔)**:`p` 不在目標檔案裡時
   `addSection vh i (UnderParent p) s` 回 `Left (SectionMissing _ p)`;`p` 的 `secLevel`
   已經是 6 時回 `Left (NodeDepthExceeded p 7)`。兩者的 `bytes(該檔)` 都與呼叫前相同
@@ -274,9 +296,23 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
   `(path, mtime, size)` 與呼叫前相同。
 - **L19(`sectionBodyRaw` 的形狀)**:對所有非空白的 `t`,`sectionBodyRaw le t` 以
   `renderLineEnding le` 開頭且以之結尾,且 `T.strip (sectionBodyRaw le t) == T.strip t`。
-- **L20(`sanitizeFileName` 的值域)**:對所有 `t` 與非空的 `fb`,結果不含
-  `< > : " / \ | ? *` 與控制字元,不以空白或 `.` 開頭或結尾;`t` 被清空時結果等於 `fb`;
-  `t` 只含合法字元且無頭尾空白時結果等於 `t`。
+- **L20(`sanitizeFileName` 的值域)**(2026-08-25 G13 裁決後改寫措辭,策略不變):
+  **非法字元一律是「替換成 `-`」,不是「移除」**——E11 的逐字例子
+  (`sanitizeFileName "第一章: 序幕 " fb == "第一章- 序幕"`)是這件事唯一的權威來源。
+  對所有 `t` 與**合法的 `fb`**(非空、不含非法字元、不以空白或 `.` 開頭或結尾;慣例上是該節點
+  的短 id,見 E11。`fb` 是呼叫端給的退路,`sanitizeFileName` 不淨化它,所以這條 law 對
+  `fb` 的量詞就限在這個範圍內),令 `r = sanitizeFileName t fb`:
+  1. **(值域)** `r` 非空、不含 `< > : " / \ | ? *` 與控制字元、不以空白或 `.` 開頭或結尾;
+  2. **(清空退回)** `t` **被清空**時 `r == fb`。「被清空」的**機械定義**(在輸入端就判定得出來,
+     不必先算出結果):**`t` 的每一個字元都是空白或 `.`**(空字串亦然)。等價說法:把 `t` 的非法
+     字元替換成 `-` 之後,**去掉頭尾的空白與 `.`** 就沒東西剩下——`-` 既不是空白也不是 `.`,
+     所以只要 `t` 含任何一個非法字元或任何一個「非空白非 `.`」的合法字元,它就**不算被清空**;
+  3. **(非法字元不算被清空)** 因此 `t` 只由非法字元組成時 `r` 是**對應數量的 `-`**,**不是** `fb`
+     ——`sanitizeFileName "<" fb == "-"`(見 **E20**);`sanitizeFileName "   " fb == fb`、
+     `sanitizeFileName "..." fb == fb`(見 **E19**);
+  4. **(保持)** `t` 只含合法字元、且**不以空白或 `.` 開頭或結尾**時 `r == t`
+     (末尾的 `.` 也會被去掉——Windows 不接受以句點結尾的檔名,所以「無頭尾空白」這半句
+     必須連 `.` 一起說,否則 `"a.b."` 會是這條的反例)。
 - **L21(`headingDepthFor`)**:對所有存在於 `doc` 的父節點 `p`,`headingDepthFor` 的結果等於
   `secLevel p + 1`;該值大於 6 時回 `Left (NodeDepthExceeded p 值)`;`p` 不在 `doc` 裡時回
   `Left (SectionMissing _ p)`。
@@ -298,6 +334,29 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
   的事**,合一會讓呼叫端分不出來——`deleteNode` 會把一個根本不存在的 id 當成「可以刪的非根
   節點」繼續往下走,錯誤就往下游飄,直到某個更遠的地方才以另一種面貌爆開。
   三種結果各一個具體例子見 **E18**。
+- **L25(`createPackFile` 的 pack 專屬欄位往返)**(2026-08-25 G17 裁決補入,**現在會紅**,
+  見下方「阻塞:L25 依賴 F004 的檔案層 extras」):對所有 `NewPack np` 與所有 `[NewSection] xs`,
+  `createPackFile vh np xs` 成功之後,重讀 `crPath` 這個檔案並 `parseDocument` + `toPack`,
+  解出的 `Pack p` 在**七個 pack 專屬欄位**上逐欄等於傳進去的 `np`:
+
+  | `Pack` 的欄位 | 等於 `NewPack` 的 |
+  |---|---|
+  | `pckVendor p` | `npVendor np` |
+  | `pckArchive p` | `npArchive np` |
+  | `pckSha256 p` | `npSha256 np` |
+  | `pckLicense p` | `npLicense np` |
+  | `pckAuthor p` | `npAuthor np` |
+  | `pckSourceUrl p` | `npSourceUrl np` |
+  | `pckAiDisclosure p` | `npAiDisclosure np` |
+
+  七欄**逐欄相等**,包含 `Nothing` 的情形(`npVendor == Nothing` 時 `pckVendor` 也必須是
+  `Nothing`),所以七欄全給 `Nothing` / `AiUnknown` 的輸入**不足以**驗證這條 law:qa 要用
+  **七欄都給非預設值**的 `NewPack` 當主要案例(見 **E22**),否則斷言恆真。
+  **這條 law 為什麼非有不可**:G17 之所以能潛伏到 impl 階段才被人讀出來(`createPackFile`
+  一個 pack 專屬欄位都沒寫進檔案,重讀後全部變 `Nothing` / `AiUnknown`),唯一的原因就是
+  **沒有任何斷言在看這件事**——E3 只驗 `crPath` 與 asset 節順序,測試套件因此全線是綠的,
+  而磁碟上的 `pack.md` 已經在遺失資料。依 ADR-013,`pack.md` 是素材中繼資料的**真相**,
+  這條往返不能只靠「實作記得寫」。
 - **L-**:`(>>?)` / `(?>>)` 無獨立 law:它們是 `Either` 的短路組合子,性質等同 `Either` 的
   monad 律,而「失敗就不繼續」這件事已由 L1 與 L16 的「檔案不變」觀察到。
 - **L-**:`orMd` / `vaultAbsPath` / `ensureDir` / `readDocument` / `locate` / `dropFile` 無獨立
@@ -348,13 +407,17 @@ SqliteError msg ->
 | E9 | `pack.md` 裡有 `sha256` / `entry` 的 asset 節;`writeBody vh ast-1 r "新的說明"` | `Right`;重讀後該 asset 的 `astBody == "新的說明"`,`astSha256` / `astEntry` 仍在且未變,其他節位元組不變 | 改正文不得吃掉 payload 欄位 |
 | E10 | 目標檔是 `pack.md`(`PackDoc`);`addSection vh pck-1 AtEnd s`,其中 `nsPayload = NSFragment ov` | `Left (BadSectionPayload (nsId s) PackDoc)`,檔案不變 | payload 與文件種類不符;`AtEnd` 也擋 |
 | E11 | `sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91"` | `"第一章- 序幕"`(冒號換 `-`、去尾端空白) | 檔名淨化;非 ASCII 保留 |
-| E12 | Level 檔:`## 序幕`(`nod-root`)、`### 開場`(`nod-a`)、`### 收束`(`nod-b`);`addSection vh lvl-1 (UnderParent nod-a) s`,其中 `nsPayload = NSNode ov (NewNode KScene)`、`nsLevel = 2`(故意給錯) | `Right CreateResult{crId = nsId s}`;重讀後新節的標題是 `#### …`(**4 級,由 `secLevel nod-a + 1` 推導,不是呼叫端給的 2**),文件順序為 `序幕 / 開場 / 新節 / 收束`,`nodParent` 該新節 `== nod-a`,`nod-b` 那一節的位元組未變 | `UnderParent` 正常路徑;`nsLevel` 由 store 推導;插入點前後都不動 |
+| E12 | Level 檔:`## 序幕`(`nod-root`)、`### 開場`(`nod-a`)、`### 收束`(`nod-b`);`addSection vh lvl-1 (UnderParent nod-a) s`,其中 `nsPayload = NSNode ov (NewNode KScene)`、`nsLevel = 2`(故意給錯) | `Right CreateResult{crId = nsId s}`;重讀後新節的標題是 `#### …`(**4 級,由 `secLevel nod-a + 1` 推導,不是呼叫端給的 2**),文件順序為 `序幕 / 開場 / 新節 / 收束`,`nodParent` 該新節 `== nod-a`,`nod-b` 那一節的位元組未變(它在插入點**之後**,不受 L12b 的行尾但書影響);`nod-a` 的正文若在 fixture 裡**已經**以空行結尾,它也逐位元組不變 | `UnderParent` 正常路徑;`nsLevel` 由 store 推導;插入點之後不動,插入點之前只可能補行尾 |
 | E13 | 同上的 Level 檔;`addSection vh lvl-1 (UnderParent nod-zzz) s`(`nod-zzz` 不在檔案裡) | `Left (SectionMissing "levels/第一章.md" nod-zzz)`,檔案位元組不變 | `UnderParent` 的父節點不存在 |
 | E14 | Level 檔裡 `nod-deep` 的標題是 `###### 最深`(6 級);`addSection vh lvl-1 (UnderParent nod-deep) s` | `Left (NodeDepthExceeded nod-deep 7)`,檔案位元組不變 | Markdown 只有六級標題 |
 | E15 | 索引的 `nodes` 表被 `DROP` 掉;`allocateId vh PEnt "琳達" t`(`t` 任意固定值) | `Left (SqliteError _)`,**不是 `Right`** | 碰撞查詢失敗即失敗,不靜默照發 |
 | E16 | `renderStoreError (VaultMarkerMissing "/tmp/v")`(F005 的既有建構子) | 非空,且含以「請」起頭的子句 | L15 的範圍含 F005 原有的 6 個建構子(骨架已實作,應為綠) |
 | E17 | `renderStoreError (SqliteError "no such table: nodes")` | `"索引操作失敗 —— no such table: nodes;請嘗試重新開啟 vault"` ——**逐字**,含以「請」起頭的子句 | G7 裁決:這是 impl 這一輪**要改的一則既有訊息**;改之前這條是紅的,改完轉綠 |
 | E18 | Level 檔:`## 序幕`(`nod-root`,frontmatter 的 `root`)、`### 開場`(`nod-a`);依序 `isRootNode "levels/第一章.md" doc nod-root`、`… doc nod-a`、`… doc nod-zzz`(不在檔案裡) | 依序 `Right True`、`Right False`、`Left (SectionMissing "levels/第一章.md" nod-zzz)` | L24 的三種結果各一;第三種**不是** `Right False`(與 `headingDepthFor` 對稱) |
+| E19 | `sanitizeFileName "   " "ent-7f3b2a91"`;以及 `sanitizeFileName "..." "ent-7f3b2a91"` | 兩者皆為 `"ent-7f3b2a91"` | L20 第 2 條:**只有**「每個字元都是空白或 `.`」才算被清空 → 退回 `fb` |
+| E20 | `sanitizeFileName "<" "ent-7f3b2a91"`;以及 `sanitizeFileName "<>?" "ent-7f3b2a91"` | 依序 `"-"`、`"---"` ——**不是** `"ent-7f3b2a91"` | L20 第 3 條:非法字元是**替換**成 `-`,替換後非空就不退回 `fb`(G13 裁決的分岔點) |
+| E21 | `sanitizeFileName "琳達 的筆記" "ent-7f3b2a91"` | `"琳達 的筆記"`(逐字不變,含中間那個空白) | L20 第 4 條:只含合法字元、無頭尾空白與 `.` 時原樣回傳;中文與詞中空白都保留 |
+| E22 | `createPackFile vh np [sA]`,其中 `np` 的七個 pack 專屬欄位**全給非預設值**:`npVendor = Just "Kenney"`、`npArchive = Just "packs/kenney-ui.zip"`、`npSha256 = Just (Sha256 "aa11…")`、`npLicense = Just (localRef lic-0000000a)`、`npAuthor = Just (Author "Kenney" (Just "https://kenney.nl") Nothing)`、`npSourceUrl = Just "https://kenney.nl/assets/ui-pack"`、`npAiDisclosure = AiNone` | `Right CreateResult{crPath = "<npDir>/pack.md"}`;重讀該檔 `toPack` 之後,`pckVendor` / `pckArchive` / `pckSha256` / `pckLicense` / `pckAuthor` / `pckSourceUrl` / `pckAiDisclosure` **七欄逐欄等於**上面給的值 | L25 的具體案例。**這一條現在是紅的**,而且會一直紅到 F004 的檔案層 extras 落地為止(見「阻塞」)——紅燈就是它的工作 |
 
 ## 依賴
 
@@ -376,14 +439,14 @@ SqliteError msg ->
 | `atomicWriteText :: FilePath -> Text -> IO (Either StoreError ())` | `store/src/Aapms/Store/Atomic.hs:44` | F005 | 寫檔那一步(暫存檔 + rename) |
 | `readTextFile :: FilePath -> IO (Either StoreError Text)` | `store/src/Aapms/Store/Atomic.hs:35` | F005 | 重讀檔案做樂觀鎖比對 |
 | `data StoreError` / `renderStoreError :: StoreError -> Text` | `store/src/Aapms/Store/Error.hs:29` / `:80` | F005 | **本 feature 擴充它**(+15 建構子),不另立平行型別 |
-| `trySqlite :: IO a -> IO (Either StoreError a)` | `store/src/Aapms/Store/Error.hs:121` | F005 | 定位查詢與配號查詢的 SQLite 邊界;`allocateId` 的失敗通道就是它回的 `SqliteError` |
+| `trySqlite :: IO a -> IO (Either StoreError a)` | `store/src/Aapms/Store/Error.hs:180` | F005 | 定位查詢與配號查詢的 SQLite 邊界;`allocateId` 的失敗通道就是它回的 `SqliteError` |
 | `indexFile :: VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue])` | `store/src/Aapms/Store/Index.hs:148` | F006 | 寫檔之後只重讀該檔 |
 | `unindexFile :: VaultHandle -> FilePath -> IO (Either StoreError ())` | `store/src/Aapms/Store/Index.hs:155` | F006 | 刪整份檔案時清索引 |
 | `data IndexIssue` | `store/src/Aapms/Store/Schema.hs:85` | F006 | `WriteResult` / `CreateResult` 的附帶回報 |
 | `linksTo :: VaultHandle -> Ref -> IO [(Meta, Link)]` | `store/src/Aapms/Store/Query.hs:454` | F006 | `deleteNode` 的被引用檢查 |
 | `parseDocument :: Text -> Either MdError Document` | `md/src/Aapms/Md/Parse.hs:52` | F004 | 重讀後切塊 |
 | `toTopic :: Document -> Either MdError (Entity, [Entity])` | `md/src/Aapms/Md/Parse.hs:124` | F004 | 取得主題檔目前的 `Meta`(比對 revision)與寫檔前的自我驗證 |
-| `toLevel :: Document -> Either MdError (Level, [Node])` | `md/src/Aapms/Md/Parse.hs:140` | F004 | Level 檔同上;`validateLevelDoc` 的第一段 |
+| `toLevel :: Document -> Either MdError (Level, [Node])` | `md/src/Aapms/Md/Parse.hs:140` | F004 | Level 檔同上;`validateLevelDoc` 的第一段(**2026-08-25 補登**:`Aapms.Store.Node` 因此直接 import `Aapms.Md.Parse`,只用 `toLevel`——見「新增的依賴邊」④) |
 | `toPack :: Document -> Either MdError (Pack, [Asset])` | `md/src/Aapms/Md/Parse.hs:224` | F004 | `pack.md` 同上;`writeAssetFields` 讀出目前的 asset 欄位 |
 | `toLicenses :: Document -> Either MdError [License]` | `md/src/Aapms/Md/Parse.hs:279` | F004 | `licenses.md` 同上;`upsertLicense` 判斷該 id 是否已存在 |
 | `renderDocument :: Document -> Text` | `md/src/Aapms/Md/Render.hs:90` | F004 | 位元組保留的重組 |
@@ -409,7 +472,7 @@ SqliteError msg ->
 | `newId :: IdPrefix -> Text -> UTCTime -> Int -> Id` | `core/src/Aapms/Core/Id.hs:103` | F001 | `allocateId` 的純函式核心;salt 由本層遞增,**`UTCTime` 由 `allocateId` 的呼叫端一路傳進來**(G8 裁決後 `allocateId` 也是明碼時間) |
 | `parseId :: Text -> Either IdError (IdPrefix, Id)` / `renderId :: Id -> Text` | `core/src/Aapms/Core/Id.hs:127` / `:123` | F001 | 索引列與 id 之間的轉換 |
 | `data Ref = Ref { refVault :: Maybe VaultId, refId :: Id }` / `localRef :: Id -> Ref` | `core/src/Aapms/Core/Id.hs:156` / `:163` | F001 | 被引用檢查的查詢鍵 |
-| `buildTree :: Level -> [Node] -> Either [TreeError] NodeTree` | `core/src/Aapms/Core/Tree.hs:86` | F001 | `validateLevelDoc` 的第二段 |
+| `buildTree :: Level -> [Node] -> Either [TreeError] NodeTree` | `core/src/Aapms/Core/Tree.hs:86` | F001 | `validateLevelDoc` 的第二段(**2026-08-25 補登**:`Aapms.Store.Node` 因此直接 import `Aapms.Core.Tree`,只用 `buildTree`——見「新增的依賴邊」④) |
 | `bumpRevision :: Day -> Meta -> Meta` | `core/src/Aapms/Core/Meta.hs:165` | F001 | 全系統唯一的 revision 遞增點 |
 | `idPrefix :: Id -> IdPrefix` | `core/src/Aapms/Core/Id.hs:139` | F001 | `allocateId` 的回傳驗證(L14) |
 | `data Meta`(14 欄)、`newtype Revision = Revision Int`、`data Status` / `Source` / `Timeline`、`newtype TypeKey = TypeKey Text` | `core/src/Aapms/Core/Meta.hs:123` / `:50` / `:57` / `:80` / `:112` / `:45` | F001 | 寫入 DTO 的欄位型別 |
@@ -420,6 +483,12 @@ SqliteError msg ->
 | `data License`(八個授權維度 + `licFullText`) | `core/src/Aapms/Core/License.hs:13` | F001 | `upsertLicense` 的輸入 |
 | `data NodeKind` | `core/src/Aapms/Core/Level.hs:27` | F001 | `NewNode` / `NewLevel` 的欄位型別 |
 | `data TypeRegistry`、`lookupDir :: TypeRegistry -> TypeKey -> Maybe FilePath` | `core/src/Aapms/Core/Registry.hs:167` | F002 | 建檔落點 |
+| `sectionIds :: Document -> [Id]` | `md/src/Aapms/Md/Document.hs:111` | F004 | **2026-08-25 補登**(見「新增的依賴邊」④):`deleteNode` 對**檔案層主體**的目標要取「檔內全部節點 id」當 `victims`(L13),這是唯一的管道;`Aapms.Store.Create` 因此 import `Aapms.Md.Document` |
+| `data Entity`(`entMeta :: Meta`) | `core/src/Aapms/Core/Entity.hs:12` / `:13` | F001 | **2026-08-25 補登**:從重讀的檔案取出目標**目前真正的 `Meta`**(不可逆決定 2)——`toTopic` 回的是 `Entity`,要拿 `Meta` 就得拆它。集中在 `Aapms.Store.Edit.currentMetaAt` |
+| `data Level`(`lvlMeta :: Meta`)、`data Node`(`nodMeta :: Meta`) | `core/src/Aapms/Core/Level.hs:19` / `:20` / `:54` / `:55` | F001 | **2026-08-25 補登**:同上,`toLevel` 回的 `(Level, [Node])` 的 `Meta` 出口 |
+| `pckMeta :: Pack -> Meta`(`data Pack` 的欄位) | `core/src/Aapms/Core/Pack.hs:36` | F001 | **2026-08-25 補登**:同上,`toPack` 回的 `Pack` 的 `Meta` 出口 |
+| `astMeta :: Asset -> Meta`(`data Asset` 的欄位) | `core/src/Aapms/Core/Asset.hs:36` | F001 | **2026-08-25 補登**:同上,asset 節的 `Meta` 出口;`Aapms.Store.Edit.currentAssetAt` 另外要整個 `Asset`(L4 / L5 的唯讀欄位比對) |
+| `licMeta :: License -> Meta`(`data License` 的欄位) | `core/src/Aapms/Core/License.hs:14` | F001 | **2026-08-25 補登**:同上;`upsertLicense` 的樂觀鎖比對值也取自它(不可逆決定 5) |
 
 ### 依賴方向
 
@@ -451,6 +520,25 @@ SqliteError msg ->
     `Aapms.Store.Write` → `Aapms.Store.Edit`(已有)、`Aapms.Md.{Parse,Render}`;
     `Aapms.Store.Create` 另需 `Data.Time`(四個 create 函式自己取 `getCurrentTime` 再傳給
     `allocateId`)
+  - ④ **impl 實際補上、上面兩份清單漏列的邊**(2026-08-25 登記,逐條已對原始碼的 import
+    行覆核;每一條的簽名與用途見上方「使用到的既有介面」表對應列)。**都在
+    `aapms-store` 對 `aapms-core` / `aapms-md` 既有 `build-depends` 之內,不新增套件層的邊;
+    被 import 的模組沒有一個 import 任何 `Aapms.Store.*`,不成環**:
+
+    | 模組 | 補上的 import | 為什麼非它不可 |
+    |---|---|---|
+    | `Aapms.Store.Node` | `Aapms.Md.Parse`(只用 `toLevel`)、`Aapms.Core.Tree`(只用 `buildTree`) | **L23 就是拿這兩個函式定義 `validateLevelDoc`** 的(「`toLevel` 成功且 `buildTree` 回 `Right`」)。只用原本授權的三個依賴,就只能在 `Node.hs` 自己重寫一份等價的樹驗證——違反「序列化規則只有一份」與「父子關係只有一個推導點」 |
+    | `Aapms.Store.Edit` | `Aapms.Core.{Asset,Entity,Level,License,Pack}`、`Aapms.Md.Parse` | 不可逆決定 2 要求樂觀鎖比對的 `Meta` 取自**重讀的檔案**,唯一管道是 `toTopic` / `toLevel` / `toPack` / `toLicenses`,而拆出它們回傳值裡的 `Meta` 需要那五個 core 模組。這段邏輯集中在 `Edit` 的 `currentMetaAt` / `currentAssetAt`(`Edit.hs:271` / `:294`),`Write` 與 `Create` 共用,不寫兩份——與 `Edit.hs` 本來的定位「所有寫入路徑共用的那一條紀律」一致 |
+    | `Aapms.Store.Create` | `Aapms.Md.Document`(`Document` / `DocKind` / `sectionIds`) | `deleteNode` 的目標是**檔案層主體**時,`victims` 是「檔內全部節點 id」(L13),`sectionIds` 是唯一的管道 |
+
+    另有兩條純屬同一批 import 的細項,一併登記:`Aapms.Store.Write` →
+    `Aapms.Md.Document`(`DocKind` / `Document`)、`Aapms.Store.Create` →
+    `Aapms.Md.Inherit`(`emptyOverride`)與 `System.Directory`(`doesFileExist`,
+    推導路徑撞名時遞增)。
+
+    **待編排者回寫 `design.md`**:上表三列正是 G15 / G16 要求補進 design.md「新增的依賴邊」
+    的內容。委派模式下本角色不得寫 `design.md`,所以只登記在這裡;**G15 / G16 兩條 gap 的
+    狀態行也不由本輪回填**。
   - **模組內部順序**:`Error → Edit → {Write, Node} → Create → Aapms.Store`,無環
 - **可否與其他進行中任務平行開發**:可以。F007(`store-fts-dual-index`)只碰
   `Tokenize` / `Query` / `Schema`,與本 feature 的四個檔案不重疊。**唯一的交會點**是
@@ -521,25 +609,29 @@ SqliteError msg ->
 
 | # | 原假設 | 裁決 | 落點 |
 |---|---|---|---|
-| A1 | `createPackFile` 第三參數改 `[NewSection]`(偏離當時的契約 E) | **接受**,回寫契約 E | `design.md:317`;`Create.hs:243` |
+| A1 | `createPackFile` 第三參數改 `[NewSection]`(偏離當時的契約 E) | **接受**,回寫契約 E | `design.md:317`;`Create.hs:369` |
 | A2 | 在 `Aapms.Store.Edit` 定義暫居的 `StoreWriteError`,以 `WriteStore` 為橋 | **推翻**:15 個建構子併進 `StoreError`,刪 `WriteStore` 與 `renderStoreWriteError` | 見「不可逆決定 8」;`Error.hs:29` / `:80` |
-| A3 | `allocateId :: … -> IO Id`,查詢失敗視同查不到 | **推翻**:改 `IO (Either StoreError Id)`,查詢失敗即失敗 | 見「不可逆決定 6」;`Write.hs:179` |
+| A3 | `allocateId :: … -> IO Id`,查詢失敗視同查不到 | **推翻**:改 `IO (Either StoreError Id)`,查詢失敗即失敗 | 見「不可逆決定 6」;`Write.hs:423` |
 | A4 | `NewSection` 家族暫居 `Aapms.Store.Create` | **推翻**:F004 G2 重跑已把它們放進 `Aapms.Md.Render`,store 改成 re-export | `Create.hs` 匯出清單;`md/src/Aapms/Md/Render.hs:238` 起 |
-| A5 | `addSection` 只能追加檔尾,`nsLevel` 由呼叫端給 | **推翻**:加 `SectionPlacement`;`UnderParent` 時 `nsLevel` 由 `headingDepthFor` 推導 | 見「不可逆決定 7」;`Create.hs:198` / `:276` |
+| A5 | `addSection` 只能追加檔尾,`nsLevel` 由呼叫端給 | **推翻**:加 `SectionPlacement`;`UnderParent` 時 `nsLevel` 由 `headingDepthFor` 推導 | 見「不可逆決定 7」;`Create.hs:227` / `:437` |
 | A6 | 門面不 re-export 本 feature 的模組 | **補上**:`Aapms.Store` re-export `Create` 與 `Write`(`Edit` / `Node` 仍為內部模組) | `store/src/Aapms/Store.hs:32` / `:38` |
 
 本次修訂**沒有新的待確認假設**。
 
 ## 已裁決的 spec-gaps(2026-08-25)
 
-qa 交付 F008 測試時開的四條 gap 全數結案(`spec-gaps.md` 的 G7 / G8 / G9 / G12),
-本次修訂就是把裁決落實進 spec 與骨架。
+qa 交付 F008 測試時開的四條 gap(`spec-gaps.md` 的 G7 / G8 / G9 / G12)與 impl 交付時開的
+三條(G13 / G14 / G17)全數結案,本次修訂就是把裁決落實進 spec。
+G15 / G16(依賴邊漏列)由編排者另行處置,本次只把 impl 實際補上的 import 登記進「依賴」段。
 
 | # | gap | 裁決 | 落點 |
 |---|---|---|---|
+| G13 | L20 的「`t` 被清空時結果等於 `fb`」與 E11 的逐字例子(冒號**替換**成 `-`)對「只含非法字元的輸入」給出不同答案 | **保留替換策略與 E11 的逐字例子**(逐字例子是最難被誤讀的 spec),**改 L20 的措辭**:「被清空」只指「去掉頭尾空白與 `.` 之後為空」,不含「輸入只由非法字元組成」。`"<"` 的正確結果是 `"-"`,`"   "` 才是 `fb` | **L20 改寫**(四條子句,附機械定義);**新增 E19 / E20 / E21** |
+| G14 | L12a / L12b 的「位元組不變」是無條件全稱,但 `appendSection` / `insertSection` 的 `blankTail` 會補插入點前一段的行尾 | **照 F004 的 A10 收窄措辭改**:唯一的例外是插入點之前那一段的行尾,還沒以空行結尾時會被補齊(`blankTail` 冪等);被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010 | **L12a / L12b 改寫** + 新增「插入點行尾的但書」;E12 補註 |
+| G17 | `createPackFile` 把 `NewPack` 的七個 pack 專屬欄位一個都沒寫進檔案,重讀後全解成 `Nothing` / `AiUnknown`,而**測試套件全綠**(沒有任何斷言在看) | **重新打開 F004**,替 `aapms-md` 補檔案層 extras 寫入管道(對稱節層的 `MetaExtras`),F008 的 `createPackFile` 接上它 | **新增 L25**;**新增 E22**;「阻塞:L25 依賴 F004 的檔案層 extras」 |
 | G7 | `SqliteError` 的既有訊息不含以「請」起頭的子句,與 L15 字面不符 | **不放寬 L15,改訊息**;由 impl 這一輪改掉,F005 其餘 5 則不得更動 | L15;「`SqliteError` 的訊息要改」;E17 |
-| G8 | `allocateId` 沒有時間注入點,E6「人為製造碰撞」無法從公開介面重現 | **時間改成明碼參數**(契約 E 已回寫,`design.md:326`);四個 create 函式的對外簽名不變 | 介面表 `allocateId`;L14 收緊;L14b;E6;E15;`Write.hs:179` |
-| G9 | `isRootNode` 對「id 不在文件裡」沒有任何 law 定義行為 | **回 `Left (SectionMissing path id)`**,與 `headingDepthFor`(L21)對稱 | **新增 L24**;**新增 E18**;`Node.hs:71` 的 haddock |
+| G8 | `allocateId` 沒有時間注入點,E6「人為製造碰撞」無法從公開介面重現 | **時間改成明碼參數**(契約 E 已回寫,`design.md:326`);四個 create 函式的對外簽名不變 | 介面表 `allocateId`;L14 收緊;L14b;E6;E15;`Write.hs:423` |
+| G9 | `isRootNode` 對「id 不在文件裡」沒有任何 law 定義行為 | **回 `Left (SectionMissing path id)`**,與 `headingDepthFor`(L21)對稱 | **新增 L24**;**新增 E18**;`Node.hs:81` 的 haddock |
 | G12 | L17 第三個子句(檔案 IO / md 序列化不在 SQLite 呼叫的括號內)不是機械可判定 | **從 law 移除**,降級為 `/arch-audit subsys graph-core` 的人工檢查項 | L17 只剩兩個子句;「實作備註」的 arch-audit 檢查項 |
 
 ## 骨架
@@ -558,6 +650,30 @@ qa 交付 F008 測試時開的四條 gap 全數結案(`spec-gaps.md` 的 G7 / G8
 文字)。型別檢查方式與結果見回報。
 
 ## 實作備註
+
+### 阻塞:L25 / E22 依賴 F004 的檔案層 extras(2026-08-25 G17 裁決)
+
+**這一條現在會紅,而且應該紅到 F004 那一半落地為止。** 不要把它寫弱、標成 pending、
+或在 impl 那一輪為了轉綠而繞路——紅燈就是這條 law 的工作。
+
+- **缺什麼**:`Aapms.Md.Render` 對外的 frontmatter 寫入介面(`newDocument` /
+  `updateFrontmatter` 與 `frontmatterFieldOrder`)只吃 `Meta` 的 14 個欄位,**檔案層沒有
+  節層 `MetaExtras` 的對應物**;而 `Aapms.Core.Json` 的 `FromJSON Pack` 把 `vendor` /
+  `archive` / `sha256` / `license` / `author` / `source_url` / `ai_disclosure` 與 `Meta`
+  **攤平在同一層** frontmatter 解碼。所以 `createPackFile` 現在沒有任何管道把
+  `NewPack` 的七個專屬欄位寫進檔案。
+- **裁決**(2026-08-25 開發者):**重新打開 F004**,替 `aapms-md` 補上**檔案層 extras** 的
+  寫入管道(對稱節層的 `MetaExtras` / `payloadExtras` / `mergeExtras`);`createPackFile` 接上它。
+  **修法不在 F008 的授權範圍內**:`md/` 由 F004 那一輪改,本文件**不假設**它最後的簽名長什麼樣。
+- **對三個角色的指示**:
+  - **qa**:照 L25 / E22 寫斷言,**不因為現在做不到就放寬**。它現在紅、F004 落地前一直紅;
+    這正是 G17 潛伏那麼久的原因的反面。
+  - **impl**:`createPackFile` 在 F004 的檔案層 extras 介面出現之前**完成不了**——不要用
+    「先寫 `Meta`、事後再補一次 `updateFrontmatter`」之類的繞路把它弄綠(那條路一樣寫不進
+    `Meta` 以外的欄位),也不要自己在 store 這一側手拼 frontmatter YAML(違反「序列化規則
+    只有一份」的知識歸屬)。停在這一項,其餘照做完。
+  - **編排者**:F004 交付檔案層 extras 之後,**再委派一輪 F008 impl** 接上它;在那之前
+    L25 / E22 的紅燈是**預期的**,不進仲裁迴圈的三輪上限,也不得歸因成 impl 錯或 qa 誤讀。
 
 ### arch-audit 的人工檢查項:寫鎖預算的巢狀約束(2026-08-25 G12 裁決)
 

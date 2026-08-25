@@ -241,6 +241,19 @@ data NewSectionPayload
   | NSNode     MetaOverride NewNode  -- Level 檔的一個節點
 removeSection     :: Id -> Document -> Either MdError Document
 newDocument       :: DocKind -> Meta -> Text -> Document
+-- 檔案層 frontmatter 的另一半:型別專屬條目(2026-08-25,見下方 G17)
+newtype FrontExtras                                       -- MetaExtras 的 newtype:兩層不得混用
+frontExtrasOf           :: Document -> FrontExtras        -- 判準:鍵不在 frontmatterFieldOrder 裡
+renderFrontmatterWith   :: Meta -> FrontExtras -> LineEnding -> Text  -- 兩半都要,少一半編不過
+newDocumentWith         :: DocKind -> Meta -> FrontExtras -> Text -> Document
+updateFrontmatterExtras :: (FrontExtras -> FrontExtras) -> Document -> Either MdError Document
+mergeFrontExtras        :: FrontExtras -> FrontExtras -> FrontExtras   -- coerce mergeExtras 的一行 wrapper,不得有第二份實作
+-- pack.md 檔案層的專屬欄位(寫方向 DTO;讀方向是 Aapms.Core.Json 的 FromJSON Pack)
+data NewPackFront = NewPackFront
+  { npfVendor :: Maybe Text, npfArchive :: Maybe FilePath, npfSha256 :: Maybe Sha256
+  , npfLicense :: Maybe Ref, npfAuthor :: Maybe Author, npfSourceUrl :: Maybe Text
+  , npfAiDisclosure :: AiDisclosure }
+packFrontExtras         :: NewPackFront -> FrontExtras
 ```
 
 **G2 定案(2026-08-24)——節層 meta 區塊在型別上切成兩半**:`MetaOverride` 只涵蓋 `Meta` 的十三欄,
@@ -259,6 +272,21 @@ newDocument       :: DocKind -> Meta -> Text -> Document
 新增節點型別時編譯器會列出所有待處理處,`addSection` 也維持單一入口。
 **不採**「把 asset / license 欄位塞進 `MetaOverride`」——那個型別是 md 與 store 共用的節層繼承 DTO,
 污染它會動到 ADR-010 位元組保留所依賴的繼承規則。
+
+**G17 定案(2026-08-25)—— 檔案層 frontmatter 也切成兩半**:這是 **G2 的同構缺陷換一層**。
+`Aapms.Core.Json` 的 `FromJSON Pack` 把 `vendor` / `archive` / `sha256` / `license` / `author` /
+`source_url` / `ai_disclosure` 與 `Meta` 的十四欄**攤平在同一層 frontmatter 物件**解碼,但寫入介面
+(`newDocument` / `renderFrontmatter` / `updateFrontmatter`)只吃 `Meta`、`frontmatterFieldOrder`
+又寫死十四欄——`createPackFile` 因此**寫不出**這七欄,重讀後全部是 `Nothing` / `AiUnknown`。
+改法與節層對稱:另一半以 `FrontExtras`(**原始行**,不解 YAML)保存,`renderFrontmatterWith` /
+`newDocumentWith` **同時吃兩半**,`updateFrontmatter` 保住專屬那一半、`updateFrontmatterExtras`
+保住 `Meta` 那一半。判準是「鍵不在 `frontmatterFieldOrder` 裡」而不是列舉 pack 七欄,所以註冊表
+宣告的任意檔案層欄位也一併保住。`renderFrontmatter` / `newDocument` 保留為「沒有專屬欄位」的特化
+(四種文件裡三種的 frontmatter 確實只有 `Meta`),但**寫 `pack.md` 用它們就是資料遺失**。
+`FrontExtras` 是 `MetaExtras` 的 **newtype 而非別名**(2026-08-25 A11 裁決):底層機制共用,
+但型別上擋住「節層 extras 餵進檔案層」——那種混用不會編譯錯誤,只會安靜地寫出髒資料,
+而本子系統已經被同類缺陷咬過兩次(G2 節層、G17 檔案層),兩次都不是測試抓到的。
+**G17 能潛伏是因為沒有任何 law 測檔案層往返**,所以本次的驗收核心是那條往返 law。
 
 `docKind` 只看檔案層 `type`:`level` → `LevelDoc`、`asset-pack` → `PackDoc`、`asset-license` → `LicenseDoc`、
 其餘一律 `TopicDoc`(md 不認識註冊表)。`licenses.md` 的檔案層是**容器不是節點**:frontmatter 寫
@@ -409,6 +437,7 @@ workspace 給路徑 → openVault:讀 marker(id / kind)→ 開索引
 NewEntity / NewAsset / MetaOverride / AssetPatch(來自 service 或 asset-ingest)
   → allocateId(新節點)/ 讀回目標檔案比對 expected revision(樂觀鎖),不符即拒絕
   → aapms-md 寫回:updateSection / appendSection / insertSection / updateFrontmatter,未改區塊逐字保留
+  → 寫檔前驗證(Level 檔):toLevel + buildTree,樹不合法即 TreeInvalidOnWrite 中止,檔案未動
   → 原子寫入(暫存檔 + rename)
   → indexFile:以 file_path 級聯刪除該檔舊記錄後整檔重建
   → 回傳 CreateResult / WriteResult(新 revision);索引失敗回 IndexUpdateFailed(檔案已落地)
@@ -432,8 +461,8 @@ workspace 解析出本次生效的 vault 集合 → service 逐一 openVault →
 |---|---|
 | `aapms-types` → `aapms-core` | 解析完的 `TypeRegistry` 與 `NamingVocab` 交給 `checkMeta` / `validateLogicalName` |
 | `aapms-md` ↔ `aapms-core` | `Document` ↔ `Entity` / `Level` / `Node` / `Pack` / `Asset` / `License`;`MetaOverride` 是 md 與 store 共用的「只改部分欄位」DTO |
-| `aapms-store` → `aapms-md` | 讀取管線呼叫 `parseDocument` + `to*`;寫入管線呼叫 `update*` / `append*` + `renderDocument` |
-| `aapms-store` → `aapms-core` | `buildTree` / `checkMeta` / `parseId` / `parseRef` 驗證後才進索引;`newId` 配 salt 重試 |
+| `aapms-store` → `aapms-md` | 讀取管線呼叫 `parseDocument` + `to*`;寫入管線呼叫 `update*` / `append*` / `insertSection` + `renderDocument`,**並反向用 `to*` 讀回目標目前的 `Meta`**——樂觀鎖比對的來源是重讀的檔案而非索引,所以寫入路徑也走解析層 |
+| `aapms-store` → `aapms-core` | `buildTree` / `checkMeta` / `parseId` / `parseRef` 驗證後才進索引;`newId` 配 salt 重試(時間由呼叫端給);**`buildTree` 另在寫入路徑被呼叫一次**——編輯後的 Level 檔要先確認樹仍合法才落地 |
 | Index → Tokenize | 寫入 FTS 前把文字欄位預切成 unigram + bigram 字串 |
 | Query → Tokenize | 依查詢字串長度與字元類別決定走 trigram、cjk 或兩者 |
 | MultiVault → Query | `*Across` 以同一組 SQL 片段對 UNION 後的視圖執行 |

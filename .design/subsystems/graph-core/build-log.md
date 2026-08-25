@@ -108,6 +108,15 @@ subagent 原本要上閘門、經編排者重跑層級兩問後降下來的。�
 | F004 | 1 | `L9` / `L10`(`renderMetaBlock` 行序列與行數) | L9 原文 | **qa 誤讀** | qa 自行歸因並修正:L9 原文明寫 `moLinks = Just (_:_)` 產生「`links:` 加每個關聯一行」,但 qa 的計數 helper 把每個有值欄位一律算 1 行,漏算這條例外。改 `fieldLineCount` 後兩條轉綠,其餘 283 個 example 未動 |
 | F004 | 1(W6) | `InsertSectionSpec.hs:467` E13:1,693 節 Level 檔插入後 `buildTree` 回 `MultipleRoots` | E13 原文 | **qa 誤讀** | 斷言逐字轉錄 E13 沒錯,但 `synthLevelMd` 合成出 1,692 個同層 `##` 章節 = 1,692 個 root。`buildTree`(`core/src/Aapms/Core/Tree.hs:100-104`)明訂恰好一個 root(ADR-004 嚴格樹、契約 A 的 `lvlRoot` 單數、回傳單一 `NodeTree`),回 `MultipleRoots` 是正確行為。E13 的前提「合法 Level 檔」從未被滿足。退回 qa 改 fixture 成單根,三段斷言不得弱化 |
 | F004 | 1(W6) | `RegressionLawsSpec.hs:236` L30:`metaTitle = "0o0"` 時 `decodeFrontmatter (renderFrontmatter m le) /= Right m` | L30 原文 | **impl 錯** | `looksNumeric`(`Render.hs:820-825`)的字元白名單 `+-.eExXaAbBcCdDfF_` 涵蓋 `0x` 十六進位卻漏 `0o` 八進位 → `"0o0"` 判定不需引號 → 寫成 `title: 0o0` → YAML 讀回是整數 0,往返失真。**編排者獨立重跑未重現**(hedgehog 隨機種子),但正因如此它是會隨機引爆的地雷,不是偶發雜訊。程式碼雖是前一輪交付,L30 是 F004 自己的 law 且 F004 現為 in-progress,故歸本輪範圍。退回 impl 補白名單 |
+| F008 | 1(W6) | `NodeSpec2.hs:206` L23 合法 Level 檔;`CreateSpec.hs` E12/E13/E14 `addSection UnderParent` | L23 / L12b / E12-E14 原文 | **qa 誤讀** | fixture `node-spec2-fixture.md:34` 有 `HeadingSkip 3 6`,`toLevel` 正確拒絕 → 整檔沒進索引 → 父節點查無 → `NodeNotFound`。四條同一個根,與 F004 的 E13 同一類(fixture 不是合法的 Level 檔) |
+| F008 | 1(W6) | `WriteSpec.hs` L8 `upsertLicense`:UNIQUE constraint failed nodes.id | L8 原文 | **qa 誤讀** | impl 寫 `library/licenses.md`,**符合 `system.md:439` 的權威目錄配置**;qa 沿用 F006 fixture 放在 vault 根的 `licenses.md`,同一個 `lic-` id 落在兩個檔。**附帶發現**:F006 的 fixture 本身不符主架構目錄配置,已列入階段閘門的 arch-audit |
+| F008 | 1(W6) | `CreateSpec.hs:272` L9 `createPackFile`:UNIQUE constraint failed nodes.id | L9 原文 | **qa 誤讀** | hedgehog 跨迭代重用同一批 `nsId` 寫進不同 pack 目錄;短 id 依 ADR-014 是 vault 內唯一,generator 必須每迭代給新 id。**附帶發現**:重複 id 目前回 `IndexUpdateFailed`(語意是「檔案已落地、索引需重建」),但這種狀態索引永遠接不了,錯誤型別選得不對——列入閘門建議 |
+| F008 | 1(W6) | `CreateSpec.hs:313` L12a `addSection AtEnd`:期望 `
+` 實得 `
+
+` | L12a 原文 | **spec bug(G14)** | `blankTail` 補的空行。**與 F004 的 A10 同一個根**,開發者已裁決過一次:`blankTail` 冪等,只有插入點之前那一段尚未以空行結尾時才補齊。F004 契約卡已收窄,F008 的 L12a / L12b 沒有繼承。裁決:照 A10 措辭修 |
+| F008 | 1(W6) | `NodeSpec2.hs` L20 `sanitizeFileName`(反例 `"<"`) | L20 vs E11 | **spec bug(G13)** | L20「t 被清空時等於 fb」與 E11 逐字例子「冒號替換成 `-`」互斥:替換策略下純非法字元輸入永遠非空。裁決:**保留替換與 E11**(逐字例子最難被誤讀),L20 的「清空」改成只指「去除頭尾空白與 `.` 後為空」 |
+| F008 G17(impl) | — | 無測試失敗(**這正是問題**) | 無對應條文 | **spec bug** | `createPackFile` 把 `NewPack` 的七個 pack 專屬欄位一個都沒寫進檔案,重讀全解成 `Nothing`/`AiUnknown`,而 E3 只驗 `crPath` 與節順序 → **測試套件全綠但資料真的在遺失**。根因是 `aapms-md` **檔案層**沒有對稱節層 `MetaExtras` 的機制;**與 G2 是同一個病的檔案層鏡像**(G2 是節層,由 F004 重跑加 `MetaExtras` 修好)。依 ADR-013 `pack.md` 是素材中繼資料的真相,丟掉 vendor/license 等於丟掉「這批素材能不能商用」。**裁決:重新打開 F004 補檔案層 extras**,F008 補一條往返 law(在 F004 落地前會一直紅) |
 
 ## 待確認假設彙總
 

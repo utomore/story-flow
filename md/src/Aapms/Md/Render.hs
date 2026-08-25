@@ -97,7 +97,7 @@ module Aapms.Md.Render
   , mergeExtras
   ) where
 
-import Data.Aeson (FromJSON (..), Value (..), encode, withObject, (.!=), (.:), (.:?))
+import Data.Aeson (FromJSON (..), Value (..), encode, toJSON, withObject, (.!=), (.:), (.:?))
 import Data.Char (isDigit, isSpace)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -110,7 +110,7 @@ import Aapms.Core.Id (Id, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (NodeKind, renderNodeKind)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta
-import Aapms.Core.Pack (AiDisclosure, Author)
+import Aapms.Core.Pack (AiDisclosure (..), Author)
 import Aapms.Md.Document
 import Aapms.Md.Error
 import Aapms.Md.Inherit
@@ -662,12 +662,19 @@ mkSection le level i title mpayload body =
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
 updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
   Left msg -> Left (mdError 1 (FrontmatterYaml msg))
-  Right meta -> Right doc {docFrontRaw = lead <> renderFrontmatter (f meta) docEnding}
-  where
-    -- docFrontRaw 由開頭界線的行尾字元起算,那個字元要原樣留著
-    lead = case splitLinesKeep docFrontRaw of
-      (l : _) | not (T.null (lineTerm l)) -> lineTerm l
-      _ -> renderLineEnding docEnding
+  Right meta ->
+    Right
+      doc
+        { docFrontRaw =
+            frontLead docEnding docFrontRaw <> renderFrontmatterWith (f meta) (frontExtrasOf doc) docEnding
+        }
+
+-- | 'docFrontRaw' 開頭界線的行尾字元,原樣保留給 'updateFrontmatter' \/
+-- 'updateFrontmatterExtras' 重新序列化時接在最前面。
+frontLead :: LineEnding -> Text -> Text
+frontLead le raw = case splitLinesKeep raw of
+  (l : _) | not (T.null (lineTerm l)) -> lineTerm l
+  _ -> renderLineEnding le
 
 -- | 從零產生一份只有 frontmatter 與正文、還沒有任何節的 'Document'
 -- (graph-core/F004,取代 @mkDocument@)。
@@ -687,18 +694,7 @@ updateFrontmatter f doc@Document {..} = case decodeFrontmatter docFrontRaw of
 -- F004 的 L43)。@pack.md@ 走 'newDocumentWith'——它的 frontmatter 有七個
 -- 'Meta' 表達不了的欄位。
 newDocument :: DocKind -> Meta -> Text -> Document
-newDocument kind meta body =
-  Document
-    { docFrontRaw = nl <> renderFrontmatter meta le
-    , docPreamble = nl <> nl <> body
-    , docSections = []
-    , docEnding = le
-    , docFinalNL = not (T.null (lineTerm body))
-    , docKind = kind
-    }
-  where
-    le = LF
-    nl = renderLineEnding le
+newDocument kind meta body = newDocumentWith kind meta (FrontExtras (MetaExtras [])) body
 
 -- | frontmatter 的固定欄位順序。
 --
@@ -742,33 +738,7 @@ frontmatterFieldOrder =
 -- ('TypeKey' \/ 'VaultId' \/ 'Revision') 再交給 'scalar' \/ 'show'——直接對
 -- newtype 呼叫衍生的 'Show' 會印成 @TypeKey "asset-pack"@,不是純量文字。
 renderFrontmatter :: Meta -> LineEnding -> Text
-renderFrontmatter m le = T.concat [l <> nl | l <- concatMap field frontmatterFieldOrder]
-  where
-    nl = renderLineEnding le
-
-    field :: Text -> [Text]
-    field = \case
-      "id" -> ["id: " <> renderId (metaId m)]
-      "type" -> let TypeKey t = metaType m in ["type: " <> scalar t]
-      "vault" -> let VaultId t = metaVault m in ["vault: " <> scalar t]
-      "title" -> ["title: " <> scalar (metaTitle m)]
-      "summary" -> ["summary: " <> scalar (metaSummary m)]
-      "tags" -> ["tags: " <> flowList (metaTags m)]
-      "status" -> ["status: " <> renderStatus (metaStatus m)]
-      "timeline" ->
-        [ case metaTimeline m of
-            Nothing -> "timeline: null"
-            Just tl -> timelineLine tl
-        ]
-      "aliases" -> ["aliases: " <> flowList (metaAliases m)]
-      "source" -> ["source: " <> scalar (renderSource (metaSource m))]
-      "revision" -> let Revision r = metaRevision m in ["revision: " <> T.pack (show r)]
-      "created" -> ["created: " <> T.pack (show (metaCreated m))]
-      "updated" -> ["updated: " <> T.pack (show (metaUpdated m))]
-      "links" -> case metaLinks m of
-        [] -> ["links: []"]
-        ls -> "links:" : map linkLine ls
-      _ -> []
+renderFrontmatter m le = renderFrontmatterWith m (FrontExtras (MetaExtras [])) le
 
 -- 檔案層 frontmatter 的型別專屬那一半(graph-core/F004 重跑,G17)------------
 
@@ -804,7 +774,17 @@ newtype FrontExtras = FrontExtras
 -- __不解 YAML__:壞掉的 frontmatter 照樣抽得出行,壞不壞是 'updateFrontmatter'
 -- 走 'Meta' 那一半時才會發現的事(與 'extrasOf' 同一個理由)。
 frontExtrasOf :: Document -> FrontExtras
-frontExtrasOf = undefined
+frontExtrasOf Document {..} =
+  let contentLines = splitLinesKeep (dropFrontLead docFrontRaw)
+      extraEntries = [e | e <- splitEntries contentLines, entryKey e `notElem` frontmatterFieldOrder]
+   in FrontExtras (MetaExtras (map lineContent (concat extraEntries)))
+
+-- | 'docFrontRaw' 開頭是__開頭界線 @---@ 的行尾字元__本身,不是 YAML 內容,
+-- 切段前先去掉,否則會多出一個鍵為空字串的假條目(見 'frontExtrasOf' 的說明)。
+dropFrontLead :: Text -> Text
+dropFrontLead t = case T.stripPrefix "\r\n" t of
+  Just rest -> rest
+  Nothing -> fromMaybe t (T.stripPrefix "\n" t)
 
 -- | 'mergeExtras' 的檔案層版本:__一行 wrapper__(@coerce mergeExtras@),
 -- 語意逐字相同(第一個參數為新,同鍵時它贏;順序是「@a@ 的條目依原序在前,
@@ -813,7 +793,7 @@ frontExtrasOf = undefined
 -- 存在的理由只是讓 'updateFrontmatterExtras' 的呼叫端不必手動拆包再包回去;
 -- __不得複製 'mergeExtras' 的邏輯__。
 mergeFrontExtras :: FrontExtras -> FrontExtras -> FrontExtras
-mergeFrontExtras = undefined
+mergeFrontExtras (FrontExtras a) (FrontExtras b) = FrontExtras (mergeExtras a b)
 
 -- | 完整 'Meta' + 檔案層專屬條目 → frontmatter 內容(__不含__ @---@ 界線,
 -- 含結尾行尾)。'renderMetaBlock' 在檔案層的對應物,__兩半都要__。
@@ -826,7 +806,37 @@ mergeFrontExtras = undefined
 -- 'packFrontExtras' 的鍵集合保證(F004 的 L40 \/ L48)。吃 'FrontExtras' 而不是
 -- 'MetaExtras',所以「把節層的 extras 餵進來」在__型別上就寫不出來__(A11)。
 renderFrontmatterWith :: Meta -> FrontExtras -> LineEnding -> Text
-renderFrontmatterWith = undefined
+renderFrontmatterWith m fx le = T.concat (map (<> nl) lns)
+  where
+    nl = renderLineEnding le
+    lns = concatMap (frontFieldLines m) frontmatterFieldOrder ++ extraLines (unFrontExtras fx)
+
+-- | 'frontmatterFieldOrder' 的每一欄怎麼寫成一行。'renderFrontmatterWith' 的
+-- 'Meta' 那一半(對稱 'metaFieldLines');'Meta' 沒有 'Maybe',所以每個欄位都會
+-- 輸出。
+frontFieldLines :: Meta -> Text -> [Text]
+frontFieldLines m = \case
+  "id" -> ["id: " <> renderId (metaId m)]
+  "type" -> let TypeKey t = metaType m in ["type: " <> scalar t]
+  "vault" -> let VaultId t = metaVault m in ["vault: " <> scalar t]
+  "title" -> ["title: " <> scalar (metaTitle m)]
+  "summary" -> ["summary: " <> scalar (metaSummary m)]
+  "tags" -> ["tags: " <> flowList (metaTags m)]
+  "status" -> ["status: " <> renderStatus (metaStatus m)]
+  "timeline" ->
+    [ case metaTimeline m of
+        Nothing -> "timeline: null"
+        Just tl -> timelineLine tl
+    ]
+  "aliases" -> ["aliases: " <> flowList (metaAliases m)]
+  "source" -> ["source: " <> scalar (renderSource (metaSource m))]
+  "revision" -> let Revision r = metaRevision m in ["revision: " <> T.pack (show r)]
+  "created" -> ["created: " <> T.pack (show (metaCreated m))]
+  "updated" -> ["updated: " <> T.pack (show (metaUpdated m))]
+  "links" -> case metaLinks m of
+    [] -> ["links: []"]
+    ls -> "links:" : map linkLine ls
+  _ -> []
 
 -- | 從零產生一份帶__檔案層專屬欄位__的文件。'newDocument' 的兩半版本;
 -- @pack.md@ 只能走這一支('createPackFile' 的 @npVendor@ … 七欄靠它落地)。
@@ -834,7 +844,18 @@ renderFrontmatterWith = undefined
 -- 除了多吃一個 'FrontExtras',其餘與 'newDocument' 完全相同(三段切片的填法、
 -- 固定 'LF'、@kind@ 存進內部快取欄位)。
 newDocumentWith :: DocKind -> Meta -> FrontExtras -> Text -> Document
-newDocumentWith = undefined
+newDocumentWith kind meta fx body =
+  Document
+    { docFrontRaw = nl <> renderFrontmatterWith meta fx le
+    , docPreamble = nl <> nl <> body
+    , docSections = []
+    , docEnding = le
+    , docFinalNL = not (T.null (lineTerm body))
+    , docKind = kind
+    }
+  where
+    le = LF
+    nl = renderLineEnding le
 
 -- | 只改檔案層的型別專屬條目:'Meta' 那一半__一個欄位都不動__,'docPreamble'
 -- 與每一節__一個位元組都不動__。'updateSectionExtras' 在檔案層的對應物。
@@ -845,7 +866,14 @@ newDocumentWith = undefined
 -- frontmatter 的 YAML 壞掉時回 @'Left' ('mdError' 1 ('FrontmatterYaml' msg))@
 -- 且__不覆蓋__:'Meta' 那一半要原樣寫回去,就得先讀得懂它。
 updateFrontmatterExtras :: (FrontExtras -> FrontExtras) -> Document -> Either MdError Document
-updateFrontmatterExtras = undefined
+updateFrontmatterExtras g doc@Document {..} = case decodeFrontmatter docFrontRaw of
+  Left msg -> Left (mdError 1 (FrontmatterYaml msg))
+  Right meta ->
+    Right
+      doc
+        { docFrontRaw =
+            frontLead docEnding docFrontRaw <> renderFrontmatterWith meta (g (frontExtrasOf doc)) docEnding
+        }
 
 -- | @pack.md@ 檔案層的專屬欄位,與 'Aapms.Core.Pack.Pack' 逐欄對應(扣掉
 -- 'Aapms.Core.Meta.Meta' 與正文)。'NewAsset' \/ 'NewLicense' 在檔案層的對應物。
@@ -889,7 +917,18 @@ data NewPackFront = NewPackFront
 -- ——那會變成第二個真相來源。其餘五欄是純量,走 'scalar'(@sha256@ 先解開
 -- 'Sha256' newtype、@license@ 先 'renderRef')。
 packFrontExtras :: NewPackFront -> FrontExtras
-packFrontExtras = undefined
+packFrontExtras NewPackFront {..} =
+  FrontExtras $
+    MetaExtras $
+      concat
+        [ ["vendor: " <> scalar t | Just t <- [npfVendor]]
+        , ["archive: " <> scalar (T.pack p) | Just p <- [npfArchive]]
+        , ["sha256: " <> scalar shaText | Just (Sha256 shaText) <- [npfSha256]]
+        , ["license: " <> scalar (renderRef r) | Just r <- [npfLicense]]
+        , ["author: " <> renderValue (toJSON a) | Just a <- [npfAuthor]]
+        , ["source_url: " <> scalar t | Just t <- [npfSourceUrl]]
+        , ["ai_disclosure: " <> renderValue (toJSON npfAiDisclosure) | npfAiDisclosure /= AiUnknown]
+        ]
 
 -- | 固定的欄位順序。entity-graph-core/F003 給的九個欄位順序原樣保留為子序列,
 -- @kind@ / @vault@ / @created@ / @updated@ 是實作補上的(實作備註 1)。

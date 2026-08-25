@@ -5,7 +5,7 @@ title: graph-core
 description: 統一片段圖譜核心:型別、註冊表、兩種 Markdown 格式與可丟棄的索引
 status: active
 created: 2026-08-23
-updated: 2026-08-25
+updated: 2026-08-26
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
@@ -338,6 +338,14 @@ lookupRef      :: VaultSet -> VaultId -> Ref -> IO (Maybe (VaultId, AnyNode))   
 listAcross     :: VaultSet -> NodeFilter -> IO [(VaultId, Meta)]
 searchAcross   :: VaultSet -> SearchQuery -> IO SearchResult  -- 每筆帶 vault
 checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef] -- 本 vault 指出去的懸空引用
+closeVaultSet   :: VaultSet -> IO ()                 -- 與 closeVault 對稱:關掉 ATTACH 用的那個讀連線
+vaultSetIds     :: VaultSet -> [VaultId]             -- 這個集合實際涵蓋哪些 vault(去重後、保序)
+maxAttachedVaults :: Int                             -- ATTACH 上限,供呼叫端事前檢查而不必先失敗一次
+
+-- 懸空引用(2026-08-26 A3 定稿):兩種成因分開,呼叫端才修得對
+data DanglingRef = DanglingRef
+  { drSource :: Id, drLink :: Link, drTarget :: Ref, drReason :: DanglingReason }
+data DanglingReason = TargetVaultAbsent | TargetNodeMissing   -- 目標 vault 不在集合裡 / vault 在但節點不存在
 
 -- 寫入:先寫檔、再更新索引;全部經原子寫入與樂觀鎖
 createTopicFile   :: VaultHandle -> TypeRegistry -> NewEntity  -> IO (Either StoreError CreateResult)
@@ -380,7 +388,11 @@ data SearchResult = SearchResult { srHits :: [SearchHit], srTotal :: Int, srFace
 
 `StoreError` / `MdError` / `RegistryError` / `IdError` / `NameError` 每個建構子都有對應的
 `render*` 繁中訊息,**每一則說出下一步該做什麼**。上層(`service`)原樣包,不重寫。
-跨 vault 的 `TooManyVaults` 必須列出當前數量與上限。
+跨 vault 的 `TooManyVaults Int Int`(當前數量、上限)必須列出兩個數字。
+`openVaultSet` 收到**兩個不同路徑、卻帶相同 `vmId`** 的 handle 時回專屬錯誤並列出兩個路徑
+(2026-08-26 A5 裁決):依 ADR-017,vault 的身分就是 marker 裡的 id,撞號代表有人複製了整個
+vault 目錄,此時任何跨 vault 的 `Ref` 解析都是不確定的。**同一個路徑被傳兩次則保序去重**
+——那是無害的呼叫端疏忽(例如預設 vault 又被顯式指定一次),不該讓整個查詢掛掉。
 
 **`StoreError` 是 `aapms-store` 的唯一錯誤型別**(2026-08-24 釐清):寫入、索引、marker、跨 vault
 的失敗全部是它的建構子,由各 feature 依需要**擴充**(如 F005 建骨架、F006 加索引類、F008 加寫入類),
@@ -450,7 +462,9 @@ NewEntity / NewAsset / MetaOverride / AssetPatch(來自 service 或 asset-ingest
 ```text
 workspace 解析出本次生效的 vault 集合 → service 逐一 openVault → openVaultSet
   → 一個讀連線 ATTACH 每個 vault 的索引(超過上限 → TooManyVaults,列出數量)
-  → searchAcross / listAcross:UNION 各索引同名表,排序、分頁、facet 在 SQL 層完成
+  → listAcross:UNION 各索引同名表,排序、分頁、facet 在 SQL 層完成(與單 vault 的 listNodes 一致)
+  → searchAcross:兩張 FTS 表 × N 個 vault 的 bm25 分數在 Haskell 合併去重後排序分頁
+    (2026-08-26 A1 裁決,與單 vault 的 search 一致——分數合併推進 SQL 做得到但會把 SQL 組裝弄髒)
   → 每筆結果帶 VaultId;lookupRef 依 Ref 的 vault 欄位路由,缺省為呼叫端傳入的預設 vault
   → checkReferences:本 vault 所有 links 的目標逐一 lookupRef,找不到的回 DanglingRef
 ```
@@ -465,7 +479,7 @@ workspace 解析出本次生效的 vault 集合 → service 逐一 openVault →
 | `aapms-store` → `aapms-core` | `buildTree` / `checkMeta` / `parseId` / `parseRef` 驗證後才進索引;`newId` 配 salt 重試(時間由呼叫端給);**`buildTree` 另在寫入路徑被呼叫一次**——編輯後的 Level 檔要先確認樹仍合法才落地 |
 | Index → Tokenize | 寫入 FTS 前把文字欄位預切成 unigram + bigram 字串 |
 | Query → Tokenize | 依查詢字串長度與字元類別決定走 trigram、cjk 或兩者 |
-| MultiVault → Query | `*Across` 以同一組 SQL 片段對 UNION 後的視圖執行 |
+| MultiVault → Query | `listAcross` 重用 Query 的 `whereOf` 條件片段,對加了 schema 前綴的 UNION 視圖執行(**條件片段只有一份**);`searchAcross` 各 vault 各自取命中後在 Haskell 合併分數,與單 vault 的 `search` 同一條路 |
 
 **索引結構**(內部落地細節,可丟棄,不是對外契約):
 
@@ -592,7 +606,7 @@ fts_map(rowid PK, node_id)
 |---|---------|-----------|------|------|-----|
 | 7 | store-fts-dual-index | `fts_tri` + `fts_cjk`、預切、查詢路由、bm25 合併、`search` 與 facet、`LIKE` 退場 | Tokenize、Query | #6 | F007-store-fts-dual-index.md |
 | 8 | store-write-operations | 建檔 / 增節 / 改寫 / 刪除 / Node / License 的寫入改接統一 `Meta`;`AssetPatch`;樂觀鎖;`allocateId` | Write | #4, #6 | F008-store-write-operations.md |
-| 9 | store-multi-vault-read | `VaultSet`:ATTACH、`*Across`、`lookupRef`、`TooManyVaults`、`checkReferences` | MultiVault | #7 | - |
+| 9 | store-multi-vault-read | `VaultSet`:ATTACH、`*Across`、`lookupRef`、`TooManyVaults`、`checkReferences` | MultiVault | #7 | F009-store-multi-vault-read.md |
 
 小結:共 **9 個 features、3 個階段**;全部完成即主架構 P1 交付:`rm index.db` → rebuild 兩種
 vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。

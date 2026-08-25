@@ -19,7 +19,7 @@ import Control.Exception (Handler (..), catches)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple (FormatError, ResultError, SQLError)
-import Aapms.Core.Id (Id, renderId, renderRef)
+import Aapms.Core.Id (Id, VaultId (..), renderId, renderRef)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta (Revision (..), TypeKey (..))
 import Aapms.Core.Tree (TreeError, renderTreeError)
@@ -69,6 +69,17 @@ data StoreError
     CannotDeleteRootNode Id
   | -- | 父節點、算出來的標題層級。Markdown 只有六級標題
     NodeDepthExceeded Id Int
+  | -- | __去重後__的 vault 數量、上限(graph-core\/F009;契約 G:兩個數字都要
+    -- 列出來)。'Aapms.Store.MultiVault.openVaultSet' 一次接得住幾個索引由
+    -- @SQLITE_MAX_ATTACHED@ 決定;超過時是使用者看得懂的錯誤,不是靜默截斷
+    -- (ADR-017 第四條)
+    TooManyVaults Int Int
+  | -- | 撞號的 vault id、兩個不同的 vault 根目錄(graph-core\/F009)。依
+    -- ADR-017,__vault 的身分就是 marker 裡的 id__;兩個不同路徑帶著相同的 id
+    -- 代表有人複製了整個 vault 目錄,此時任何跨 vault 的
+    -- 'Aapms.Core.Id.Ref' 解析都是不確定的,不能靜默去重帶過。__同一個路徑被
+    -- 傳兩次__不走這裡——那是無害的呼叫端疏忽,保序去重即可
+    VaultIdCollision VaultId FilePath FilePath
   deriving stock (Show, Eq)
 
 -- | 繁中訊息,__每一則說出下一步該做什麼__(契約 G;system.md 全域錯誤處理策略
@@ -164,6 +175,22 @@ renderStoreError = \case
       <> T.pack (show lvl)
       <> " 級,超過 Markdown 六級標題的上限;請改插到較淺的父節點底下,"
       <> "或先把中間的層級壓平"
+  -- graph-core/F009 的跨 vault 讀
+  TooManyVaults n limit ->
+    "一次最多只能同時查詢 "
+      <> T.pack (show limit)
+      <> " 個 vault,這次收到 "
+      <> T.pack (show n)
+      <> " 個;請用 --vault 收窄查詢範圍,或先取消註冊用不到的 vault"
+  VaultIdCollision (VaultId v) p1 p2 ->
+    "兩個不同的目錄帶著同一個 vault id "
+      <> v
+      <> ":"
+      <> pack p1
+      <> " 與 "
+      <> pack p2
+      <> " —— 這通常是整個 vault 目錄被複製過;請只保留其中一個,"
+      <> "或對複製出來的那一份重新執行 vault init 取得新的 id 後再試"
   where
     pack = T.pack
     renderRevision (Revision n) = T.pack (show n)

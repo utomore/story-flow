@@ -26,6 +26,15 @@ module Aapms.Store.Query
     NodeFilter (..)
   , emptyNodeFilter
 
+    -- * 跨 vault 重用的 SQL 片段(graph-core\/F009)
+    --
+    -- | 「模組間公開介面」的 MultiVault → Query 那一條:
+    -- 'Aapms.Store.MultiVault.listAcross' 重用__這一份__條件片段,對加了
+    -- schema 前綴的 UNION 視圖執行。'NodeFilter' 的語意因此只有一個實作,
+    -- 單一 vault 與跨 vault 不會慢慢分歧。
+  , whereOfIn
+  , baseFromIn
+
     -- * 查詢
   , lookupNode
   , lookupByName
@@ -128,8 +137,30 @@ emptyNodeFilter =
 -- | 'NodeFilter' → SQL 片段 + 參數。base 查詢固定是
 -- @nodes n LEFT JOIN assets a ON a.id = n.id LEFT JOIN packs p ON p.id = n.id@
 -- ——'nfLicense'\/'nfNamedOnly'\/reference 排除都要用到 @a@\/@p@。
+--
+-- 單一 vault 的三個呼叫端('listNodes' \/ 'structuralIds' \/ 'ftsHits')用的
+-- 就是這個沒有前綴的特化,行為與 graph-core\/F007 交付時逐字相同。
 whereOf :: NodeFilter -> (Text, [SQLData])
-whereOf NodeFilter {..} = (T.concat (map fst parts), concatMap snd parts)
+whereOf = whereOfIn ""
+
+-- | 'whereOf' 的一般化:多吃一個 __schema 前綴__(graph-core\/F009)。
+--
+-- @schema@ 是要加在表名前面的前綴,__含結尾的點__:@\"\"@ 是目前連線的 @main@
+-- (即 'whereOf'),@\"v1.\"@ 是 @ATTACH@ 進來的某個 vault。
+--
+-- 條件本身絕大部分只用 @n@ \/ @a@ \/ @p@ 三個__別名__,逐字可重用;
+-- __需要前綴的是兩處直接寫出表名的子查詢__(以
+-- @grep -nE \"FROM [A-Za-z_]+|JOIN [A-Za-z_]+\"@ 對本函式全段掃出來的,不是用讀的):
+--
+-- 1. @tagClause@ 的 @SELECT 1 FROM node_tags nt …@('nfTags')
+-- 2. @referenceClause@ 的 @SELECT id FROM packs WHERE is_reference = 1@
+--    ('nfIncludeReference')
+--
+-- 跨 vault 時少了前綴,它們會解析到 @main@ 的那張表(或根本沒有這張表),等於
+-- 拿__別的 vault__ 的標籤 \/ reference 清單去篩這個 vault 的節點。第 2 條尤其
+-- 危險:'nfIncludeReference' 預設就是 'False',那是**預設路徑**。
+whereOfIn :: Text -> NodeFilter -> (Text, [SQLData])
+whereOfIn schema NodeFilter {..} = (T.concat (map fst parts), concatMap snd parts)
   where
     parts =
       concat
@@ -152,8 +183,12 @@ whereOf NodeFilter {..} = (T.concat (map fst parts), concatMap snd parts)
       | null nfStatus = (" AND n.status <> ?", [sText (renderStatus Missing)])
       | otherwise = inClause "n.status" (map renderStatus nfStatus)
 
+    -- 裸表名之二:標籤存在性檢查。少了前綴會拿別的 vault 的 node_tags 來篩
+    -- 這個 vault 的節點(與 referenceClause 同一類缺陷)。
     tagClause t =
-      ( " AND EXISTS (SELECT 1 FROM node_tags nt WHERE nt.node_id = n.id AND nt.tag = ?)"
+      ( " AND EXISTS (SELECT 1 FROM "
+          <> schema
+          <> "node_tags nt WHERE nt.node_id = n.id AND nt.tag = ?)"
       , [sText t]
       )
 
@@ -175,15 +210,29 @@ whereOf NodeFilter {..} = (T.concat (map fst parts), concatMap snd parts)
     -- NULL 在 WHERE 子句被當成 false 誤刪全部非 pack 節點。
     referenceClause =
       ( " AND (p.is_reference IS NULL OR p.is_reference = 0)\
-        \ AND (n.owner IS NULL OR n.owner NOT IN (SELECT id FROM packs WHERE is_reference = 1))"
+        \ AND (n.owner IS NULL OR n.owner NOT IN (SELECT id FROM "
+          <> schema
+          <> "packs WHERE is_reference = 1))"
       , []
       )
 
+-- | 單一 vault 的 @FROM@ 子句(graph-core\/F006 原文,行為不變)。
 baseFrom :: Text
-baseFrom =
-  "FROM nodes n\
-  \ LEFT JOIN assets a ON a.id = n.id\
-  \ LEFT JOIN packs p ON p.id = n.id"
+baseFrom = baseFromIn ""
+
+-- | 'baseFrom' 的一般化:三張表都加上 __schema 前綴__(graph-core\/F009)。
+-- @schema@ 的形式同 'whereOfIn'(含結尾的點);@\"\"@ 時逐字等於 'baseFrom'。
+baseFromIn :: Text -> Text
+baseFromIn schema =
+  "FROM "
+    <> schema
+    <> "nodes n\
+       \ LEFT JOIN "
+    <> schema
+    <> "assets a ON a.id = n.id\
+       \ LEFT JOIN "
+    <> schema
+    <> "packs p ON p.id = n.id"
 
 --------------------------------------------------------------------------------
 -- listNodes / childrenOf(不含 body 的批次查詢)

@@ -5,7 +5,7 @@ title: unified-marker-id-registry-read-across-write-single
 description: 統一 .aapms/ marker 帶 kind,中樞註冊表以 id 為鍵,讀跨全部 vault、寫單一
 status: accepted
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-08-26
 ---
 
 # ADR-017: 統一 marker、id 為鍵的中樞、讀跨寫單一
@@ -57,7 +57,19 @@ accepted。擴充 ADR-008(多 vault、git 式探測);吸收並 supersede assetdb
 向上探測保留(ADR-008 的 git 心智模型),但**只決定寫入目標**,不限制查詢範圍。這是兩邊各取
 一半:查詢要全局,寫入要明確。
 
-**四、跨 vault 讀以 `ATTACH DATABASE`** 一個連線掛多個索引再 UNION,排序、分頁、facet 在 SQL 層完成。
+**四、跨 vault 讀以 `ATTACH DATABASE`** 一個連線掛多個索引再 UNION。
+
+> **修訂(2026-08-26,graph-core/F009 spec 閘門)**:本條原文是「排序、分頁、facet 在 SQL 層完成」,
+> 經查證與程式碼不符、且不宜一律要求,改為**分案**:
+> - **結構查詢(`listAcross`)**:排序、分頁、facet 在 SQL 層完成——與單 vault 的 `listNodes` 一致,
+>   它本來就這樣做。
+> - **全文查詢(`searchAcross`)**:各 vault 各自取命中,bm25 分數在 Haskell 合併去重後排序分頁——
+>   與單 vault 的 `search` 一致(F007 的 `sortHits` / `takePage` 就在 Haskell)。理由:一次查詢要
+>   合併 `fts_tri` 與 `fts_cjk` **兩張表**的分數,跨 vault 後變成兩張表 × N 個 vault;推進 SQL
+>   做得到,但會把 SQL 組裝弄髒,而收益只在命中數極大時才出現。
+>
+> 原文之所以會與程式碼不符卻沒被發現,是因為本條只對**跨 vault** 提要求,單 vault 的偏離沒有人擋。
+
 短 id(ADR-014)在 vault 內唯一,跨 vault 不撞是因為結果帶 vault 欄位、定址用 `<vault-id>:<id>`。
 `SQLITE_MAX_ATTACHED`(預設 10)超過時是使用者看得懂的錯誤,不是靜默截斷。
 

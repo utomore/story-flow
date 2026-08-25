@@ -8,8 +8,9 @@
 -- schema 判斷。graph-core\/F006 接上索引維護(@rebuildIndex@\/@refreshStale@\/
 -- @indexFile@\/@unindexFile@)與單一 vault 查詢(@lookupNode@\/@listNodes@ 等,
 -- 不含全文檢索);graph-core\/F008 接上寫入('Aapms.Store.Create' 的建檔\/增節\/
--- 刪除與 'Aapms.Store.Write' 的改寫\/配號);跨 vault 讀(graph-core\/F009)接手後
--- 這份門面清單會再擴充。
+-- 刪除與 'Aapms.Store.Write' 的改寫\/配號);graph-core\/F009 接上跨 vault 讀
+-- ('Aapms.Store.MultiVault' 的 'openVaultSet' 與三個 @*Across@ \/ 'lookupRef' \/
+-- 'checkReferences')。
 --
 -- 典型用法:
 --
@@ -33,6 +34,7 @@ module Aapms.Store
   , module Aapms.Store.Error
   , module Aapms.Store.Index
   , module Aapms.Store.Marker
+  , module Aapms.Store.MultiVault
   , module Aapms.Store.Query
   , module Aapms.Store.Schema
   , module Aapms.Store.Write
@@ -43,6 +45,7 @@ import Aapms.Store.Create
 import Aapms.Store.Error
 import Aapms.Store.Index
 import Aapms.Store.Marker
+import Aapms.Store.MultiVault
 import Aapms.Store.Query
 import Aapms.Store.Schema
 import Aapms.Store.Write

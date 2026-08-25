@@ -117,6 +117,13 @@ subagent 原本要上閘門、經編排者重跑層級兩問後降下來的。�
 ` | L12a 原文 | **spec bug(G14)** | `blankTail` 補的空行。**與 F004 的 A10 同一個根**,開發者已裁決過一次:`blankTail` 冪等,只有插入點之前那一段尚未以空行結尾時才補齊。F004 契約卡已收窄,F008 的 L12a / L12b 沒有繼承。裁決:照 A10 措辭修 |
 | F008 | 1(W6) | `NodeSpec2.hs` L20 `sanitizeFileName`(反例 `"<"`) | L20 vs E11 | **spec bug(G13)** | L20「t 被清空時等於 fb」與 E11 逐字例子「冒號替換成 `-`」互斥:替換策略下純非法字元輸入永遠非空。裁決:**保留替換與 E11**(逐字例子最難被誤讀),L20 的「清空」改成只指「去除頭尾空白與 `.` 後為空」 |
 | F008 G17(impl) | — | 無測試失敗(**這正是問題**) | 無對應條文 | **spec bug** | `createPackFile` 把 `NewPack` 的七個 pack 專屬欄位一個都沒寫進檔案,重讀全解成 `Nothing`/`AiUnknown`,而 E3 只驗 `crPath` 與節順序 → **測試套件全綠但資料真的在遺失**。根因是 `aapms-md` **檔案層**沒有對稱節層 `MetaExtras` 的機制;**與 G2 是同一個病的檔案層鏡像**(G2 是節層,由 F004 重跑加 `MetaExtras` 修好)。依 ADR-013 `pack.md` 是素材中繼資料的真相,丟掉 vendor/license 等於丟掉「這批素材能不能商用」。**裁決:重新打開 F004 補檔案層 extras**,F008 補一條往返 law(在 F004 落地前會一直紅) |
+| F009 A1 | `design.md` 與 ADR-017 第四條都寫「跨 vault 的排序、分頁、facet 在 SQL 層完成」,但 Query 的 `whereOf` / `baseFrom` 都不在匯出清單,`baseFrom` 也寫死不帶 schema 前綴 | 由編排者匯出並一般化 | **部分推翻(2026-08-26 開發者裁決)**:改**分案**——`listAcross` 走 SQL(與單 vault 的 `listNodes` 一致)、`searchAcross` 走 Haskell(與單 vault 的 `search` 一致)。**編排者另查出比回報更嚴重的事**:F007 的單 vault `search` 根本不在 SQL 排序(`sortHits:616` / `takePage:619` 都在 Haskell),ADR-017 第四條**早就與程式碼不符**。已修訂 ADR-017 並註明:原文之所以沒被發現不符,是因為它只對跨 vault 提要求,單 vault 的偏離沒有人擋 |
+| F009 A2 | 契約 E 缺 `closeVaultSet` / `vaultSetIds` / `maxAttachedVaults` | 三條都補 | **接受**,已回寫契約 E |
+| F009 A3 | `DanglingRef` 形狀未定義(D3 已記) | 四欄 + 封閉的 `DanglingReason` 兩值 | **接受**,已回寫契約 E |
+| F009 A4 | `TooManyVaults` 要進 `StoreError`,但 `Error.hs` 不在骨架清單 | 由編排者加 | **接受**,改授權 spec 自己加(`TooManyVaults Int Int`),契約 G 已補形狀 |
+| F009 A5 | `openVaultSet` 收到重複 `vmId` 的處置 | 一律保序去重、上限以去重後計 | **推翻(2026-08-26 開發者裁決)**:兩種成因必須分開——同一路徑傳兩次是無害疏忽 → 保序去重;**兩個不同路徑帶相同 `vmId`** 依 ADR-017 代表整個 vault 目錄被複製過,此時任何跨 vault `Ref` 解析都不確定 → 回 `VaultIdCollision` 並列出兩個路徑。靜默去重會把後者吞掉,症狀是「搜尋結果少了一個 vault 的東西」 |
+| F009 A6 | 跨 vault 的 facet 語意 | 同值跨 vault 求和 | **接受**;實作走「逐 vault 呼叫公開 `search` 再在 Haskell 合併」,不重用私有的 `computeFacets`(它有裸表名) |
+| F009(編排者發現) | spec 宣稱 reference 子查詢是 `whereOf` 裡**唯一**寫出裸表名的地方 —— 這句是錯的 | — | **編排者掃描更正**:還有 `tagClause` 的 `FROM node_tags`(`Query.hs:181`)。跨 vault 會查到 `main.node_tags`,即拿別的 vault 的標籤表篩本 vault 的節點,而單 vault 走 `whereOfIn ""` 行為不變 → **沒有任何測試會紅**。subagent 的判準(別名安全、裸表名危險)正確,但用讀的執行、漏了一處;改用 `grep -nE "FROM [A-Za-z_]+|JOIN [A-Za-z_]+"` 掃兩段,現在 0 筆。判準對而掃描不完整,結果與判準錯相同 |
 
 ## 待確認假設彙總
 

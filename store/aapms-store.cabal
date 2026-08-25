@@ -30,6 +30,7 @@ library
         Aapms.Store.Error
         Aapms.Store.Index
         Aapms.Store.Marker
+        Aapms.Store.MultiVault
         Aapms.Store.Node
         Aapms.Store.Query
         Aapms.Store.Row

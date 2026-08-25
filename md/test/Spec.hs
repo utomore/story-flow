@@ -7,6 +7,7 @@ import qualified Aapms.Md.DocumentSpec
 import qualified Aapms.Md.EditSpec
 import qualified Aapms.Md.EditLawsSpec
 import qualified Aapms.Md.ErrorSpec
+import qualified Aapms.Md.FrontExtrasSpec
 import qualified Aapms.Md.HeadingSpec
 import qualified Aapms.Md.InheritSpec
 import qualified Aapms.Md.InsertSectionSpec
@@ -48,3 +49,4 @@ main = do
     describe "graph-core/F004 Laws: docKind(L22)" Aapms.Md.DocKindLawSpec.spec
     describe "graph-core/F004 Laws: 回歸(L1,L19,L20,L23-L31)" Aapms.Md.RegressionLawsSpec.spec
     describe "graph-core/F004(2026-08-25) insertSection(L32-L39,E11-E22)" Aapms.Md.InsertSectionSpec.spec
+    describe "graph-core/F004(2026-08-25 第三輪,G17) 檔案層 extras(L40-L49,E23-E29)" Aapms.Md.FrontExtrasSpec.spec

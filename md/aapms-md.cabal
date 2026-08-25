@@ -56,6 +56,7 @@ test-suite aapms-md-test
         Aapms.Md.EditLawsSpec
         Aapms.Md.ErrorSpec
         Aapms.Md.Fixtures
+        Aapms.Md.FrontExtrasSpec
         Aapms.Md.Gens
         Aapms.Md.HeadingSpec
         Aapms.Md.InheritSpec

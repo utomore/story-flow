@@ -151,7 +151,7 @@ parent: graph-core
 - **需要 spec 回答什麼**:`isRootNode` 對「`id` 不在 `doc` 裡」這個輸入該回什麼?比照
   `headingDepthFor` / `subtreeAfter`(haddock 明說「節不存在時是空清單」)訂出對稱的規則,
   或者乾脆補一條 Law
-- 狀態:open
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):`isRootNode` 對「id 不在 `doc` 裡」回 `Left (SectionMissing path id)`,與 `headingDepthFor`(L21)對稱——「查無此節」與「這個節不是根」是兩件事,合一會讓錯誤往下游飄;F008 新增 **L24**(三種結果)與 **E18**,`Node.hs:71` 的 haddock 已寫明,簽名不變
 
 ## G7(F008 / qa)—— 已縮小範圍:`SqliteError` 的既有訊息與 L15 字面不符
 
@@ -171,7 +171,7 @@ parent: graph-core
   (「請」/「改用」/「可以」/「才」),或者 `SqliteError` 的訊息文字要改成含「請」的子句(例如
   「……；請嘗試重新開啟 vault」)?這是文字選擇,但既然 L15 把它寫成可機械驗證的斷言,誰改
   由開發者定
-- 狀態:open
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**L15 不放寬**(維持「含至少一個以『請』起頭的子句」),改的是訊息文字——`SqliteError` 改成 `"索引操作失敗 —— " <> msg <> ";請嘗試重新開啟 vault"`,**由 impl 這一輪改**(F005 其餘 5 則不得更動);理由是 21 則訊息只有一種形狀,放寬成四選一日後只要戴個「可以」就混得過去。F008 已補「`SqliteError` 的訊息要改」一節與 **E17**
 
 ## G8(F008 / qa)
 
@@ -189,7 +189,7 @@ parent: graph-core
 - **需要 spec 回答什麼**:`allocateId` 要不要在契約 E 之外另開一個__僅供測試\/可控時間源__的
   管道(例如帶一個 `UTCTime` 參數的內部變體,契約 E 的 `allocateId` 只是取現在時間再呼叫它)?
   或者 E6 改成只斷言「碰撞後 salt 會遞增」這個性質、不要求可從外部精確重現特定的碰撞情境?
-- 狀態:open
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):`allocateId` 收**明碼 `UTCTime`**(`VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)`,契約 E 已回寫 `design.md:326`)——藏在內部取樣就永遠測不到 salt 重試迴圈;F008 的介面表、L14(收緊成「同一個 `t` 連續呼叫 n 次」)、L14b、E6(重寫成可精確構造)、E15 已改,骨架 `Write.hs:179` 已改簽名,四個 create 函式對外簽名不變(自己取時間再傳入)
 
 ## G12(F008 / qa)
 
@@ -209,7 +209,7 @@ parent: graph-core
   (例如：要求 SQLite 呼叫全部集中在具名的一小組函式內,qa 只需驗證檔案 IO \/ md 序列化的呼叫點
   不落在那組函式的原始碼範圍內——這仍然是文字掃描,但至少把「巢狀」換成「是否在同一個具名定義
   的範圍內」,少了括號配對的模糊地帶)?
-- 狀態:open
+- 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**第三個子句從 L17 移除**,降級為 `/arch-audit subsys graph-core` 在階段閘門的人工檢查項(寫進 F008 的「實作備註」);L17 只保留兩個機械可判定的子句,`WriteLockBudgetSpec` 現有的涵蓋範圍就是完整範圍。理由:ADR-022 把 code review 與靜態檢測並列,而「X 是否巢狀在 Y 的括號內」是語法樹層級的問題,文字掃描會製造偽陽性與偽陰性(與 F007 的 G3 同一個根)
 
 ## G6(F004 / qa)
 

@@ -20,6 +20,15 @@
 -- 檔名__保留中文原字元__:vault 是給人看的 git repo,@characters\/琳達.md@ 比雜湊
 -- 好一百倍。只替換檔案系統不接受的字元。
 --
+-- == 配號與時間
+--
+-- 'createTopicFile' \/ 'createLevelFile' \/ 'createPackFile' \/ 'addSection' 內部都會
+-- 呼叫 'Aapms.Store.Write.allocateId',而它自 2026-08-25(G8 裁決)起__把時間收成
+-- 明碼參數__。這四個函式的__對外簽名不變__:它們自己呼叫
+-- 'Data.Time.getCurrentTime' 取當下時間再傳進去,不把 'Data.Time.UTCTime' 一路往上
+-- 加到契約 E 的簽名裡。可控時間源是 'Aapms.Store.Write.allocateId' 一個人的事,
+-- 建檔路徑不需要那個能力。
+--
 -- == 刪除策略
 --
 -- __不自動清掉指向被刪目標的關聯__:那要改其他檔案,而多檔寫入沒有交易保證 ——

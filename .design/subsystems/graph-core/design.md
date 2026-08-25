@@ -323,7 +323,10 @@ writeBody         :: VaultHandle -> Id -> Revision -> Text      -> IO (Either St
 addLink / removeLink :: VaultHandle -> Id -> Revision -> Link   -> IO (Either StoreError WriteResult)
 upsertLicense     :: VaultHandle -> License                     -> IO (Either StoreError WriteResult)
 deleteNode        :: VaultHandle -> Id -> Revision -> DeleteMode -> IO (Either StoreError DeleteResult)
-allocateId        :: VaultHandle -> IdPrefix -> Text -> IO (Either StoreError Id)  -- salt 遞增重試直到不撞;碰撞查詢失敗即失敗,不靜默照發
+allocateId        :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
+-- salt 遞增重試直到不撞;碰撞查詢失敗即失敗,不靜默照發。時間是明碼參數,與 aapms-core 的
+-- newId 一致(2026-08-25 G8 裁決):藏在函式內部取樣,呼叫端就無法預先造出碰撞,salt 重試
+-- 迴圈也就永遠測不到——而碰撞在正常情況下幾乎不發生,那段程式碼可能永遠是錯的而沒人知道
 ```
 
 ### F. 查詢 DTO

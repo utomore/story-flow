@@ -58,6 +58,8 @@ test-suite aapms-store-test
     main-is:          Spec.hs
     other-modules:
         Aapms.Store.AtomicSpec
+        Aapms.Store.CreateSpec
+        Aapms.Store.EditSpec
         Aapms.Store.ErrorSpec
         Aapms.Store.Fixtures
         Aapms.Store.FacetSpec
@@ -65,13 +67,17 @@ test-suite aapms-store-test
         Aapms.Store.IndexSpec
         Aapms.Store.MarkerSpec
         Aapms.Store.NodeSpec
+        Aapms.Store.NodeSpec2
         Aapms.Store.QuerySpec
         Aapms.Store.RebuildSpec
         Aapms.Store.RowSpec
         Aapms.Store.SearchSpec
         Aapms.Store.SchemaSpec
         Aapms.Store.StaleSpec
+        Aapms.Store.StoreErrorL15Spec
         Aapms.Store.TokenizeSpec
+        Aapms.Store.WriteLockBudgetSpec
+        Aapms.Store.WriteSpec
         Aapms.StoreSpec
     build-depends:
         , aeson

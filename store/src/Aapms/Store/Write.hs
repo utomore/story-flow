@@ -37,6 +37,7 @@ module Aapms.Store.Write
   ) where
 
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import Aapms.Core.Asset (LogicalName)
 import Aapms.Core.Id (Id, IdPrefix, Ref)
 import Aapms.Core.License (License)
@@ -160,13 +161,20 @@ upsertLicense = undefined
 -- | 產生一個索引裡還沒有人用的 ID(ADR-014)。
 --
 -- 'Aapms.Core.Id.newId' 是純函式,唯一性只有持有索引的這一層做得到:撞了就
--- @salt + 1@ 重算,直到不撞。時間由本函式取(@core@ 零 IO,時間必須由呼叫端
--- 提供,而這裡就是那個呼叫端)。
+-- @salt + 1@ 重算,直到不撞。候選 id 恆為 @newId p c t salt@,@salt@ 從 @0@ 起遞增。
+--
+-- __時間是明碼參數__(第四個參數,2026-08-25 G8 裁決,契約 E):與
+-- 'Aapms.Core.Id.newId' 一致。藏在函式內部取樣的話,呼叫端就無法預先造出碰撞,
+-- salt 重試迴圈也就永遠測不到 ——而碰撞在正常情況下幾乎不發生,那段程式碼可能永遠
+-- 是錯的而沒人知道。取當下時間的責任因此落在呼叫端:
+-- 'Aapms.Store.Create.createTopicFile' \/ 'Aapms.Store.Create.createLevelFile' \/
+-- 'Aapms.Store.Create.createPackFile' \/ 'Aapms.Store.Create.addSection' 自己取
+-- 'Data.Time.getCurrentTime' 再傳進來,__它們的對外簽名不變__。
 --
 -- __碰撞查詢失敗即失敗,不靜默照發__(2026-08-25 裁決,契約 E):查詢出錯時
 -- 「照發當前候選」等於把一個__未經碰撞檢查的 id__ 寫進 Markdown,而依 ADR-013
 -- 檔案是真相 ——重複的身分就這樣落地了,事後只能以「'Aapms.Store.Index.rebuildIndex'
 -- 撞 @nodes.id@ 主鍵」的形式發現,修復要人工改檔案裡的 id 與所有指向它的關聯。
 -- 因此簽名帶失敗通道:查詢失敗回 'Aapms.Store.Error.SqliteError'。
-allocateId :: VaultHandle -> IdPrefix -> Text -> IO (Either StoreError Id)
+allocateId :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
 allocateId = undefined

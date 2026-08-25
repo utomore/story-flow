@@ -1,18 +1,24 @@
 module Main (main) where
 
 import qualified Aapms.Store.AtomicSpec
+import qualified Aapms.Store.CreateSpec
+import qualified Aapms.Store.EditSpec
 import qualified Aapms.Store.ErrorSpec
 import qualified Aapms.Store.FacetSpec
 import qualified Aapms.Store.IndexSpec
 import qualified Aapms.Store.MarkerSpec
 import qualified Aapms.Store.NodeSpec
+import qualified Aapms.Store.NodeSpec2
 import qualified Aapms.Store.QuerySpec
 import qualified Aapms.Store.RebuildSpec
 import qualified Aapms.Store.RowSpec
 import qualified Aapms.Store.SchemaSpec
 import qualified Aapms.Store.SearchSpec
 import qualified Aapms.Store.StaleSpec
+import qualified Aapms.Store.StoreErrorL15Spec
 import qualified Aapms.Store.TokenizeSpec
+import qualified Aapms.Store.WriteLockBudgetSpec
+import qualified Aapms.Store.WriteSpec
 import qualified Aapms.StoreSpec
 import System.IO
 import Test.Hspec
@@ -37,3 +43,10 @@ main = do
     Aapms.Store.TokenizeSpec.spec
     Aapms.Store.SearchSpec.spec
     Aapms.Store.FacetSpec.spec
+    -- graph-core/F008(qa 委派新增)
+    Aapms.Store.StoreErrorL15Spec.spec
+    Aapms.Store.NodeSpec2.spec
+    Aapms.Store.EditSpec.spec
+    Aapms.Store.CreateSpec.spec
+    Aapms.Store.WriteSpec.spec
+    Aapms.Store.WriteLockBudgetSpec.spec

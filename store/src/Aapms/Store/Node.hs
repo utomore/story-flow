@@ -57,6 +57,17 @@ subtreeIds = undefined
 -- | 這個 id 是不是該 Level 檔的根 Node(frontmatter 的 @root@ \/ 第一個節)。
 --
 -- 根 Node 刪不得:刪了整份 Level 檔就解析不出 @root@。
+--
+-- 三種結果,一個都不能少(2026-08-25 G9 裁決,見 F008 的 L24):
+--
+-- * @id@ 在 @doc@ 裡且就是該 Level 檔的根 → @'Right' 'True'@
+-- * @id@ 在 @doc@ 裡但不是根 → @'Right' 'False'@
+-- * @id@ __不在__ @doc@ 裡 → @'Left' ('Aapms.Store.Error.SectionMissing' path id)@
+--
+-- 最後一種__不是__ @'Right' 'False'@:與同模組的 'headingDepthFor' 對稱(父節點不在
+-- 文件裡時它回 'Aapms.Store.Error.SectionMissing')。「查無此節」與「這個節不是根」
+-- 是兩件不同的事,合一會讓呼叫端分不出來 ——'Aapms.Store.Create.deleteNode' 會把
+-- 一個根本不存在的 id 當成「可以刪的非根節點」繼續往下走,錯誤就往下游飄。
 isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool
 isRootNode = undefined
 

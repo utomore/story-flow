@@ -3,7 +3,7 @@ id: F009
 type: feature
 title: store-multi-vault-read
 description: 以 VaultSet 接起多個 vault 的索引,跨 vault 列舉、檢索與懸空引用檢查
-status: open
+status: done
 created: 2026-08-25
 updated: 2026-08-26
 depends-on: [F001, F005, F006, F007]
@@ -151,7 +151,10 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
   vault** 的那張表來篩這個 vault 的節點;而只要**只有一個 vault 有那種資料**,對的實作與錯的
   實作就會給出**相同答案**,fixture 抓不到:
   1. **`nfTags` → `node_tags` 存在性子查詢**。兩個 vault **各自都要有標籤,而且標籤集合要能
-     分辨**(例:A 的節點帶 `["琳達"]`、B 的節點帶 `["藥水"]`)。見 E17
+     分辨**(例:A 的節點帶 `["琳達"]`、B 的節點帶 `["藥水"]`)。而且那個區辨標籤要
+     **只掛在該 vault 的一個節上**——它必須是**節層**標籤,寫在檔案層會被同檔每一個節繼承
+     (`design.md` 的節層繼承規則對 `tags` 是聯集去重),`["琳達"]` 就篩不掉同檔的其他節,
+     「真的篩掉東西」這個非退化條件當場失效。見 Examples 的 fixture 前提與 E17
   2. **`nfIncludeReference` → `packs` 的 reference 子查詢**。兩個 vault **各自都要有**一個位於
      `library/reference/` 底下的 pack 與它底下的 asset。而且 `nfIncludeReference` 的預設值是
      `False`,這條路是**預設路徑**。見 E16
@@ -299,13 +302,25 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 >   地方是 `node_tags` 子查詢,只有一邊有標籤的話對錯實作給出相同答案),外加一個**兩邊都有**的
 >   標籤 `"canon"`(L12 的 facet 求和要靠它:兩邊沒有共同值的話,「求和」與「取其中一個」給出
 >   相同答案)。兩個要求同時成立,缺一條都會讓對應的 law 變成恆真
+> - **區辨用的標籤必須放在節層,不能放在檔案層**(2026-08-26 開發者裁決,G19):`design.md` 的
+>   「節層繼承規則」對 `tags` 是**聯集去重**,寫在檔案層 frontmatter 的標籤會被**同一個檔案裡的
+>   每一個節**繼承,於是「只有某一個節帶這個標籤」這個前提當場失效。上一條要求的
+>   `metaTags = ["琳達", "canon"]` 指的是 **`ent-00000001` 這個節自己的節層標籤**;同檔的
+>   `ent-00000005` / `ent-00000007` **不得**帶「琳達」,`pck-00000001` 也**不得**帶「藥水」——
+>   否則 E17 的「只回一筆」與 L4 非退化的「這組 `nfTags` 真的篩掉了東西」都會落空(實際踩過:
+>   把 `tags: [琳達, canon]` 寫在 F-A 的檔案層,`nfTags = ["琳達"]` 回三筆而不是一筆)
+> - **用來測「窄命中」的查詢字串,不得出現在同一 vault 其他節點的標題或正文裡**(同一次裁決):
+>   E1 / E12 用的 `sqText = Just "藥水"` 只能命中 F-A 的 `ent-00000001` 與 F-B 的 `ast-00000002`
+>   各一筆,所以 F-B 的 `pck-00000001`(`library/packs/potions/pack.md`)的 `metaTitle` 與正文
+>   **不得含「藥水」二字**(實際踩過:標題取成「藥水素材包」,`srHits` 變三筆、`fcVaults` 的
+>   `vlt-bbbb0002` 計數變 2)。同一個節點被 FTS 命中與否是 fixture 的責任,不是實作的行為差異
 > - 兩個 vault 都跑過 `rebuildIndex`,`listNodes` 各自回得出東西
 > - `vsAB` 表示 `openVaultSet [hA, hB]` 成功後的那個 `VaultSet`
 
 | # | 輸入 | 預期輸出 | 覆蓋的邊界 |
 |---|---|---|---|
-| E1 | `searchAcross vsAB (emptySearchQuery { sqText = Just "藥水" })` | `srHits` 恰兩筆:一筆 `shVault == VaultId "vlt-aaaa0001"` 且 `metaId (shMeta) == ent-00000001`,一筆 `shVault == VaultId "vlt-bbbb0002"` 且 `metaId (shMeta) == ast-00000002`;兩筆都 `shScore > 0`、`shSnippet` 含「藥水」、`metaVault (shMeta) == shVault`;`srTotal == 2` | **契約卡驗收 1**:一次回兩種 vault、每筆 `shVault` 正確 |
-| E2 | `listAcross vsAB emptyNodeFilter { nfLimit = 10 }`,再取 `listAcross vsAB emptyNodeFilter { nfOffset = 1, nfLimit = 2 }` | 第一次(只看 `ent-` 的部分)依序是 `[(A, ent-…01), (B, ent-…01), (B, ent-…03), (A, ent-…05), (A, ent-…07)]`;第二次是 `[(B, ent-…01), (B, ent-…03)]` | **契約卡驗收 2**:排序與分頁跨 vault。「各自排完再接」會給 `[A01, A05, A07, B01, B03]`,第二次會是 `[(A, ent-…05), (A, ent-…07)]` —— 兩種作法在這裡給出完全不同的答案 |
+| E1 | `searchAcross vsAB (emptySearchQuery { sqText = Just "藥水" })` | `srHits` 恰兩筆:一筆 `shVault == VaultId "vlt-aaaa0001"` 且 `metaId (shMeta) == ent-00000001`,一筆 `shVault == VaultId "vlt-bbbb0002"` 且 `metaId (shMeta) == ast-00000002`;兩筆都 `shScore > 0`、`shSnippet` 含「藥水」、`metaVault (shMeta) == shVault`;`srTotal == 2` | **契約卡驗收 1**:一次回兩種 vault、每筆 `shVault` 正確。「恰兩筆」依賴 fixture 前提的**窄命中**約束:兩個 vault 裡除了這兩個節點,沒有別的節點的標題或正文含「藥水」 |
+| E2 | `listAcross vsAB emptyNodeFilter { nfPrefixes = [PEnt], nfLimit = 10 }`,再取 `listAcross vsAB emptyNodeFilter { nfPrefixes = [PEnt], nfOffset = 1, nfLimit = 2 }` | 第一次依序是 `[(A, ent-…01), (B, ent-…01), (B, ent-…03), (A, ent-…05), (A, ent-…07)]`;第二次是 `[(B, ent-…01), (B, ent-…03)]` | **契約卡驗收 2**:排序與分頁跨 vault。「各自排完再接」會給 `[A01, A05, A07, B01, B03]`,第二次會是 `[(A, ent-…05), (A, ent-…07)]` —— 兩種作法在這裡給出完全不同的答案 |
 | E3 | `lookupRef vsAB (VaultId "vlt-aaaa0001") (Ref Nothing (Id "ent-00000001"))` 與 `lookupRef vsAB (VaultId "vlt-bbbb0002") (Ref Nothing (Id "ent-00000001"))` | 前者 `Just (VaultId "vlt-aaaa0001", n)` 且 `metaTitle (anyMeta n) == "琳達的藥水日記"`;後者 `Just (VaultId "vlt-bbbb0002", n')` 且 `metaTitle (anyMeta n') == "B 庫的同號節點"` | **契約卡驗收 3**:不帶 vault 的 `Ref` 以呼叫端指定的預設 vault 解析(前提:同一短 id 在兩個 vault 都存在) |
 | E4 | `lookupRef vsAB (VaultId "vlt-aaaa0001") (Ref (Just (VaultId "vlt-bbbb0002")) (Id "ent-00000001"))` | `Just (VaultId "vlt-bbbb0002", n')`,`metaTitle (anyMeta n') == "B 庫的同號節點"` | 帶 vault 的 `Ref` 覆蓋預設 vault |
 | E5 | `lookupRef vsAB (VaultId "vlt-aaaa0001") (Ref (Just (VaultId "vlt-cccc0003")) (Id "ent-00000001"))`,其中 `vlt-cccc0003` 不在集合裡 | `Nothing` | 目標 vault 不在集合裡(id 本身在兩個 vault 都存在,所以 `Nothing` 只可能來自 vault 路由) |
@@ -315,12 +330,21 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 | E9 | 對 E8 的兩筆各呼叫 `renderDanglingRef` | 兩則訊息都非空、互不相等;各含 `"ent-00000001"`;第一則含 `"vlt-aaaa0001:ent-0000dead"`、第二則含 `"vlt-cccc0003:ent-00000001"`;兩則都有以「請」起頭的子句 | 錯誤/問題訊息的契約 G 判準 |
 | E10 | `openVaultSet []` 之後 `listAcross vs emptyNodeFilter`、`searchAcross vs emptySearchQuery`、`lookupRef vs (VaultId "vlt-aaaa0001") (Ref Nothing (Id "ent-00000001"))`、`checkReferences vs hA` | `[]`;`SearchResult [] 0 Nothing`;`Nothing`;`checkReferences` 對 `hA` 的**每一筆**關聯各回一筆,`drReason` 全是 `TargetVaultAbsent`(以 E8 的 fixture 就是三筆) | 空集合不是錯誤;空集合下「本 vault 自己」也不在集合裡 |
 | E11 | `openVaultSet [hA]` 之後 `listAcross vs emptyNodeFilter` 與 `searchAcross vs (emptySearchQuery { sqText = Just "藥水", sqFacets = True })` | `map snd` 逐筆等於 `listNodes hA emptyNodeFilter`、每筆 `fst == VaultId "vlt-aaaa0001"`;`searchAcross` 逐欄等於 `search hA` 的同一個查詢(含 `srTotal` 與 `srFacets`) | 單一 vault 退化成 F006 / F007 的行為 |
-| E12 | `searchAcross vsAB (emptySearchQuery { sqText = Just "藥水", sqFacets = True })` | `fcVaults == [(VaultId 的文字 "vlt-aaaa0001", 1), ("vlt-bbbb0002", 1)]`(計數相同時以值遞增),和等於 `srTotal == 2`;`closeVaultSet` 之後 `listNodes hA emptyNodeFilter` 與呼叫前逐筆相同,`closeVault hA` 正常完成 | facet 的 vault 維度跨 vault;`VaultSet` 不接管把手的生命週期 |
+| E12 | `searchAcross vsAB (emptySearchQuery { sqText = Just "藥水", sqFacets = True })` | `fcVaults == [(VaultId 的文字 "vlt-aaaa0001", 1), ("vlt-bbbb0002", 1)]`(計數相同時以值遞增),和等於 `srTotal == 2`;`closeVaultSet` 之後 `listNodes hA emptyNodeFilter` 與呼叫前逐筆相同,`closeVault hA` 正常完成 | facet 的 vault 維度跨 vault;`VaultSet` 不接管把手的生命週期。兩個計數都是 1,前提與 E1 同一條:窄命中約束成立(每個 vault 只有一個節點命中「藥水」) |
 | E13 | 把 F-A 的整個目錄**複製**成 `F-A'`(marker 逐位元組相同,所以 `vmId` 也是 `vlt-aaaa0001`),`openVault` 之後 `openVaultSet [hA, hB, hA']` | `Left (VaultIdCollision (VaultId "vlt-aaaa0001") <hA 的 vhRoot> <hA' 的 vhRoot>)`;**不是** `Right`、也**不是**去重後的成功 | **A5 裁決**:兩個不同目錄帶同一個 vault id 是資料問題,靜默去重會讓「搜尋結果少了一個 vault」沒有人發現 |
 | E14 | 對 11 個 `vmId` 相異的把手清單,把其中一個換成 F-A 的複製(於是清單長度 > 上限**且**撞號) | `Left (VaultIdCollision …)`,不是 `Left (TooManyVaults …)` | 撞號優先於上限(L1b):先講資料問題,再講範圍問題 |
 | E15 | `renderStoreError (TooManyVaults 11 10)` 與 `renderStoreError (VaultIdCollision (VaultId "vlt-aaaa0001") "C:/a" "C:/b")` | 兩則都非空、互不相等;第一則含 `"11"` 與 `"10"`,第二則含 `"vlt-aaaa0001"`、`"C:/a"`、`"C:/b"`;兩則都有以「請」起頭的子句 | 契約 G:兩個數字 / 兩個路徑都要列出來,且每則說出下一步 |
 | E16 | 兩個 vault 各自的 `library/reference/` 底下各有一個 pack。`listAcross vsAB emptyNodeFilter`(`nfIncludeReference` 預設 `False`),再與 `nfIncludeReference = True` 比較 | 預設時**兩個 vault 的 reference pack 與它們底下的 asset 都不出現**;改成 `True` 時兩邊的都出現。兩次結果的差集恰好是兩個 vault 的 reference 節點聯集 | WHERE 裡**兩處寫出表名之一**(`packs` 的 reference 子查詢);schema 前綴漏掉時會拿 A 的 reference 清單去篩 B 的節點,而它走的是預設路徑 |
-| E17 | 標籤如 fixture 前提(A:`["琳達", "canon"]`,B:`["藥水", "canon"]`)。依序 `listAcross vsAB emptyNodeFilter { nfTags = ["琳達"] }`、`nfTags = ["藥水"]`、`nfTags = ["canon"]`、`nfTags = ["琳達", "藥水"]` | 第一次**只回** `[(VaultId "vlt-aaaa0001", <ent-00000001 的 Meta>)]`;第二次**只回** `[(VaultId "vlt-bbbb0002", <ast-00000002 的 Meta>)]`;第三次**兩筆都回**(各一);第四次回 `[]`(`nfTags` 的多個標籤是 AND,沒有節點同時帶兩個) | WHERE 裡**兩處寫出表名之二**(`node_tags` 存在性子查詢);schema 前綴漏掉時會拿 B 的標籤表去篩 A 的節點——**兩邊都要有標籤且各有一個只有自己有的標籤,只有一邊有的話對錯實作給出相同答案**;第三次是共同標籤的對照 |
+| E17 | 標籤如 fixture 前提(A:`["琳達", "canon"]`,B:`["藥水", "canon"]`,**都是節層標籤**——「琳達」只掛在 `ent-00000001`、「藥水」只掛在 `ast-00000002`,同檔的其他節不得繼承到它們)。依序 `listAcross vsAB emptyNodeFilter { nfTags = ["琳達"] }`、`nfTags = ["藥水"]`、`nfTags = ["canon"]`、`nfTags = ["琳達", "藥水"]` | 第一次**只回** `[(VaultId "vlt-aaaa0001", <ent-00000001 的 Meta>)]`;第二次**只回** `[(VaultId "vlt-bbbb0002", <ast-00000002 的 Meta>)]`;第三次**兩筆都回**(各一);第四次回 `[]`(`nfTags` 的多個標籤是 AND,沒有節點同時帶兩個) | WHERE 裡**兩處寫出表名之二**(`node_tags` 存在性子查詢);schema 前綴漏掉時會拿 B 的標籤表去篩 A 的節點——**兩邊都要有標籤且各有一個只有自己有的標籤,只有一邊有的話對錯實作給出相同答案**;第三次是共同標籤的對照 |
+
+> **E2 的「只看 `ent-`」為什麼寫進過濾器,而不是留在散文的括號裡**(2026-08-26 開發者裁決,G18):
+> 契約 F 的 `NodeFilter` 本來就有 `nfPrefixes :: [IdPrefix]`,「只看某個前綴」是**過濾器的語意**,
+> 不是斷言的附註。把它留在括號裡會逼測試端自己先過濾再切窗,於是 `nfOffset` / `nfLimit`
+> **根本沒被驗到**——E2 會退化成一條只測排序、不測分頁的 example,而契約卡驗收 2 明訂要驗
+> 「排序與分頁跨 vault 正確(**不是各自排完再接**)」。寫進 `nfPrefixes` 之後,fixture 裡 F-B 那個
+> 字典序排在所有 `ent-` 之前的 `ast-00000002` 依前綴被排除,兩次呼叫的字面期望值直接成立,分頁
+> 也真的走到 SQL 的 `LIMIT / OFFSET`。**兩次呼叫帶同一組 `nfPrefixes`**,第二次因此就是對第一次
+> 那份完整結果切窗——限定條件只有一個真相來源。
 
 ## 依賴
 

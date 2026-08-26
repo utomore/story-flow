@@ -5,7 +5,7 @@ title: graph-core-spec-gaps
 description: graph-core 委派過程中 qa / impl 撞到的 spec 缺口與裁決
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-25
+updated: 2026-08-26
 parent: graph-core
 ---
 
@@ -341,3 +341,82 @@ parent: graph-core
   `front` 是私有的 `NewPack → NewPackFront` 逐欄映射(七欄同形,只換前綴 `np` → `npf`),
   沒有在 store 側自己拼任何 frontmatter 字串。`cabal test aapms-store` 連跑三次皆
   **208 examples, 0 failures**,L25 / E22 轉綠,其餘 207 條維持全綠
+
+## G18(F009 / qa)—— E2 第二次呼叫的期望值,是否也隱含「只看 ent- 的部分」
+
+- **模糊點**:E2 原文「`listAcross vsAB emptyNodeFilter { nfLimit = 10 }`,再取
+  `listAcross vsAB emptyNodeFilter { nfOffset = 1, nfLimit = 2 }`」,預期輸出寫
+  「第一次(只看 ent- 的部分)依序是 `[...]`;第二次是 `[(B, ent-…01), (B, ent-…03)]`」。
+  「(只看 ent- 的部分)」這個限定語只出現在「第一次」後面,但 fixture 前提明訂 F-B 還有
+  `pck-00000001`(非 reference,預設不被排除)與它底下的 `ast-00000002`;`ast-00000002` 的
+  metaId 字典序 `"ast-…" < "ent-…"`,若「第二次」是對__完整__(不限定 ent- 前綴)的
+  `listAcross` 結果做 `offset=1, limit=2`,則排在最前面的會是 `(B, ast-00000002)`,
+  第二次視窗落在 `[(A, ent-00000001), (B, ent-00000001)]`,與 spec 給的
+  `[(B, ent-…01), (B, ent-…03)]` 不符
+- **卡住的項目**:E2 的第二個斷言,寫不出兩種解讀都能滿足的單一斷言——只能二選一:
+  (a) 「只看 ent- 的部分」限定語其實同時管兩次呼叫(第二次也先過濾成 ent- 前綴子集再看
+  `drop 1 . take 2`);(b) 第二次呼叫真的是對完整結果切窗,但那樣 fixture 給的字面期望值
+  對不上任何合理的 F-B 內容(除非 fixture 刻意不讓 `ast-00000002` 出現在預設結果裡,
+  而這與 fixture 前提要求 `ast-00000002` 要能被 E1 的全文檢索命中並不衝突,但**沒有一句
+  fixture 前提說它該被排除在 listAcross 之外**)
+- **qa 目前的處置**:採 (a),`store/test/Aapms/Store/MultiVaultSpec.hs` 的 `e2Spec` 兩個
+  `it` 都先對 `listAcross` 的完整結果過濾出 `idPrefix (metaId m) == PEnt` 的子集,再比對
+  spec 給的期望序列——這是唯一能讓兩個斷言在目前的 fixture(F-A/F-B 均含非 ent- 的
+  pack/asset 節點)下同時成立、且不需要臆測系統行為的寫法。**若編排者\/設計角色認定
+  (b) 才是本意,fixture 需要調整(例如把 F-B 的 `library/packs/potions/` 移到
+  `library/reference/` 底下,讓它預設被排除),`e2Spec` 的第二個斷言要改成對完整結果
+  切窗**
+- **需要 spec 回答什麼**:E2 第二次呼叫的期望值,是對「只看 ent- 的部分」的子集切窗,
+  還是對完整 `listAcross` 結果切窗(兩者在目前 fixture 下不等價)?
+- 狀態:resolved (2026-08-26 開發者裁決 → spec 已修訂):兩者皆非——「只看 ent-」寫進**過濾器本身**,E2 的兩次呼叫都改成 `emptyNodeFilter { nfPrefixes = [PEnt], … }`,散文的括號限定語刪除;理由是留在測試端過濾會讓 `nfOffset` / `nfLimit` 根本沒被驗到,而契約卡驗收 2 要驗的就是分頁
+
+## G19(F009 / impl)—— F-A/F-B fixture 的實際資料似乎比 spec 的 fixture-note 更寬,讓四條斷言的「窄命中」前提不成立
+
+- **模糊點**:F009 spec 的 fixture-note(E1–E12 共用)只講了「F-A 的 `ent-00000001` 帶
+  `metaTags = ["琳達", "canon"]`」與「F-B 的 `ast-00000002`(metaTitle = 魔法藥水瓶)」,
+  沒有明講 F-A 另外兩個片段(`ent-00000005` / `ent-00000007`)是否也帶這兩個標籤、也沒有明講
+  F-B 的 `pck-00000001`(`library/packs/potions/pack.md`)的 `metaTitle` 是什麼。但實測跑
+  出來的索引資料顯示:① `ent-00000005`、`ent-00000007` 的 `metaTags` __也是__
+  `["canon", "琳達"]`(與 `ent-00000001` 逐字相同,證據見下);② `pck-00000001` 的
+  `metaTitle` 是「藥水素材包」,字面含「藥水」二字,會被全文檢索命中
+- **卡住的項目與證據**:
+  1. **E17**(`nfTags=["琳達"]` 應該只回 `ent-00000001`):
+     `listAcross vsAB emptyNodeFilter{nfTags=["琳達"]}` 這段 SQL 是 `whereOfIn`/`baseFromIn`
+     逐字重用單一 vault 的 `EXISTS (SELECT 1 FROM <schema>node_tags nt WHERE nt.node_id = n.id
+     AND nt.tag = ?)`,__不是 impl 自己寫的新邏輯__——實測回傳
+     `[(vlt-aaaa0001, ent-00000001), (vlt-aaaa0001, ent-00000005), (vlt-aaaa0001, ent-00000007)]`
+     三筆,代表 `node_tags` 表裡這三個 id 確實都有一列 `tag = '琳達'`,不是查詢語法錯誤
+     (若是 schema 前綴漏掉,錯的實作會拿__另一個 vault__ 的 `node_tags` 來篩,不會篩出
+     __同一個 vault__ 裡的另外兩個片段)。`nfTags=["canon"]` 那一斷言同一個成因,多出的也是
+     這兩個片段
+  2. **L4 非退化**(「8 個維度各自的非預設值也都跟逐 vault `listNodes` 一致,且真的篩掉
+     東西」):連跑三次 `cabal test`,同一個子句一致失敗於 `predicate failed on: 12`
+     (非 hedgehog 隨機噪音,三次 seed 不同但結果相同,見下方「機械性查證」的三次輸出);
+     懷疑同一個成因——若 hedgehog 選中 `nfTags` 當作八個維度之一,用的是同一份
+     F-A/F-B 索引,`["琳達"]` 篩不掉 `ent-00000005`/`ent-00000007` 會讓「真的篩掉東西」
+     這個非退化條件不成立
+  3. **E1**(`searchAcross vsAB {sqText = Just "藥水"}` 應該恰兩筆):實測 `srHits` 長度是
+     3 不是 2。**這不是 `searchAcross` 的合併邏輯錯誤**——`L8`(`searchAcross` 與
+     `concat [search h q' | h <- hs]` 逐欄相同,三次都綠)已經證明 `searchAcross` 逐字反映
+     每個 vault 各自呼叫既有的、未改動的 `Aapms.Store.Query.search` 的結果;第三筆命中應
+     來自 `pck-00000001`(`metaTitle = "藥水素材包"`)的標題比對——它不是 reference pack,
+     預設不會被排除,標題含「藥水」二字合乎全文檢索邏輯
+  4. **E12**(`fcVaults` 應為 `[("vlt-aaaa0001",1),("vlt-bbbb0002",1)]`):實測
+     `vlt-bbbb0002` 的計數是 2 不是 1,與 E1 多出的那一筆(`pck-00000001`)是同一個成因
+- **impl 已排除的可能性**:`crossListIds`(`listAcross` 的 SQL 組裝)本身沒有寫任何裸表名
+  (`grep -nE "FROM [A-Za-z_]+|JOIN [A-Za-z_]+"` 只掃到 `whereOfIn`/`baseFromIn` 回傳的、
+  已經帶 schema 前綴的片段,沒有 impl 自己新寫的裸表名);`searchAcross` 完全不重新計算
+  bm25 或候選集,只逐 vault 呼叫既有的 `search` 再在 Haskell 合併——L8/L9/L10/L11/L19/E11
+  都綠,證明合併邏輯本身正確。四條斷言失敗的共同點都是「WHERE/FTS 過濾的__輸入資料__比
+  fixture-note 暗示的更寬」,不是 impl 新寫的程式碼在錯誤地過濾或合併
+- **需要 spec 回答什麼**:
+  1. F-A 的 `ent-00000005` / `ent-00000007` 這兩個片段,fixture 建構時是否也該帶
+     `metaTags = ["canon", "琳達"]`?若是,E17 的「只回 `ent-00000001`」與 L4 非退化的
+     「`nfTags` 那組非預設值要真的篩掉東西」這兩個期望值需要換一個能保證窄命中的標籤
+     (例如只在 `ent-00000001` 身上加一個獨有標籤);若否,fixture 建構(不在本次 impl
+     的委派檔案清單內)需要修正,讓片段不繼承主體的標籤
+  2. F-B 的 `pck-00000001` 的 `metaTitle` 是否不該含「藥水」二字?若 fixture 本來就要讓它
+     命中(例如刻意測「pack 標題也算進全文檢索」),E1 的「恰兩筆」與 E12 的
+     `vlt-bbbb0002` 計數 1 這兩個期望值需要改成 3 筆/計數 2;若不該命中,fixture 的
+     `pck-00000001` 標題需要改掉
+- 狀態:resolved (2026-08-26 開發者裁決 → spec 已修訂):qa 的 fixture 設計失誤,不是實作錯誤(L8 已證明合併邏輯正確)——law 與 example 的期望值一條不改,改的是 F009「Examples → fixture 前提」新增兩條約束:**區辨用標籤必須放節層**(檔案層的 `tags` 依節層繼承規則聯集去重被同檔每一個節繼承)、**窄命中的查詢字串不得出現在同 vault 其他節點的標題或正文**;L4 非退化子句與 E1 / E12 / E17 一併補上這兩個前提的措辭,fixture 那一側由 qa 修

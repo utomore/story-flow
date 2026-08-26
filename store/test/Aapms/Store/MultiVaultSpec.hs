@@ -48,13 +48,18 @@
 -- __非退化前提如何落地__(qa 角色的關鍵風險,見任務指示):
 --
 -- * __L5\/P2__(排序鍵交錯):F-A\/F-B 的 @ent-@ id 刻意交錯
---   (@A:01 \< B:01 \< B:03 \< A:05 \< A:07@),見 'linkedTopicMd'\/'sameShortIdTopicMd'。
+--   (@A:01 \< B:01 \< B:03 \< A:05 \< A:07@),見 'linkedTopicMd'\/'lindaOldNoteMd'\/
+--   'lindaAppendixMd'\/'sameShortIdTopicMd'。'ent-00000005'\/'ent-00000007' 是各自
+--   __獨立__的檔案,__不是__ 'linkedTopicMd' 的片段(G19:節層繼承對 @tags@ 是聯集
+--   去重,同檔片段會連檔案層的 @"琳達"@ 標籤都繼承走)。
 -- * __L12\/P3-like 共同 facet 值__:F-A 的 @ent-00000001@ 與 F-B 的 @ast-00000002@
 --   都帶標籤 @"canon"@(見 'linkedTopicMd'\/'potionsPackMd'),求和與取其中一個才會
 --   給出不同答案。
 -- * __L4\/E16\/E17 的裸表名__:兩個 vault __各自都有__ reference pack('loreRefPackMd'\/
---   'relicsRefPackMd')與__各自可分辨__的標籤(F-A 專屬 @"琳達"@、F-B 專屬
---   @"藥水"@),漏 schema 前綴時會拿別的 vault 的那張表篩這個 vault。
+--   'relicsRefPackMd')與__各自可分辨__的標籤(F-A 專屬 @"琳達"@,只在
+--   'linkedTopicMd' 的 @ent-00000001@ 身上、F-B 專屬 @"藥水"@,只在 'potionsPackMd'
+--   的 @ast-00000002@ 身上——pack 自己的標題\/正文刻意不含「藥水」二字),漏 schema
+--   前綴時會拿別的 vault 的那張表篩這個 vault。
 -- * __L12 零命中__:'test_L12_zero_hit_filtered' 用只有一個 vault 命中的查詢字，
 --   斷言 @fcVaults@ 不含命中數 0 的那個 vault。
 -- * __短 id 跨 vault 撞號(P3)__:F-A 與 F-B __都有__ @ent-00000001@(標題不同),
@@ -116,8 +121,11 @@ markerToml (VaultId vid) kind name =
     renderVaultKindText StoryVault = "story"
     renderVaultKindText AssetVault = "asset"
 
--- | F-A 的主題檔:主體 'ent-00000001'(標題含「藥水」,帶 P4 的三種關聯)+
--- 兩個片段 'ent-00000005'(標題__不__含「藥水」)/ 'ent-00000007'。
+-- | F-A 的主題檔:__只有__主體 'ent-00000001'(標題含「藥水」,帶 P4 的三種關聯、
+-- 專屬標籤 @"琳達"@)。__不__在這個檔案裡放片段——'design.md' 的節層繼承規則對
+-- @tags@ 是聯集去重,同檔的片段會把檔案層(= 主體自己)的 @tags@ 也繼承走
+-- (G19:曾經讓 @nfTags=[琳達]@ 連片段一起回三筆)。'ent-00000005'\/'ent-00000007'
+-- 改放到各自獨立的檔案('lindaOldNoteMd'\/'lindaAppendixMd'),避免這個繼承管道。
 linkedTopicMd :: Text
 linkedTopicMd =
   T.unlines
@@ -140,22 +148,47 @@ linkedTopicMd =
     , "---"
     , ""
     , "琳達的手記提到魔法藥水瓶。這是她的手記。"
-    , ""
-    , "## 舊筆記 {#ent-00000005}"
-    , ""
-    , "```meta"
+    ]
+
+-- | F-A 的獨立節點(__不是__ 'linkedTopicMd' 的片段,見它上面的說明):
+-- 'ent-00000005',標題__不__含「藥水」,只用來讓 L5 的排序鍵交錯前提成立
+-- (@ent-00000001 \< ent-00000005@)。
+lindaOldNoteMd :: Text
+lindaOldNoteMd =
+  T.unlines
+    [ "---"
+    , "id: ent-00000005"
+    , "vault: F-A"
     , "type: character-fragment"
+    , "title: 舊筆記"
     , "summary: 一段與本次主題無關的舊筆記"
-    , "```"
+    , "status: canon"
+    , "source: human"
+    , "revision: 1"
+    , "created: 2026-08-20"
+    , "updated: 2026-08-20"
+    , "---"
     , ""
     , "手記手記手記,以前寫的東西。"
-    , ""
-    , "## 附錄 {#ent-00000007}"
-    , ""
-    , "```meta"
+    ]
+
+-- | F-A 的獨立節點:'ent-00000007',同 'lindaOldNoteMd' 的理由,獨立成檔以免
+-- 繼承 'linkedTopicMd' 的 @"琳達"@ 標籤。
+lindaAppendixMd :: Text
+lindaAppendixMd =
+  T.unlines
+    [ "---"
+    , "id: ent-00000007"
+    , "vault: F-A"
     , "type: character-fragment"
+    , "title: 附錄"
     , "summary: 補充說明"
-    , "```"
+    , "status: canon"
+    , "source: human"
+    , "revision: 1"
+    , "created: 2026-08-20"
+    , "updated: 2026-08-20"
+    , "---"
     , ""
     , "補充說明的內文,沒有特別的內容。"
     ]
@@ -187,9 +220,11 @@ loreRefPackMd =
     , "```"
     ]
 
--- | F-B 的主要 pack:'pck-00000001'(帶 license)+ 'ast-00000002'(標題逐字
--- 「魔法藥水瓶」,帶 P4/L4/E17 用的標籤)+ 'ast-00000004'(named,供
--- @nfNamedOnly@)+ 'ast-00000005'(@status: missing@,供 @nfStatus@)。
+-- | F-B 的主要 pack:'pck-00000001'(帶 license,標題與正文__刻意不__含「藥水」
+-- 二字——G19:pack 本身的標題\/正文會被 FTS 命中,曾讓 E1「恰兩筆」與 E12 的
+-- facet 計數落空)+ 'ast-00000002'(標題逐字「魔法藥水瓶」,帶 P4\/L4\/E17 用的
+-- 標籤)+ 'ast-00000004'(named,供 @nfNamedOnly@)+ 'ast-00000005'
+-- (@status: missing@,供 @nfStatus@)。
 potionsPackMd :: Text
 potionsPackMd =
   T.unlines
@@ -197,7 +232,7 @@ potionsPackMd =
     , "id: pck-00000001"
     , "vault: F-B"
     , "type: asset-pack"
-    , "title: 藥水素材包"
+    , "title: B 庫素材包"
     , "license: lic-b0000001"
     , "status: canon"
     , "source: scan"
@@ -206,7 +241,7 @@ potionsPackMd =
     , "updated: 2026-08-20"
     , "---"
     , ""
-    , "魔法藥水系列素材。"
+    , "本包收錄魔法容器系列素材。"
     , ""
     , "## 魔法藥水瓶 {#ast-00000002}"
     , ""
@@ -318,6 +353,8 @@ relicsRefPackMd =
 vaultAFiles :: [(FilePath, Text)]
 vaultAFiles =
   [ ("characters/linda.md", linkedTopicMd)
+  , ("characters/linda-old-note.md", lindaOldNoteMd)
+  , ("characters/linda-appendix.md", lindaAppendixMd)
   , ("library/reference/lore/pack.md", loreRefPackMd)
   ]
 
@@ -682,22 +719,28 @@ e14Spec = describe "E14: 撞號優先於上限" $
 --------------------------------------------------------------------------------
 -- listAcross(L4 / L5 / L6 / L7 / E2 / E16 / E17)
 
--- | L4 的 8 個維度各自的候選值(每個都在 F-A/F-B 的 fixture 裡__真的篩掉東西__)。
+-- | L4 的 8 個維度各自的候選值(每個都在 F-A/F-B 的 fixture 裡__對預設值造成真實差異__)。
+-- 七個維度是「限縮」語意(非預設值下結果__變少__);'nfIncludeReference' 是唯一的例外
+-- ——它預設(False)排除兩個 vault 的 reference pack 與其 asset,設成 'True' 是
+-- __加回__那 4 筆(見 'e16Spec' 的 @length withRef == length withoutRef + 4@),
+-- 所以它的非退化方向是「結果__變多__」,不是「變少」。'fdNonDegenerate' 記錄每個維度
+-- 該用哪個方向比對,而不是用同一個 @(<)@ 硬套八個語意不同的維度。
 data FilterDim = FilterDim
   { fdName :: String
   , fdApply :: NodeFilter -> NodeFilter
+  , fdNonDegenerate :: Int -> Int -> Bool -- \dimCount defaultCount -> 是否為真實差異
   }
 
 filterDims :: [FilterDim]
 filterDims =
-  [ FilterDim "nfPrefixes" (\f -> f {nfPrefixes = [PEnt]})
-  , FilterDim "nfTypes" (\f -> f {nfTypes = [typeOf "character"]})
-  , FilterDim "nfStatus" (\f -> f {nfStatus = [Missing]})
-  , FilterDim "nfTags" (\f -> f {nfTags = ["canon"]})
-  , FilterDim "nfOwner" (\f -> f {nfOwner = Just (idOf "pck-00000001")})
-  , FilterDim "nfLicense" (\f -> f {nfLicense = Just (refOf "lic-b0000001")})
-  , FilterDim "nfNamedOnly" (\f -> f {nfNamedOnly = True})
-  , FilterDim "nfIncludeReference" (\f -> f {nfIncludeReference = True})
+  [ FilterDim "nfPrefixes" (\f -> f {nfPrefixes = [PEnt]}) (<)
+  , FilterDim "nfTypes" (\f -> f {nfTypes = [typeOf "character"]}) (<)
+  , FilterDim "nfStatus" (\f -> f {nfStatus = [Missing]}) (<)
+  , FilterDim "nfTags" (\f -> f {nfTags = ["canon"]}) (<)
+  , FilterDim "nfOwner" (\f -> f {nfOwner = Just (idOf "pck-00000001")}) (<)
+  , FilterDim "nfLicense" (\f -> f {nfLicense = Just (refOf "lic-b0000001")}) (<)
+  , FilterDim "nfNamedOnly" (\f -> f {nfNamedOnly = True}) (<)
+  , FilterDim "nfIncludeReference" (\f -> f {nfIncludeReference = True}) (>)
   ]
 
 l4Spec :: Spec
@@ -710,8 +753,9 @@ l4Spec = describe "L4: listAcross 的多重集合等於逐 vault listNodes 的�
       let want = map ((,) vidA) wantA ++ map ((,) vidB) wantB
       sortOn byIdThenVault got `shouldBe` sortOn byIdThenVault want
 
-  it "*非退化*:8 個維度各自的非預設值也都跟逐 vault listNodes 一致,且真的篩掉東西" $
+  it "*非退化*:8 個維度各自的非預設值也都跟逐 vault listNodes 一致,且對預設值造成真實差異" $
     withDualVaultSet $ \(vs, hA, hB) -> do
+      allR <- listAcross vs (wideFilter emptyNodeFilter)
       forM_ filterDims $ \dim -> do
         let f = fdApply dim (wideFilter emptyNodeFilter)
         got <- listAcross vs f
@@ -719,9 +763,10 @@ l4Spec = describe "L4: listAcross 的多重集合等於逐 vault listNodes 的�
         wantB <- listNodes hB f
         let want = map ((,) vidA) wantA ++ map ((,) vidB) wantB
         sortOn byIdThenVault got `shouldBe` sortOn byIdThenVault want
-        -- 非退化:這個維度真的篩掉了一些東西(不是全預設值下的恆等)
-        allR <- listAcross vs (wideFilter emptyNodeFilter)
-        length got `shouldSatisfy` (< length allR)
+        -- 非退化:這個維度的非預設值真的讓結果跟全預設值不同(方向依 fdNonDegenerate,
+        -- 見 'FilterDim' 上的說明——七個維度是變少,'nfIncludeReference' 是變多)
+        (fdName dim, length got, length allR)
+          `shouldSatisfy` (\(_, g, a) -> fdNonDegenerate dim g a)
 
 l5Spec :: Spec
 l5Spec = describe "L5: 全域排序(metaId 遞增,平手比 vault)" $
@@ -758,22 +803,20 @@ l7Spec = describe "L7: listAcross 每筆的 vault 欄與 metaVault 一致" $
 
 e2Spec :: Spec
 e2Spec = describe "E2: 排序與分頁跨 vault" $ do
-  it "listAcross vsAB emptyNodeFilter{nfLimit=10}(只看 ent- 的部分)依序是 [A01,B01,B03,A05,A07]" $
+  it "listAcross vsAB (nfPrefixes=[PEnt], nfLimit=10) 依序是 [A01,B01,B03,A05,A07]" $
     withDualVaultSet $ \(vs, _hA, _hB) -> do
-      got <- listAcross vs (emptyNodeFilter {nfLimit = 10})
-      let entOnly = [(v, m) | (v, m) <- got, idPrefix (metaId m) == PEnt]
-      assertE2Order entOnly
+      got <- listAcross vs (emptyNodeFilter {nfPrefixes = [PEnt], nfLimit = 10})
+      assertE2Order got
 
-  it "第二次 listAcross vsAB emptyNodeFilter{offset=1,limit=2}(只看 ent- 的部分)是 [B01,B03]" $
+  it "第二次 listAcross vsAB (nfPrefixes=[PEnt], offset=1, limit=2) 是 [B01,B03]" $
     withDualVaultSet $ \(vs, _hA, _hB) -> do
-      got <- listAcross vs (emptyNodeFilter {nfOffset = 1, nfLimit = 2})
-      let entOnly = [(v, m) | (v, m) <- got, idPrefix (metaId m) == PEnt]
-      map (fmap metaId) entOnly `shouldBe` [(vidB, idOf "ent-00000001"), (vidB, idOf "ent-00000003")]
+      got <- listAcross vs (emptyNodeFilter {nfPrefixes = [PEnt], nfOffset = 1, nfLimit = 2})
+      map (fmap metaId) got `shouldBe` [(vidB, idOf "ent-00000001"), (vidB, idOf "ent-00000003")]
 
--- | E2 第一次呼叫「只看 ent- 的部分」的期望順序。
+-- | E2 第一次呼叫的期望順序。
 assertE2Order :: [(VaultId, Meta)] -> Expectation
-assertE2Order entOnly =
-  map (fmap metaId) entOnly
+assertE2Order got =
+  map (fmap metaId) got
     `shouldBe` [ (vidA, idOf "ent-00000001")
                , (vidB, idOf "ent-00000001")
                , (vidB, idOf "ent-00000003")

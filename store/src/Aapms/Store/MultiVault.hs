@@ -55,15 +55,51 @@ module Aapms.Store.MultiVault
   , renderDanglingRef
   ) where
 
+import Control.Exception (onException)
+import qualified Data.Map.Strict as M
+import Data.List (nubBy, sortBy)
+import Data.Maybe (catMaybes, fromMaybe, isNothing, listToMaybe, mapMaybe)
+import Data.Ord (Down (..))
 import Data.Text (Text)
-import Database.SQLite.Simple (Connection)
+import qualified Data.Text as T
+import Database.SQLite.Simple
+  ( Connection
+  , Only (..)
+  , Query (..)
+  , close
+  , execute
+  , open
+  , query
+  )
 import Aapms.Core.AnyNode (AnyNode)
-import Aapms.Core.Id (Id, Ref, VaultId)
-import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Meta)
-import Aapms.Store.Error (StoreError)
-import Aapms.Store.Marker (VaultHandle)
-import Aapms.Store.Query (NodeFilter, SearchQuery, SearchResult)
+import Aapms.Core.Id (Id, Ref (..), VaultId (..), parseId, renderId, renderRef)
+import Aapms.Core.Link (Link (..), renderLinkKind)
+import Aapms.Core.Meta (Meta (metaId))
+import Aapms.Store.Error (StoreError (..), trySqlite)
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..), indexDbPath)
+import Aapms.Store.Query
+  ( FacetCounts (..)
+  , NodeFilter (..)
+  , SearchHit (..)
+  , SearchQuery (..)
+  , SearchResult (..)
+  , baseFromIn
+  , loadLinkGraph
+  , lookupNode
+  , search
+  , whereOfIn
+  )
+import Aapms.Store.Row
+  ( LinkRow (..)
+  , NodeRow (..)
+  , groupPairs
+  , inList
+  , nodeColumns
+  , rowToMeta
+  , sInt
+  , sText
+  , toLink
+  )
 
 --------------------------------------------------------------------------------
 -- VaultSet
@@ -76,8 +112,11 @@ import Aapms.Store.Query (NodeFilter, SearchQuery, SearchResult)
 -- 'checkReferences' 這幾個出口的行為才是。骨架裡的兩個欄位(去重後的把手清單、
 -- 'VaultSet' 自己的讀連線)是為了讓型別編得過而寫的最小表示,__impl 可以依
 -- 2026-08-26 A1 裁決的落地方式增刪欄位__,不受「不得改動骨架型別」的限制——這是本
--- spec 對這一個不透明型別的明文豁免。
-data VaultSet = VaultSet [VaultHandle] Connection
+-- spec 對這一個不透明型別的明文豁免。impl 落地時把「去重後的把手清單」擴成
+-- 「(vault id、把手、@ATTACH@ schema 前綴含結尾的點)」三元組,方便 'listAcross'
+-- 組 SQL 時直接查得到每個 vault 的前綴;第二個欄位仍是本模組自己開的讀連線,
+-- 所有 @ATTACH@ 都掛在它上面。
+data VaultSet = VaultSet [(VaultId, VaultHandle, Text)] Connection
 
 -- | 一個 'VaultSet' 最多接幾個 vault。
 --
@@ -85,7 +124,30 @@ data VaultSet = VaultSet [VaultHandle] Connection
 -- 契約卡則寫「第 11 個 vault 回 'Aapms.Store.Error.StoreError' 的
 -- @TooManyVaults@ 並列出 10」——以__契約卡__為準,上限是 10 個 vault。
 maxAttachedVaults :: Int
-maxAttachedVaults = undefined
+maxAttachedVaults = 10
+
+-- | 第 i 個 @ATTACH@ 進來的 vault 的 schema 名稱(不含點)。
+schemaName :: Int -> Text
+schemaName i = "v" <> T.pack (show i)
+
+-- | 同上,含結尾的點,直接餵給 'whereOfIn' \/ 'baseFromIn'。
+schemaPrefix :: Int -> Text
+schemaPrefix i = schemaName i <> "."
+
+vidOf :: VaultHandle -> VaultId
+vidOf h = vmId (vhMarker h)
+
+-- | 找出第一組「vid 相同、@vhRoot@ 不同」的把手對,依它們在清單中出現的先後。
+findCollision :: [VaultHandle] -> Maybe (VaultId, FilePath, FilePath)
+findCollision hs =
+  listToMaybe
+    [ (vidOf h1, vhRoot h1, vhRoot h2)
+    | (i, h1) <- zip [0 :: Int ..] hs
+    , (j, h2) <- zip [0 :: Int ..] hs
+    , i < j
+    , vidOf h1 == vidOf h2
+    , vhRoot h1 /= vhRoot h2
+    ]
 
 -- | 把一組已經開好的 vault 把手接成一個 'VaultSet'。
 --
@@ -108,7 +170,22 @@ maxAttachedVaults = undefined
 -- 'Aapms.Store.Marker.closeVault';反過來,'openVaultSet' 之後那些把手照樣可以
 -- 單獨拿去做單一 vault 的查詢與__寫入__。
 openVaultSet :: [VaultHandle] -> IO (Either StoreError VaultSet)
-openVaultSet = undefined
+openVaultSet hs = case findCollision hs of
+  Just (vid, p1, p2) -> pure (Left (VaultIdCollision vid p1 p2))
+  Nothing ->
+    let ks = nubBy (\a b -> vidOf a == vidOf b) hs
+     in if length ks > maxAttachedVaults
+          then pure (Left (TooManyVaults (length ks) maxAttachedVaults))
+          else trySqlite $ do
+            conn <- open ":memory:"
+            let aliased = [(vidOf h, h, schemaPrefix i) | (i, h) <- zip [0 :: Int ..] ks]
+                attachOne (i, h) =
+                  execute
+                    conn
+                    (Query ("ATTACH DATABASE ? AS " <> schemaName i))
+                    (Only (T.pack (indexDbPath (vhRoot h))))
+            mapM_ attachOne (zip [0 :: Int ..] ks) `onException` close conn
+            pure (VaultSet aliased conn)
 
 -- | 釋放 'VaultSet' 自己持有的資源(它自己的讀連線),__不__關閉任何
 -- 'Aapms.Store.Marker.VaultHandle'。
@@ -117,14 +194,19 @@ openVaultSet = undefined
 -- 對稱的關閉在 Windows 上會鎖住 @index.db@,連暫存目錄都刪不掉。對不持有任何
 -- 資源的實作而言它是 no-op,兩種實作下呼叫端的用法都一樣。
 closeVaultSet :: VaultSet -> IO ()
-closeVaultSet = undefined
+closeVaultSet (VaultSet _ conn) = close conn
 
 -- | 這個 'VaultSet' 實際涵蓋哪些 vault,依 'openVaultSet' 收到的順序、已去重。
 --
 -- 'VaultSet' 不透明,少了這個出口就沒有任何辦法從公開介面觀察「去重與上限
 -- 到底怎麼作用」(2026-08-26 A2 裁決後已回寫契約 E)。
 vaultSetIds :: VaultSet -> [VaultId]
-vaultSetIds (VaultSet _ _) = undefined
+vaultSetIds (VaultSet aliased _) = [v | (v, _, _) <- aliased]
+
+-- | 依 'VaultId' 找出這個 'VaultSet' 裡對應的把手,找不到就是這個 vault 不在
+-- 集合裡。
+findHandle :: VaultSet -> VaultId -> Maybe VaultHandle
+findHandle (VaultSet aliased _) v = listToMaybe [h | (v', h, _) <- aliased, v' == v]
 
 --------------------------------------------------------------------------------
 -- 跨 vault 查詢
@@ -136,13 +218,111 @@ vaultSetIds (VaultSet _ _) = undefined
 -- @v@ 就是預設 vault 也一樣。目標 vault 不在這個 'VaultSet' 裡、或在裡面但查
 -- 不到那個 id 時,兩種情況都回 'Nothing'(要區分兩者請用 'checkReferences')。
 lookupRef :: VaultSet -> VaultId -> Ref -> IO (Maybe (VaultId, AnyNode))
-lookupRef = undefined
+lookupRef vs defVault (Ref mv i) =
+  let target = fromMaybe defVault mv
+   in case findHandle vs target of
+        Nothing -> pure Nothing
+        Just h -> fmap ((,) target) <$> lookupNode h i
 
 -- | 跨 vault 的條件列舉,語意與單一 vault 的 'Aapms.Store.Query.listNodes'
 -- 完全相同,差別只在:結果涵蓋全部 vault、每筆帶自己的
 -- 'Aapms.Core.Id.VaultId',而排序與分頁對__合併後的整體__成立。
 listAcross :: VaultSet -> NodeFilter -> IO [(VaultId, Meta)]
-listAcross = undefined
+listAcross vs@(VaultSet aliased conn) filt
+  | null aliased = pure []
+  | otherwise = crossListIds conn aliased filt >>= hydratePairs vs
+
+-- | 對 @ATTACH@ 好的每個 schema 各組一段 @SELECT@,以 @UNION ALL@ 接起來,
+-- 排序與分頁在整段 compound @SELECT@ 上完成(ADR-017 第四條修訂:'listAcross'
+-- 走 SQL)。回傳的是尚未 hydrate 的 (vault, id) 配對,依全域順序排好、切好頁。
+crossListIds :: Connection -> [(VaultId, VaultHandle, Text)] -> NodeFilter -> IO [(VaultId, Id)]
+crossListIds conn aliased filt = do
+  let perVault (VaultId vidText, _, prefix) =
+        let (cond, args) = whereOfIn prefix filt
+            sqlPart = "SELECT ? AS vid, n.id AS nid " <> baseFromIn prefix <> " WHERE 1 = 1" <> cond
+         in (sqlPart, sText vidText : args)
+      parts = map perVault aliased
+      sql =
+        T.intercalate " UNION ALL " (map fst parts)
+          <> " ORDER BY nid ASC, vid ASC LIMIT ? OFFSET ?"
+      params = concatMap snd parts ++ [sInt (nfLimit filt), sInt (nfOffset filt)]
+  rows <- query conn (Query sql) params :: IO [(Text, Text)]
+  pure [(VaultId v, i) | (v, idText) <- rows, Right (_, i) <- [parseId idText]]
+
+-- | 把 (vault, id) 配對逐 vault 批次 hydrate 成 'Meta',再依原始順序組回去。
+hydratePairs :: VaultSet -> [(VaultId, Id)] -> IO [(VaultId, Meta)]
+hydratePairs vs pairs = do
+  let byVault = M.fromListWith (flip (++)) [(v, [i]) | (v, i) <- pairs]
+  tables <-
+    mapM
+      ( \(v, ids) -> case findHandle vs v of
+          Nothing -> pure (v, M.empty)
+          Just h -> (,) v <$> hydrateMap h ids
+      )
+      (M.toList byVault)
+  let tableOf = M.fromList tables
+  pure
+    [ (v, m)
+    | (v, i) <- pairs
+    , Just innerMap <- [M.lookup v tableOf]
+    , Just m <- [M.lookup i innerMap]
+    ]
+
+hydrateMap :: VaultHandle -> [Id] -> IO (M.Map Id Meta)
+hydrateMap h ids = M.fromList . map (\m -> (metaId m, m)) <$> hydrateIds h ids
+
+-- | 依一批 id 批次撈回 'Meta'(含 tags\/aliases\/links),__逐字比照__
+-- "Aapms.Store.Query" 私有的 @metasFor@ 這一套組裝方式(同樣的三段 SQL、同樣的
+-- 'rowToMeta'):@metasFor@ 沒有匯出,但它用到的每一塊建材
+-- ('rowToMeta' \/ 'toLink' \/ 'groupPairs' \/ 'LinkRow') 都有匯出。這裡__不能__
+-- 改用 'Aapms.Store.Row.hydrateMeta' 逐列查詢——那個函式對 tags\/aliases 的
+-- SQL 加了 @ORDER BY rowid@,與 @metasFor@ 沒有排序的批次查詢在同一份資料上
+-- 可能給出不同的實際列序,'Meta' 的 @metaTags@\/@metaLinks@ 是 list 而非
+-- set,order 不同會讓 'listAcross' 與單一 vault 'Aapms.Store.Query.listNodes'
+-- 的 'Meta' 不相等(L4\/L19\/E11 靠這個抓到)。
+hydrateIds :: VaultHandle -> [Id] -> IO [Meta]
+hydrateIds _ [] = pure []
+hydrateIds h ids = do
+  let idTexts = map renderId ids
+      conn = vhConn h
+      vid = vmId (vhMarker h)
+      n = length idTexts
+  rows <-
+    query
+      conn
+      (Query ("SELECT " <> nodeColumns <> " FROM nodes WHERE id IN " <> inList n))
+      (map sText idTexts) ::
+      IO [NodeRow]
+  aliases <- grouped conn "SELECT node_id, alias FROM node_aliases WHERE node_id IN " idTexts
+  tags <- grouped conn "SELECT node_id, tag FROM node_tags WHERE node_id IN " idTexts
+  linkRows <-
+    query
+      conn
+      ( Query
+          ( "SELECT src, dst_vault, dst, kind, note FROM links WHERE src IN "
+              <> inList n
+              <> " ORDER BY rowid"
+          )
+      )
+      (map sText idTexts) ::
+      IO [LinkRow]
+  let linksByNode = groupPairs [(renderId s, [l]) | (s, l) <- mapMaybe toLink linkRows]
+  pure
+    [ m
+    | r <- rows
+    , Just m <-
+        [ rowToMeta
+            vid
+            r
+            (M.findWithDefault [] (nrId r) aliases)
+            (M.findWithDefault [] (nrId r) tags)
+            (M.findWithDefault [] (nrId r) linksByNode)
+        ]
+    ]
+  where
+    grouped conn sql idTexts = do
+      rs <- query conn (Query (sql <> inList (length idTexts))) (map sText idTexts) :: IO [(Text, Text)]
+      pure (groupPairs [(k, [v]) | (k, v) <- rs])
 
 -- | 跨 vault 的全文檢索,語意與單一 vault 的 'Aapms.Store.Query.search' 完全
 -- 相同,差別同 'listAcross';每筆 'Aapms.Store.Query.shVault' 是該筆命中真正
@@ -156,7 +336,44 @@ listAcross = undefined
 -- 依「計數遞減、同計數值遞增」重排)。__不__重用 "Aapms.Store.Query" 的私有
 -- @computeFacets@——那是單一 vault 專用的函式。
 searchAcross :: VaultSet -> SearchQuery -> IO SearchResult
-searchAcross = undefined
+searchAcross (VaultSet aliased _) q = do
+  let wideQ = q {sqFilter = (sqFilter q) {nfLimit = maxBound, nfOffset = 0}}
+  results <- mapM (\(_, h, _) -> search h wideQ) aliased
+  let allHits = sortSearchHits (concatMap srHits results)
+      total = sum (map srTotal results)
+      filt = sqFilter q
+      paged = take (nfLimit filt) (drop (nfOffset filt) allHits)
+      facets
+        | sqFacets q = Just (mergeFacets (mapMaybe srFacets results))
+        | otherwise = Nothing
+  pure SearchResult {srHits = paged, srTotal = total, srFacets = facets}
+
+-- | 分數遞減、分數相同時 'metaId' 遞增、再相同時 'shVault' 遞增(L9)。
+sortSearchHits :: [SearchHit] -> [SearchHit]
+sortSearchHits =
+  sortBy
+    ( \a b ->
+        compare (Down (shScore a)) (Down (shScore b))
+          <> compare (metaId (shMeta a)) (metaId (shMeta b))
+          <> compare (shVault a) (shVault b)
+    )
+
+-- | 逐 vault 的 'FacetCounts' 合併(不重用\/不修改 "Aapms.Store.Query" 的
+-- 私有 @computeFacets@):同值求和、濾掉計數 0、依「計數遞減、同計數以值
+-- 遞增」重排(L12)。
+mergeFacets :: [FacetCounts] -> FacetCounts
+mergeFacets fcs =
+  FacetCounts
+    { fcTypes = mergeDim (map fcTypes fcs)
+    , fcVaults = sortTally (filter ((> 0) . snd) (concatMap fcVaults fcs))
+    , fcTags = mergeDim (map fcTags fcs)
+    , fcOwners = mergeDim (map fcOwners fcs)
+    , fcLicenses = mergeDim (map fcLicenses fcs)
+    }
+  where
+    mergeDim dims = sortTally (M.toList (M.fromListWith (+) (concat dims)))
+    sortTally =
+      sortBy (\(v1, c1) (v2, c2) -> compare (Down c1) (Down c2) <> compare v1 v2)
 
 --------------------------------------------------------------------------------
 -- 懸空引用
@@ -197,9 +414,41 @@ data DanglingReason
 -- 'lookupRef' 同一套規則。第二個參數的 vault __不必__屬於這個 'VaultSet';
 -- 不屬於時它自己指向自己的關聯也照樣走 'TargetVaultAbsent'。
 checkReferences :: VaultSet -> VaultHandle -> IO [DanglingRef]
-checkReferences = undefined
+checkReferences vs h = do
+  graph <- loadLinkGraph h
+  let selfVid = vmId (vhMarker h)
+      entries = [(s, l) | (s, ls) <- M.toList graph, l <- ls]
+      classify (s, l) = do
+        let Ref mv i = linkTarget l
+            w = fromMaybe selfVid mv
+            t = Ref (Just w) i
+        if w `notElem` vaultSetIds vs
+          then pure (Just (DanglingRef s l t TargetVaultAbsent))
+          else do
+            found <- lookupRef vs selfVid t
+            pure $
+              if isNothing found
+                then Just (DanglingRef s l t TargetNodeMissing)
+                else Nothing
+  catMaybes <$> mapM classify entries
 
 -- | 繁中訊息,__說出下一步該做什麼__(契約 G 對 @render*@ 的要求;
 -- 'Aapms.Store.Schema.renderIndexIssue' 是同一個模式的先例)。
 renderDanglingRef :: DanglingRef -> Text
-renderDanglingRef = undefined
+renderDanglingRef DanglingRef {..} = case drReason of
+  TargetVaultAbsent ->
+    "節點 "
+      <> renderId drSource
+      <> " 的關聯("
+      <> renderLinkKind (linkKind drLink)
+      <> " -> "
+      <> renderRef drTarget
+      <> ")指向的 vault 不在目前查詢的集合裡;請加入該 vault,或改用 --vault 註冊後再試"
+  TargetNodeMissing ->
+    "節點 "
+      <> renderId drSource
+      <> " 的關聯("
+      <> renderLinkKind (linkKind drLink)
+      <> " -> "
+      <> renderRef drTarget
+      <> ")指向的節點不存在於該 vault 的索引裡;請確認 id 是否正確,或該節點是否已被刪除"

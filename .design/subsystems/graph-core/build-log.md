@@ -5,7 +5,7 @@ title: graph-core-build
 description: 依 Level 2 功能規劃委派展開 graph-core 的九個 feature(主架構 P1)
 status: in-progress
 created: 2026-08-23
-updated: 2026-08-25
+updated: 2026-08-26
 parent: graph-core
 ---
 
@@ -25,7 +25,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | 階段二 解析與落地 | W4 | md-unified-sections ‖ store-vault-handle | impl-done |
 | 階段二 解析與落地 | W5 | store-unified-index | impl-done |
 | 階段三 檢索與寫入 | W6 | store-fts-dual-index ‖ store-write-operations | **impl-done**(F007 / F008;F004 因 A5 與 G17 兩度重開,亦已 done)|
-| 階段三 檢索與寫入 | W7 | store-multi-vault-read | pending |
+| 階段三 檢索與寫入 | W7 | store-multi-vault-read | **impl-done** |
 
 ## 委派決策記錄
 
@@ -74,7 +74,7 @@ workshop / api / server 都 import 舊 `Aapms.Core.*` / `Aapms.Store.*`,處置�
 | store-unified-index | F006 | F006-store-unified-index.md | (舊流程) | sonnet | — | sonnet | impl-done |
 | store-fts-dual-index | F007 | F007-store-fts-dual-index.md | store/src/Aapms/Store/Tokenize.hs(新)、Query.hs、Schema.hs | opus | sonnet | sonnet | impl-done |
 | store-write-operations | F008 | F008-store-write-operations.md | store/src/Aapms/Store/Write.hs、Create.hs、Edit.hs、Node.hs、Error.hs、Store.hs | opus | sonnet | sonnet | **impl-done** |
-| store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新) | opus | sonnet | sonnet | pending |
+| store-multi-vault-read | F009 | F009-store-multi-vault-read.md | store/src/Aapms/Store/MultiVault.hs(新)、Query.hs(匯出前綴化片段)、Error.hs(2 個建構子) | opus | sonnet | sonnet | **impl-done** |
 
 `aapms-store.cabal` 是 W6 兩個 feature 的共用檔(都要加模組),**由編排者單線改**,不讓平行的 spec
 subagent 同時碰;骨架的整波編譯檢查也由編排者跑。

@@ -7,6 +7,7 @@ import qualified Aapms.Store.ErrorSpec
 import qualified Aapms.Store.FacetSpec
 import qualified Aapms.Store.IndexSpec
 import qualified Aapms.Store.MarkerSpec
+import qualified Aapms.Store.MultiVaultSpec
 import qualified Aapms.Store.NodeSpec
 import qualified Aapms.Store.NodeSpec2
 import qualified Aapms.Store.QuerySpec
@@ -50,3 +51,5 @@ main = do
     Aapms.Store.CreateSpec.spec
     Aapms.Store.WriteSpec.spec
     Aapms.Store.WriteLockBudgetSpec.spec
+    -- graph-core/F009(qa 委派新增)
+    Aapms.Store.MultiVaultSpec.spec

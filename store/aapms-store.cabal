@@ -67,6 +67,7 @@ test-suite aapms-store-test
         Aapms.Store.Gens
         Aapms.Store.IndexSpec
         Aapms.Store.MarkerSpec
+        Aapms.Store.MultiVaultSpec
         Aapms.Store.NodeSpec
         Aapms.Store.NodeSpec2
         Aapms.Store.QuerySpec

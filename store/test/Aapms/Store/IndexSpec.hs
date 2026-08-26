@@ -10,9 +10,10 @@ import Aapms.Core.Asset (LogicalName (..))
 import Aapms.Md.Document (DocKind (..), docKind)
 import Aapms.Md.Parse (parseDocument, toLevel, toLicenses, toPack, toTopic)
 import Aapms.Store.Fixtures
-import Aapms.Store.Index
+import Aapms.Store.Index hiding (vaultMarkdownFiles)
 import Aapms.Store.Marker (VaultHandle, vhConn, vhRoot)
 import Aapms.Store.Schema (IndexIssue (..))
+import Aapms.Store.Walk (vaultMarkdownFiles)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 import Test.Hspec

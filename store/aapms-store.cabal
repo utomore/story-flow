@@ -26,17 +26,19 @@ library
         Aapms.Store
         Aapms.Store.Atomic
         Aapms.Store.Create
-        Aapms.Store.Edit
         Aapms.Store.Error
         Aapms.Store.Index
         Aapms.Store.Marker
         Aapms.Store.MultiVault
-        Aapms.Store.Node
         Aapms.Store.Query
-        Aapms.Store.Row
         Aapms.Store.Schema
         Aapms.Store.Tokenize
         Aapms.Store.Write
+    other-modules:
+        Aapms.Store.Edit
+        Aapms.Store.Node
+        Aapms.Store.Row
+        Aapms.Store.Walk
     build-depends:
         , aeson
         , base          >=4.14 && <5
@@ -55,10 +57,11 @@ library
 test-suite aapms-store-test
     import:           warnings, lang
     type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
+    hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
         Aapms.Store.AtomicSpec
+        Aapms.Store.BoundarySpec
         Aapms.Store.CreateSpec
         Aapms.Store.EditSpec
         Aapms.Store.ErrorSpec
@@ -78,6 +81,7 @@ test-suite aapms-store-test
         Aapms.Store.StaleSpec
         Aapms.Store.StoreErrorL15Spec
         Aapms.Store.TokenizeSpec
+        Aapms.Store.WalkSpec
         Aapms.Store.WriteLockBudgetSpec
         Aapms.Store.WriteSpec
         Aapms.StoreSpec
@@ -86,6 +90,7 @@ test-suite aapms-store-test
         , base
         , bytestring
         , containers
+        , direct-sqlite
         , directory
         , filepath
         , hspec
@@ -94,7 +99,6 @@ test-suite aapms-store-test
         , sqlite-simple
         , aapms-core
         , aapms-md
-        , aapms-store
         , temporary
         , text
         , time

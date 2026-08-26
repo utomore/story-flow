@@ -318,3 +318,66 @@ F008 的六條於 2026-08-25 補跑閘門,結論見「待確認假設彙總」�
 
 **W6 剩餘工作**:① F004 + F008 的 spec 更新(平行,opus)把骨架與四項裁決對齊
 ② 編排者編譯 + commit ③ F008 的 qa ∥ impl ④ 跑測試與仲裁。
+
+### 階段三閘門結果(2026-08-26)
+
+**完成**:F007 / F008 / F009 三個 feature `status: done`;F004 因 A5(`insertSection`)與 G17
+(檔案層 extras)兩度重新打開,亦已 done。**graph-core 九個 feature 全數完成(9/9,100%)**,
+`scan-status.mjs` 首次回報「全部項目皆已完成、子系統功能規劃全數完成,且 metadata 完整」。
+
+**測試**(編排者獨立重跑,非採信回報;hedgehog 相關一律連跑三次):
+`aapms-core` **224 / 0**、`aapms-types` **42 / 0**、`aapms-md` **327 / 0**、`aapms-store` **260 / 0**,
+合計 **853 examples、0 failures**;`cabal build all` 全綠;五個 store 模組與 md 的未實作標記全數清零。
+階段二結束時是 580,本階段淨增 273。
+
+**契約符合度對帳**:本階段改動過的 17 條簽名(契約 D 的 `insertSection` 與 `FrontExtras` 七件、
+契約 E 的 `allocateId` / `addSection` 與 `VaultSet` 八件)**逐字與 `design.md` 相符,零漂移**。
+
+**spec-gaps**:17 條(G1–G9、G12–G19;G10 / G11 因平行寫入避開編號衝突而從未使用)**全數 resolved,0 open**。
+本階段新開 G13–G19 共 7 條,其中 **G17 是測試完全抓不到的資料遺失缺陷**(見下)。
+
+**ADR 變更**:ADR-017 第四條修訂(2026-08-26)。原文「跨 vault 的排序、分頁、facet 在 SQL 層完成」
+與程式碼不符——F007 的單 vault `search` 根本在 Haskell 排序(`sortHits` / `takePage`)。改為分案:
+`listAcross` 走 SQL、`searchAcross` 走 Haskell。修訂註記保留原文並寫明:**原文之所以沒被發現不符,
+是因為它只對跨 vault 提要求,單 vault 的偏離沒有人擋**。
+
+**arch-audit 發現**(依嚴重度):
+
+1. (中,已知代價)**程式碼圖的子系統對映覆蓋率只有 9%**(37/390 檔案)。原樣轉達腳本的警告:
+   「多數程式碼不在任何子系統的 `code-paths` 內,依賴矩陣看到的只是局部」。因此「無循環依賴、
+   graph-core 無跨界引用」這個結論**只在 graph-core 內部成立**,不能推論全域。根因是 D1 凍結:
+   `service` / `cli` / `conflict` / `api` / `mcp` / `workshop` 都還沒重建、沒填 `code-paths`。
+2. (中)**測試 fixture 的目錄配置與 `system.md` 不一致,而且擴散了**:`system.md:439` 明訂 asset vault 的
+   授權檔在 `library/licenses.md`,但 `Fixtures.hs:265`(F006 留下)與 `MultiVaultSpec.hs:364`(F009 新寫)
+   都放在 vault 根目錄;只有 `WriteSpec.hs:344`(F008,被仲裁糾正過)是對的。F006 的偏離沒被擋,
+   於是 F009 照抄。**三份 fixture 兩種寫法**,而 P2 真資料進場時目錄語意會開始有意義。
+3. (低)`md/src/Aapms/Md/Error.hs:98` 的註解仍寫「骨架留 undefined」,但該分支早已實作,
+   註解已成誤導,會讓後人以為它還沒填。
+4. (無)循環依賴:無。graph-core 的跨界引用:別人沒進來、也沒出去。
+5. (無)**ADR-022 寫鎖預算的人工檢查(L17 第三句,G12 降級後由本閘門負責)**:通過。
+   `commit`(`Edit.hs:221`)是 `ensureDir` → `atomicWriteText`(含 `renderDocument` 序列化)→
+   **然後才** `indexFile`;`dropFile` 是 `removeFile` → `unindexFile`;`allocateId` 只有一個 SELECT。
+   檔案 IO 與 md 序列化**從不落在任何 SQLite 呼叫的動態範圍內**。子句 1/2 的機械斷言亦綠
+   (唯一的 `withTransaction` 命中在 `Edit.hs:16` 的 haddock 註解裡,不是程式碼)。
+6. (無)**知識歸屬**:`whereOfIn` / `baseFromIn` / `splitEntries` / `mergeExtras` / `blankTail`
+   **各只有一個定義**。A11 的 newtype 裁決守住了「機制共用一份、型別分得開」。
+7. (低,觀察)架構 hub 第一名仍是 `Aapms.Core.Json`(連通度 204,階段二是 201)。
+   `design.md` 把它定義成「全系統唯一的 aeson 編碼規則」,**高連通是設計意圖不是缺陷**,續列觀察。
+
+**仲裁摘要**:本階段仲裁 10 條,歸因分佈 **qa 誤讀 5 / spec bug 4 / impl 錯 1**。
+spec bug 四條逐一點名:G5(F007,`snippet()` 回片段而 L4 只對完整輸出定義)、
+G13(`sanitizeFileName` 的 L20 與 E11 互斥)、G14(L12a 未繼承 `blankTail` 但書)、
+G18(E2 的「只看 ent-」寫在散文而非過濾器)。
+**qa 誤讀五條有一個共同形狀**:fixture 不滿足 example 的前提——1,692 個同層 `##` 不是合法 Level 檔、
+標題跳級 3→6、fixture 從未建索引、傳錯定位 id、短 id 跨檔重用、區辨標籤放檔案層被繼承規則洗掉。
+
+**三個「測試抓不到」的缺陷**(本子系統至今最重要的發現):
+
+| | 缺陷 | 怎麼被發現的 |
+|---|---|---|
+| G2(階段二) | `updateSection` 靜默刪掉 asset 的 `sha256` / `entry` 與 license 八維度 | F008 的 **spec** 讀契約時發現 |
+| G17(階段三) | `createPackFile` 靜默丟掉 pack 的七個人給欄位,**測試全綠** | F008 的 **impl** 讀 spec 對照自己的實作時發現 |
+| 裸表名(階段三) | 跨 vault 的 SQL 片段漏 schema 前綴,會拿別的 vault 的 `packs` / `node_tags` 去篩 | F009 的 **spec** 自己發現一處,**編排者掃描**發現它漏的第二處 |
+
+**沒有一次是測試抓到的。** 三次的共通點:單 vault(或節層)能跑對的程式碼,換到跨 vault(或檔案層)
+就悄悄失效,而既有測試全都在能跑對的那一側。

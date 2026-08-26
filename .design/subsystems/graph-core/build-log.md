@@ -3,7 +3,7 @@ id: graph-core-build
 type: build-log
 title: graph-core-build
 description: 依 Level 2 功能規劃委派展開 graph-core 的九個 feature(主架構 P1)
-status: in-progress
+status: done
 created: 2026-08-23
 updated: 2026-08-26
 parent: graph-core
@@ -381,3 +381,13 @@ G18(E2 的「只看 ent-」寫在散文而非過濾器)。
 
 **沒有一次是測試抓到的。** 三次的共通點:單 vault(或節層)能跑對的程式碼,換到跨 vault(或檔案層)
 就悄悄失效,而既有測試全都在能跑對的那一側。
+
+**閘門結論(2026-08-26,開發者裁決)**:**通過**。graph-core 三個階段、九個 feature 全數完成,
+主架構 P1 交付。開發者選擇下一步為 `/branch-pr` 整合發 PR。
+
+**留給後續的四條**(不阻擋 P3,已列進偏離清單):
+
+1. 測試 fixture 的 `licenses.md` 目錄配置不符 `system.md:439`,且已從 F006 擴散到 F009(`Fixtures.hs:265`、`MultiVaultSpec.hs:364`);只有 `WriteSpec.hs:344` 是對的。建議走 `/bugfix` 統一
+2. `md/src/Aapms/Md/Error.hs:98` 的註解仍寫「骨架留 undefined」,該分支早已實作
+3. 程式碼圖的子系統對映覆蓋率僅 9%,全域架構結論尚不可信 —— D1 凍結的已知代價,P3 重建 `service` 後才解得開
+4. **自裁清單記錄不完整**:本檔只有 8 條,實際 subagent 回報遠多於此(F004 spec 五條、F008 spec 四條、F009 spec 三條…),編排者在中後段未逐一彙整。這是編排者的疏漏,記在這裡以免後人誤以為自裁只有 8 次

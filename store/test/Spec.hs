@@ -19,6 +19,7 @@ import qualified Aapms.Store.SearchSpec
 import qualified Aapms.Store.StaleSpec
 import qualified Aapms.Store.StoreErrorL15Spec
 import qualified Aapms.Store.TokenizeSpec
+import qualified Aapms.Store.VaultLayoutSpec
 import qualified Aapms.Store.WalkSpec
 import qualified Aapms.Store.WriteLockBudgetSpec
 import qualified Aapms.Store.WriteSpec
@@ -58,3 +59,5 @@ main = do
     -- graph-core/E001(qa 委派新增)
     Aapms.Store.WalkSpec.spec
     Aapms.Store.BoundarySpec.spec
+    -- graph-core/B001
+    Aapms.Store.VaultLayoutSpec.spec

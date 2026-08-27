@@ -5,7 +5,7 @@ title: graph-core-build
 description: 依 Level 2 功能規劃委派展開 graph-core 的九個 feature(主架構 P1)
 status: done
 created: 2026-08-23
-updated: 2026-08-26
+updated: 2026-08-27
 parent: graph-core
 ---
 
@@ -89,11 +89,11 @@ subagent 原本要上閘門、經編排者重跑層級兩問後降下來的。�
 |---|---|---|
 | F004 S1 | `insertSection` 放在既有的 `Aapms.Md.Render`,不新開模組(`Aapms.Md` 以整模組 re-export,cabal 不用改) | |
 | F004 S2 | 骨架本體寫成 point-free 的 `insertSection = undefined` | |
-| F004 S3 | 「父節點的子樹」以 `secLevel` 前綴定義,不借用 `Aapms.Md.Parse.structure`(後者會造成 import 成環) | |
-| F004 S4 | 多重錯誤同時成立時固定成「父節點不存在 → 撞號 → 層級」的檢查順序(釘死 qa 才寫得出斷言) | |
+| F004 S3 | 「父節點的子樹」以 `secLevel` 前綴定義,不借用 `Aapms.Md.Parse.structure`(後者會造成 import 成環) | 2026-08-27 抽查:**成立**。`Parse.hs:42` 確實 `import Aapms.Md.Render`,反向借用會成環;`Render.hs` 的 import 清單(`:100-118`)無 `Parse` |
+| F004 S4 | 多重錯誤同時成立時固定成「父節點不存在 → 撞號 → 層級」的檢查順序(釘死 qa 才寫得出斷言) | 2026-08-27 抽查:**成立且已升級為契約**。順序寫進 F004 的 **L38**(`:351`)與 **E19**(`:463`),不是只留在實作裡 |
 | F008 S1 | `renderStoreError` 的 15 個新建構子分支寫成 `Ctor _ -> undefined`,F005 已實作的 6 個分支原樣保留 | |
 | F008 S2 | `WriteResult (..)` 由 `Aapms.Store.Write` re-export 隨門面出去(subagent 自答「邊界 會」,但契約 E 已寫 `… -> IO (Either StoreError WriteResult)`,門面缺它等於契約簽名寫不出來,屬契約遵循而非新決定) | |
-| F008 S3 | `Node.hs` / `Create.hs` 的 `import Aapms.Store.Edit` 改成 `import Aapms.Store.Error`,`Node` 因此不再依賴 `Edit` | |
+| F008 S3 | `Node.hs` / `Create.hs` 的 `import Aapms.Store.Edit` 改成 `import Aapms.Store.Error`,`Node` 因此不再依賴 `Edit` | 2026-08-27 抽查:**成立**。`Node.hs:34` 只 import `Aapms.Store.Error`;`Create.hs` 仍 import `Edit`(`:100`)是必要的(用 `commit`),與判斷相符 |
 | F008 S4 | `Create.hs` 的 `NewSection` 家族區段用純 `--` 註解而非 haddock named chunk | |
 
 ## 仲裁紀錄
@@ -391,7 +391,7 @@ G18(E2 的「只看 ent-」寫在散文而非過濾器)。
 
 **留給後續的四條**(不阻擋 P3,已列進偏離清單):
 
-1. 測試 fixture 的 `licenses.md` 目錄配置不符 `system.md:439`,且已從 F006 擴散到 F009(`Fixtures.hs:265`、`MultiVaultSpec.hs:364`);只有 `WriteSpec.hs:344` 是對的。建議走 `/bugfix` 統一
-2. `md/src/Aapms/Md/Error.hs:98` 的註解仍寫「骨架留 undefined」,該分支早已實作
+1. ~~測試 fixture 的 `licenses.md` 目錄配置不符 `system.md:439`,且已從 F006 擴散到 F009(`Fixtures.hs:265`、`MultiVaultSpec.hs:364`);只有 `WriteSpec.hs:344` 是對的。建議走 `/bugfix` 統一~~ → **已處理(2026-08-27,B001)**。範圍比本條記的更寬:pack 路徑同樣少了 `library/`,一併修畢,並新增 `VaultLayoutSpec` 當守衛
+2. ~~`md/src/Aapms/Md/Error.hs:98` 的註解仍寫「骨架留 undefined」,該分支早已實作~~ → **已處理(2026-08-27,B001 的 T7)**
 3. 程式碼圖的子系統對映覆蓋率僅 9%,全域架構結論尚不可信 —— D1 凍結的已知代價,P3 重建 `service` 後才解得開
 4. **自裁清單記錄不完整**:本檔只有 8 條,實際 subagent 回報遠多於此(F004 spec 五條、F008 spec 四條、F009 spec 三條…),編排者在中後段未逐一彙整。這是編排者的疏漏,記在這裡以免後人誤以為自裁只有 8 次

@@ -23,7 +23,9 @@
 -- E13 查無此文字時空結果、不是錯誤                                 -> test_E13
 -- E14 純 ASCII 二字查詢"ui"因雙索引已知代價回空結果                -> test_E14
 -- @
-module Aapms.Store.SearchSpec (spec) where
+-- graph-core/B001:'ftsVaultFiles' 一併匯出,供 "Aapms.Store.VaultLayoutSpec"
+-- 對 vault 目錄配置斷言。
+module Aapms.Store.SearchSpec (spec, ftsVaultFiles) where
 
 import Control.Monad (forM_)
 import Data.List (nub, sortBy)
@@ -296,7 +298,7 @@ ftsPackMd =
 ftsVaultFiles :: [(FilePath, Text)]
 ftsVaultFiles =
   [ ("characters/fts-linda.md", ftsCharacterMd)
-  , ("packs/fts-vendor/pack.md", ftsPackMd)
+  , ("library/packs/fts-vendor/fts-pack/pack.md", ftsPackMd)
   ]
 
 -- | 專供全文檢索 Examples(E6~E10、E13、E14)用的 vault:混合角色與 asset-pack

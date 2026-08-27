@@ -71,7 +71,9 @@
 -- 的階段執行驗證；若之後仍證明是恆真（未交錯），留給 impl 完成後的仲裁處理，
 -- 不影響本檔的紅\/綠判準（L9 的斷言本身是「相鄰兩筆滿足排序關係」，不依賴任何
 -- 事先假設的分數值)。
-module Aapms.Store.MultiVaultSpec (spec) where
+-- graph-core/B001:'vaultAFiles' / 'vaultBFiles' 一併匯出,供
+-- "Aapms.Store.VaultLayoutSpec" 對 vault 目錄配置斷言。
+module Aapms.Store.MultiVaultSpec (spec, vaultAFiles, vaultBFiles) where
 
 import Control.Monad (forM, forM_)
 import Data.List (sortOn)
@@ -360,8 +362,8 @@ vaultAFiles =
 
 vaultBFiles :: [(FilePath, Text)]
 vaultBFiles =
-  [ ("packs/potions/pack.md", potionsPackMd)
-  , ("licenses.md", bLicensesMd)
+  [ ("library/packs/test-vendor/potions/pack.md", potionsPackMd)
+  , ("library/licenses.md", bLicensesMd)
   , ("topics/samename.md", sameShortIdTopicMd)
   , ("library/reference/relics/pack.md", relicsRefPackMd)
   ]

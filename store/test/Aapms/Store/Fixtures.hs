@@ -15,6 +15,9 @@ module Aapms.Store.Fixtures
   , storyVaultFiles
   , assetVaultFiles
   , writeFiles
+
+    -- * graph-core\/B001:vault 目錄配置的判準
+  , vaultLayoutViolations
   , withStoryVault
   , withAssetVault
   , withIndexedStoryVault
@@ -33,7 +36,7 @@ import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault)
 import Aapms.Store.Schema (VaultKind (..))
 import System.Directory (createDirectoryIfMissing)
-import System.FilePath ((</>), takeDirectory)
+import System.FilePath ((</>), takeDirectory, takeFileName)
 import System.IO.Temp (withSystemTempDirectory)
 
 -- | 一個還沒有任何 marker 的臨時目錄。
@@ -261,13 +264,38 @@ assetReferencePackMd =
 -- | asset vault 的完整範例檔案組。
 assetVaultFiles :: [(FilePath, Text)]
 assetVaultFiles =
-  [ ("packs/test-vendor/pack.md", assetPackMd)
-  , ("licenses.md", assetLicensesMd)
+  [ ("library/packs/test-vendor/test-pack/pack.md", assetPackMd)
+  , ("library/licenses.md", assetLicensesMd)
   , ("library/reference/temple/pack.md", assetReferencePackMd)
   ]
 
 --------------------------------------------------------------------------------
 -- 寫檔 / 開 vault 輔助
+
+-- | 一份 vault 檔案組裡,違反 @system.md:439@ 目錄配置的路徑(graph-core\/B001)。
+--
+-- 主架構對 asset vault 明訂 @library\/licenses.md@ 與
+-- @library\/packs\/\<vendor\>\/\<pack-slug\>\/pack.md@,另有 @library\/reference\/\<topic\>\/@
+-- 與 @library\/studio\/@ 兩種 pack 位置。三種位置的層數不同,所以判準只取兩條
+-- __機械可判定__的子句:
+--
+-- 1. 檔名是 @licenses.md@ 的路徑,必須恰好是 @library\/licenses.md@
+-- 2. 檔名是 @pack.md@ 的路徑,必須以 @library\/@ 起頭(不約束層數)
+--
+-- 比對的是 fixture 的__資料結構__(路徑字串本身),不是原始碼文字——所以沒有
+-- graph-core\/G3 與 G12 那種「分不出註解與程式碼」的偽陽性問題。
+--
+-- 回傳空清單 = 這份檔案組符合主架構。
+vaultLayoutViolations :: [(FilePath, Text)] -> [FilePath]
+vaultLayoutViolations = filter (not . ok) . map fst
+  where
+    ok rel = case takeFileName rel of
+      "licenses.md" -> norm rel == "library/licenses.md"
+      "pack.md" -> "library/" `T.isPrefixOf` T.pack (norm rel)
+      _ -> True
+
+    -- Windows 上 fixture 也可能寫成反斜線,先正規化成正斜線再比對。
+    norm = map (\c -> if c == '\\' then '/' else c)
 
 -- | 把一組 (vault 相對路徑, 內容) 寫進指定的 vault 根目錄,自動建立子目錄。
 writeFiles :: FilePath -> [(FilePath, Text)] -> IO ()

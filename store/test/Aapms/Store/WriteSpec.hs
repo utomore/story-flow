@@ -125,7 +125,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
   describe "E4 / L4 / L5: writeAssetFields" $
     it "三態語意(不動/清空/設值)正確,且 sha256/entry/ext/kindMeta/body 全程不變" $
       withIndexedAssetVault $ \vh -> do
-        let packPath = "packs/test-vendor/pack.md"
+        let packPath = "library/packs/test-vendor/test-pack/pack.md"
             target = idOf "ast-00000001"
             licRef = localRef (idOf "lic-0000000a")
         doc0 <- rereadDoc vh packPath
@@ -195,7 +195,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
   describe "E9 / L3: writeBody" $
     it "換掉 asset 節的正文,不吃掉 sha256/entry 等 payload 欄位,其他節位元組不變" $
       withIndexedAssetVault $ \vh -> do
-        let packPath = "packs/test-vendor/pack.md"
+        let packPath = "library/packs/test-vendor/test-pack/pack.md"
             target = idOf "ast-00000001"
         doc0 <- rereadDoc vh packPath
         (_, assets0) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc0)
@@ -335,10 +335,12 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
           other -> expectationFailure ("預期 Left (SqliteError _),得到 " <> show other)
 
 --------------------------------------------------------------------------------
--- L8 用:__不沿用__ F006 遺留的 "Aapms.Store.Fixtures" asset vault fixture——那份 fixture
--- 把 licenses.md 放在 vault 根目錄,與 system.md:439 明訂的 @library/licenses.md@ 目錄配置
--- 不符(編排者已列入 arch-audit 階段閘門,qa 不用修 F006 的 fixture)。impl 的 upsertLicense
--- 是對的,走的是 @library/licenses.md@;本檔因此自己建一個路徑正確的最小授權登記檔。
+-- L8 用:本檔自建一個最小授權登記檔,不沿用 "Aapms.Store.Fixtures" 的 asset vault fixture
+-- ——後者帶著兩個 pack 與完整節點,L8 只需要一份乾淨的 @library/licenses.md@。
+--
+-- graph-core/B001 之前這裡還有第二個理由:F006 的 fixture 曾把 licenses.md 放在 vault
+-- 根目錄,與 system.md:439 明訂的 @library/licenses.md@ 不符,所以本檔繞開它。B001 已修好
+-- 源頭並加上 "Aapms.Store.VaultLayoutSpec" 的守衛,那個理由不再成立。
 
 licensesPath :: FilePath
 licensesPath = "library/licenses.md"

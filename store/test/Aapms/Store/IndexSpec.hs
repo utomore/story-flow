@@ -52,7 +52,7 @@ spec = describe "graph-core/F006 Index" $ do
     it "asset vault 的 pack.md 索引後,nodes/assets 有 pack(owner NULL)+ 全部 asset\
        \(owner = pack id),含 status = missing 的那筆" $
       withAssetVault $ \vh -> do
-        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
+        _ <- orDie =<< indexFile vh "library/packs/test-vendor/test-pack/pack.md"
         pckOwner <- ownerOf vh "pck-00000001"
         astOwner <- ownerOf vh "ast-00000001"
         pckOwner `shouldBe` Nothing
@@ -113,7 +113,7 @@ spec = describe "graph-core/F006 Index" $ do
     it "兩個不同檔案的 asset 撞同一個 name,後索引的整檔回滾並回 DuplicateAssetName,\
        \先索引的保留" $
       withAssetVault $ \vh -> do
-        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
+        _ <- orDie =<< indexFile vh "library/packs/test-vendor/test-pack/pack.md"
         let dupPack =
               T.unlines
                 [ "---"
@@ -139,8 +139,8 @@ spec = describe "graph-core/F006 Index" $ do
                 , "sha256: \"9999999999999999999999999999999999999999999999999999999999999999\""
                 , "```"
                 ]
-        writeFiles (vhRoot vh) [("packs/dup/pack.md", dupPack)]
-        result <- orDie =<< indexFile vh "packs/dup/pack.md"
+        writeFiles (vhRoot vh) [("library/packs/test-vendor/dup/pack.md", dupPack)]
+        result <- orDie =<< indexFile vh "library/packs/test-vendor/dup/pack.md"
         case result of
           [DuplicateAssetName _ (LogicalName "ui_gui_panel_001")] -> pure ()
           other -> expectationFailure ("預期 DuplicateAssetName,得到 " <> show other)
@@ -152,7 +152,7 @@ spec = describe "graph-core/F006 Index" $ do
           query
             (vhConn vh)
             "SELECT count(*) FROM nodes WHERE file_path = ?"
-            (Only ("packs/dup/pack.md" :: Text)) ::
+            (Only ("library/packs/test-vendor/dup/pack.md" :: Text)) ::
             IO [Only Int]
         rows `shouldBe` [Only 0]
 
@@ -170,13 +170,13 @@ spec = describe "graph-core/F006 Index" $ do
 
     it "unindexFile 後該檔案的 nodes/assets/links/node_tags 等全部記錄消失,files 也消失" $
       withAssetVault $ \vh -> do
-        _ <- orDie =<< indexFile vh "packs/test-vendor/pack.md"
-        _ <- orDie =<< unindexFile vh "packs/test-vendor/pack.md"
+        _ <- orDie =<< indexFile vh "library/packs/test-vendor/test-pack/pack.md"
+        _ <- orDie =<< unindexFile vh "library/packs/test-vendor/test-pack/pack.md"
         nodesLeft <-
           query
             (vhConn vh)
             "SELECT count(*) FROM nodes WHERE file_path = ?"
-            (Only ("packs/test-vendor/pack.md" :: Text)) ::
+            (Only ("library/packs/test-vendor/test-pack/pack.md" :: Text)) ::
             IO [Only Int]
         assetsLeft <-
           query (vhConn vh) "SELECT count(*) FROM assets WHERE id = ?" (Only ("ast-00000001" :: Text)) ::
@@ -185,7 +185,7 @@ spec = describe "graph-core/F006 Index" $ do
           query
             (vhConn vh)
             "SELECT count(*) FROM files WHERE path = ?"
-            (Only ("packs/test-vendor/pack.md" :: Text)) ::
+            (Only ("library/packs/test-vendor/test-pack/pack.md" :: Text)) ::
             IO [Only Int]
         nodesLeft `shouldBe` [Only 0]
         assetsLeft `shouldBe` [Only 0]

@@ -81,6 +81,7 @@ test-suite aapms-store-test
         Aapms.Store.StaleSpec
         Aapms.Store.StoreErrorL15Spec
         Aapms.Store.TokenizeSpec
+        Aapms.Store.VaultLayoutSpec
         Aapms.Store.WalkSpec
         Aapms.Store.WriteLockBudgetSpec
         Aapms.Store.WriteSpec

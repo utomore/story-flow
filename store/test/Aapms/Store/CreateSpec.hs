@@ -343,7 +343,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
   describe "E10: addSection payload 與文件種類不符" $
     it "對 pack.md 傳 NSFragment payload,回 Left (BadSectionPayload (nsId s) PackDoc),檔案不變" $
       withIndexedAssetVault $ \vh -> do
-        let packPath = "packs/test-vendor/pack.md"
+        let packPath = "library/packs/test-vendor/test-pack/pack.md"
             badSection =
               NewSection
                 { nsId = idOf "ast-00000009"

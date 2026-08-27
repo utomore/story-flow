@@ -95,8 +95,9 @@ renderMdErrorKind = \case
     "標題層級跳級:" <> hashes prev <> " 之後不能直接接 " <> hashes cur
   HeadingAboveRoot root cur ->
     "標題層級 " <> hashes cur <> " 比根層級 " <> hashes root <> " 還淺"
-  -- 訊息原文是規格,寫在 F004 的 L39 / E21;骨架留 undefined,好讓那條逐字
-  -- 斷言有真正的紅綠(spec 寫一次、impl 轉錄一次,兩次獨立轉錄才驗得到東西)
+  -- 訊息原文是規格,寫在 F004 的 L39 / E21——spec 寫一次、impl 轉錄一次,兩次
+  -- 獨立轉錄才驗得到東西。(建骨架時這裡刻意留 undefined 好讓那條逐字斷言有真正
+  -- 的紅綠;F004 交付後已填實,見下。)
   HeadingTooDeep parent cur ->
     "標題層級 "
       <> hashes cur

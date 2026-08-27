@@ -1,0 +1,106 @@
+cabal-version:      3.4
+name:               aapms-store
+version:            0.1.0.0
+synopsis:           aapms 的檔案落地與 SQLite 索引
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Query
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Write
+    other-modules:
+        Aapms.Store.Edit
+        Aapms.Store.Node
+        Aapms.Store.Row
+        Aapms.Store.Walk
+    build-depends:
+        , aeson
+        , base          >=4.14 && <5
+        , bytestring
+        , containers
+        , direct-sqlite
+        , directory
+        , filepath
+        , sqlite-simple
+        , aapms-core
+        , aapms-md
+        , text
+        , time
+        , toml-reader
+
+test-suite aapms-store-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   src test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Store.AtomicSpec
+        Aapms.Store.BoundarySpec
+        Aapms.Store.CreateSpec
+        Aapms.Store.EditSpec
+        Aapms.Store.ErrorSpec
+        Aapms.Store.Fixtures
+        Aapms.Store.FacetSpec
+        Aapms.Store.Gens
+        Aapms.Store.IndexSpec
+        Aapms.Store.MarkerSpec
+        Aapms.Store.MultiVaultSpec
+        Aapms.Store.NodeSpec
+        Aapms.Store.NodeSpec2
+        Aapms.Store.QuerySpec
+        Aapms.Store.RebuildSpec
+        Aapms.Store.RowSpec
+        Aapms.Store.SearchSpec
+        Aapms.Store.SchemaSpec
+        Aapms.Store.StaleSpec
+        Aapms.Store.StoreErrorL15Spec
+        Aapms.Store.TokenizeSpec
+        Aapms.Store.VaultLayoutSpec
+        Aapms.Store.WalkSpec
+        Aapms.Store.WriteLockBudgetSpec
+        Aapms.Store.WriteSpec
+        Aapms.StoreSpec
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , containers
+        , direct-sqlite
+        , directory
+        , filepath
+        , hspec
+        , hedgehog
+        , hspec-hedgehog
+        , sqlite-simple
+        , aapms-core
+        , aapms-md
+        , temporary
+        , text
+        , time
+        , toml-reader

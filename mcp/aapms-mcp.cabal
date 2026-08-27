@@ -1,0 +1,97 @@
+cabal-version:      3.4
+name:               aapms-mcp
+version:            0.1.0.0
+synopsis:           aapms 的 MCP stdio adapter(把 REST 的全部 operation 映射成 MCP tools)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Mcp
+        Aapms.Mcp.Client
+        Aapms.Mcp.Config
+        Aapms.Mcp.Protocol
+        Aapms.Mcp.Server
+        Aapms.Mcp.Tools
+    -- G-E002:--version 從 cabal 的 version 欄讀,單一來源。
+    other-modules:
+        Paths_aapms_mcp
+    autogen-modules:
+        Paths_aapms_mcp
+    -- 「aapms-mcp 不 import aapms-service(只打 HTTP)」這條硬性邊界靠的
+    -- 正是這幾個名字不出現:aapms-service / aapms-store / aapms-md /
+    -- aapms-conflict / aapms-workshop / aapms-llm / aapms-core 一個
+    -- 都不准進來(llm-workshop-mcp/F005 T10 釘住)。servant-client / servant-server /
+    -- warp 是另一種違規:tools/call 對 REST 的實際呼叫改用 http-client 原生請求
+    -- (查證結果 4),這一層不定義伺服器或用 servant 產生的 client。
+    --
+    -- 只依賴 aapms-api(型別,不含實作端):tools 清單完全由編譯期就決定的
+    -- aapmsOpenApi 反推,不連線就能算出 28 個 tools。
+    build-depends:
+        , aeson
+        , base                        >=4.14 && <5
+        , bytestring
+        , http-client
+        , http-types
+        , insert-ordered-containers
+        , lens
+        , openapi3
+        , scientific
+        , aapms-api
+        , text
+
+executable aapms-mcp
+    import:           warnings, lang
+    hs-source-dirs:   app
+    main-is:          Main.hs
+    build-depends:
+        , base
+        , aapms-mcp
+        , text
+
+test-suite aapms-mcp-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Mcp.CabalSpec
+        Aapms.Mcp.ClientSpec
+        Aapms.Mcp.ConfigSpec
+        Aapms.Mcp.Fixtures
+        Aapms.Mcp.ProtocolSpec
+        Aapms.Mcp.ServerSpec
+        Aapms.Mcp.ToolsSpec
+    -- warp stub 模擬 aapms-serve,與 llm/test/Aapms/Llm/Fixtures.hs、
+    -- workshop/test/Aapms/Workshop/Fixtures.hs 同一個先例。
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , directory
+        , hspec
+        , http-types
+        , insert-ordered-containers
+        , lens
+        , openapi3
+        , aapms-api
+        , aapms-mcp
+        , text
+        , wai
+        , warp

@@ -1,6 +1,7 @@
 # 對話 —— 對話的「內容」。它被 Level 的 dialogue Node 引用,而不是寫在 Node 上
-key  = "dialogue"
-name = "對話"
+key    = "dialogue"
+name   = "對話"
+family = "entity"
 
 # 對話本身就是主體(沒有「dialogue-fragment」這種節層型別),所以不需要
 # owner_type —— 以 key 精確查就命中。

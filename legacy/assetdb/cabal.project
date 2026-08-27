@@ -1,0 +1,55 @@
+-- Alchbees Asset & Project Management System
+-- GHC 9.14.1 / cabal 3.16.x, 不使用 stack。
+
+packages:
+  core/
+  store/
+  archive/
+  ingest/
+  reorg/
+  project/
+  ai/
+  server/
+  cli/
+
+-- GHC 9.14 (base-4.22) 仍是新版本,部分套件的 base 上界尚未放寬。
+-- 這裡只對確定安全的套件開放,不要全域 allow-newer。
+allow-newer:
+  , *:base
+  , *:template-haskell
+  , *:ghc-prim
+
+tests: True
+
+package assetdb-core
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-store
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+-- direct-sqlite 預設不編入 FTS5。全文搜尋是本系統的核心功能,
+-- 而且 trigram tokenizer(中文搜尋所需)只存在於 FTS5。
+package direct-sqlite
+  flags: +fulltextsearch
+
+
+package assetdb-archive
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-ingest
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-cli
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-reorg
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+package assetdb-server
+  ghc-options: -Wall -Wcompat
+
+package assetdb-project
+  ghc-options: -Wall -Wcompat
+
+package assetdb-ai
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns

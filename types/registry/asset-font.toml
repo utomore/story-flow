@@ -1,0 +1,14 @@
+# 字型素材(legacy AssetKind.KFont)
+key    = "asset-font"
+name   = "字型素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KFont
+name_kinds = ["fnt"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個字型的用途或風格"

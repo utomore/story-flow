@@ -1,0 +1,14 @@
+# 音訊素材 —— 音效、背景音樂、語音(legacy AssetKind.KAudio)
+key    = "asset-audio"
+name   = "音訊素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KAudio
+name_kinds = ["sfx", "bgm", "vo"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這段音訊的用途或內容"

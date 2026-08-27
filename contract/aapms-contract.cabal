@@ -1,0 +1,85 @@
+cabal-version:      3.0
+name:               aapms-contract
+version:            0.1.0.0
+synopsis:           aapms 的契約層測試:只依賴對外契約,不依賴任何內部型別(ADR-018)
+description:
+    重建核心期間(P1–P3)唯一持續有效的安全網。六組測試全部從__外面__看系統:
+    跑建好的執行檔、讀 .cabal 檔、比對 golden file。build-depends 裡__不得__出現任何
+    aapms-* library——CabalRulesSpec 會對這個檔案自己斷言這件事。
+license:            BSD-3-Clause
+author:             alchbees
+build-type:         Simple
+extra-source-files:
+    fixtures/openapi.golden.json
+    fixtures/naming-cases.txt
+
+common warnings
+    ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+common lang
+    default-language:   GHC2021
+    default-extensions: OverloadedStrings, LambdaCase, DerivingStrategies
+
+-- G-B001:六組契約測試裡有五組要跑 aapms / aapms-serve 執行檔,一組(相依方向規則)
+-- 不用。兩者放同一個 stanza 的話,build-tool-depends 會把不用執行檔的那一組也綁死在
+-- 被凍結的下游套件上,整個重建期都跑不了——而那正是 ADR-018 決策二要它守住的期間。
+-- P3 重建 shell 之後把 default 翻成 True,結構不必再動。
+flag executables
+    description: 需要 aapms / aapms-serve 執行檔的契約測試(P3 重建 shell 後開啟)
+    default:     False
+    manual:      True
+
+-- 相依方向的四條硬規則(system.md「通訊拓撲與原則」)。只讀專案根目錄下各套件的
+-- .cabal 文字,不跑執行檔、不依賴任何 aapms-* library,因此在整個重建期都建得起來
+-- 也跑得動;還沒建的套件由 CabalRulesSpec 自己略過,建了就自動受檢。
+test-suite aapms-contract-rules-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          RulesMain.hs
+    other-modules:
+        Aapms.Contract.CabalRulesSpec
+    build-depends:
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , text
+    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+
+test-suite aapms-contract-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    -- 這一組吃執行檔:P1–P2 期間 cli/ 與 server/ 不在 cabal.project 裡(build-log D1)。
+    if !flag(executables)
+        buildable: False
+    other-modules:
+        Aapms.Contract.Harness
+        Aapms.Contract.CliEnvelopeSpec
+        Aapms.Contract.MarkdownRoundtripSpec
+        Aapms.Contract.IndexEquivalenceSpec
+        Aapms.Contract.CabalRulesSpec
+        Aapms.Contract.OpenApiGoldenSpec
+        Aapms.Contract.NamingGrammarSpec
+    -- 契約測試的相依面:只有標準工具。任何 aapms-* library 出現在這裡就是違規。
+    build-depends:
+        , aeson
+        , base        >=4.14 && <5
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , process
+        , temporary
+        , text
+    -- 被測的是執行檔,不是 library:cabal 會把它們放進測試的 PATH。
+    build-tool-depends:
+        , aapms-cli:aapms
+        , aapms-server:aapms-serve
+        , hspec-discover:hspec-discover
+    ghc-options:      -threaded -rtsopts -with-rtsopts=-N

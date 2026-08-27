@@ -1,0 +1,14 @@
+# 可編輯原始檔 —— .aseprite / .psd 等,不進遊戲(legacy AssetKind.KSource)
+key    = "asset-source"
+name   = "原始檔素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KSource
+name_kinds = ["src"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個原始檔是什麼、對應哪個成品"

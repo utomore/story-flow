@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "project": "Circle",
+  "generatedAt": "2026-08-23T10:00:00Z",
+  "entities": [
+    {
+      "ref": "vlt-9d2e5b70:ent-7f3b2a91",
+      "title": "琳達",
+      "summary": "旅店老闆娘,知道鎮上所有的八卦",
+      "purpose": "主角的資訊來源與旁白視角",
+      "revision": 3
+    }
+  ]
+}

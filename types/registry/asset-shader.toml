@@ -1,0 +1,14 @@
+# Shader 素材(legacy AssetKind.KShader)
+key    = "asset-shader"
+name   = "Shader 素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KShader
+name_kinds = ["shd"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個 shader 的效果"

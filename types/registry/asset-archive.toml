@@ -1,0 +1,17 @@
+# 壓縮檔素材 —— .zip / .rar / .7z,只記錄不解壓(legacy AssetKind.KArchive)
+#
+# name_kinds 刻意留空:legacy 的 12 個 KindPrefix 沒有任何一個對應到
+# KArchive(kindPrefixes KArchive == []),命名文法沒有給這個 kind 專屬的
+# 第一段值。checkMeta 對空清單視為「未宣告限制」(F002 待確認假設 A3),
+# 不因此拒絕任何名稱。
+key    = "asset-archive"
+name   = "壓縮檔素材"
+family = "asset"
+
+allowed_links = []
+name_kinds    = []
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個壓縮檔的內容或用途"

@@ -1,6 +1,7 @@
 # 道具片段 —— 器物、遺物、可被角色持有或在場景中出現的東西
-key  = "item-fragment"
-name = "道具片段"
+key    = "item-fragment"
+name   = "道具片段"
+family = "entity"
 
 dir        = "items"
 owner_type = "item"

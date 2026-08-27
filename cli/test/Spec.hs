@@ -1,29 +1,29 @@
 module Main (main) where
 
-import qualified StoryFlow.Cli.CabalSpec
-import qualified StoryFlow.Cli.ContextCmdSpec
-import qualified StoryFlow.Cli.EndToEndSpec
-import qualified StoryFlow.Cli.EntityNewSpec
-import qualified StoryFlow.Cli.EntityReadSpec
-import qualified StoryFlow.Cli.EntityWriteSpec
-import qualified StoryFlow.Cli.EnvelopeSpec
-import qualified StoryFlow.Cli.LevelCmdSpec
-import qualified StoryFlow.Cli.LinkCmdSpec
-import qualified StoryFlow.Cli.NodeCmdSpec
-import qualified StoryFlow.Cli.OptionsSpec
-import qualified StoryFlow.Cli.ParitySpec
-import qualified StoryFlow.Cli.RemoteCmdSpec
-import qualified StoryFlow.Cli.RemoteOptSpec
-import qualified StoryFlow.Cli.RemoteResolveSpec
-import qualified StoryFlow.Cli.RenderSpec
-import qualified StoryFlow.Cli.ResolveSpec
-import qualified StoryFlow.Cli.RunCliSpec
-import qualified StoryFlow.Cli.TreeSpec
-import qualified StoryFlow.Cli.VaultCmdSpec
-import qualified StoryFlow.Cli.DoctorSpec
-import qualified StoryFlow.Cli.EncodingSpec
-import qualified StoryFlow.Cli.ReleaseScriptSpec
-import qualified StoryFlow.Cli.WorkshopCmdSpec
+import qualified Aapms.Cli.CabalSpec
+import qualified Aapms.Cli.ContextCmdSpec
+import qualified Aapms.Cli.EndToEndSpec
+import qualified Aapms.Cli.EntityNewSpec
+import qualified Aapms.Cli.EntityReadSpec
+import qualified Aapms.Cli.EntityWriteSpec
+import qualified Aapms.Cli.EnvelopeSpec
+import qualified Aapms.Cli.LevelCmdSpec
+import qualified Aapms.Cli.LinkCmdSpec
+import qualified Aapms.Cli.NodeCmdSpec
+import qualified Aapms.Cli.OptionsSpec
+import qualified Aapms.Cli.ParitySpec
+import qualified Aapms.Cli.RemoteCmdSpec
+import qualified Aapms.Cli.RemoteOptSpec
+import qualified Aapms.Cli.RemoteResolveSpec
+import qualified Aapms.Cli.RenderSpec
+import qualified Aapms.Cli.ResolveSpec
+import qualified Aapms.Cli.RunCliSpec
+import qualified Aapms.Cli.TreeSpec
+import qualified Aapms.Cli.VaultCmdSpec
+import qualified Aapms.Cli.DoctorSpec
+import qualified Aapms.Cli.EncodingSpec
+import qualified Aapms.Cli.ReleaseScriptSpec
+import qualified Aapms.Cli.WorkshopCmdSpec
 import System.IO
 import Test.Hspec
 
@@ -33,33 +33,33 @@ main = do
   hSetEncoding stderr utf8
   hspec $ do
     -- 依 service-and-interfaces/F002 的 TodoList 順序:純函式在前,開 Vault 的在後
-    StoryFlow.Cli.CabalSpec.spec
-    StoryFlow.Cli.OptionsSpec.spec
-    StoryFlow.Cli.EnvelopeSpec.spec
-    StoryFlow.Cli.RenderSpec.spec
-    StoryFlow.Cli.TreeSpec.spec
-    StoryFlow.Cli.ResolveSpec.spec
-    StoryFlow.Cli.RunCliSpec.spec
-    StoryFlow.Cli.VaultCmdSpec.spec
-    StoryFlow.Cli.EntityNewSpec.spec
-    StoryFlow.Cli.EntityReadSpec.spec
-    StoryFlow.Cli.EntityWriteSpec.spec
-    StoryFlow.Cli.LinkCmdSpec.spec
-    StoryFlow.Cli.LevelCmdSpec.spec
-    StoryFlow.Cli.NodeCmdSpec.spec
-    StoryFlow.Cli.EndToEndSpec.spec
+    Aapms.Cli.CabalSpec.spec
+    Aapms.Cli.OptionsSpec.spec
+    Aapms.Cli.EnvelopeSpec.spec
+    Aapms.Cli.RenderSpec.spec
+    Aapms.Cli.TreeSpec.spec
+    Aapms.Cli.ResolveSpec.spec
+    Aapms.Cli.RunCliSpec.spec
+    Aapms.Cli.VaultCmdSpec.spec
+    Aapms.Cli.EntityNewSpec.spec
+    Aapms.Cli.EntityReadSpec.spec
+    Aapms.Cli.EntityWriteSpec.spec
+    Aapms.Cli.LinkCmdSpec.spec
+    Aapms.Cli.LevelCmdSpec.spec
+    Aapms.Cli.NodeCmdSpec.spec
+    Aapms.Cli.EndToEndSpec.spec
     -- service-and-interfaces/F003:遠端模式
-    StoryFlow.Cli.RemoteOptSpec.spec
-    StoryFlow.Cli.RemoteResolveSpec.spec
-    StoryFlow.Cli.RemoteCmdSpec.spec
-    StoryFlow.Cli.ParitySpec.spec
+    Aapms.Cli.RemoteOptSpec.spec
+    Aapms.Cli.RemoteResolveSpec.spec
+    Aapms.Cli.RemoteCmdSpec.spec
+    Aapms.Cli.ParitySpec.spec
     -- conflict-detection/F004:context 出口(內嵌與遠端兩條路徑都在這一檔)
-    StoryFlow.Cli.ContextCmdSpec.spec
+    Aapms.Cli.ContextCmdSpec.spec
     -- llm-workshop-mcp/F004:workshop 三指令(內嵌路徑;遠端與對照分別併進
     -- RemoteCmdSpec / ParitySpec)
-    StoryFlow.Cli.WorkshopCmdSpec.spec
+    Aapms.Cli.WorkshopCmdSpec.spec
     -- G-E002:doctor 本機診斷
-    StoryFlow.Cli.DoctorSpec.spec
-    StoryFlow.Cli.ReleaseScriptSpec.spec
+    Aapms.Cli.DoctorSpec.spec
+    Aapms.Cli.ReleaseScriptSpec.spec
     -- service-and-interfaces/B002:人類模式輸出的編碼
-    StoryFlow.Cli.EncodingSpec.spec
+    Aapms.Cli.EncodingSpec.spec

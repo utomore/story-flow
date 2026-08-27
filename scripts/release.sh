@@ -4,10 +4,10 @@
 #   scripts/release.sh                      建置三個執行檔,組裝,壓縮
 #   scripts/release.sh <已建好的目錄> <版本>  跳過建置,只組裝(測試用)
 #
-# 產出:dist-release/story-flow-<版本>-<平台>/ 與同名 .zip,內含恰好:
-#   story-flow  story-flow-serve  story-flow-mcp  registry/*.toml  README.md
+# 產出:dist-release/aapms-<版本>-<平台>/ 與同名 .zip,內含恰好:
+#   aapms  aapms-serve  aapms-mcp  registry/*.toml  README.md
 #
-# 版本從 `story-flow --version` 的輸出取,不另外 parse .cabal——那會是第二份規則。
+# 版本從 `aapms --version` 的輸出取,不另外 parse .cabal——那會是第二份規則。
 # 任一步失敗就停,不產出半個 zip。
 set -euo pipefail
 
@@ -27,28 +27,28 @@ if [ -z "$STAGE" ]; then
   STAGE=$(mktemp -d)
   trap 'rm -rf "$STAGE"' EXIT
   echo "建置三個執行檔到 $STAGE"
-  ( cd "$ROOT" && cabal install exe:story-flow exe:story-flow-serve exe:story-flow-mcp \
+  ( cd "$ROOT" && cabal install exe:aapms exe:aapms-serve exe:aapms-mcp \
       --installdir="$STAGE" --install-method=copy --overwrite-policy=always )
 fi
 
 EXE=""
-for cand in "$STAGE/story-flow" "$STAGE/story-flow.exe"; do
+for cand in "$STAGE/aapms" "$STAGE/aapms.exe"; do
   [ -f "$cand" ] && EXE="$cand" && break
 done
-[ -n "$EXE" ] || { echo "$STAGE 裡沒有 story-flow 執行檔" >&2; exit 1; }
+[ -n "$EXE" ] || { echo "$STAGE 裡沒有 aapms 執行檔" >&2; exit 1; }
 
 if [ -z "$VERSION" ]; then
-  # 輸出是「story-flow <版本>」一行
+  # 輸出是「aapms <版本>」一行
   VERSION=$("$EXE" --version | awk '{print $2}')
-  [ -n "$VERSION" ] || { echo "story-flow --version 沒有回版本" >&2; exit 1; }
+  [ -n "$VERSION" ] || { echo "aapms --version 沒有回版本" >&2; exit 1; }
 fi
 
-NAME="story-flow-$VERSION-$PLATFORM"
+NAME="aapms-$VERSION-$PLATFORM"
 OUT="$OUT_ROOT/$NAME"
 rm -rf "$OUT" "$OUT.zip"
 mkdir -p "$OUT/registry"
 
-for bin in story-flow story-flow-serve story-flow-mcp; do
+for bin in aapms aapms-serve aapms-mcp; do
   src=""
   for cand in "$STAGE/$bin" "$STAGE/$bin.exe"; do
     [ -f "$cand" ] && src="$cand" && break

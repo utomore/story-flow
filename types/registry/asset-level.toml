@@ -1,0 +1,17 @@
+# 關卡素材 —— LDtk .ldtk(legacy AssetKind.KLevel)。
+#
+# 注意:這是「素材」型別鍵 asset-level,和引擎保留鍵 level(Level 檔的檔案層
+# type)是兩件事,不可混淆——reservedTypeKeys 擋的是 level,不是 asset-level。
+key    = "asset-level"
+name   = "關卡素材"
+family = "asset"
+
+allowed_links = []
+
+# 對應 legacy KindPrefix 的 kindPrefixes KLevel
+name_kinds = ["lvl"]
+
+[[fields]]
+name     = "summary"
+required = true
+hint     = "一句話說明這個關卡檔的用途"

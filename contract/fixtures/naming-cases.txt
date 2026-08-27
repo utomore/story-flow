@@ -1,0 +1,21 @@
+# 命名文法(ADR-019)的合法 / 非法名稱集。
+# 格式:每行「ok <名稱>」或「bad <名稱>  # 理由」;# 開頭與空行略過。
+# 來源:assetdb core/test/AssetDB/NamingSpec.hs 與 graph-core 契約卡 registry-family-and-naming 的驗收標準。
+# 實作落在 graph-core F002 之後,NamingGrammarSpec 會用 `aapms` 逐行驗證;在那之前只檢查本檔格式。
+
+# 合法:<kind>_<domain>_<subject>[_<variant>][_<state>][_<index>]
+ok ui_gui_travel-book-frame_001
+ok ui_gui_travel-book-frame_01a
+ok ui_gui_holo-book-alert_01a_000
+ok spr_item_blue-potion_02
+ok tex_ground_tileset-grass
+ok spr_char_hero_attack-01_up
+ok fnt_rune_runic-codex_100
+
+# 非法
+bad 福岡廟宇                      # 非 ASCII:不自作主張音譯,回 NoAsciiContent
+bad ui_gui                        # 少於三段
+bad ui_gui_travel book frame      # 空白
+bad UI_GUI_Travel-Book-Frame      # 大寫
+bad ui__gui_frame                 # 空段
+bad ui_gui_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa   # 超過 64 字元

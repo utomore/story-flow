@@ -1,0 +1,865 @@
+-- | 資料庫 schema,以版本化 migration 的形式表達。
+--
+-- == 讀這個檔案前該知道的三件事
+--
+-- 1. **列舉一律存文字,不存序號。** 序號會在有人重新排列 Haskell 建構子時
+--    無聲損毀整個資料庫,而且 @WHERE kind='audio'@ 人看得懂。
+--
+-- 2. **時間一律存 ISO-8601 UTC 文字。** SQLite 沒有日期型別;文字格式排序正確、
+--    人看得懂、時區明確。
+--
+-- 3. **布林值存 0/1 整數**,並在需要語意的地方加 CHECK 約束。
+module AssetDB.Store.Schema
+  ( migrations
+  , schemaVersion
+  ) where
+
+import AssetDB.Store.Migrate (Migration (..), lit, num)
+import Data.List (intersperse)
+import Data.Text (Text)
+import Database.SQLite.Simple (Query)
+
+-- | 目前最新的 schema 版本。
+schemaVersion :: Int
+schemaVersion = maximum (map migVersion migrations)
+
+migrations :: [Migration]
+migrations = [migration001, migration002, migration003, migration004]
+
+--------------------------------------------------------------------------------
+
+migration001 :: Migration
+migration001 =
+  Migration
+    { migVersion = 1
+    , migName = "初始 schema"
+    , migStatements =
+        concat
+          [ sources
+          , archivesAndBlobs
+          , assetsTable
+          , classification
+          , graph
+          , projectsTable
+          , notesTable
+          , inference
+          , audit
+          , fullTextSearch
+          , seeds
+          ]
+    }
+
+--------------------------------------------------------------------------------
+-- 來源
+
+sources :: [Query']
+sources =
+  [ -- 素材庫可以有多個根。路徑是設定,不是寫死的常數 ——
+    -- 素材庫搬家或多人各自掛載時只改這張表。
+    "CREATE TABLE roots ( \
+    \  id      INTEGER PRIMARY KEY, \
+    \  path    TEXT    NOT NULL UNIQUE, \
+    \  label   TEXT    NOT NULL, \
+    \  kind    TEXT    NOT NULL CHECK (kind IN ('packs','reference','studio')), \
+    \  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0,1)) \
+    \)"
+  , -- contact 是匯入時的必填項之一。素材出問題要找人時,
+    -- 「作者叫 Kibyra」沒有用,要有 itch.io 商店頁或 Discord。
+    "CREATE TABLE authors ( \
+    \  id      INTEGER PRIMARY KEY, \
+    \  name    TEXT NOT NULL UNIQUE, \
+    \  url     TEXT, \
+    \  contact TEXT, \
+    \  notes   TEXT \
+    \)"
+  , -- 授權的各個維度分開存,而不是塞在一段自由文字裡,
+    -- 因為建專案的閘門要能程式判讀。
+    --
+    -- commercial 刻意 NOT NULL 且**沒有預設值**:漏填時寧可寫入失敗,
+    -- 也不要預設成允許而放行 Non-Commercial 素材。
+    --
+    -- 其餘布林值**允許 NULL**,而且 NULL 與 0 意義不同:
+    -- NULL 是「授權條款沒寫,我們不知道」,0 是「明確禁止」。
+    -- 把未知當成禁止會讓一堆素材無故不可用,當成允許則是法律風險。
+    "CREATE TABLE licenses ( \
+    \  id                     INTEGER PRIMARY KEY, \
+    \  name                   TEXT    NOT NULL UNIQUE, \
+    \  commercial             INTEGER NOT NULL CHECK (commercial IN (0,1)), \
+    \  attribution_required   INTEGER NOT NULL CHECK (attribution_required IN (0,1)), \
+    \  credit_text            TEXT, \
+    \  modification_allowed   INTEGER CHECK (modification_allowed   IN (0,1)), \
+    \  redistribution_allowed INTEGER CHECK (redistribution_allowed IN (0,1)), \
+    \  resale_allowed         INTEGER CHECK (resale_allowed         IN (0,1)), \
+    \  nft_allowed            INTEGER CHECK (nft_allowed            IN (0,1)), \
+    \  source_url             TEXT, \
+    \  full_text              TEXT, \
+    \  notes                  TEXT, \
+    \  entry_path             TEXT \
+    \)"
+  , -- status 是匯入流程的核心機制。
+    --
+    -- 廠商壓縮檔裡常常什麼中繼資料都沒有(現有素材庫的四個 Effects 包
+    -- 就完全沒有 readme 或 license),作者與授權得回賣場頁翻。
+    -- 強迫當場填完會讓匯入卡住;乾脆不填則會讓授權風險靜靜累積。
+    --
+    -- 折衷:'draft' 的素材照樣入庫、算雜湊、產縮圖,但不進搜尋預設結果、
+    -- 不可用於建專案。授權缺漏因此是一個看得見的待辦,而不是看不見的風險。
+    --
+    -- ai_disclosure 不是可有可無的欄位:itch.io 已經把它做成商品頁必填,
+    -- Steam 上架也要求申報。'unknown'(還沒查)與 'none'(作者明確聲明未使用)
+    -- 意義不同,發行前稽核只接受後者。
+    "CREATE TABLE packs ( \
+    \  id            INTEGER PRIMARY KEY, \
+    \  ulid          TEXT NOT NULL UNIQUE, \
+    \  slug          TEXT NOT NULL, \
+    \  name          TEXT NOT NULL, \
+    \  vendor        TEXT, \
+    \  author_id     INTEGER REFERENCES authors(id), \
+    \  source_url    TEXT, \
+    \  version       TEXT, \
+    \  acquired      TEXT, \
+    \  price_usd     REAL, \
+    \  license_id    INTEGER REFERENCES licenses(id), \
+    \  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready')), \
+    \  kind          TEXT NOT NULL DEFAULT 'packs' \
+    \                CHECK (kind IN ('packs','reference','studio')), \
+    \  ai_disclosure TEXT NOT NULL DEFAULT 'unknown' \
+    \                CHECK (ai_disclosure IN ('unknown','none','assisted','generated')), \
+    \  ai_notes      TEXT, \
+    \  notes         TEXT, \
+    \  root_id       INTEGER NOT NULL REFERENCES roots(id), \
+    \  rel_dir       TEXT NOT NULL, \
+    \  toml_sha256   TEXT, \
+    \  created_at    TEXT NOT NULL, \
+    \  updated_at    TEXT NOT NULL, \
+    \  UNIQUE (root_id, rel_dir), \
+    \  CHECK (status = 'draft' OR (license_id IS NOT NULL AND author_id IS NOT NULL)) \
+    \)"
+  , "CREATE INDEX packs_slug_idx ON packs(slug)"
+  , "CREATE INDEX packs_status_idx ON packs(status)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 壓縮檔與內容定址
+
+archivesAndBlobs :: [Query']
+archivesAndBlobs =
+  [ "CREATE TABLE archives ( \
+    \  id          INTEGER PRIMARY KEY, \
+    \  ulid        TEXT NOT NULL UNIQUE, \
+    \  pack_id     INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE, \
+    \  rel_path    TEXT NOT NULL, \
+    \  format      TEXT NOT NULL CHECK (format IN ('zip','rar','7z')), \
+    \  sha256      TEXT NOT NULL, \
+    \  bytes       INTEGER NOT NULL, \
+    \  entry_count INTEGER, \
+    \  indexed_at  TEXT, \
+    \  UNIQUE (pack_id, rel_path) \
+    \)"
+  , "CREATE INDEX archives_sha_idx ON archives(sha256)"
+  , -- 內容定址的去重層。多家廠商常常附上同一份免費字型或授權文字;
+    -- 同一個 sha256 只算一次縮圖、只存一份快取。
+    -- 也是重構時「證明散檔確實存在於某個壓縮檔內」的比對依據。
+    "CREATE TABLE blobs ( \
+    \  sha256       TEXT PRIMARY KEY, \
+    \  bytes        INTEGER NOT NULL, \
+    \  kind         TEXT    NOT NULL, \
+    \  meta_json    TEXT, \
+    \  phash        INTEGER, \
+    \  thumb_status TEXT    NOT NULL DEFAULT 'pending' \
+    \                       CHECK (thumb_status IN ('pending','ok','failed','na')), \
+    \  thumb_error  TEXT, \
+    \  first_seen   TEXT    NOT NULL \
+    \)"
+  , "CREATE INDEX blobs_phash_idx ON blobs(phash) WHERE phash IS NOT NULL"
+  , "CREATE INDEX blobs_thumb_idx ON blobs(thumb_status)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 資源
+
+assetsTable :: [Query']
+assetsTable =
+  [ -- 一筆資源要嘛在壓縮檔裡(archive_id + entry_path),
+    -- 要嘛是散檔(root_id + rel_path)。CHECK 約束讓「兩者都填」或
+    -- 「兩者都空」在資料庫層就寫不進去,而不是靠應用層自律。
+    --
+    -- logical_name 允許 NULL:剛掃進來還沒命名的資源是合法狀態,
+    -- 強迫當場命名會讓匯入卡住。
+    "CREATE TABLE assets ( \
+    \  id            INTEGER PRIMARY KEY, \
+    \  ulid          TEXT NOT NULL UNIQUE, \
+    \  logical_name  TEXT UNIQUE, \
+    \  kind          TEXT NOT NULL, \
+    \  archive_id    INTEGER REFERENCES archives(id) ON DELETE CASCADE, \
+    \  entry_path    TEXT, \
+    \  root_id       INTEGER REFERENCES roots(id), \
+    \  rel_path      TEXT, \
+    \  original_name TEXT NOT NULL, \
+    \  ext           TEXT, \
+    \  sha256        TEXT REFERENCES blobs(sha256), \
+    \  pack_id       INTEGER REFERENCES packs(id) ON DELETE CASCADE, \
+    \  author_id     INTEGER REFERENCES authors(id), \
+    \  license_id    INTEGER REFERENCES licenses(id), \
+    \  status        TEXT NOT NULL DEFAULT 'active' \
+    \                CHECK (status IN ('active','excluded','missing','archived')), \
+    \  meta_json     TEXT, \
+    \  created_at    TEXT NOT NULL, \
+    \  updated_at    TEXT NOT NULL, \
+    \  created_by    TEXT NOT NULL DEFAULT 'local', \
+    \  CHECK ( \
+    \    (archive_id IS NOT NULL AND entry_path IS NOT NULL AND root_id IS NULL AND rel_path IS NULL) \
+    \ OR (archive_id IS NULL AND entry_path IS NULL AND root_id IS NOT NULL AND rel_path IS NOT NULL) \
+    \  ) \
+    \)"
+  , "CREATE UNIQUE INDEX assets_archive_entry_idx ON assets(archive_id, entry_path) \
+    \  WHERE archive_id IS NOT NULL"
+  , "CREATE UNIQUE INDEX assets_root_rel_idx ON assets(root_id, rel_path) \
+    \  WHERE root_id IS NOT NULL"
+  , "CREATE INDEX assets_kind_status_idx ON assets(kind, status)"
+  , "CREATE INDEX assets_sha_idx  ON assets(sha256)"
+  , "CREATE INDEX assets_pack_idx ON assets(pack_id)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 分類
+
+classification :: [Query']
+classification =
+  [ -- path 欄位存物化路徑(如 'gui/book'),讓「找 GUI 底下所有子分類」
+    -- 變成一次 LIKE 前綴查詢,而不是遞迴 CTE。
+    "CREATE TABLE categories ( \
+    \  id        INTEGER PRIMARY KEY, \
+    \  parent_id INTEGER REFERENCES categories(id) ON DELETE CASCADE, \
+    \  name      TEXT NOT NULL, \
+    \  slug      TEXT NOT NULL, \
+    \  path      TEXT NOT NULL UNIQUE, \
+    \  UNIQUE (parent_id, slug) \
+    \)"
+  , "CREATE TABLE asset_categories ( \
+    \  asset_id    INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE, \
+    \  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE, \
+    \  source      TEXT NOT NULL DEFAULT 'rule' \
+    \              CHECK (source IN ('manual','rule','inferred')), \
+    \  PRIMARY KEY (asset_id, category_id) \
+    \)"
+  , "CREATE INDEX asset_categories_cat_idx ON asset_categories(category_id)"
+  , "CREATE TABLE tags ( \
+    \  id    INTEGER PRIMARY KEY, \
+    \  name  TEXT NOT NULL, \
+    \  facet TEXT NOT NULL DEFAULT 'free' \
+    \        CHECK (facet IN ('style','theme','palette','free')), \
+    \  UNIQUE (facet, name) \
+    \)"
+  , -- source 決定衝突時誰贏:manual 永遠勝過 rule。
+    -- 這讓規則可以重跑而不會蓋掉人工修正。
+    "CREATE TABLE asset_tags ( \
+    \  asset_id   INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE, \
+    \  tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE, \
+    \  source     TEXT NOT NULL DEFAULT 'rule' \
+    \             CHECK (source IN ('manual','rule','inferred')), \
+    \  confidence REAL, \
+    \  PRIMARY KEY (asset_id, tag_id) \
+    \)"
+  , "CREATE INDEX asset_tags_tag_idx ON asset_tags(tag_id)"
+  , "CREATE TABLE collections ( \
+    \  id         INTEGER PRIMARY KEY, \
+    \  ulid       TEXT NOT NULL UNIQUE, \
+    \  name       TEXT NOT NULL UNIQUE, \
+    \  notes      TEXT, \
+    \  created_at TEXT NOT NULL \
+    \)"
+  , "CREATE TABLE collection_items ( \
+    \  collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE, \
+    \  entity_type   TEXT    NOT NULL, \
+    \  entity_id     INTEGER NOT NULL, \
+    \  sort          INTEGER NOT NULL DEFAULT 0, \
+    \  PRIMARY KEY (collection_id, entity_type, entity_id) \
+    \)"
+  , -- 命名詞彙表。**已於 migration 004 移除**,這裡保留原樣只因為 001 已經
+    -- 在真實資料庫上跑過,不回頭改。
+    --
+    -- 原註解宣稱「AssetDB.Naming 的 NamingVocab 從這裡讀」—— 那從未成立,
+    -- 實際生效的一直是 core/Naming.hs 的 defaultVocab。理由與取捨見
+    -- migration004 的說明與 catalog/B001。
+    "CREATE TABLE naming_vocab ( \
+    \  id    INTEGER PRIMARY KEY, \
+    \  facet TEXT NOT NULL CHECK (facet IN ('domain','state','variant')), \
+    \  value TEXT NOT NULL, \
+    \  notes TEXT, \
+    \  UNIQUE (facet, value) \
+    \)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 通用關聯圖
+--
+-- 知識庫與行銷資訊不需要自己的子系統,它們是這張圖上的節點。
+
+graph :: [Query']
+graph =
+  [ "CREATE TABLE links ( \
+    \  id       INTEGER PRIMARY KEY, \
+    \  src_type TEXT    NOT NULL, \
+    \  src_id   INTEGER NOT NULL, \
+    \  dst_type TEXT    NOT NULL, \
+    \  dst_id   INTEGER NOT NULL, \
+    \  rel      TEXT    NOT NULL, \
+    \  notes    TEXT, \
+    \  UNIQUE (src_type, src_id, dst_type, dst_id, rel) \
+    \)"
+  , -- 反向查詢要跟正向一樣快:「改這張 tileset 會影響哪些關卡」
+    -- 是從 dst 出發的查詢。
+    "CREATE INDEX links_dst_idx ON links(dst_type, dst_id, rel)"
+  , "CREATE INDEX links_src_idx ON links(src_type, src_id, rel)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 專案
+
+projectsTable :: [Query']
+projectsTable =
+  [ "CREATE TABLE projects ( \
+    \  id         INTEGER PRIMARY KEY, \
+    \  ulid       TEXT NOT NULL UNIQUE, \
+    \  name       TEXT NOT NULL UNIQUE, \
+    \  path       TEXT NOT NULL UNIQUE, \
+    \  template   TEXT, \
+    \  created_at TEXT NOT NULL, \
+    \  updated_at TEXT NOT NULL \
+    \)"
+  , -- copied_sha256 讓 doctor 能分辨兩種不同的狀況:
+    -- 「專案裡的素材被改過」與「來源壓縮檔更新了」。
+    "CREATE TABLE project_assets ( \
+    \  project_id    INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, \
+    \  asset_id      INTEGER NOT NULL REFERENCES assets(id), \
+    \  dest_rel_path TEXT    NOT NULL, \
+    \  copy_mode     TEXT    NOT NULL DEFAULT 'copy' \
+    \                CHECK (copy_mode IN ('copy','hardlink')), \
+    \  copied_sha256 TEXT, \
+    \  added_at      TEXT    NOT NULL, \
+    \  PRIMARY KEY (project_id, asset_id), \
+    \  UNIQUE (project_id, dest_rel_path) \
+    \)"
+  , "CREATE INDEX project_assets_asset_idx ON project_assets(asset_id)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 知識建檔與行銷
+
+notesTable :: [Query']
+notesTable =
+  [ "CREATE TABLE notes ( \
+    \  id                INTEGER PRIMARY KEY, \
+    \  ulid              TEXT NOT NULL UNIQUE, \
+    \  kind              TEXT NOT NULL \
+    \                    CHECK (kind IN ('knowledge','marketing','decision','reference')), \
+    \  title             TEXT NOT NULL, \
+    \  body_md           TEXT NOT NULL DEFAULT '', \
+    \  front_matter_json TEXT, \
+    \  source_path       TEXT, \
+    \  created_at        TEXT NOT NULL, \
+    \  updated_at        TEXT NOT NULL \
+    \)"
+  , "CREATE INDEX notes_kind_idx ON notes(kind)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 叢集推論
+
+inference :: [Query']
+inference =
+  [ -- 存的是「確認過的規則」而不是套用結果。
+    -- 廠商出更新版時規則自動重套,不必重新確認一次。
+    "CREATE TABLE name_clusters ( \
+    \  id           INTEGER PRIMARY KEY, \
+    \  pack_id      INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE, \
+    \  shape        TEXT    NOT NULL, \
+    \  member_count INTEGER NOT NULL DEFAULT 0, \
+    \  sample_json  TEXT, \
+    \  rule_json    TEXT, \
+    \  confirmed_by TEXT, \
+    \  confirmed_at TEXT, \
+    \  UNIQUE (pack_id, shape) \
+    \)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 稽核與還原
+
+audit :: [Query']
+audit =
+  [ -- 重構 3.42 GB 是不可逆操作。每一筆搬移都記錄,
+    -- 讓每個批次可以整批回退。
+    "CREATE TABLE moves ( \
+    \  id        INTEGER PRIMARY KEY, \
+    \  batch_id  TEXT    NOT NULL, \
+    \  ts        TEXT    NOT NULL, \
+    \  action    TEXT    NOT NULL \
+    \            CHECK (action IN ('move','copy','write','delete','mkdir')), \
+    \  from_path TEXT, \
+    \  to_path   TEXT, \
+    \  sha256    TEXT, \
+    \  bytes     INTEGER, \
+    \  undone    INTEGER NOT NULL DEFAULT 0 CHECK (undone IN (0,1)) \
+    \)"
+  , "CREATE INDEX moves_batch_idx ON moves(batch_id, id)"
+  , -- 單人時是還原歷史,多人時是同步基礎。現在加成本極低,之後補則要重寫。
+    "CREATE TABLE events ( \
+    \  id           INTEGER PRIMARY KEY, \
+    \  ts           TEXT    NOT NULL, \
+    \  actor        TEXT    NOT NULL DEFAULT 'local', \
+    \  action       TEXT    NOT NULL, \
+    \  entity_type  TEXT, \
+    \  entity_id    INTEGER, \
+    \  payload_json TEXT \
+    \)"
+  , "CREATE INDEX events_entity_idx ON events(entity_type, entity_id, id)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 全文搜尋
+
+fullTextSearch :: [Query']
+fullTextSearch =
+  [ -- tokenize='trigram' 而非預設的 'unicode61'。
+    --
+    -- unicode61 以空白與標點切詞,**完全不切分中日文** —— 而知識庫、
+    -- 行銷文案、參考資料的說明全部是繁體中文,用預設 tokenizer 等於搜不到。
+    -- trigram 另外免費送到子字串搜尋:輸入 "potion" 命中 "blue-potion"。
+    --
+    -- content='' 是 contentless 模式:索引內容來自跨表 JOIN,
+    -- 不是單一來源表,所以不能用 external content。
+    "CREATE VIRTUAL TABLE assets_fts USING fts5( \
+    \  logical_name, original_name, entry_path, tags, pack, author, notes, \
+    \  content='', tokenize='trigram' \
+    \)"
+  , "CREATE VIRTUAL TABLE notes_fts USING fts5( \
+    \  title, body_md, \
+    \  content='', tokenize='trigram' \
+    \)"
+  , -- trigram 有一個硬限制:MATCH 的查詢至少要三個字元。
+    -- 中文雙字詞(金門、行銷、廟宇、素材)因此完全搜不到 —— 這是實測撞到的,
+    -- 不是理論推測。
+    --
+    -- 補救方式是另建一張 unicode61 索引,內容是由 AssetDB.Store.Tokenize
+    -- 預先展開的重疊 bigram。unicode61 遇空白斷詞,而中日韓字元不是分隔符,
+    -- 所以「金門 門建 建築」正好是三個 token,雙字查詢變成精確比對。
+    --
+    -- rowid 與 assets_fts 共用,所以兩張表的結果可以直接 UNION。
+    "CREATE VIRTUAL TABLE assets_cjk USING fts5( \
+    \  uni, bi, \
+    \  content='', tokenize='unicode61' \
+    \)"
+  , "CREATE VIRTUAL TABLE notes_cjk USING fts5( \
+    \  uni, bi, \
+    \  content='', tokenize='unicode61' \
+    \)"
+  ]
+
+--------------------------------------------------------------------------------
+-- 初始資料
+
+-- | 註:前三筆播種的是 @naming_vocab@,該表已於 migration 004 移除。
+-- 同樣因為 001 已經跑過而保留原樣 —— 新庫會先插入再連表一起 DROP。
+seeds :: [Query']
+seeds =
+  [ "INSERT INTO naming_vocab (facet, value) VALUES \
+    \  ('domain','gui'),('domain','ground'),('domain','book'),('domain','char'), \
+    \  ('domain','fx'),('domain','prop'),('domain','bldg'),('domain','item'), \
+    \  ('domain','env'),('domain','rune'),('domain','ui'),('domain','map')"
+  , "INSERT INTO naming_vocab (facet, value) VALUES \
+    \  ('state','idle'),('state','hover'),('state','pressed'),('state','disabled'), \
+    \  ('state','active'),('state','selected'),('state','focus'), \
+    \  ('state','open'),('state','closed'),('state','empty'),('state','full'), \
+    \  ('state','on'),('state','off'), \
+    \  ('state','walk'),('state','run'),('state','attack'),('state','dash'), \
+    \  ('state','death'),('state','hurt'),('state','cast'), \
+    \  ('state','up'),('state','down'),('state','left'),('state','right'), \
+    \  ('state','front'),('state','back'), \
+    \  ('state','north'),('state','south'),('state','east'),('state','west'), \
+    \  ('state','day'),('state','night'),('state','dawn'),('state','dusk'), \
+    \  ('state','intro'),('state','loop'),('state','outro')"
+  , "INSERT INTO naming_vocab (facet, value) VALUES \
+    \  ('variant','red'),('variant','green'),('variant','blue'),('variant','yellow'), \
+    \  ('variant','purple'),('variant','orange'),('variant','pink'),('variant','brown'), \
+    \  ('variant','black'),('variant','white'),('variant','grey'),('variant','gold'), \
+    \  ('variant','silver'),('variant','cyan'), \
+    \  ('variant','tiny'),('variant','small'),('variant','medium'),('variant','large'), \
+    \  ('variant','huge'),('variant','wide'),('variant','tall'), \
+    \  ('variant','wood'),('variant','stone'),('variant','iron'),('variant','bronze'), \
+    \  ('variant','steel'),('variant','mithril')"
+  , -- 現有素材庫實際持有的授權,全部逐字取自壓縮檔內的 License 檔或商品頁。
+    --
+    -- 把它們寫進 migration 而不是留給人工輸入,是因為這些條款是**查證過的證據**,
+    -- 重打一次就是重新引入打錯的機會。資料庫因此可以從程式碼完整重建。
+    --
+    -- 刻意**不**收錄的:Magic Shader All(來源不明)。
+    -- 沒有查證過的授權不該存在於資料庫裡 —— 那會讓閘門建立在猜測上。
+    "INSERT INTO licenses \
+    \  (name, commercial, attribution_required, credit_text, modification_allowed, \
+    \   redistribution_allowed, resale_allowed, nft_allowed, source_url, notes) VALUES \
+    \  ('Crusenho Asset License', 1, 1, \
+    \   'Give appropriate credit, or provide a link to this product page, and indicate if changes were made.', \
+    \   1, 0, 0, 0, 'https://crusenho.itch.io', \
+    \   '逐字取自壓縮檔內 License.txt。全庫唯一明確要求署名的授權。'), \
+    \  ('Cainos Asset License', 1, 0, NULL, 1, 0, 0, NULL, 'https://cainos.itch.io', \
+    \   'Credit is not needed but appreciated. 取自商品頁 LICENCE 區塊。'), \
+    \  ('Shikashi Fantasy Icons', 1, 1, \
+    \   'Matt Firth (shikashipx), game-icons.net', \
+    \   1, NULL, NULL, NULL, 'https://shikashipx.itch.io', \
+    \   '部分圖示衍生自 game-icons.net。我們持有的 v2 內附 txt 寫 CC BY 3.0,商品頁現寫 CC BY 4.0 —— 版本不同,以手上這份為準。'), \
+    \  ('Idylwild Runic Codex', 1, 0, NULL, 1, 1, NULL, NULL, 'https://idylwild.itch.io', \
+    \   'Attribution - You may attribute me, but it is not mandatory. 這批素材裡唯一允許再散布的。'), \
+    \  ('Kibyra Asset License', 1, 0, NULL, 1, 0, 0, NULL, 'https://kibyra.itch.io', \
+    \   'Do not resell or redistribute the file as-is. Do not upload this asset elsewhere as your own.'), \
+    \  ('Adventurer 2D Pixel Art', 1, 0, NULL, 1, 0, 0, 0, NULL, \
+    \   'Credit is not required but it is appreciated. 逐字取自壓縮檔內 License.txt。'), \
+    \  ('Studio Owned', 1, 0, NULL, 1, 1, 1, 1, NULL, \
+    \   '工作室自有素材(自製或自行拍攝)。所有權利在我們手上,沒有外部限制。'), \
+    \  ('BDragon1727 Full License', 1, 0, NULL, 1, 0, 0, NULL, 'https://bdragon1727.itch.io', \
+    \   '取自商品頁 LICENSE: FULL 區塊,pack 1 與 pack 2 條款完全相同。明文允許個人、商業與非商業用途。禁再散布:no matter how much you modify it you can use it but not share or re-sell it。')"
+  , -- 頂層分類。子分類由匯入時的規則與人工建立。
+    "INSERT INTO categories (parent_id, name, slug, path) VALUES \
+    \  (NULL,'GUI','gui','gui'), \
+    \  (NULL,'Ground','ground','ground'), \
+    \  (NULL,'Character','character','character'), \
+    \  (NULL,'FX','fx','fx'), \
+    \  (NULL,'Prop','prop','prop'), \
+    \  (NULL,'Font','font','font'), \
+    \  (NULL,'Audio','audio','audio'), \
+    \  (NULL,'Level','level','level'), \
+    \  (NULL,'Reference','reference','reference')"
+  ]
+
+--------------------------------------------------------------------------------
+
+-- | 單一 SQL 敘述。用 alias 只是為了讓上面的清單讀起來就是一疊 SQL,
+-- 不被型別雜訊打斷。
+type Query' = Query
+
+--------------------------------------------------------------------------------
+
+-- | 第一個**真正的** migration。
+--
+-- 在此之前 schema 的改動都是直接編輯 migration 001 —— 當時沒有任何資料庫
+-- 從它建立過,為一個從未實體化的 schema 寫遷移是儀式而非工程。
+--
+-- 這一版不同:已經有一個帶著確認過的叢集規則與重構稽核紀錄的資料庫在跑,
+-- 重建會損失真實的人工工作。從這裡開始,schema 改動一律新增 migration。
+migration002 :: Migration
+migration002 =
+  Migration
+    { migVersion = 2
+    , migName = "筆記以 source_path 為唯一鍵"
+    , migStatements =
+        [ -- 筆記會被反覆編輯,重複匯入必須是更新而不是新增,
+          -- 否則同一份文件會在資料庫裡散成好幾個版本。
+          "CREATE UNIQUE INDEX notes_source_idx ON notes(source_path) \
+          \  WHERE source_path IS NOT NULL"
+        ]
+    }
+
+--------------------------------------------------------------------------------
+
+-- | AI 分類與標註的落地。
+--
+-- 三件事,順序有意義:
+--
+-- 1. 分類詞彙表加上**定義**與**適用範圍**。實測證實只給列舉值時,模型會替
+--    一張 512px 的牛排圖示選 @audio@ —— 缺的不是列舉,是定義。而 @ai_scope@
+--    讓「視覺標註」那批呼叫的列舉裡根本不出現 @audio@:錯誤答案在 GBNF
+--    文法層**無法被表達**,比在 prompt 裡拜託模型不要選有效得多。
+--
+-- 2. 建議先進暫存表,確認後才寫入正式表。與 cluster rule 的閘門同一個模式。
+--
+-- 3. @blobs@ 與 @name_clusters@ 各加一組 ai 狀態欄,逐字鏡像 @thumb_status@。
+--    失敗必須寫進資料庫,否則十小時的批次每次重跑都會重試同一批壞檔案。
+migration003 :: Migration
+migration003 =
+  Migration
+    { migVersion = 3
+    , migName = "AI 分類、標註建議與批次狀態"
+    , migStatements =
+        concat [aiVocabColumns, aiVocabSeeds, aiSuggestionTables, aiBatchStatus]
+    }
+
+-- | 詞彙表的三個新欄位。
+aiVocabColumns :: [Query']
+aiVocabColumns =
+  [ -- 定義是**給模型看的**,不是給人看的註解。它與餵給 JSON schema 的列舉
+    -- 出自同一列資料,所以兩者不可能漂移 —— 這比寫一個漂移偵測測試更徹底。
+    "ALTER TABLE categories ADD COLUMN definition TEXT"
+  , -- 適用範圍。視覺標註只跑在圖片上,那批呼叫的列舉就不該出現 audio。
+    -- none 表示這個分類永遠不交給模型判斷(如 reference —— 它由素材包的
+    -- kind 決定,不是由圖看出來的)。
+    "ALTER TABLE categories ADD COLUMN ai_scope TEXT NOT NULL DEFAULT 'any' \
+    \  CHECK (ai_scope IN ('any','image','audio','text','none'))"
+  , -- 列舉值的**順序**會影響模型的選擇偏誤。固定下來,結果才可重現。
+    "ALTER TABLE categories ADD COLUMN sort INTEGER NOT NULL DEFAULT 0"
+  , "CREATE INDEX categories_scope_idx ON categories(ai_scope)"
+  ]
+
+-- | 頂層分類的定義,以及第二層的 70 個葉節點。
+--
+-- 既有的 9 列只補欄位不重建 —— path 是穩定識別字,可能已經有
+-- asset_categories 指向它們。
+aiVocabSeeds :: [Query']
+aiVocabSeeds =
+  [ upd "gui" "介面外框(chrome):面板、按鈕、視窗、捲軸、進度條、對話框邊角。**不是**放在物品欄格子裡的物品圖示 —— 那是 icon。" "image" 10
+  , upd "character" "角色或生物的 sprite、動畫格、頭像、立繪。" "image" 30
+  , upd "fx" "特效動畫:爆炸、衝擊、法術、粒子、拖尾。通常是連續格。" "image" 40
+  , upd "ground" "地形與可鋪排的貼圖:草地、石板、水面、牆面、autotile。" "image" 50
+  , upd "prop" "場景中的物件:家具、建築、植被、容器、招牌、燈具、圍籬。" "image" 60
+  , upd "font" "字型檔與字符圖表(glyph sheet)。" "any" 70
+  , upd "level" "關卡資料與地圖檔,不是繪圖素材。" "text" 80
+  , upd "audio" "音效、音樂、語音、環境音。" "audio" 100
+  , upd "reference" "攝影或掃描的參考資料,不是遊戲素材。" "none" 110
+  , -- icon 獨立於 gui,是這份詞彙表最重要的一項增補。Kibyra 十一包加上
+    -- Cainos 與 Shikashi 約一千筆是**物品欄內容**,而 UI Book Styles 的
+    -- 一千六百多筆是**介面外框**。合併會讓全庫最大的 facet 失去意義,
+    -- 而這正是模型最容易混淆的一對 —— 所以兩邊的定義都寫了反例。
+    "INSERT INTO categories (parent_id, name, slug, path, definition, ai_scope, sort) VALUES \
+    \  (NULL,'Icon','icon','icon', \
+    \   '放進物品欄或技能列的單一物件圖示,通常 32x32、背景透明、一格一個東西。**不是**介面外框 —— 那是 gui。', \
+    \   'image', 20), \
+    \  (NULL,'Shader','shader','shader','shader 原始碼,或其效果的預覽圖。','any', 90)"
+  , sub "gui" "image" 10
+      [ ("Frame", "frame", "面板、視窗、對話框的外框與邊角。內容物不是它的一部分。", 1)
+      , ("Panel", "panel", "實心的底板或背景板,用來承載其他介面元素。", 2)
+      , ("Button", "button", "可按下的按鈕,常有 normal/hover/pressed 多態。", 3)
+      , ("Bar", "bar", "血條、魔力條、經驗條、進度條。", 4)
+      , ("Slot", "slot", "物品欄格子本身(空的容器),不是裡面的物品。", 5)
+      , ("Cursor", "cursor", "滑鼠游標與指標。", 6)
+      , ("Ribbon", "ribbon", "標題緞帶、名牌、標籤板。", 7)
+      , ("Decoration", "decoration", "角落花紋、分隔線、純裝飾的介面零件。", 8)
+      , ("Page", "page", "書頁、羊皮紙、卷軸的整頁背景。", 9)
+      ]
+  , sub "icon" "image" 20
+      [ ("Food", "food", "食物與料理:肉、麵包、水果、飲品。", 1)
+      , ("Potion", "potion", "藥水、藥劑、瓶裝物。", 2)
+      , ("Weapon", "weapon", "武器:劍、弓、杖、斧。", 3)
+      , ("Armor", "armor", "防具與服裝:盔甲、盾、頭盔、靴。", 4)
+      , ("Tool", "tool", "工具:鎬、鎚、鋸、釣竿。", 5)
+      , ("Material", "material", "製作材料:皮革、布、木板、繩。", 6)
+      , ("Ore", "ore", "礦石、礦物、錠、寶石原石。", 7)
+      , ("Herb", "herb", "藥草、植物、香料、種子。", 8)
+      , ("CreaturePart", "creature-part", "魔物素材:爪、牙、鱗、翅、骨。", 9)
+      , ("Treasure", "treasure", "錢幣、寶石、寶箱、戰利品。", 10)
+      , ("Book", "book", "書本、卷軸、地圖、文件圖示。", 11)
+      , ("Animal", "animal", "動物與生物的圖示(非可操作角色)。", 12)
+      , ("Weather", "weather", "天氣圖示:晴、雨、雪、雲。", 13)
+      , ("Skill", "skill", "技能與法術圖示。", 14)
+      , ("Currency", "currency", "貨幣單位圖示。", 15)
+      ]
+  , sub "character" "image" 30
+      [ ("Humanoid", "humanoid", "人形角色的 sprite 或動畫格。", 1)
+      , ("Creature", "creature", "非人形的生物、魔物、坐騎。", 2)
+      , ("Npc", "npc", "村民、商人等非戰鬥角色。", 3)
+      , ("Portrait", "portrait", "頭像或半身立繪。", 4)
+      , ("AnimationFrame", "animation-frame", "單獨的動作格或 spritesheet。", 5)
+      ]
+  , sub "fx" "image" 40
+      [ ("Impact", "impact", "命中、斬擊、打擊的瞬間特效。", 1)
+      , ("Explosion", "explosion", "爆炸與衝擊波。", 2)
+      , ("Magic", "magic", "施法、光環、法陣、符文圈。", 3)
+      , ("Projectile", "projectile", "飛行物:箭、火球、子彈。", 4)
+      , ("Smoke", "smoke", "煙、霧、塵。", 5)
+      , ("Fire", "fire", "火焰與燃燒。", 6)
+      , ("Electric", "electric", "雷電與電弧。", 7)
+      , ("Heal", "heal", "治療、增益特效。", 8)
+      , ("WeatherFx", "weather", "雨雪等覆蓋全畫面的天氣特效。", 9)
+      , ("Transition", "transition", "轉場與畫面遮罩動畫。", 10)
+      ]
+  , sub "ground" "image" 50
+      [ ("Terrain", "terrain", "草地、沙地、泥土等地表貼圖。", 1)
+      , ("Autotile", "autotile", "會依鄰接自動接邊的圖塊組。", 2)
+      , ("Wall", "wall", "牆面與牆頂。", 3)
+      , ("Water", "water", "水面、海、河。", 4)
+      , ("Path", "path", "道路、小徑、橋面。", 5)
+      , ("Cliff", "cliff", "斷崖、高低差、坡面。", 6)
+      , ("Decal", "decal", "鋪在地表上的裝飾:裂痕、青苔、腳印。", 7)
+      ]
+  , sub "prop" "image" 60
+      [ ("Furniture", "furniture", "桌椅、床、櫃、地毯。", 1)
+      , ("Building", "building", "房屋、塔、遺跡等建築整體。", 2)
+      , ("Vegetation", "vegetation", "樹、灌木、花草。", 3)
+      , ("Container", "container", "桶、箱、罐、袋。", 4)
+      , ("Sign", "sign", "招牌、路標、告示。", 5)
+      , ("Light", "light", "燈、火把、燭台、營火。", 6)
+      , ("Fence", "fence", "圍籬、柵欄、圍牆。", 7)
+      , ("Rock", "rock", "石頭、岩塊、礦脈。", 8)
+      ]
+  , sub "font" "any" 70
+      [ ("Bitmap", "bitmap", "點陣字型檔。", 1)
+      , ("GlyphSheet", "glyph-sheet", "把字符排在一起的圖表。", 2)
+      , ("Vector", "vector", "向量字型檔。", 3)
+      , ("Rune", "rune", "符文或自創文字的字符集。", 4)
+      ]
+  , sub "level" "text" 80
+      [ ("Map", "map", "整張地圖資料。", 1)
+      , ("Room", "room", "單一房間或關卡片段。", 2)
+      ]
+  , sub "shader" "any" 90
+      [ ("MaterialShader", "material", "材質 shader。", 1)
+      , ("Postprocess", "postprocess", "後製效果 shader。", 2)
+      ]
+  , sub "audio" "audio" 100
+      [ ("Sfx", "sfx", "音效。", 1)
+      , ("Bgm", "bgm", "背景音樂。", 2)
+      , ("Voice", "voice", "語音。", 3)
+      , ("Ambience", "ambience", "環境音。", 4)
+      ]
+  , sub "reference" "none" 110
+      [ ("Architecture", "architecture", "建築攝影。", 1)
+      , ("Landscape", "landscape", "風景攝影。", 2)
+      , ("TextureRef", "texture", "材質拍攝。", 3)
+      , ("Document", "document", "掃描文件。", 4)
+      ]
+  ]
+  where
+    -- 補一個既有頂層分類的定義、適用範圍與排序。
+    upd :: Text -> Text -> Text -> Int -> Query'
+    upd path def scope sort =
+      "UPDATE categories SET definition = "
+        <> lit def
+        <> ", ai_scope = "
+        <> lit scope
+        <> ", sort = "
+        <> num sort
+        <> " WHERE path = "
+        <> lit path
+
+    -- 一次插入某個父分類底下的所有葉節點,每列是 (名稱, slug, 定義, 序位)。
+    --
+    -- parent_id 用子查詢取,不寫死 rowid —— 種子資料的 rowid 是實作細節,
+    -- path 才是合約。同時滿足 UNIQUE(path) 與 UNIQUE(parent_id, slug)。
+    sub :: Text -> Text -> Int -> [(Text, Text, Text, Int)] -> Query'
+    sub parent scope base rows =
+      "INSERT INTO categories (parent_id, name, slug, path, definition, ai_scope, sort) \
+      \SELECT p.id, v.n, v.s, "
+        <> lit (parent <> "/")
+        <> " || v.s, v.d, "
+        <> lit scope
+        <> ", "
+        <> num base
+        <> " + v.o \
+           \FROM categories p, \
+           \     (SELECT column1 AS n, column2 AS s, column3 AS d, column4 AS o \
+           \      FROM (VALUES "
+        <> mconcat (intersperse "," (map row rows))
+        <> ")) v \
+           \WHERE p.path = "
+        <> lit parent
+      where
+        row (n, s, d, o) =
+          "(" <> lit n <> "," <> lit s <> "," <> lit d <> "," <> num o <> ")"
+
+-- | 建議暫存與批次記帳。
+aiSuggestionTables :: [Query']
+aiSuggestionTables =
+  [ -- 一次批次執行。十小時的工作需要一個可以問「跑到哪了」的錨點,
+    -- 而且伺服器要能報告一個**不是它啟動**的 CLI 批次的進度。
+    "CREATE TABLE ai_runs ( \
+    \  id          INTEGER PRIMARY KEY, \
+    \  ulid        TEXT    NOT NULL UNIQUE, \
+    \  kind        TEXT    NOT NULL CHECK (kind IN ('cluster','vision','query')), \
+    \  model       TEXT    NOT NULL, \
+    \  prompt_ver  TEXT    NOT NULL, \
+    \  params_json TEXT, \
+    \  status      TEXT    NOT NULL DEFAULT 'running' \
+    \              CHECK (status IN ('running','done','aborted')), \
+    \  total       INTEGER NOT NULL DEFAULT 0, \
+    \  done        INTEGER NOT NULL DEFAULT 0, \
+    \  failed      INTEGER NOT NULL DEFAULT 0, \
+    \  note        TEXT, \
+    \  started_at  TEXT    NOT NULL, \
+    \  ended_at    TEXT \
+    \)"
+  , "CREATE INDEX ai_runs_kind_idx ON ai_runs(kind, id)"
+  , -- 一張表涵蓋所有建議,而不是 ai_category_suggestions + ai_tag_suggestions。
+    -- 確認閘門、CLI 列表、伺服器端點、套用步驟四者的形狀完全相同;拆開等於
+    -- 把這四樣各寫兩份,換到的只有「facet 欄位不會是 NULL」。
+    --
+    -- target_key 的編碼:
+    --   blob    -> sha256
+    --   cluster -> pack_slug 與 shape 以直線分隔
+    --   asset   -> assets.ulid
+    --   pack    -> packs.slug
+    "CREATE TABLE ai_suggestions ( \
+    \  id          INTEGER PRIMARY KEY, \
+    \  run_id      INTEGER REFERENCES ai_runs(id) ON DELETE SET NULL, \
+    \  target_type TEXT    NOT NULL CHECK (target_type IN ('blob','cluster','asset','pack')), \
+    \  target_key  TEXT    NOT NULL, \
+    \  field       TEXT    NOT NULL CHECK (field IN ('category','tag','subject')), \
+    \  value       TEXT    NOT NULL, \
+    \  facet       TEXT    CHECK (facet IN ('style','theme','palette','free')), \
+    \  lang        TEXT    NOT NULL DEFAULT 'en' CHECK (lang IN ('en','zh')), \
+    \  confidence  REAL, \
+    \  rationale   TEXT, \
+    \  status      TEXT    NOT NULL DEFAULT 'pending' \
+    \              CHECK (status IN ('pending','confirmed','rejected','applied','stale')), \
+    \  decided_by  TEXT, \
+    \  decided_at  TEXT, \
+    \  created_at  TEXT    NOT NULL, \
+    \  UNIQUE (target_type, target_key, field, value, lang), \
+    \  CHECK ((field = 'tag') = (facet IS NOT NULL)) \
+    \)"
+  , "CREATE INDEX ai_sugg_status_idx ON ai_suggestions(status, target_type, field)"
+  , "CREATE INDEX ai_sugg_target_idx ON ai_suggestions(target_type, target_key)"
+  , "CREATE INDEX ai_sugg_run_idx ON ai_suggestions(run_id)"
+  ]
+
+-- | 逐筆的批次狀態。刻意逐字鏡像 @blobs.thumb_status@ —— 理由不是對稱美感,
+-- 是工作選取查詢可以原樣照抄,不必 JOIN 一張多型的狀態表。
+aiBatchStatus :: [Query']
+aiBatchStatus =
+  [ -- skipped 而不是 na:na 在 thumb_status 上表示「這份內容永遠不會有縮圖」,
+    -- 這裡表示「現在沒有縮圖可送」—— 先跑 assetdb thumbs 就會變回可做。
+    -- 不同的意思要用不同的字。
+    "ALTER TABLE blobs ADD COLUMN ai_status TEXT NOT NULL DEFAULT 'pending' \
+    \  CHECK (ai_status IN ('pending','ok','failed','skipped'))"
+  , "ALTER TABLE blobs ADD COLUMN ai_error TEXT"
+  , "ALTER TABLE blobs ADD COLUMN ai_seen_at TEXT"
+  , "CREATE INDEX blobs_ai_idx ON blobs(ai_status)"
+  ]
+
+-- 註:叢集**沒有**對應的狀態欄。name_clusters 存的是已確認的命名規則
+-- (整個資料庫目前 6 列),而 cluster list 看到的 132 個叢集是 packClusters
+-- 每次即時算出來的,沒有可以標記的列。叢集層的續跑因此改看 ai_suggestions:
+-- 某個 (pack_slug, shape) 已經有建議就跳過。少一組欄位,也少一個會腐爛的鏡像。
+
+--------------------------------------------------------------------------------
+
+-- | @naming_vocab@ 退場(catalog/B001)。
+--
+-- 這張表從 migration 001 起就建了、也播了種,但**全庫沒有任何程式碼查詢它**;
+-- 實際生效的一直是 @core\/Naming.hs@ 的硬編碼 @defaultVocab@。兩份定義並存
+-- 而只有一份會被執行,漂移時 @parse ∘ render == id@ 會在沒人看得見的地方失效。
+--
+-- 選擇刪表而不是「接上載入」,理由是這張表想解決的問題其實不存在,而它
+-- 帶來的問題是真的:
+--
+-- 1. @domain@ 的開放性(ADR-004 的原始訴求)**已經達成** —— 'parseLogicalName'
+--    根本不驗證 domain,任何合法分段都收。這張表的 @facet='domain'@ 那批
+--    從來就不是把關者,只是一份沒人讀的清單。
+-- 2. @state@ \/ @variant@ 不是設定,是**文法**。它們決定 @spr_item_potion_blue@
+--    的 @blue@ 是變體還是主體的一部分。做成執行期可 INSERT,等於讓使用者
+--    在事後改變已經寫進 @assets.logical_name@ 的舊名字的解析語意。這種東西
+--    該跟著程式碼版本走,不該跟著資料走。
+-- 3. 'validateLogicalName' 是純函數(@FromJSON LogicalName@ 用它),拿不到
+--    'Connection'。就算接上載入,@defaultVocab@ 也消不掉 —— 只會從
+--    「一份真相 + 一張死表」變成「兩份都活著的真相」,比現況更糟。
+--
+-- migration 001 不改(它已經在真實資料庫上跑過),所以新庫是建了再刪。
+-- 多一次 DDL 換到「schema 歷史逐字誠實」,划算。
+migration004 :: Migration
+migration004 =
+  Migration
+    { migVersion = 4
+    , migName = "naming_vocab 退場,命名詞彙以 core/Naming.hs 為唯一真相"
+    , migStatements =
+        [ -- IF EXISTS:這張表沒有任何外鍵指向它,手動刪過的資料庫不該卡在這裡。
+          "DROP TABLE IF EXISTS naming_vocab"
+        ]
+    }

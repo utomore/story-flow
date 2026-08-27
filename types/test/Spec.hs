@@ -1,6 +1,6 @@
 module Main (main) where
 
-import qualified StoryFlow.Types.LoaderSpec
+import qualified Aapms.Types.LoaderSpec
 import System.IO
 import Test.Hspec
 
@@ -9,4 +9,4 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $
-    describe "T10+T11 StoryFlow.Types.Loader" StoryFlow.Types.LoaderSpec.spec
+    describe "graph-core/F002 T12+T13 Aapms.Types.Loader" Aapms.Types.LoaderSpec.spec

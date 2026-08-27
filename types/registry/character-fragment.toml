@@ -2,8 +2,9 @@
 #
 # 注意 TOML 的表頭語意:allowed_links 與 stages 必須寫在所有 [[fields]] 之前,
 # 否則它們會變成最後一個 field 的子鍵。載入器會擋下這個錯,但不要去試。
-key  = "character-fragment"
-name = "角色片段"
+key    = "character-fragment"
+name   = "角色片段"
+family = "entity"
 
 # 新建一份主題檔要放哪個子目錄,以及這個片段型別所屬的主體型別鍵。
 # owner_type 讓「查 character 的目錄」與「查 character-fragment 的目錄」

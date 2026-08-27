@@ -1,0 +1,17 @@
+# 統一以 LF 存入 repo。Windows 工作目錄仍可用 CRLF,
+# 但 .hs 與 .cabal 進 repo 前一律正規化,避免跨機器的假 diff。
+* text=auto eol=lf
+
+*.hs      text eol=lf
+*.cabal   text eol=lf
+*.project text eol=lf
+*.md      text eol=lf
+*.toml    text eol=lf
+*.json    text eol=lf
+*.yml     text eol=lf
+
+# 未來的二進位素材測試夾具
+*.png  binary
+*.zip  binary
+*.rar  binary
+*.7z   binary

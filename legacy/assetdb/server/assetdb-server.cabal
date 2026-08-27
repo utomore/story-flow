@@ -1,0 +1,100 @@
+cabal-version:      3.4
+name:               assetdb-server
+version:            0.1.0.0
+synopsis:           Alchbees 資源管理系統 — HTTP API
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+library
+    import:           warnings
+    exposed-modules:
+        AssetDB.Server.Api
+        AssetDB.Server.App
+        AssetDB.Server.Cli
+        AssetDB.Server.TsTypes
+    other-modules:
+        Paths_assetdb_server
+    autogen-modules:
+        Paths_assetdb_server
+    hs-source-dirs:   src
+    build-depends:
+        , assetdb-core
+        , assetdb-store
+        , aeson           >=2.1
+        , base            >=4.17 && <5
+        , bytestring      >=0.11
+        , directory       >=1.3
+        , filepath        >=1.4
+        , http-media      >=0.8
+        , http-types      >=0.12
+        , servant         >=0.20
+        , servant-server  >=0.20
+        , sqlite-simple   >=0.4.18
+        , text            >=2.0
+        , wai             >=3.2
+        , wai-app-static  >=3.1
+        , warp            >=3.3
+    default-language: GHC2021
+    default-extensions:
+        DataKinds
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        TypeOperators
+
+executable assetdb-server
+    import:           warnings
+    main-is:          Main.hs
+    hs-source-dirs:   app
+    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+    build-depends:
+        , assetdb-core
+        , assetdb-server
+        , assetdb-store
+        , base
+        , bytestring
+        , filepath
+        , text
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+
+test-suite assetdb-server-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:
+        AssetDB.Server.AppSpec
+        AssetDB.Server.CliSpec
+        AssetDB.Server.TsTypesSpec
+        AssetDB.Server.TsTypesDriftSpec
+    hs-source-dirs:   test
+    build-depends:
+        , aeson
+        , assetdb-server
+        , assetdb-store
+        , base
+        , bytestring      >=0.11
+        , directory       >=1.3
+        , filepath        >=1.4
+        , hspec           >=2.10
+        , http-types      >=0.12
+        , servant-server >=0.20
+        , sqlite-simple   >=0.4.18
+        , temporary       >=1.3
+        , text
+        , wai             >=3.2
+        , warp            >=3.3
+    build-tool-depends: hspec-discover:hspec-discover
+    default-language: GHC2021
+    default-extensions:
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards

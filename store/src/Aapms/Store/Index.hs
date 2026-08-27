@@ -31,21 +31,15 @@ module Aapms.Store.Index
 
     -- * 過時偵測
   , refreshStale
-
-    -- * 內部(測試用)
-  , vaultMarkdownFiles
-  , statOf
   ) where
 
-import Control.Exception (Exception, IOException, throwIO, try)
+import Control.Exception (Exception, throwIO, try)
 import Control.Monad (forM, forM_)
 import Data.Int (Int64)
-import Data.List (isPrefixOf, sort)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Database.SQLite.Simple
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
 import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256 (..))
@@ -66,52 +60,9 @@ import Aapms.Store.Marker (VaultHandle (..))
 import Aapms.Store.Row
 import Aapms.Store.Schema (IndexIssue (..), insertFtsRows)
 import Aapms.Store.Tokenize (ftsRowOf)
-import System.Directory
-  ( doesDirectoryExist
-  , getFileSize
-  , getModificationTime
-  , listDirectory
-  )
-import System.FilePath ((</>), isAbsolute, makeRelative, takeExtension)
+import Aapms.Store.Walk (statOf, vaultMarkdownFiles)
+import System.FilePath ((</>), isAbsolute, makeRelative)
 import System.Directory (makeAbsolute)
-
--- 掃描 ------------------------------------------------------------------------
-
--- | Vault 根目錄下所有 @.md@ 的相對路徑(以 @/@ 分隔,不受平台影響),
--- 排序後回傳。__略過所有以 @.@ 開頭的名字__:@.aapms\/@ 自己的檔案、編輯器的
--- 暫存目錄、@.git\/@ 都不該進索引。排序讓重建的插入順序固定,這是「重建後
--- 逐筆相同」的前提,同時也是待確認假設 A2(@assets.name@ 撞名時誰保留)的
--- 依據。
-vaultMarkdownFiles :: FilePath -> IO [FilePath]
-vaultMarkdownFiles root = sort <$> walk ""
-  where
-    walk rel = do
-      let dir = if null rel then root else root </> rel
-      names <- listDirectory dir
-      concat <$> mapM (visit rel) (sort names)
-
-    visit rel name
-      | "." `isPrefixOf` name = pure []
-      | otherwise = do
-          let relChild = if null rel then name else rel <> "/" <> name
-          isDir <- doesDirectoryExist (root </> relChild)
-          if isDir
-            then walk relChild
-            else pure [relChild | takeExtension name == ".md"]
-
--- | 過時偵測的兩個依據。mtime 取__奈秒__:同一秒內改兩次是測試與人手都做得到
--- 的事,秒級解析度會漏掉。
-statOf :: FilePath -> IO (Either StoreError (Int64, Int64))
-statOf fp = do
-  r <- try act :: IO (Either IOException (Int64, Int64))
-  pure $ case r of
-    Left e -> Left (FileReadFailed fp (T.pack (show e)))
-    Right x -> Right x
-  where
-    act = do
-      t <- getModificationTime fp
-      s <- getFileSize fp
-      pure (floor (utcTimeToPOSIXSeconds t * 1e9), fromIntegral s)
 
 -- | 給定路徑(絕對或 vault 相對皆可)轉成索引裡儲存用的 vault 相對路徑
 -- (@/@ 分隔)。

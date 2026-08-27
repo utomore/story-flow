@@ -3,7 +3,7 @@ id: graph-core-spec-gaps
 type: spec-gaps
 title: graph-core-spec-gaps
 description: graph-core 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: in-progress
+status: open
 created: 2026-08-24
 updated: 2026-08-26
 parent: graph-core
@@ -420,3 +420,48 @@ parent: graph-core
      `vlt-bbbb0002` 計數 1 這兩個期望值需要改成 3 筆/計數 2;若不該命中,fixture 的
      `pck-00000001` 標題需要改掉
 - 狀態:resolved (2026-08-26 開發者裁決 → spec 已修訂):qa 的 fixture 設計失誤,不是實作錯誤(L8 已證明合併邏輯正確)——law 與 example 的期望值一條不改,改的是 F009「Examples → fixture 前提」新增兩條約束:**區辨用標籤必須放節層**(檔案層的 `tags` 依節層繼承規則聯集去重被同檔每一個節繼承)、**窄命中的查詢字串不得出現在同 vault 其他節點的標題或正文**;L4 非退化子句與 E1 / E12 / E17 一併補上這兩個前提的措辭,fixture 那一側由 qa 修
+
+## G20(E001 / qa,編排者歸因)—— `statOf` 回傳的 tuple 順序,spec 自己前後矛盾
+
+- 模糊點:E001 對同一件事給了兩個互相衝突的答案。
+  1. **「數據與介面變動」表的語意欄**寫 `statOf` 是「回傳檔案的 **(size, mtime)** 供過時偵測」;
+     骨架 `store/src/Aapms/Store/Walk.hs` 的 haddock 也寫「檔案的 **(size, mtime)**」
+  2. **R4** 寫「對任意路徑,`statOf` 的結果與**搬模組前相同**」,而搬移前
+     (`git show HEAD:store/src/Aapms/Store/Index.hs`,第 104 行起)的本體是
+     `pure (floor (utcTimeToPOSIXSeconds t * 1e9), fromIntegral s)` —— 第一個分量是
+     **奈秒 mtime**,第二個才是 size,也就是 **(mtime, size)**,與 1 的順序相反
+
+  兩條不可能同時成立:照語意欄做就違反 R4(改了行為),照 R4 做就違反語意欄。
+  **簽名擋不住這個矛盾**——`(Int64, Int64)` 兩個分量同型別,順序寫反了型別檢查照樣過,
+  `/enhance-design` 的一致性檢查比對的是簽名原文,因此沒有攔下來。
+
+- 卡住的項目:`WalkSpec.hs:78` 的 R4 size 斷言
+  (`Right (size, _mtime) -> size === fromIntegral (BS.length content)`)。
+  實測第一個分量是 `1787759371780749400`(奈秒時間戳量級),不是位元組數。
+  E5(不存在的路徑回 `Left`)與另一條 R4 冪等斷言不受影響,兩條都綠。
+
+- 需要 spec 回答什麼:**`statOf` 的回傳 tuple 到底是 `(mtime, size)` 還是 `(size, mtime)`?**
+  —— 亦即要改的是「語意欄與骨架 haddock 的文字」,還是「實作的順序」?
+  注意後者會與 R4「原樣搬移、行為不變」直接衝突,且 `Index.hs` 現有兩個呼叫端都是照
+  `(mtime, size)` 在解構的——`:129` 寫 `Right (mtime, size) -> ...`(逐字命名,不是位置巧合)、
+  `:412` 寫 `Right (m', s') -> pure (m /= m' || s /= s')`——改順序等於同時改這兩處的行為,
+  已超出 E001 定案的 scope(「行為不變、只動可見度與所在模組」)。
+
+  **編排者的傾向**:改 spec 的文字(語意欄與骨架 haddock 都改成 `(mtime, size)`),
+  不動實作。理由:實作、兩個呼叫端、R4 三者本來就一致,錯的只有我在 `/enhance-design`
+  時寫進語意欄的那五個字;而且「過時偵測」比較的是兩個分量的相等性,順序對它沒有語意差別,
+  改實作等於為了一句寫錯的文件去動一個正在正確運作的函式。此決定可逆。
+
+- 狀態:resolved (2026-08-27 開發者裁決 → spec 已修訂):**改 spec 的文字,不動實作**。
+  實作、`Index.hs:129` 的 `Right (mtime, size)`、`:412` 的 `m/m'` `s/s'` 比對、R4 四者本來就一致,
+  錯的只有語意欄那五個字;過時偵測比的是兩個分量的相等性,順序對它沒有語意差別,改實作等於為
+  一句寫錯的文件去動一個正確運作的函式,還會撞破 E001「行為不變」的 scope。
+  已修訂:①「數據與介面變動」語意欄改成 **`(mtime, size)`** 並寫明哪個分量是什麼;② **R4** 補上
+  機械可判定的子句(只對**第二**分量斷言長度,第一分量是奈秒時間戳);③ 新增 **E6** 把順序釘成
+  一個具體例子(5 位元組的檔 → `Right (m, 5)`);④ `Walk.hs` 的 `statOf` haddock 補上順序、
+  補回「mtime 取奈秒」的理由、並寫明為什麼順序必須寫出來。
+  **教訓**:同型別的 tuple 分量(這裡兩個都是 `Int64`),順序寫反時型別檢查、簽名比對、呼叫端
+  編譯全部照過——`/enhance-design` 的一致性檢查只比對簽名原文,結構上抓不到。這種欄位的順序
+  必須在語意欄與 law 裡寫成機械可判定的句子,不能只給一個 `(a, b)` 讓讀者自己對。
+  順帶查出:搬移前的原始 haddock **從頭到尾沒寫過順序**(只說「過時偵測的兩個依據」),
+  順序只存在於函式本體那一行——這正是第一版 spec 會寫反的直接原因。

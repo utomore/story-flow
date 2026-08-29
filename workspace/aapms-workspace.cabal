@@ -58,6 +58,7 @@ test-suite aapms-workspace-test
         Aapms.Workspace.Types
         Aapms.Workspace.Location
         Aapms.Workspace.Hub
+        Aapms.Workspace.Discovery
     build-depends:
         , base
         , containers

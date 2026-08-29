@@ -370,11 +370,20 @@ refs = []
     方向是 `Types ← Location ← Hub ← Discovery ← Scope`,Discovery 不得回頭、也不得往下游拿東西。
     本套件內允許的 import 只有 `Aapms.Workspace.Types` 與 `Aapms.Workspace.Hub`。
   - (b) **若**有對 `Aapms.Store.Marker` 的 import 行,它**必須逐字是**
-    `import Aapms.Store.Marker (markerDir, readMarker)`。只要清單長出 `initVaultAt` /
-    `openVault` / `closeVault` / `configPath` / `indexDbPath` / `VaultHandle` 任何一個,這條就紅
-    ——marker 的**寫入**、索引的開關與**中樞/vault 同名的 `configPath`** 都不在本 feature。
-    (寫成條件式是因為骨架階段的簽名用不到這兩個函式,留著會有 `-Wall` 的 redundant import
-    警告;impl 填本體時才會出現這一行。)
+    `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)`。
+    **這條 law 守的是「Discovery 只讀 id」,不是單純的 import 衛生**:清單放行的欄位存取子
+    只有 `vmId` 一個,所以日後有人在本模組碰 `vmRefs`(`refs` 展開是 #3 的事)或 `vmKind`
+    (kind 過濾同樣是 #3、`syncHub` 是 #4),編譯得過但**這條會紅**——界線因此守得住,而不是
+    只寫在 Haddock 裡。同理,只要清單長出 `initVaultAt` / `openVault` / `closeVault` /
+    `configPath` / `indexDbPath` / `VaultHandle` 任何一個,或被放寬成 `VaultMarker (..)`,
+    這條就紅——marker 的**寫入**、索引的開關與**中樞/vault 同名的 `configPath`** 都不在本
+    feature。
+    (寫成條件式是因為骨架階段的簽名用不到這三個名字,留著會有 `-Wall` 的 redundant import
+    警告;impl 填本體時才會出現這一行。`vmId` 必須逐字列出的理由:`Aapms.Store.Marker` 的
+    匯出是 `VaultMarker (..)`,但 `Aapms.Workspace.Types:65` 對它的 import 是裸型別
+    `(VaultMarker)`——F001 的 L17(d) 釘死——**轉不出欄位存取子**,而本 spec 的 L12(c) 與 L14
+    都要求用 `vmId` 做 id 比對。`vmId` 只能從本模組自己的這一行拿。
+    2026-08-29 閘門裁決,修訂本條原文的 `(markerDir, readMarker)`,見「實作備註」。)
   - (c) **完全不得** import `Aapms.Store.Atomic`——本 feature 不寫任何檔案。
   - (d) **完全不得** import `Aapms.Store`(門面)、`Aapms.Store.Schema`、`Aapms.Store.Index`、
     `Aapms.Store.MultiVault`、`Aapms.Store.Query`、`Aapms.Store.Write`、`Aapms.Store.Create`
@@ -389,8 +398,10 @@ refs = []
 >
 > - **預期綠**:**L18 的五條子斷言 (a)–(e) 全部**。它們驗的是骨架原文自身就承載的事實
 >   (各檔的 import 行),不經過任何 `undefined`。**從第一天就綠,而且應該綠;不得因為它綠就
->   退回重寫。** 其中 (b) 是條件式:骨架階段沒有那一行,條件為假即通過;impl 補上之後它才開始
->   真正守東西。
+>   退回重寫。** 其中 (b) 是條件式,**兩個階段都預期綠**:骨架階段沒有對
+>   `Aapms.Store.Marker` 的 import 行,條件為假即通過;impl 補上之後,那一行必須**逐字**是
+>   `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` 才算通過——它從
+>   這一刻起真正守著「Discovery 只讀 id」,放寬成 `VaultMarker (..)` 或多列任何一個欄位就紅。
 > - **預期紅**:其餘每一條 law 與每一個 example——四個函式的本體全是 `undefined`。
 >
 > 骨架裡**沒有**任何不是 `undefined` 的本體(與 F001 的 `mkHub = Hub` 不同,本 feature 沒有
@@ -459,17 +470,20 @@ refs = []
 |---|---|
 | `workspace/src/Aapms/Workspace/Discovery.hs` | 模組宣告與匯出清單(四個函式)、四條完整簽名與各自的 Haddock;本體一律 `undefined` |
 
-**編譯狀態**:`Aapms.Workspace.Discovery` **尚未列進 `aapms-workspace.cabal` 的
-`exposed-modules`**(D2:`.cabal` 由編排者單線維護,本 feature 不得修改)。因此:
+**編譯狀態**:`Aapms.Workspace.Discovery` **已列進 `aapms-workspace.cabal`**——library 的
+`exposed-modules` 與 test-suite 的 `other-modules`(連同 `Aapms.Workspace.DiscoverySpec`)都由
+**編排者**在本 feature 交件後補上(D2:`.cabal` 由編排者單線維護,本 feature 不得修改)。
+`cabal build aapms-workspace` 從此涵蓋本模組,不再需要下面那道單檔檢查。
 
-- `cabal build aapms-workspace:lib:aapms-workspace` → **Up to date / exit 0**(既有三個模組仍綠)
-- 本檔另以**唯讀**方式單檔型別檢查通過:在 `workspace/` 下跑
-  `cabal exec -- ghc -fno-code -Wall -Wcompat -XGHC2021 -XDerivingStrategies -XLambdaCase
-  -XOverloadedStrings -XRecordWildCards -XStrictData -package aapms-core -package aapms-store
-  -package containers -package directory -package filepath -package toml-reader
-  -hide-package text-2.1.3 -isrc -outputdir <暫存> src/Aapms/Workspace/Discovery.hs`
-  → `[1 of 2] Aapms.Workspace.Types` / `[2 of 2] Aapms.Workspace.Discovery`,**exit 0、零警告**。
-  這道指令不寫任何檔案到專案樹,也沒有動 `.cabal`。
+> **交件當下(骨架階段)的紀錄,保留備查**:那時本模組還沒進 `.cabal`,
+> `cabal build aapms-workspace:lib:aapms-workspace` 回 **Up to date / exit 0**(既有三個模組仍
+> 綠),骨架另以**唯讀**方式單檔型別檢查通過——在 `workspace/` 下跑
+> `cabal exec -- ghc -fno-code -Wall -Wcompat -XGHC2021 -XDerivingStrategies -XLambdaCase
+> -XOverloadedStrings -XRecordWildCards -XStrictData -package aapms-core -package aapms-store
+> -package containers -package directory -package filepath -package toml-reader
+> -hide-package text-2.1.3 -isrc -outputdir <暫存> src/Aapms/Workspace/Discovery.hs`
+> → `[1 of 2] Aapms.Workspace.Types` / `[2 of 2] Aapms.Workspace.Discovery`,**exit 0、零警告**。
+> 這道指令不寫任何檔案到專案樹,也沒有動 `.cabal`。
 
 ## TodoList
 
@@ -494,7 +508,7 @@ refs = []
 | T3 | L10, L11, L12, L13 / X14–X18 | `test_read_vault_ref_marker_is_truth`、`test_read_vault_ref_fields_on_success`、`test_read_vault_ref_path_missing`、`test_read_vault_ref_marker_broken_carries_original`、`test_read_vault_ref_id_drift`、`test_read_vault_ref_creates_nothing` |
 | T4 | L14, L15 / X19–X22 | `test_read_vault_ref_at_fills_entry_by_id`、`test_read_vault_ref_at_unregistered_is_nothing`、`test_read_vault_ref_at_ignores_path_match`、`test_read_vault_ref_at_marker_unreadable` |
 | T5 | L16, L17 / X23, X24 | `test_two_readers_agree`、`test_refs_carried_verbatim_not_expanded` |
-| (全部) | L18 (a)–(e) | `test_discovery_no_downstream_or_location_imports`(a)、`test_discovery_marker_import_is_type_and_reader_only`(b,條件式逐字比對 `import Aapms.Store.Marker (markerDir, readMarker)`)、`test_discovery_never_imports_atomic`(c)、`test_discovery_never_imports_index_modules`(d)、`test_discovery_no_process_import`(e)。**五條都只掃 import 行,比對前先去除行尾 `\r`** |
+| (全部) | L18 (a)–(e) | `test_discovery_no_downstream_or_location_imports`(a)、`test_discovery_marker_import_is_id_reader_only`(b,條件式逐字比對 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)`——守的是「只讀 id」:`VaultMarker (..)` 與多出來的 `vmKind` / `vmName` / `vmRefs` 都要紅)、`test_discovery_never_imports_atomic`(c)、`test_discovery_never_imports_index_modules`(d)、`test_discovery_no_process_import`(e)。**五條都只掃 import 行,比對前先去除行尾 `\r`** |
 
 ## 待確認假設
 
@@ -578,4 +592,19 @@ refs = []
 
 ## 實作備註
 
-(撰寫時留空;開發過程中與設計的偏差記錄於此)
+### 2026-08-29 閘門裁決:L18(b) 的逐字字串(spec-gaps G2)
+
+qa 與 impl 各自撞到 **L18(b) 與同一份 spec 的 L12(c) / L14 互相矛盾**:(b) 原文的白名單是
+`import Aapms.Store.Marker (markerDir, readMarker)`,而 L12(c) 與 L14 都要求用 `vmId` 做 id 比對
+——`vmId` 是 record 欄位存取子,只能經 `VaultMarker (..)` 或 `VaultMarker (vmId)` 取得,而
+`Aapms.Workspace.Types:65` 對它的 import 是裸型別 `(VaultMarker)`(F001 的 L17(d) 釘死),
+**轉不出欄位存取子**。原白名單因此讓 L12(c) / L14 沒有任何合法實作滿足得了。
+
+開發者裁決:把 (b) 的逐字字串**收緊**成
+`import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` ——**只放行 `vmId` 一個
+欄位存取子**,不是 `VaultMarker (..)`。這樣一來這條 law 守的是「**Discovery 只讀 id**」:
+日後有人在本模組碰 `vmRefs`(#3 的 `refs` 展開)或 `vmKind`(#3 的 kind 過濾、#4 的 `syncHub`),
+編譯得過但測試會紅。
+
+本次只改 L18(b) 的條文、「1-to-1 測試對照表」最後一列的措辭與「紅綠預期」對 (b) 的敘述;
+**其餘 law、example 與四條介面一個字未動**。

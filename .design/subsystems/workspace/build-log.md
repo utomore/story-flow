@@ -19,7 +19,7 @@ parent: workspace
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
 | 階段一 | W1 | hub-registry | `d23f24c` | **OK**(11 條路徑全落在 impl 白名單 3 / qa 測試檔 4 / 編排者單線 4) | done(測試 80/0;未結 gap G1) |
-| 階段一 | W2 | vault-discovery | — | — | pending |
+| 階段一 | W2 | vault-discovery | `5b8e104` | **OK**(6 條路徑:spec 文檔 1 / impl 白名單 1 / qa 測試檔 2 / 編排者單線 2) | done(測試 125/0;G2 已 resolved) |
 | 階段一 | W3 | scope-resolution | — | — | pending |
 | 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | — | — | pending |
 
@@ -45,7 +45,7 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | feature | id | 檔名 | 骨架檔案 | spec 模型 | qa 模型 | impl 模型 | 狀態 |
 |---|---|---|---|---|---|---|---|
 | hub-registry | F001 | F001-hub-registry.md | `workspace/src/Aapms/Workspace/Types.hs`<br>`workspace/src/Aapms/Workspace/Location.hs`<br>`workspace/src/Aapms/Workspace/Hub.hs` | opus | sonnet | sonnet | **impl-done**(80/0) |
-| vault-discovery | F002 | F002-vault-discovery.md | `workspace/src/Aapms/Workspace/Discovery.hs` | opus | sonnet | sonnet | pending |
+| vault-discovery | F002 | F002-vault-discovery.md | `workspace/src/Aapms/Workspace/Discovery.hs` | opus | sonnet | sonnet | **impl-done**(125/0) |
 | scope-resolution | F003 | F003-scope-resolution.md | `workspace/src/Aapms/Workspace/Scope.hs` | opus | sonnet | sonnet | pending |
 | vault-lifecycle | F004 | F004-vault-lifecycle.md | `workspace/src/Aapms/Workspace/Lifecycle.hs` | opus | sonnet | sonnet | pending |
 | project-registry | F005 | F005-project-registry.md | `workspace/src/Aapms/Workspace/Projects.hs` | opus | sonnet | sonnet | pending |
@@ -61,6 +61,9 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | F001 A1 + A2 | 待確認假設(合併) | 契約 A 的 `Hub`;契約 B 四個 getter;模組間公開介面 `Lifecycle → Hub` | F001(下游 F004 / F005) | `Hub` 不透明 + `mkHub` / `hubSourceText`;`Hub.hs` 補對稱的 `upsertProject` / `removeProject` | 有條件可逆 | **選 a**(照 spec 暫採) | design.md 契約 A + 模組間公開介面表(diff 已確認) |
 | F001 A3 + S1 + S2 | 待確認假設(合併;S1 / S2 為編排者升級) | 契約 A 的 `loadHub`;契約 F 的 `HubMalformed`;契約 B 的 `veName` / `peName` / `veId` / `peId` 值域 | F001 | 對工具自己寫得出來的欄位從嚴(空 name、重複 id → `HubMalformed`),對未知鍵與未知頂層段從寬(容忍且保留) | 可逆 | **選 a**(照 spec 暫採) | design.md 契約 A 新增「`loadHub` 的合規判準」段(diff 已確認) |
 | F001 依賴邊-1~3 | 新增依賴邊 | `Types → aapms-store`、`Hub → aapms-store`、`Location → aapms-core` | F001 | 三條在 design.md 散文裡都有依據,只是「模組間公開介面」表沒收 | 可逆 | **無真實第二方案,不上議程**;改為補表 | design.md 模組間公開介面表(diff 已確認) |
+| F002 A1 | 待確認假設 | 模組間公開介面表的 `Scope → Discovery`;契約 C 的 `ScopeIssue` / `VaultRef.vrEntry`;契約 F 的 `MarkerUnreadable` | F002(下游 F003) | `readVaultRef` 拆成兩個:`VaultEntry ->`(已註冊,失敗是降級)與 `readVaultRefAt :: Hub ->`(探測到的,失敗是硬錯)。原簽名的 `Maybe VaultEntry` 在 `Nothing` 分支表達不出失敗——`ScopeIssue` 三個建構子都要求一列 `VaultEntry` | 有條件可逆 | **選 a**(照 spec 暫採) | design.md 模組間公開介面表 + 新增一段理由(diff 已確認) |
+| F002 A2 + S3 + S8 + S1 | 待確認假設(合併;S1 / S3 / S8 為編排者升級) | 契約 C 的 `lookupSelector` 與 `vrPath` 值域欄;`detectVault` | F002(下游 F003 / F004 都寫「比對規則同 `lookupSelector`」) | `lookupSelector` 兩階段逐字精確比對(不 trim、不忽略大小寫),id 撞號與 name 撞名同一套處置;「已正規化」釘死成 `canonicalizePath`(否決 `makeAbsolute`);`detectVault` 起點不先驗存在性 | 可逆 | **選 a**(照 spec 暫採) | design.md 契約 C 的 `vrPath` 值域 + 新增「`lookupSelector` 的比對規則」段(diff 已確認) |
+| F002 依賴邊-1 | 新增依賴邊 | `Discovery → aapms-store` | F002 | 表只列 `readMarker`,實際還用 `markerDir`(`.aapms` 目錄名的唯一真相在 graph-core) | 可逆 | **無真實第二方案,不上議程**;改為補表 | design.md 模組間公開介面表(diff 已確認) |
 
 ## 自裁清單
 
@@ -71,12 +74,23 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | F001 S3 | `saveHub` 不建立父目錄 | 失敗原樣包成 `HubWriteFailed` | `saveHub`、`HubWriteFailed`、`atomicWriteText` | 自報(升級篩命中,但**沿用契約卡「明確不做」**,不上閘門) | |
 | F001 S4 | 平台預設路徑怎麼取 | `getXdgDirectory XdgConfig "aapms"`,不寫平台分支 | `hubLocation`、`hlPath`、`FromPlatformDefault` | 自報(升級篩命中,**編排者降級**:寫不出真實的第二方案) | |
 | F001 S5 | `Hub` / `WorkspaceError` 的 deriving | derive `Show` / `Eq`;`LlmSection` 走 `deriving newtype` | `Hub`、`WorkspaceError`、`LlmSection` | 自報(升級篩命中,**編排者降級**:hspec 的硬需求) | |
+| F002 S1 | `detectVault` 起點不先驗存在性 | 不存在也照樣往上走 | `detectVault` | 自報 → **編排者升級** | (已併入閘門裁決) |
+| F002 S2 | 向上探測的終止條件 | `takeDirectory p == p`(不動點),不寫平台分支 | `detectVault`、`takeDirectory` | 自報(升級篩命中,**編排者降級**:無真實第二方案) | |
+| F002 S3 | 三種降級的判定順序與帶哪個路徑 | 依「路徑 → marker → id」;`VaultPathMissing` 帶正規化後的路徑 | `readVaultRef`、`VaultPathMissing`、`VaultMarkerBroken`、`VaultIdDrift`、`vrPath` | 自報 → **編排者升級** | (已併入閘門裁決) |
+| F002 S4 | `readVaultRefAt` 不先 `doesDirectoryExist` | 路徑不存在時 `readMarker` 本來就回 `VaultMarkerMissing` | `readVaultRefAt`、`MarkerUnreadable`、`readMarker` | 自報(升級篩命中,**編排者降級**:契約 F 這一路只給了一個建構子,無第二方案) | |
+| F002 S5 | `Discovery` 的匯出清單 | 只有四個函式,不轉出任何型別 | `VaultRef`、`ScopeIssue`、`VaultEntry`、`Hub`、`WorkspaceError` | 自報(升級篩命中,**編排者降級**:W1 已立「型別一律去 Types 找」的慣例) | |
+| F002 S6 | `.aapms` 目錄名從哪來 | 用 graph-core 的 `markerDir`,不自己寫字面值 | `markerDir` | 自報(升級篩命中,**沿用** B2 對帳的知識歸屬裁決) | |
+| F002 S7 | 骨架不寫「只有本體才用得到」的 import | 維持 `-Wall` 零警告;L18(b) 因此寫成條件式 | `markerDir`、`readMarker`、`hubVaults`、`VaultId` | 自報(升級篩命中,**編排者降級**:無真實第二方案) | |
+| F002 S8 | 「正規化」的定義 | 全篇釘死 `canonicalizePath`,不是 `makeAbsolute` | `detectVault`、`readVaultRef`、`readVaultRefAt`、`vrPath` | 自報 → **編排者升級** | (已併入閘門裁決) |
+| F002 impl-1 | (協議偏離,記錄備查)L18(b) 與 L12(c)/L14 矛盾時 impl **沒有停下該項**,而是暫採 `VaultMarker (..)` 並如實回報 | — | `vmId`、`VaultMarker` | 編排者記錄 | **可接受**:該 law 管的是 import 行本身,不寫某個 import 就編不出來,實務上沒有「停下」這個選項;impl 有完整回報,未隱瞞 |
 
 ## 仲裁紀錄
 
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
 | F001 | 0 | 骨架快照紅綠基線(`ws-w1` @ `d23f24c`) | L1–L17 / X1–X27 全體 | **符合預期**:80 條中 5 綠(L16 的 `mkHub` 往返 + L17 的四條 import 檢查,皆為骨架自身承載的事實),其餘 75 條紅 | 無需處置,**無假綠** |
+| F002 | 0 | 骨架快照紅綠基線(`ws-w1` @ `5b8e104`) | L1–L18 / X1–X24 全體 | **符合預期**:125 條中 86 綠(W1 的 81 條 + F002 的 L18 五條 import law),F002 的其餘 39 條全紅 | 無需處置,**無假綠** |
+| F002 | 1 | `test_discovery_marker_import_is_id_reader_only`(L18(b)) | L18(b) 的逐字 import 字串,與 L12(c) / L14 的 `vmId` 比對 | **spec bug**——同一份 spec 內部矛盾:(b) 的白名單只有 `markerDir` / `readMarker`,但 L12(c) / L14 要用 `vmId`,而 `Types.hs` 是裸型別 import、轉不出欄位存取子。**qa 與 impl 互相不可見,卻各自從相反方向撞到同一條**(impl:照 spec 寫編不出來;qa:照 spec 寫恆紅) | 停下回報開發者 → 裁決收緊成 `VaultMarker (vmId)` → spec 改條文、impl 收窄 import、qa 對齊期望值 |
 | F001 | 1 | `test_types_imports_marker_type_only`(L17(d)) | L17(d):「`Types.hs` 對 `Aapms.Store.Marker` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`」 | **qa 誤讀**——測試沒有正規化行尾。law 講的是 import 行的**內容**,而 `\r` 是行終止符的產物;主樹的檔案是 LF、快照 worktree 是 git 全新 checkout 轉成的 CRLF,所以只在後者紅。**這不是快照假象:任何人重新 clone 到 Windows 都會紅** | 附條文原文重派 qa 改測試(五條 L17 共用同一套去 `\r` 的正規化);**不動 spec、不動實作** |
 
 ## 階段結果

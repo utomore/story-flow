@@ -23,15 +23,21 @@ module Aapms.Workspace.Discovery
   , readVaultRefAt
   ) where
 
+import Data.List (find)
 import Data.Text (Text)
 
+import Aapms.Core.Id (VaultId (..))
+import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)
+import Aapms.Workspace.Hub (hubVaults)
 import Aapms.Workspace.Types
   ( Hub
-  , ScopeIssue
-  , VaultEntry
-  , VaultRef
-  , WorkspaceError
+  , ScopeIssue (..)
+  , VaultEntry (..)
+  , VaultRef (..)
+  , WorkspaceError (..)
   )
+import System.Directory (canonicalizePath, doesDirectoryExist)
+import System.FilePath (takeDirectory)
 
 -- | ADR-008 的 git 式向上探測:從給定目錄逐層往上,回__第一個__(最近的)含
 -- @.aapms\/@ 子目錄的那一層的絕對路徑;一路到檔案系統根都沒有時回 @Nothing@。
@@ -45,7 +51,15 @@ import Aapms.Workspace.Types
 -- __它只決定寫入目標,不影響查詢範圍__(ADR-017 決策三)。本函式不讀 marker,
 -- 也不判斷該 vault 的 marker 是否合法——那是 'readVaultRefAt' 的事。
 detectVault :: FilePath -> IO (Maybe FilePath)
-detectVault = undefined
+detectVault start = canonicalizePath start >>= climb
+  where
+    climb d = do
+      hit <- doesDirectoryExist (markerDir d)
+      if hit
+        then pure (Just d)
+        else
+          let up = takeDirectory d
+          in if up == d then pure Nothing else climb up
 
 -- | 把 @--vault@ 的字串解析成中樞裡的一列。
 --
@@ -61,7 +75,17 @@ detectVault = undefined
 -- 純函式,只看 'Aapms.Workspace.Hub.hubVaults';不讀檔案、不碰
 -- @[[projects]]@ \/ @[llm]@ \/ @[tools]@。
 lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
-lookupSelector = undefined
+lookupSelector hub s = case byId of
+  [e] -> Right e
+  es@(_ : _ : _) -> Left (VaultSelectorAmbiguous s es)
+  [] -> case byName of
+    [e] -> Right e
+    es@(_ : _ : _) -> Left (VaultSelectorAmbiguous s es)
+    [] -> Left (VaultSelectorNotFound s)
+  where
+    entries = hubVaults hub
+    byId = filter ((== VaultId s) . veId) entries
+    byName = filter ((== s) . veName) entries
 
 -- | 中樞的一列 + 它指的路徑 → 權威身分(design.md「模組間公開介面」的
 -- @Scope → Discovery@)。
@@ -84,7 +108,18 @@ lookupSelector = undefined
 -- 'Aapms.Workspace.Types.VaultEntry',表達不出「沒有那一列」的失敗(見 F002 的
 -- 待確認假設 A1)。
 readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)
-readVaultRef = undefined
+readVaultRef e p = do
+  p' <- canonicalizePath p
+  exists <- doesDirectoryExist p'
+  if not exists
+    then pure (Left (VaultPathMissing e p'))
+    else do
+      markerR <- readMarker p'
+      pure $ case markerR of
+        Left err -> Left (VaultMarkerBroken e err)
+        Right m
+          | vmId m /= veId e -> Left (VaultIdDrift e (vmId m))
+          | otherwise -> Right (VaultRef (Just e) p' m)
 
 -- | 只知道路徑時的「路徑 → 權威身分」:先讀 marker 取權威 id,再拿那個 id 回中樞
 -- 反查,決定 'Aapms.Workspace.Types.vrEntry'。
@@ -98,4 +133,9 @@ readVaultRef = undefined
 -- 降級:本函式的呼叫情境是「決定寫入目標」,而 ADR-017 的降級規則只放過查詢範圍
 -- 裡的個別 vault,決定不了寫入目標時整道指令就該失敗。
 readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)
-readVaultRefAt = undefined
+readVaultRefAt hub p = do
+  p' <- canonicalizePath p
+  markerR <- readMarker p'
+  pure $ case markerR of
+    Left err -> Left (MarkerUnreadable p' err)
+    Right m -> Right (VaultRef (find ((== vmId m) . veId) (hubVaults hub)) p' m)

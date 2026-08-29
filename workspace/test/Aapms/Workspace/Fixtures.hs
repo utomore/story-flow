@@ -9,7 +9,7 @@ module Aapms.Workspace.Fixtures
   , locAt
   , withEnv
 
-    -- * 讀骨架原始碼(L17 用)
+    -- * 讀骨架原始碼(L17\/F002 L18 用)
   , readWorkspaceSource
 
     -- * 中樞檔案的讀寫(「數據」節「中樞路徑常數」表:@<hlPath>/config.toml@)
@@ -17,9 +17,16 @@ module Aapms.Workspace.Fixtures
   , writeHubConfig
   , readHubConfigText
 
+    -- * F002:vault marker 檔案的讀寫、目錄樹快照
+  , vaultMarkerConfigFile
+  , writeVaultMarker
+  , markerTomlText
+  , snapshotTree
+
   , -- * id / 值 helper
     idOf
   , vaultIdText
+  , orDie
 
     -- * 「數據」節的範例中樞檔案(X11–X17 用)
   , sampleHubText
@@ -47,11 +54,12 @@ module Aapms.Workspace.Fixtures
   , genNonBlankEnvValue
   , genBlankEnvValue
   , genPaddedNonBlank
+  , genRefIds
   ) where
 
 import Control.Exception (bracket)
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate)
+import Data.List (intercalate, sortOn)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -71,7 +79,7 @@ import Aapms.Workspace.Types
   , VaultEntry (..)
   )
 
-import System.Directory (doesFileExist)
+import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.FilePath ((</>))
 import System.IO
@@ -152,6 +160,52 @@ readWorkspaceSource rel = go ["src" </> rel, "workspace" </> "src" </> rel]
       if ok then readUtf8NoTranslate c else go rest
 
 --------------------------------------------------------------------------------
+-- F002:vault marker 檔案的讀寫、目錄樹快照
+
+-- | vault marker 檔案的位置。字面公式獨立算(spec「相依性查證」1:
+-- @markerDir root = root \<\/\> ".aapms"@,@configPath@ 再接上 @config.toml@),
+-- __不依賴__ 'Aapms.Store.Marker.configPath'——那是 production 介面,fixture 的
+-- 期望值不能跟著 production 一起變動,否則斷言測不出任何東西。
+vaultMarkerConfigFile :: FilePath -> FilePath
+vaultMarkerConfigFile root = root </> ".aapms" </> "config.toml"
+
+-- | 把一段文字原封不動(顯式 UTF-8、不加 BOM、不做換行轉換)寫成該 vault 根目錄的
+-- @.aapms\/config.toml@(先建立 @.aapms\/@ 目錄)。
+writeVaultMarker :: FilePath -> Text -> IO ()
+writeVaultMarker root content = do
+  createDirectoryIfMissing True (root </> ".aapms")
+  writeUtf8NoTranslate (vaultMarkerConfigFile root) content
+
+-- | spec「數據」節「測試素材:vault marker 的檔案格式」的字面樣板,四個欄位可代入。
+markerTomlText :: Text -> Text -> Text -> [Text] -> Text
+markerTomlText idText kindText nameText refs =
+  T.unlines
+    [ "id   = \"" <> idText <> "\""
+    , "kind = \"" <> kindText <> "\""
+    , "name = \"" <> nameText <> "\""
+    , "refs = [" <> T.intercalate ", " (map (\r -> "\"" <> r <> "\"") refs) <> "]"
+    ]
+
+-- | 遞迴列出一個目錄底下所有檔案的相對路徑與內容,按路徑排序——F002 L4\/L13
+-- 「呼叫前後整棵目錄樹逐位元組相同」斷言的基礎。本套件底下的檔案一律是顯式 UTF-8
+-- 文字(marker \/ 中樞都是),用 'readUtf8NoTranslate' 讀回,'Text' 相等蘊含逐位元組
+-- 相等(對照 'readHubConfigText' 對 L8 的同一個論證);沒有二進位檔要顧慮,不需要
+-- 'Data.ByteString'(本測試套件的 build-depends 沒有它)。
+snapshotTree :: FilePath -> IO [(FilePath, Text)]
+snapshotTree root = sortOn fst <$> go ""
+  where
+    go rel = do
+      let full = if null rel then root else root </> rel
+      isDir <- doesDirectoryExist full
+      if isDir
+        then do
+          entries <- listDirectory full
+          concat <$> mapM (\e -> go (if null rel then e else rel </> e)) entries
+        else do
+          content <- readUtf8NoTranslate full
+          pure [(rel, content)]
+
+--------------------------------------------------------------------------------
 -- id / 值 helper
 
 -- | 測試裡用到的合法 id,剖析失敗直接讓測試爆掉並印出原因
@@ -164,6 +218,12 @@ idOf t = case parseId t of
 -- | 'VaultId' 底下的原始文字。
 vaultIdText :: VaultId -> Text
 vaultIdText (VaultId t) = t
+
+-- | 攤平一個測試前置作業裡「一定得成功」的 'Either',失敗時讓測試崩潰並印出原因
+-- (對照 "Aapms.Store.Fixtures.orDie")——用來取代 do-block 裡的不完整 pattern
+-- match,失敗時的訊息才看得出是哪一步、為什麼。
+orDie :: Show e => Either e a -> IO a
+orDie = either (\e -> fail ("測試前置作業失敗:" <> show e)) pure
 
 --------------------------------------------------------------------------------
 -- 「數據」節的範例中樞檔案
@@ -326,3 +386,8 @@ genPaddedNonBlank = do
   core <- genNonBlankEnvValue
   post <- Gen.text (Range.linear 0 2) (pure ' ')
   pure (pre <> core <> post)
+
+-- | F002 L17:任意長度的 @vlt-@ id 字串清單,給 marker 的 @refs@ 欄位用(本 feature
+-- 不展開、不驗證 refs 指向誰,所以生成器不必保證這些 id 真的存在)。
+genRefIds :: Gen [Text]
+genRefIds = Gen.list (Range.linear 0 4) (("vlt-" <>) <$> genHex8)

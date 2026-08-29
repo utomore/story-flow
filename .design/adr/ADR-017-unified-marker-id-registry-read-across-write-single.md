@@ -5,7 +5,7 @@ title: unified-marker-id-registry-read-across-write-single
 description: 統一 .aapms/ marker 帶 kind,中樞註冊表以 id 為鍵,讀跨全部 vault、寫單一
 status: accepted
 created: 2026-08-23
-updated: 2026-08-26
+updated: 2026-08-29
 ---
 
 # ADR-017: 統一 marker、id 為鍵的中樞、讀跨寫單一
@@ -57,6 +57,20 @@ accepted。擴充 ADR-008(多 vault、git 式探測);吸收並 supersede assetdb
 向上探測保留(ADR-008 的 git 心智模型),但**只決定寫入目標**,不限制查詢範圍。這是兩邊各取
 一半:查詢要全局,寫入要明確。
 
+> **補充(2026-08-29,`/subsys-design workspace`)—— marker `refs` 的語意**:`refs` 原本只被定義成
+> 「引用的其他 vault(id),對本 vault 唯讀」,**沒有任何消費者**。現定為「**收窄時的最小讀取集合**」:
+> 無 `--vault` 時範圍不變(全部已註冊);下 `--vault X` 時範圍是 `{X} ∪ refs 遞移展開`,展開進來的
+> 一律唯讀、永遠不會成為寫入目標。理由是預設查詢已涵蓋全部已註冊 vault,`refs` 在預設路徑上不增加
+> 任何能力;它真正的價值在收窄之後——story vault 的 `uses` / `depicts` 指出去的 asset vault 因此
+> 自動在範圍內,`project new --vault <story vault>` 不必手指素材庫。展開對環是安全的(結果是集合);
+> `refs` 指向未註冊的 vault 只降級為警告,不中止查詢。
+>
+> **補充(同日)—— 本機設定進中樞**:中樞 `config.toml` 除 `[[vaults]]` / `[[projects]]` 外增
+> `[llm]`(地端端點,per-machine;由 `workspace` 原樣捧出**不解讀**,鍵與語意屬 `ai`)與 `[tools]`
+> (外部工具位置覆寫)。舊設計把 `[llm]` 放在 vault 的 `config.toml`,而重建後的 `VaultMarker`
+> 只有 `id` / `kind` / `name` / `refs` 四欄,沒有承接它;端點本來就是這台機器的東西,per-vault
+> 等於同一組設定抄 N 次。
+
 **四、跨 vault 讀以 `ATTACH DATABASE`** 一個連線掛多個索引再 UNION。
 
 > **修訂(2026-08-26,graph-core/F009 spec 閘門)**:本條原文是「排序、分頁、facet 在 SQL 層完成」,
@@ -80,6 +94,14 @@ accepted。擴充 ADR-008(多 vault、git 式探測);吸收並 supersede assetdb
 **六、`vault migrate`** 把 `.assetdb/`(舊 assetdb)或 `.storyflow/`(舊 story-flow)升成 `.aapms/`:
 寫入 `id` / `kind`,舊索引檔丟棄(純索引,重建即可)。asset 側的人給資料由 P2 匯出器處理,
 不在 `migrate` 裡。
+
+> **修訂(2026-08-29,`/subsys-design workspace`)——本條收成 `vault init --adopt`**:P2 匯出器已
+> 取消(逐欄查證後,舊庫的標籤 / 分類 100% 機器產、命名由 6 條規則展開,見 system.md 開發階段表)。
+> 扣掉資料搬遷後,`migrate` 剩下的「在既有目錄上寫出 `.aapms/config.toml`、不碰 `library/`」與
+> 「在既有目錄上 `init`」是同一件事;而 `.storyflow/` 那條分支在目標機器上**沒有任何真實對象**
+> (全機器只有一個 `.assetdb/`)。因此改為 `vault init --adopt`:發新 id、要求明給 `kind`、
+> 掃出目錄下的舊 marker **只報告不刪除**。留著一條永遠不會被呼叫、卻要進 CLI 說明與 OpenAPI 的
+> 指令,成本大於它的價值。
 
 **七、縮圖快取在中樞**(`cache/thumbs/<aa>/<sha256>`),內容定址,跨 vault 共用。
 
@@ -106,7 +128,7 @@ accepted。擴充 ADR-008(多 vault、git 式探測);吸收並 supersede assetdb
 **負面 / 成本**
 
 - 現有 `~/.config/story-flow/vaults.toml`(目前機器上不存在)與 `.storyflow/` 格式作廢;
-  `.assetdb/` 要跑一次 `migrate`
+  `.assetdb/` 要跑一次 `vault init --adopt`(2026-08-29 修訂,原為 `migrate`)
 - `ATTACH` 上限 10 個 vault;超過時分批查詢屬 Level 2,但錯誤訊息是 Level 1 契約
 - 向上探測與 `--vault` 兩條路徑決定寫入目標,誤操作風險真實存在——緩解同 ADR-008:非 `--json`
   模式的輸出開頭顯示作用中的 vault,破壞性操作先印路徑再 `--confirm`

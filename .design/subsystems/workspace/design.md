@@ -254,6 +254,7 @@ syncHub     :: HubLocation -> Hub -> IO (Either WorkspaceError (Hub, [ScopeIssue
 purge       :: HubLocation -> Hub -> PurgeScope -> IO (Either WorkspaceError PurgeReport)
 
 registerProject :: HubLocation -> Hub -> FilePath -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
+allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id   -- 2026-08-29 W4:時間明碼,salt 重試才測得到
 forgetProject   :: HubLocation -> Hub -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
 
 data SetupReport = SetupReport { spHubPath :: FilePath, spHubCreated :: Bool, spCacheCreated :: Bool }
@@ -280,6 +281,18 @@ data PurgeReport = PurgeReport
 | `checkVaults` | — | 回傳可為空清單;**不寫任何檔案** | 純體檢,無失敗通道 |
 | `syncHub` | — | 把**修得掉**的漂移(`veName` / `veKind` 與 marker 不符)回寫中樞 | 修不掉的(路徑不見、id 漂移)原樣回傳 |
 
+**刪索引前先驗身分**(2026-08-29 W4 閘門裁決):`forgetVault DeleteIndex` 與
+`purge PurgeAllVaults` 在刪 `<vault>/.aapms/index.db` **之前**先 `readMarker`——
+
+- **讀不到**(路徑不見、marker 壞)→ **照刪**。那正是 `forget` 最常見的理由
+- **讀得到但 `vmId` 與中樞那一列不符** → **拒絕刪除**並回錯
+
+理由:中樞的 `vePath` 是**快取**(契約 B 寫死),marker 才是真相。那一列過期時——使用者搬走
+vault、原路徑放了**另一個** vault——照 `vePath` 刪掉的是別人的索引。索引是衍生物、rebuild 得回來,
+但使用者不會知道發生過什麼。這與 W3「身分不確定就不往下走」、契約 C 性質 1「marker 是真相」
+是同一條原則的第三次適用。**被否決**:只依 `vePath` 刪(零成本,代價如上);把防線移到
+`shell` 的 `--confirm`(使用者正是因為以為那個路徑還是舊 vault 才按下去的,確認擋不住這個錯誤)。
+
 三條硬性約束(ADR-017 決策五):
 
 - **任何情況下不碰 `library/`、不碰任何 `.md`**。它們是真相,不是衍生物
@@ -298,6 +311,9 @@ data ToolStatus = ToolStatus
   { tsName :: Text, tsPath :: Maybe FilePath, tsOrigin :: ToolOrigin, tsSearched :: [FilePath] }
 
 detectSevenZip :: ToolsConfig -> IO ToolStatus
+-- 2026-08-29 W4 閘門新增:把「去哪裡找」變成明碼參數,NotFound 與 FromCandidate 才驗得到
+data ToolSearchPlan = ToolSearchPlan { tspPathDirs :: [FilePath], tspCandidates :: [FilePath] }
+detectSevenZipIn :: ToolSearchPlan -> ToolsConfig -> IO ToolStatus
 ```
 
 | 欄位 | 型別 | 單位 / 值域 | 語意 |
@@ -328,6 +344,10 @@ data WorkspaceError
   | WriteTargetIdDrift VaultId FilePath VaultId     -- 2026-08-29 W3 閘門新增
   | MarkerUnreadable FilePath StoreError
   | ProjectSelectorNotFound Text | ProjectPathMissing Text FilePath
+  | ProjectSelectorAmbiguous Text [ProjectEntry]      -- 2026-08-29 W4 閘門新增
+  | ProjectAlreadyRegistered Id FilePath              -- 2026-08-29 W4 閘門新增
+  | VaultInitFailed FilePath StoreError               -- 2026-08-29 W4 閘門新增
+  | DeleteTargetIdDrift VaultId FilePath VaultId      -- 2026-08-29 W4 閘門新增
   | InvalidName Text
 
 renderWorkspaceError :: WorkspaceError -> Text
@@ -343,6 +363,16 @@ renderWorkspaceError :: WorkspaceError -> Text
 `VaultIdCollision` 帶三個值:撞到的 `VaultId`、**中樞裡既有**那個 vault 的路徑、**這次要建立**的路徑
 ——兩個路徑都要印,使用者才看得出是不是自己複製了整個 vault 目錄。
 `ProjectPathMissing` 帶專案名與那個不存在的路徑。`InvalidName` 帶收到的原始字串。
+
+**2026-08-29 W4 閘門新增的三個建構子**,共同的理由是同一條:借用既有建構子會讓訊息**說出一件
+假的事**——與 W3 新增 `WriteTargetIdDrift` 是同一個判準。
+
+| 建構子 | 帶的值 | 不補的話會說什麼謊 |
+|---|---|---|
+| `ProjectSelectorAmbiguous` | selector 字串、**全部**撞名的 `ProjectEntry` | 借用 `ProjectSelectorNotFound` 會說「找不到」,但它其實**找到了兩個**。vault 側早就有 `VaultSelectorAmbiguous`,專案側缺這一個本來就不對稱 |
+| `ProjectAlreadyRegistered` | 既有那一列的 `peId`、它的路徑 | 同一個路徑註冊兩次時,契約 B 對 `pePath` 沒有唯一性要求,所以「靜默發第二個 id」是合法的——但中樞會出現兩列指同一個目錄,`projectList` 印兩次而 `forgetProject` 只刪一列。訊息要說出下一步(要改名就先 `forget` 再註冊) |
+| `VaultInitFailed` | vault 根目錄、graph-core 的 `StoreError` 原件 | `initVaultAt` **建** marker 失敗時借用 `MarkerUnreadable`,訊息會說「marker **讀**不出來」,叫使用者去看一個還沒被建出來的檔 |
+| `DeleteTargetIdDrift` | 中樞那一列的 `veId`、該 vault 的 `vePath`、marker 裡實際的 `vmId` | 與 `WriteTargetIdDrift` **完全對稱**,構成「寫入目標漂移 / 刪除目標漂移」家族。借用後者的話,訊息開頭會說「**寫入目標**……」——而 `forget --delete-index` 與 `purge` 是**撤除**,這條路徑上根本沒有寫入目標;它給的下一步「重新執行 `vault add`」更是**反方向**,照做會把使用者剛想拿掉的東西加回來。訊息要件三樣:擋下來的原因、**不會**誤刪的替代做法(不加 `--delete-index` 的 `vault forget`)、把中樞修正確的路 |
 
 **`WriteTargetIdDrift` 帶三個值**:註冊表記的 `VaultId`、該 vault 的路徑、marker 裡**實際**的
 `VaultId`。它與 `ScopeIssue.VaultIdDrift` 是同一件事的兩種身分:**在讀取路徑上是降級**
@@ -447,7 +477,9 @@ hubLocation → loadHub → hubTools
 | Scope → Discovery | `lookupSelector`(selector → `VaultEntry`);`readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
 | Scope → `aapms-store` | `VaultMarker` 的 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子,以及 `Aapms.Store.Schema` 的 `VaultKind` 型別(`resolvePipeline` 的簽名是契約 C 寫死的)。**2026-08-29 W3 補表**——`Types.hs` 對 `VaultMarker` 是裸型別 import(F001 的 L17(d) 釘死),轉不出欄位存取子;`VaultKind` 也不在 Types 的匯出清單裡 |
-| Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔) |
+| Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔)、`markerDir`(`.aapms` 這個名字的唯一真相)、`readMarker` 與 `VaultMarker` 的 `vmId` / `vmKind` / `vmName` 三個欄位存取子(刪索引前驗身分、`syncHub` 對帳)。**2026-08-29 W4 補表** |
+| Lifecycle → Location | `configPath`(**中樞的**)與 `thumbCacheDir`——`setupHub` 建中樞、`purge` 清快取要用。**2026-08-29 W4 補表**(表裡原本整條不存在) |
+| Projects → Hub | `upsertProject` / `removeProject`(見上)+ `hubProjects`(撞號比對與 selector 候選都要讀它)。**2026-08-29 W4 補表** |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |
 | Projects → Hub | `upsertProject :: ProjectEntry -> Hub -> Hub` / `removeProject :: Id -> Hub -> Hub` + `saveHub`。**2026-08-29 W1 閘門裁決補上**:`Hub` 不外露建構子,Projects 的骨架又只有 `Projects.hs`,沒有這兩個入口它動不了 `[[projects]]`。語意與 vault 那一組同構(以 id 為鍵、追加或就地取代、保序) |
 | Lifecycle → Discovery | `AdoptExisting` 與 `addVault` 時讀既有 marker 取 id / kind / name |
@@ -474,7 +506,7 @@ hubLocation → loadHub → hubTools
   「人可手寫的設定都是 TOML」在整個系統只有一種解析行為
 - **中樞的序列化自己寫**(固定段落順序、保留使用者的註解與空白行),不用泛型 encoder——
   這是「可手寫」這條性質的前提,與 graph-core 對 `meta` 區塊的處置同一個理由
-- **`directory` / `filepath`**:向上探測、路徑正規化、`findExecutable`
+- **`directory` / `filepath`**:向上探測、路徑正規化(`canonicalizePath`)、`getPermissions` 的可執行判準。**不用 `findExecutable`**(2026-08-29 W4 校正):它在 Windows 走 Win32 `SearchPath`,搜過哪些地方由登錄檔決定、測試控制不了,而契約 E 的 `tsSearched` 要求說得出「找過哪些地方」——PATH 由本子系統自己展開
 - 原子寫入沿用 `aapms-store` 的 `atomicWriteText`,**不另寫一份**
 
 ## 架構圖
@@ -530,9 +562,9 @@ hubLocation → loadHub → hubTools
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 4 | vault-lifecycle | `setupHub` / `initVault`(含 `AdoptExisting`)/ `addVault` / `forgetVault` / `checkVaults` / `syncHub` / `purge` | Lifecycle | #2 | - |
-| 5 | project-registry | `[[projects]]` 的註冊、移除、查詢與 `prj-` 配號 | Projects | #1 | - |
-| 6 | machine-tools | 7-Zip 的三層探測與 `ToolStatus` | Tools | #1 | - |
+| 4 | vault-lifecycle | `setupHub` / `initVault`(含 `AdoptExisting`)/ `addVault` / `forgetVault` / `checkVaults` / `syncHub` / `purge` | Lifecycle | #2 | F004-vault-lifecycle.md |
+| 5 | project-registry | `[[projects]]` 的註冊、移除、查詢與 `prj-` 配號 | Projects | #1 | F005-project-registry.md |
+| 6 | machine-tools | 7-Zip 的三層探測與 `ToolStatus` | Tools | #1 | F006-machine-tools.md |
 
 小結:共 **6 個 features、2 個階段**;全部完成即代表 `service` 拿得到「這次指令對哪些 vault 生效」、
 中樞可由 `workspace setup` 從零建立、`doctor` 報告得出中樞位置與外部工具狀態。

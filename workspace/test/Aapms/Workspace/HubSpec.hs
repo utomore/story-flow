@@ -23,7 +23,14 @@
 -- X16/X17 upsert/remove 後仍保留其餘內容                      -> test_save_hub_preserves_comments_after_upsert / test_save_hub_preserves_other_sections_after_remove
 -- X18 removeVault 對不存在的 id 是 no-op                      -> test_remove_vault_absent_is_noop
 -- X27 saveHub 父目錄不存在                                   -> test_save_hub_does_not_create_directory
+-- L18 名稱完整定義域往返(含控制字元,回歸 law,預期綠)        -> test_save_load_roundtrip_any_name_incl_control_chars
+-- X28 名稱含 \n/\t                                           -> test_save_load_roundtrip_newline_and_tab_name
+-- X29 名稱含 U+0001,veName/peName 同時出現互不影響            -> test_save_load_roundtrip_c0_control_name
 -- @
+--
+-- 2026-08-29 W4 閘門補入 L18/X28/X29:驗的是 'Hub.hs' 的 @quoteText@ 修掉「只逸出
+-- @\"@ 與 @\\@、不逸出控制字元」缺陷之後既有行為不退化,'loadHub'\/'saveHub' 簽名沒變,
+-- 屬 @spec-roles.md@「qa 的交付判準」第三列(回歸 law → 預期綠)。
 module Aapms.Workspace.HubSpec (spec) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -279,6 +286,75 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
           Left (HubWriteFailed fp _) -> fp `shouldBe` hubConfigFile missingDir
           other -> expectationFailure ("預期 HubWriteFailed,得到 " <> show other)
         doesDirectoryExist missingDir `shouldReturn` False
+
+  -- 2026-08-29 W4 閘門補入:L18 是回歸 law(spec-roles.md 交付判準第三列)——它驗的是
+  -- `Hub.hs` 的 `quoteText` 修掉「只逸出 \" 與 \\、不逸出控制字元」這個缺陷之後,既有的
+  -- saveHub/loadHub 簽名沒有變、行為不再退化。**預期綠**;若紅代表逸出被改窄,改實作不改測試。
+  describe "L18/X28/X29: 名稱的完整定義域往返(含控制字元),回歸 law,預期綠" $ do
+    it
+      "test_save_load_roundtrip_any_name_incl_control_chars: 對任意去空白後非空的 \
+      \veName/peName(涵蓋 \\n/\\t/其他 C0 控制字元/DEL),saveHub -> loadHub 逐字讀回"
+      $ hedgehog $ do
+        vName <- forAll genNameWithControlChars
+        pName <- forAll genNameWithControlChars
+        result <- liftIO $ withTempHubDir $ \dir -> do
+          let loc = locAt dir
+              hub0 =
+                mkHub
+                  [VaultEntry (VaultId "vlt-11112222") vName StoryVault "E:/vaults/shared"]
+                  [ProjectEntry (idOf "prj-a1b2c3d4") pName "D:/games/Circle"]
+                  Nothing
+                  (ToolsConfig Nothing)
+                  ""
+          saveResult <- saveHub loc hub0
+          case saveResult of
+            Left e -> pure (Left e)
+            Right () -> loadHub loc
+        case result of
+          Right hub1 -> do
+            map veName (hubVaults hub1) === [vName]
+            map peName (hubProjects hub1) === [pName]
+          Left e -> annotate (show e) >> failure
+
+    it
+      "test_save_load_roundtrip_newline_and_tab_name(X28): 空中樞 upsertVault 名稱含 \
+      \實際的換行與 tab,saveHub -> loadHub 逐字讀回;寫出的檔案是逸出後的兩字元序列"
+      $ withTempHubDir $ \dir -> do
+        let loc = locAt dir
+            hub0 = mkHub [] [] Nothing (ToolsConfig Nothing) ""
+            vName = "line1\nline2\tcol"
+            hub1 = upsertVault (VaultEntry (VaultId "vlt-7f3b2a91") vName AssetVault "C:/v") hub0
+        s <- saveHub loc hub1
+        s `shouldBe` Right ()
+        written <- readHubConfigText dir
+        written `shouldSatisfy` T.isInfixOf "name = \"line1\\nline2\\tcol\""
+        r <- loadHub loc
+        case r of
+          Right hub2 -> map veName (hubVaults hub2) `shouldBe` [vName]
+          Left e -> expectationFailure ("預期 Right,得到 " <> show e)
+
+    it
+      "test_save_load_roundtrip_c0_control_name(X29): 名稱含 U+0001,saveHub -> loadHub \
+      \逐字讀回;寫出的是 \\u0001(四位大寫十六進位);同一份中樞的 veName 與 peName 互不影響"
+      $ withTempHubDir $ \dir -> do
+        let loc = locAt dir
+            hub0 = mkHub [] [] Nothing (ToolsConfig Nothing) ""
+            vName = "a\SOHb"
+            pName = "a\SOHb"
+            hub1 =
+              upsertProject
+                (ProjectEntry (idOf "prj-a1b2c3d4") pName "D:/games/Circle")
+                (upsertVault (VaultEntry (VaultId "vlt-7f3b2a91") vName AssetVault "C:/v") hub0)
+        s <- saveHub loc hub1
+        s `shouldBe` Right ()
+        written <- readHubConfigText dir
+        written `shouldSatisfy` T.isInfixOf "\\u0001"
+        r <- loadHub loc
+        case r of
+          Right hub2 -> do
+            map veName (hubVaults hub2) `shouldBe` [vName]
+            map peName (hubProjects hub2) `shouldBe` [pName]
+          Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
   describe "L11: upsertVault 的語意(純函式,不碰檔案)" $ do
     it "test_upsert_vault_appends: id 不在清單中時追加到末尾,其餘三段與 hubSourceText 不變" $

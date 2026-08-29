@@ -416,6 +416,11 @@ markerDir   :: FilePath -> FilePath        -- <root>/.aapms
 configPath  :: FilePath -> FilePath        -- <root>/.aapms/config.toml
 indexDbPath :: FilePath -> FilePath        -- <root>/.aapms/index.db
 atomicWriteText :: FilePath -> Text -> IO (Either StoreError ())   -- 暫存檔 + rename
+readTextFile    :: FilePath -> IO (Either StoreError Text)         -- 一律 UTF-8,不看本機 locale
+
+-- VaultKind 的文字表示(進 TOML 與錯誤訊息用同一份)
+renderVaultKind :: VaultKind -> Text            -- asset / story
+parseVaultKind  :: Text -> Maybe VaultKind      -- 只認 asset / story,其餘 Nothing
 ```
 
 | 參數 / 回傳 | 單位 / 值域 | 語意 |
@@ -424,9 +429,17 @@ atomicWriteText :: FilePath -> Text -> IO (Either StoreError ())   -- 暫存檔 
 | 三個 `*Path` 的回傳 | 純字串拼接,**不檢查存在性、不做 IO** | vault 內固定佈局的位置 |
 | `atomicWriteText` 的目標路徑 | 絕對或相對;所在目錄必須已存在 | 要寫的檔 |
 
-這四個原本只在程式碼裡 export、不在本章節。`workspace` 消費它們的理由是 A7:vault 目錄的佈局
+| `readTextFile` | 失敗回 `StoreError`,訊息由 `renderStoreError` 產生 | 讀文字檔的唯一入口。**一律當 UTF-8,不看本機 locale**——這條在 Windows 上不是小事,`workspace` 讀中樞 `config.toml` 與本子系統讀 `.md` 必須同一種行為 |
+| `renderVaultKind` / `parseVaultKind` | 文字表示只有 `asset` / `story` 兩個值,兩者互為反函數 | `kind` 進 TOML(vault marker 與中樞註冊表)與進錯誤訊息用**同一份**表示。`parseVaultKind` 對其餘字串回 `Nothing`,由呼叫端決定怎麼報錯 |
+
+前四個原本只在程式碼裡 export、不在本章節。`workspace` 消費它們的理由是 A7:vault 目錄的佈局
 (`.aapms/` 底下有什麼)與「設定檔怎麼安全落地」這兩個事實**屬於本子系統**,`forgetVault --delete-index`
 要刪哪個檔、中樞 `config.toml` 怎麼寫回,都不該由呼叫端自己抄一份路徑拼接與 rename 邏輯。
+
+`readTextFile` 與 `VaultKind` 的兩個文字表示函式由 **2026-08-29 workspace 階段一閘門的
+`/arch-audit subsys`** 補上:同一類問題(程式碼有、散文有、契約章節沒有),同一個處置。
+`VaultKind` 的文字表示尤其不能讓消費端自己寫一份——`asset` / `story` 這兩個字串同時出現在
+vault marker 與中樞註冊表裡,兩邊走樣時**編譯器不會報錯**。
 
 ### F. 查詢 DTO
 

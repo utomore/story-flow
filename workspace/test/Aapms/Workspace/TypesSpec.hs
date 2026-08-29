@@ -29,14 +29,16 @@ import qualified Hedgehog.Range as Range
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Core.Id (VaultId (..))
+import Aapms.Core.Id (VaultId (..), renderId)
 import Aapms.Store.Error (StoreError (VaultMarkerMissing), renderStoreError)
 import Aapms.Store.Schema (VaultKind (..), renderVaultKind)
 import Aapms.Workspace.Fixtures
 import Aapms.Workspace.Types
 
--- | 契約 F 全部 17 個建構子的代表值(X21\/X23\/X24\/X25\/X26 用 spec 給的具體值;
--- 其餘 11 個用同一種風格自己造;'WriteTargetIdDrift' 是 2026-08-29 W3 閘門新增)。
+-- | 契約 F 全部 21 個建構子的代表值(X21\/X23\/X24\/X25\/X26 用 spec 給的具體值;
+-- 其餘用同一種風格自己造;'WriteTargetIdDrift' 是 2026-08-29 W3 閘門新增,
+-- 'ProjectSelectorAmbiguous' \/ 'ProjectAlreadyRegistered' \/ 'VaultInitFailed' \/
+-- 'DeleteTargetIdDrift' 是同一天 W4 閘門新增)。
 allConstructors :: [(String, WorkspaceError)]
 allConstructors =
   [ ("HubNotFound", HubNotFound "C:/hub/config.toml")
@@ -55,6 +57,14 @@ allConstructors =
   , ("MarkerUnreadable", MarkerUnreadable "D:/v" (VaultMarkerMissing "D:/v/.aapms/config.toml"))
   , ("ProjectSelectorNotFound", ProjectSelectorNotFound "Circle")
   , ("ProjectPathMissing", ProjectPathMissing "Circle" "D:/games/missing-circle")
+  , ( "ProjectSelectorAmbiguous"
+    , ProjectSelectorAmbiguous
+        "circle"
+        [sampleProject1, ProjectEntry (idOf "prj-a1b2c3d4") "Circle2" "D:/games/Circle2"]
+    )
+  , ("ProjectAlreadyRegistered", ProjectAlreadyRegistered (idOf "prj-91c0aa12") "D:/games/Circle")
+  , ("VaultInitFailed", VaultInitFailed "D:/vaults/newvault" (VaultMarkerMissing "D:/vaults/newvault/.aapms/config.toml"))
+  , ("DeleteTargetIdDrift", DeleteTargetIdDrift (VaultId "vlt-7f3b2a91") "D:/vaults/liftgame" (VaultId "vlt-a0c4e1f8"))
   , ("InvalidName", InvalidName "   ")
   ]
 
@@ -77,6 +87,10 @@ carriedValues = \case
   MarkerUnreadable root e -> [T.pack root, renderStoreError e]
   ProjectSelectorNotFound s -> [s]
   ProjectPathMissing name fp -> [name, T.pack fp]
+  ProjectSelectorAmbiguous s es -> s : concatMap (\e -> [renderId (peId e), T.pack (pePath e)]) es
+  ProjectAlreadyRegistered pid dir -> [renderId pid, T.pack dir]
+  VaultInitFailed dir e -> [T.pack dir, renderStoreError e]
+  DeleteTargetIdDrift vid path markerVid -> [vaultIdText vid, T.pack path, vaultIdText markerVid]
   InvalidName raw -> ["「" <> raw <> "」"]
 
 -- | 原始 @show@ 會漏出來的痕跡(對照 "Aapms.Store.ErrorSpec")。

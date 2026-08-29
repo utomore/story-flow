@@ -104,6 +104,23 @@ thumbCachePath :: HubLocation -> Sha256 -> FilePath
 > `MarkerUnreadable` / `ProjectSelectorNotFound` / `ProjectPathMissing` / `InvalidName`)。
 > 本 feature 以**列舉為準**寫十六個——散文的數字是概述,列舉才是契約本體,而且少寫一個建構子
 > 會讓階段二的某個 feature 沒有錯誤可用、被迫回頭改 `Types.hs`(D2 要避免的正是這件事)。
+>
+> **2026-08-29 補記(W4 閘門)——上面那段是 W1 當下的對帳紀錄,數字已經不是現況**:
+> 十六只是起點,W3 與 W4 兩次閘門把 `WorkspaceError` 推到**二十一**個建構子。沿革見下表;
+> **建構子的當前清單一律以 design.md 契約 F 的列舉為準**,不要停在這段的十六。
+
+#### `WorkspaceError` 建構子的成長沿革
+
+| 時間 | 事件 | 建構子數 | 為什麼 |
+|---|---|---|---|
+| W1 | F001 一次寫齊 | 16 | 契約 F 的列舉(散文誤寫十五,閘門校正) |
+| W3 | `WriteTargetIdDrift` | 17 | 寫入目標 id 漂移:既有建構子的訊息會說謊 |
+| W4 | `ProjectSelectorAmbiguous` / `ProjectAlreadyRegistered` / `VaultInitFailed` / `DeleteTargetIdDrift` | 21 | 同一個判準的四次適用,由 F004 / F005 從不同方向撞出 |
+
+這張表的用途不是記帳,是讓後人一眼看出**這個型別是怎麼長大的**:每一次都不是「順手多加一個
+錯誤」,而是發現既有建構子若硬套上去,訊息會對使用者說謊——D2 要求 Types 一次寫齊,擋得住
+「同一個檔案併發寫入」,擋不住「後面的 feature 發現了 W1 當時看不到的失敗模式」。後者是正常的,
+補建構子時照 W3 / W4 的先例走閘門即可,不是 D2 的違例。
 
 ### 模組間公開介面(design.md「模組間公開介面」表,本 feature 要交付的兩列)
 
@@ -158,7 +175,7 @@ removeProject :: Id           -> Hub -> Hub
 
 | 檔案 | 內容 | 職責界線 |
 |---|---|---|
-| `workspace/src/Aapms/Workspace/Types.hs` | 契約 A–F 的**全部**型別、`WorkspaceError` 十六個建構子、`renderWorkspaceError`;`Hub` 的定義與 `mkHub` / 四個 getter / `hubSourceText` | **不得 import 本套件的任何其他模組**(避免相依環,design.md「Types 為什麼要獨立」);只依賴 `aapms-core` / `aapms-store` 的型別與 `TOML.Value` |
+| `workspace/src/Aapms/Workspace/Types.hs` | 契約 A–F 的**全部**型別、`WorkspaceError` 二十一個建構子(W1 寫齊十六,W3 / W4 兩次閘門增至二十一,見「契約 F」的沿革表)、`renderWorkspaceError`;`Hub` 的定義與 `mkHub` / 四個 getter / `hubSourceText` | **不得 import 本套件的任何其他模組**(避免相依環,design.md「Types 為什麼要獨立」);只依賴 `aapms-core` / `aapms-store` 的型別與 `TOML.Value` |
 | `workspace/src/Aapms/Workspace/Location.hs` | `hubLocation` / `configPath` / `thumbCacheDir` / `thumbCachePath` | 擁有「中樞在哪」與中樞目錄的內部佈局;**只回答路徑是什麼**,不建目錄、不判斷存在 |
 | `workspace/src/Aapms/Workspace/Hub.hs` | `loadHub` / `saveHub` / 四個 getter 轉出 / `upsertVault` / `removeVault` / `upsertProject` / `removeProject` | 擁有「中樞記了什麼」(四段的檔案格式);**自己不解析中樞位置**,經 `Location.configPath` 取檔案位置 |
 
@@ -561,6 +578,28 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
   > 對 `Location.hs` / `Hub.hs` 維持全面禁止,對 `Types.hs` 改成「逐字限定只拿型別」——
   > 只要 import 清單長出任何一個函式名,這條就紅。
 
+- **L18(名稱的完整定義域往返:工具寫得出來的東西,工具一定讀得回來)**:對**任意**去前後空白
+  後非空的 `veName` 與 `peName`——**包含換行 `\n`、tab `\t`、其他 U+0000–U+001F 控制字元與
+  U+007F**——把它放進 `VaultEntry` / `ProjectEntry` 再 `saveHub`,寫出的中樞檔 `loadHub`
+  **一定讀得回來**(回 `Right`,**不是** `HubUnreadable` 也不是 `HubMalformed`),且讀回的
+  `hubVaults` / `hubProjects` 的名稱欄**逐字等於**寫入前的值(不是「逸出後的樣子」,是原值)。
+  其餘三段與清單順序同時保持不變。
+
+  這條守的是一句話:**工具寫得出來的東西,工具一定讀得回來。** 中樞是 ADR-017 決策二明訂
+  「可手寫」的檔案,而「可手寫」的前提是它先得是**合法**的 TOML;`saveHub` 若寫出一份
+  `loadHub` 解不開的檔案,使用者會在下一道指令看到「中樞壞了」,卻找不到是誰弄壞的。
+
+  > **2026-08-29 W4 閘門補入**:本條在 `Hub.hs` 的 `quoteText` 修正**之後**才成立。原本的
+  > `quoteText` 只逸出 `"` 與 `\`,**不逸出控制字元**,而 TOML 基本字串規定控制字元必須逸出
+  > ——一個含換行的 vault 或專案名稱會讓 `saveHub` 寫出**非法 TOML**,下一次 `loadHub` 回
+  > `HubUnreadable`。修正後的行為是完整的 TOML 基本字串逸出:`\b` / `\t` / `\n` / `\f` /
+  > `\r` / `\"` / `\\`,其餘 U+0000–U+001F 與 U+007F 用 `\uXXXX`(四位大寫十六進位)。
+  >
+  > **這個缺陷是被 W4 的 F005 撞出來的,而 F001 這邊一條 law 都沒有蓋到它**:F005 為了迴避它,
+  > 只能把自己的往返 law 的定義域限制在「名稱不含換行與其他控制字元」——**spec 為了遷就一個
+  > bug 而縮小 law 的定義域**,那是缺口本身,不是解法。`quoteText` 的家在 `Hub.hs`,所以這條
+  > 全定義域的往返 law 補在 F001,不補在 F005。
+
 > **紅綠預期**(`spec-roles.md`「qa 的交付判準」逐條判定,**不是整批全紅**):
 >
 > - **預期綠**:**L16**(`mkHub` 與五個 selector 互逆)與 **L17 的五條子斷言 (a)–(e) 全部**
@@ -569,6 +608,12 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 >   2026-08-29 裁決新增的 (d) 同樣是這一類:`Types.hs:65` 從骨架建檔當下就是
 >   `import Aapms.Store.Marker (VaultMarker)`,它**驗的是這一行有沒有被改寬**,不是驗某個
 >   未實作的行為。
+> - **回歸 law,預期綠(骨架階段不適用)**:**L18**(名稱的完整定義域往返)與其 example
+>   **X28 / X29**。它驗的是 2026-08-29 W4 閘門修掉 `quoteText` 之後**既有行為不再退化**,
+>   不是驗某個尚未實作的介面——`saveHub` / `loadHub` 的簽名一次都沒有變。因此它適用
+>   `spec-roles.md`「qa 的交付判準」第三列(enhance 的回歸 law → 綠),**在修正後的程式碼上
+>   從第一次跑就該綠**;骨架階段(本體還是 `undefined`)這條不適用,不要拿它當骨架的紅燈依據。
+>   **它若變紅,代表 `quoteText` 的逸出被改窄了,那是退化,改實作不改測試。**
 > - **預期紅**:其餘每一條 law 與每一個 example,它們都打在 `undefined` 的本體上。
 >
 > 骨架裡唯一不是 `undefined` 的本體是 `mkHub = Hub`(`Types.hs:116`)。這是刻意的:
@@ -607,6 +652,8 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 | X25 | `renderWorkspaceError (InvalidName "   ")` | 含以「」夾住的 `   `;非空 |
 | X26 | `renderWorkspaceError (MarkerUnreadable "D:/v" (VaultMarkerMissing "D:/v/.aapms/config.toml"))` | 含 `D:/v` 與 `renderStoreError` 對該 `StoreError` 的輸出 |
 | X27 | `saveHub` 到一個**父目錄不存在**的 `loc` | `Left (HubWriteFailed fp _)`;呼叫後該目錄**仍不存在**(本 feature 不建目錄) |
+| X28 | 空中樞 `upsertVault (VaultEntry (VaultId "vlt-7f3b2a91") "line1\nline2\tcol" AssetVault "C:/v")` → `saveHub` → `loadHub` | `Right hub`(**不是** `HubUnreadable`);`veName` 的第一列**逐字**等於 `"line1\nline2\tcol"`(含那個 `\n` 與 `\t` 本身,不是 `\\n` / `\\t` 這兩個字面)。寫出的檔案裡該行是 `name = "line1\nline2\tcol"`——逸出後的**兩字元序列** |
+| X29 | 同 X28,名稱改成 `"a\SOHb"`(含 U+0001) | `Right hub`;`peName` / `veName` 逐字等於 `"a\SOHb"`;寫出的檔案裡是 `\u0001`(四位**大寫**十六進位)。同一份中樞同時放一個這種 `veName` 與一個這種 `peName`,兩段都讀得回來且互不影響 |
 
 ## TodoList
 
@@ -643,6 +690,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 | T5 | L5, L6, L7 / X6–X13 | `test_load_hub_malformed_missing_id`、`test_load_hub_malformed_bad_kind`、`test_load_hub_malformed_relative_path`、`test_load_hub_malformed_wrong_prefix`、`test_load_hub_malformed_duplicate_id`、`test_load_hub_full_sample`、`test_load_hub_all_sections_absent`、`test_hub_llm_three_states` |
 | T6 | L11, L12, L13, L16 / X16, X17, X18 | `test_upsert_vault_appends`、`test_upsert_vault_replaces_in_place`、`test_remove_vault_preserves_order`、`test_remove_vault_absent_is_noop`、`test_project_ops_mirror_vault_ops`、`test_mk_hub_selectors_roundtrip` |
 | T7 | L8, L9, L10 / X14, X15, X16, X17, X27 | `test_save_hub_byte_identical_when_unmodified`、`test_load_save_load_field_equal`、`test_save_hub_preserves_comments_after_upsert`、`test_save_hub_preserves_other_sections_after_remove`、`test_save_hub_does_not_create_directory` |
+| T7(2026-08-29 W4 修 `quoteText` 後補) | L18 / X28, X29 | `test_save_load_roundtrip_any_name_incl_control_chars`(具名 property test:名稱產生器**必須**涵蓋 `\n` / `\t` / U+0000–U+001F / U+007F,不得把控制字元排除在定義域外)、`test_save_load_roundtrip_newline_and_tab_name`(X28)、`test_save_load_roundtrip_c0_control_name`(X29)。**回歸 law,預期綠** |
 | (全部) | L17 (a)–(e) | `test_types_imports_no_sibling_module`(a)、`test_location_does_not_import_hub`(b)、`test_location_and_hub_never_import_marker`(c)、`test_types_imports_marker_type_only`(d,逐字比對 `import Aapms.Store.Marker (VaultMarker)`)、`test_no_index_or_process_imports`(e)。**五條都只掃 import 行,不做全檔字串搜尋** |
 
 ## 待確認假設
@@ -757,8 +805,9 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 - 三個骨架檔案已建立並**編譯通過、零警告**(`cabal build aapms-workspace`,GHC 9.14.1;
   library 與 test-suite 兩個元件都過)。`aapms-workspace.cabal` **一行未動**,不需要新增任何
   套件依賴。
-- 契約 F 的建構子數目在 design.md 內部不一致(散文「十五」vs 列舉十六),見「對應的 Level 2
-  契約 › 契約 F」的對帳說明。建議把契約卡與 build-log D2 的「十五個建構子」改成「十六個」。
+- **(已結案,留作歷史註記)**契約 F 的建構子數目:2026-08-29 W1 閘門已修正散文的「十五」→
+  「十六」;W3 / W4 兩次閘門再增至**二十一**,見「對應的 Level 2 契約 › 契約 F」的沿革表。
+  **本條不再有待辦動作**——design.md 早已是二十一,不要照 W1 當時的建議把它改回十六。
 - `Aapms.Workspace.Location.configPath` 與 `Aapms.Store.Marker.configPath` 同名不同義
   (中樞的 vs vault 的)。F002 / F004 同時要用兩者時必須 qualified import;建議在指派那兩個
   feature 時把這一句放進 prompt。

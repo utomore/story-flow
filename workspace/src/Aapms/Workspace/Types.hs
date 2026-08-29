@@ -60,7 +60,7 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Aapms.Core.Id (Id, VaultId (..))
+import Aapms.Core.Id (Id, VaultId (..), renderId)
 import Aapms.Store.Error (StoreError, renderStoreError)
 import Aapms.Store.Marker (VaultMarker)
 import Aapms.Store.Schema (VaultKind, renderVaultKind)
@@ -324,6 +324,22 @@ data WorkspaceError
     ProjectSelectorNotFound Text
   | -- | 專案名、那個不存在的路徑
     ProjectPathMissing Text FilePath
+  | -- | selector 字串、__全部__撞名的 'ProjectEntry'。借用 'ProjectSelectorNotFound'
+    -- 會說「找不到」,但其實找到了兩個以上(2026-08-29 W4 閘門新增)
+    ProjectSelectorAmbiguous Text [ProjectEntry]
+  | -- | 既有那一列的 'peId'、它的路徑。同一個路徑註冊兩次時 'pePath' 沒有唯一性
+    -- 要求,靜默發第二個 id 是合法的,但中樞會出現兩列指同一個目錄
+    -- (2026-08-29 W4 閘門新增)
+    ProjectAlreadyRegistered Id FilePath
+  | -- | vault 根目錄、graph-core 的 'StoreError' 原件。'initVaultAt' __建__ marker
+    -- 失敗,不是讀失敗——借用 'MarkerUnreadable' 會叫使用者去看一個還沒被建出來
+    -- 的檔(2026-08-29 W4 閘門新增)
+    VaultInitFailed FilePath StoreError
+  | -- | 中樞那一列的 'veId'、該 vault 的 'vePath'、marker 裡實際的 'VaultId'。與
+    -- 'WriteTargetIdDrift' 完全對稱,構成「寫入目標漂移 \/ 刪除目標漂移」家族,
+    -- 但這條路徑上__沒有__寫入目標,也__不該__建議重新執行 @vault add@ 以外的
+    -- 動作(2026-08-29 W4 閘門新增)
+    DeleteTargetIdDrift VaultId FilePath VaultId
   | -- | 收到的原始字串(去除前後空白後長度為 0)
     InvalidName Text
   deriving stock (Show, Eq)
@@ -403,9 +419,34 @@ renderWorkspaceError = \case
       <> "」的專案;請確認 id 或名稱是否正確,或先執行 project list 查看可用的專案"
   ProjectPathMissing name fp ->
     "專案「" <> name <> "」指向的路徑 " <> pack fp <> " 不存在;請確認路徑,或改用其他專案"
+  ProjectSelectorAmbiguous s es ->
+    "「"
+      <> s
+      <> "」在中樞裡比對到多個專案:"
+      <> T.intercalate "、" (map ambiguousProjectEntry es)
+      <> ";請改用完整的 id 指定"
+  ProjectAlreadyRegistered pid fp ->
+    "路徑 "
+      <> pack fp
+      <> " 已經以專案 id "
+      <> renderId pid
+      <> " 登記在中樞裡;如果要用新名稱重新登記,請先執行 forget 取消這一筆既有登記,"
+      <> "再重新註冊"
+  VaultInitFailed dir e ->
+    pack dir <> ": 建立 vault marker 失敗 —— " <> renderStoreError e <> ";請確認後再試"
+  DeleteTargetIdDrift vid dir actual ->
+    "中樞記錄的 vault "
+      <> unVaultId vid
+      <> " 應該在 "
+      <> pack dir
+      <> ",但這個路徑實際上是另一個 vault(id 是 "
+      <> unVaultId actual
+      <> ");為避免刪錯 vault,請改用不加 --delete-index 的 vault forget 只移除中樞登記,"
+      <> "再執行 vault check 或 vault add 重新登記正確的位置"
   InvalidName raw ->
     "名稱「" <> raw <> "」不合法(去除前後空白後為空);請提供非空的名稱"
   where
     pack = T.pack
     unVaultId (VaultId t) = t
     ambiguousEntry e = unVaultId (veId e) <> "(" <> pack (vePath e) <> ")"
+    ambiguousProjectEntry e = renderId (peId e) <> "(" <> pack (pePath e) <> ")"

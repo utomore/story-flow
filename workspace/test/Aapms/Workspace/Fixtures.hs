@@ -45,6 +45,8 @@ module Aapms.Workspace.Fixtures
   , genHex8
   , genHex64
   , genName
+  , genC0OrDelChar
+  , genNameWithControlChars
   , genAbsPath
   , genVaultId
   , genProjectId
@@ -402,6 +404,24 @@ genHex64 = Gen.text (Range.singleton 64) genHexChar
 -- | 非空的一般名稱(ASCII 字母數字,1–10 字):給 'veName' \/ 'peName' 用。
 genName :: Gen Text
 genName = Gen.text (Range.linear 1 10) (Gen.choice [Gen.alpha, Gen.digit])
+
+-- | 任意 C0 控制字元(U+0000–U+001F)或 DEL(U+007F)——__真的涵蓋__ @\\n@ \/ @\\t@,
+-- 不是只挑「安全」的子集(F001 L18 明文要求定義域包含控制字元;同一波另一份 spec
+-- 曾為了迴避序列化器缺陷把定義域縮小到「不含控制字元」,那正是要避免的錯誤)。
+genC0OrDelChar :: Gen Char
+genC0OrDelChar = Gen.element (['\x00' .. '\x1F'] ++ ['\x7F'])
+
+-- | 去前後空白後非空、且__真的可能含控制字元__(含 @\\n@ \/ @\\t@ \/ 其他 U+0000–U+001F \/
+-- U+007F)的名稱:給 'veName' \/ 'peName' 的 L18(完整定義域往返)用。頭尾各釘一個
+-- ASCII 字母當「錨點」,保證 'Data.Text.strip' 之後一定非空(錨點本身不是空白字元),
+-- 中段可以是任意控制字元或一般字元的混合,涵蓋整個定義域而不排除任何一種控制字元。
+genNameWithControlChars :: Gen Text
+genNameWithControlChars = do
+  start <- Gen.alpha
+  end <- Gen.alpha
+  middle <-
+    Gen.text (Range.linear 0 12) (Gen.choice [genC0OrDelChar, Gen.alpha, Gen.digit])
+  pure (T.singleton start <> middle <> T.singleton end)
 
 genPathSegment :: Gen String
 genPathSegment = T.unpack <$> Gen.text (Range.linear 1 8) (Gen.choice [Gen.alpha, Gen.digit])

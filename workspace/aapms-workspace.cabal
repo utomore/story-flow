@@ -34,6 +34,9 @@ library
         Aapms.Workspace.Hub
         Aapms.Workspace.Discovery
         Aapms.Workspace.Scope
+        Aapms.Workspace.Lifecycle
+        Aapms.Workspace.Projects
+        Aapms.Workspace.Tools
     build-depends:
         , base          >=4.14 && <5
         , containers
@@ -57,11 +60,17 @@ test-suite aapms-workspace-test
         Aapms.Workspace.HubSpec
         Aapms.Workspace.DiscoverySpec
         Aapms.Workspace.ScopeSpec
+        Aapms.Workspace.LifecycleSpec
+        Aapms.Workspace.ProjectsSpec
+        Aapms.Workspace.ToolsSpec
         Aapms.Workspace.Types
         Aapms.Workspace.Location
         Aapms.Workspace.Hub
         Aapms.Workspace.Discovery
         Aapms.Workspace.Scope
+        Aapms.Workspace.Lifecycle
+        Aapms.Workspace.Projects
+        Aapms.Workspace.Tools
     build-depends:
         , base
         , containers

@@ -28,12 +28,14 @@ module Aapms.Workspace.Hub
   , removeProject
   ) where
 
+import Data.Char (toUpper)
 import Data.List (find)
 import qualified Data.Map.Strict as M
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified TOML
+import Numeric (showHex)
 
 import Aapms.Core.Id
   ( Id
@@ -433,12 +435,26 @@ renderProjectSeg eol e =
     , eol
     ]
 
+-- | TOML 基本字串的完整逸出:雙引號、反斜線、六個具名逸出序列,其餘
+-- U+0000–U+001F 與 U+007F 一律 @\\uXXXX@(四位大寫十六進位)。__控制字元不逸出
+-- 就是非法 TOML__——'saveHub' 寫出這種內容,下一次 'loadHub' 會回
+-- 'HubUnreadable',等於工具寫出一份自己讀不回來的中樞。
 quoteText :: Text -> Text
 quoteText t = "\"" <> T.concatMap esc t <> "\""
   where
     esc '"' = "\\\""
     esc '\\' = "\\\\"
-    esc c = T.singleton c
+    esc '\b' = "\\b"
+    esc '\t' = "\\t"
+    esc '\n' = "\\n"
+    esc '\f' = "\\f"
+    esc '\r' = "\\r"
+    esc c
+      | c < '\x20' || c == '\x7F' = "\\u" <> hex4 (fromEnum c)
+      | otherwise = T.singleton c
+
+    hex4 :: Int -> Text
+    hex4 n = T.justifyRight 4 '0' (T.pack (map toUpper (showHex n "")))
 
 -- | 把 @newSegs@ 插到最後一個符合 @isTarget@ 的段落之後;完全沒有符合的段落時
 -- 插到檔案最尾端。插入點若是原文最後一行且缺終止符,先補上,避免與新內容黏在

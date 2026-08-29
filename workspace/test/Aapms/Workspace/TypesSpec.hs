@@ -8,12 +8,19 @@
 -- L14  renderWorkspaceError 全建構子非空、含中文、可行動、不含 show 痕跡 -> allConstructors 迴圈
 -- L15  renderWorkspaceError 含逐條列出的攜帶值                          -> carriedValues 迴圈
 -- L16  mkHub 與五個 selector 互逆(預期綠)                              -> prop_L16
--- L17  三個檔案的 import 清單(預期綠;(c) 的 Marker 部分見「本次-1」)    -> describe "L17"
+-- L17(a) Types.hs 不 import 本套件其他模組                              -> test_types_imports_no_sibling_module
+-- L17(b) Location.hs 不 import Aapms.Workspace.Hub                      -> test_location_does_not_import_hub
+-- L17(c) Location.hs/Hub.hs 完全不得 import Aapms.Store.Marker          -> test_location_and_hub_never_import_marker
+-- L17(d) Types.hs 對 Aapms.Store.Marker 的 import 逐字只拿 VaultMarker  -> test_types_imports_marker_type_only
+-- L17(e) 三檔都不 import openIndexAt/closeIndex/System.Process         -> test_no_index_or_process_imports
 -- X21–X26 renderWorkspaceError 的具體例子                               -> it "X21".."X26"
+--
+-- 2026-08-29 閘門裁決:原 L17(c)「三個檔案都不 import Aapms.Store.Marker」與契約 C
+-- 的 VaultRef.vrMarker 型別矛盾(本次-1),已拆成 (c)/(d) 兩條並改寫 spec,不再是 gap。
 -- @
 module Aapms.Workspace.TypesSpec (spec) where
 
-import Data.List (isInfixOf, isPrefixOf)
+import Data.List (dropWhileEnd, isInfixOf, isPrefixOf)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Hedgehog (forAll, (===))
@@ -159,20 +166,21 @@ spec = describe "F001 Aapms.Workspace.Types" $ do
         hubTools h === tools
         hubSourceText h === txt
 
+  -- 2026-08-29 閘門裁決(本次-1 已由開發者裁決、spec 改寫):L17 從 3 條子斷言改成
+  -- (a)-(e) 五條,原本互相矛盾的 (c)「三個檔案都不 import Aapms.Store.Marker」拆成
+  -- (c)(收窄到 Location.hs / Hub.hs)與新增的 (d)(Types.hs 逐字限定只拿 VaultMarker
+  -- 型別、拿不到任何函式)。五條全部只掃 import 行,不做全檔字串搜尋(spec 明文)。
   describe "L17(預期綠): 依賴方向與職責界線,以 import 清單驗證" $ do
-    it "test_types_imports_no_sibling_module: Types.hs 沒有任何 import Aapms.Workspace. 開頭的行" $ do
+    it "test_types_imports_no_sibling_module(a): Types.hs 沒有任何 import Aapms.Workspace. 開頭的行" $ do
       importLines <- importLinesOf "Aapms/Workspace/Types.hs"
       mapM_ (\l -> l `shouldNotSatisfy` isInfixOf "Aapms.Workspace.") importLines
 
-    it "(b) Location.hs 不 import Aapms.Workspace.Hub" $ do
+    it "test_location_does_not_import_hub(b): Location.hs 不 import Aapms.Workspace.Hub" $ do
       importLines <- importLinesOf "Aapms/Workspace/Location.hs"
       mapM_ (\l -> l `shouldNotSatisfy` isInfixOf "Aapms.Workspace.Hub") importLines
 
-    -- (c) 的「三個檔案都不 import Aapms.Store.Marker」只驗 Location.hs / Hub.hs:
-    -- Types.hs 的骨架已 import `Aapms.Store.Marker (VaultMarker)`(VaultRef.vrMarker
-    -- 的型別來源,「使用到的既有串接介面」表明載),與這一條的字面矛盾——見「本次-1」,
-    -- 該子句停下、不對 Types.hs 斷言。
-    it "(c) Location.hs / Hub.hs 不 import Aapms.Store.Marker(Types.hs 見「本次-1」)" $ do
+    it "test_location_and_hub_never_import_marker(c): Location.hs 與 Hub.hs 完全不得 import \
+       \Aapms.Store.Marker" $
       mapM_
         ( \fp -> do
             importLines <- importLinesOf fp
@@ -180,7 +188,13 @@ spec = describe "F001 Aapms.Workspace.Types" $ do
         )
         ["Aapms/Workspace/Location.hs", "Aapms/Workspace/Hub.hs"]
 
-    it "test_modules_have_no_discovery_or_tooling_strings: 三個檔案的 import 行都不含 \
+    it "test_types_imports_marker_type_only(d): Types.hs 對 Aapms.Store.Marker 的 import 行 \
+       \逐字是 \"import Aapms.Store.Marker (VaultMarker)\",拿不到任何函式" $ do
+      importLines <- importLinesOf "Aapms/Workspace/Types.hs"
+      let markerLines = filter (isInfixOf "Aapms.Store.Marker") importLines
+      markerLines `shouldBe` ["import Aapms.Store.Marker (VaultMarker)"]
+
+    it "test_no_index_or_process_imports(e): 三個檔案的 import 行都不含 \
        \openIndexAt / closeIndex / System.Process" $ do
       let files = ["Aapms/Workspace/Types.hs", "Aapms/Workspace/Location.hs", "Aapms/Workspace/Hub.hs"]
           forbidden = ["openIndexAt", "closeIndex", "System.Process"]
@@ -191,8 +205,12 @@ spec = describe "F001 Aapms.Workspace.Types" $ do
         )
         files
 
--- | 一個骨架檔案裡,去除前導空白後以 @import@ 起頭的行。
+-- | 一個骨架檔案裡,去除前導空白、__去除行尾 @\\r@__(切行終止符的產物,不屬於
+-- import 行本身的內容——`Prelude.lines` 只切 @\\n@,CRLF checkout 上每一行會拖著一個
+-- 尾隨 @\\r@,逐字比對前要先正規化掉)之後、以 @import@ 起頭的行。
+-- L17 五條子斷言 (a)-(e) 全部經由本函式讀 import 行,行尾正規化只做這一處。
 importLinesOf :: FilePath -> IO [String]
 importLinesOf rel = do
   src <- readWorkspaceSource rel
-  pure (filter ("import" `isPrefixOf`) (map (dropWhile (== ' ')) (lines (T.unpack src))))
+  let stripLine = dropWhile (== ' ') . dropWhileEnd (== '\r')
+  pure (filter ("import" `isPrefixOf`) (map stripLine (lines (T.unpack src))))

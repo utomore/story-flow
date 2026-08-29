@@ -541,18 +541,34 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 - **L17(依賴方向與職責界線,以 import 清單驗證)**:三個檔案的 **import 行**滿足——
   (a) `Types.hs` 沒有任何以 `import Aapms.Workspace.` 開頭的行(Types 不得 import 本套件的
   任何其他模組,否則型別歸屬圖有環);(b) `Location.hs` 不 import `Aapms.Workspace.Hub`
-  (方向是 `Location ← Hub`,不得回頭);(c) 三個檔案都不 import `Aapms.Store.Marker`
-  (本 feature 不讀 vault marker,那是 #2)、`Aapms.Store.Schema` 的 `openIndexAt` /
-  `closeIndex`(不開索引)、以及 `System.Process`(不執行任何外部程式,那是 #6)。
+  (方向是 `Location ← Hub`,不得回頭);(c) `Location.hs` 與 `Hub.hs` **完全不得** import
+  `Aapms.Store.Marker`——本 feature 不探測、不讀 vault marker,那是 #2;(d) `Types.hs` 對
+  `Aapms.Store.Marker` 的 import 行**必須逐字是** `import Aapms.Store.Marker (VaultMarker)`
+  ——契約 C 的 `VaultRef` 帶 `vrMarker :: VaultMarker`,那個型別只有這個模組給得出來,所以
+  Types **必須**拿得到型別,但**拿不到** `readMarker` / `markerDir` / `configPath` /
+  `indexDbPath` / `initVaultAt` 任何一個函式;(e) 三個檔案都不 import `Aapms.Store.Schema`
+  的 `openIndexAt` / `closeIndex`(不開索引),也不 import `System.Process`(不執行任何外部
+  程式,那是 #6)。
   **判準只看 import 行,不做全檔字串搜尋**:三個檔案的 Haddock 註解本來就會提到
   `.aapms/` / `readMarker` / `setupHub` 這些名字來說明界線,全檔搜尋會把「文件寫得清楚」
   誤判成「越界」。
 
+  > **2026-08-29 閘門裁決(qa 的 G1)**:本條原文的 (c) 是「**三個檔案都**不 import
+  > `Aapms.Store.Marker`」,與同一份 spec 的契約 C 互相矛盾——`VaultRef.vrMarker` 的型別
+  > `VaultMarker` 只能從該模組取得,`Types.hs` 從骨架第一天起就是
+  > `import Aapms.Store.Marker (VaultMarker)`。開發者裁決把 (c) 拆成 (c) 與 (d),讓這條守住
+  > **真正的用意**(本 feature 不做 marker 的探測與讀取),而不是守一個守不住的 import 禁令:
+  > 對 `Location.hs` / `Hub.hs` 維持全面禁止,對 `Types.hs` 改成「逐字限定只拿型別」——
+  > 只要 import 清單長出任何一個函式名,這條就紅。
+
 > **紅綠預期**(`spec-roles.md`「qa 的交付判準」逐條判定,**不是整批全紅**):
 >
-> - **預期綠**:**L16**(`mkHub` 與五個 selector 互逆)與 **L17**(import 清單)。兩者驗的都是
->   骨架原文自身就承載的事實——`Hub` 的 record 宣告與各檔的 import 行,不經過任何 `undefined`。
->   **從第一天就綠,而且應該綠;不得因為它綠就退回重寫。**
+> - **預期綠**:**L16**(`mkHub` 與五個 selector 互逆)與 **L17 的五條子斷言 (a)–(e) 全部**
+>   (import 清單)。兩者驗的都是骨架原文自身就承載的事實——`Hub` 的 record 宣告與各檔的
+>   import 行,不經過任何 `undefined`。**從第一天就綠,而且應該綠;不得因為它綠就退回重寫。**
+>   2026-08-29 裁決新增的 (d) 同樣是這一類:`Types.hs:65` 從骨架建檔當下就是
+>   `import Aapms.Store.Marker (VaultMarker)`,它**驗的是這一行有沒有被改寬**,不是驗某個
+>   未實作的行為。
 > - **預期紅**:其餘每一條 law 與每一個 example,它們都打在 `undefined` 的本體上。
 >
 > 骨架裡唯一不是 `undefined` 的本體是 `mkHub = Hub`(`Types.hs:116`)。這是刻意的:
@@ -627,7 +643,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 | T5 | L5, L6, L7 / X6–X13 | `test_load_hub_malformed_missing_id`、`test_load_hub_malformed_bad_kind`、`test_load_hub_malformed_relative_path`、`test_load_hub_malformed_wrong_prefix`、`test_load_hub_malformed_duplicate_id`、`test_load_hub_full_sample`、`test_load_hub_all_sections_absent`、`test_hub_llm_three_states` |
 | T6 | L11, L12, L13, L16 / X16, X17, X18 | `test_upsert_vault_appends`、`test_upsert_vault_replaces_in_place`、`test_remove_vault_preserves_order`、`test_remove_vault_absent_is_noop`、`test_project_ops_mirror_vault_ops`、`test_mk_hub_selectors_roundtrip` |
 | T7 | L8, L9, L10 / X14, X15, X16, X17, X27 | `test_save_hub_byte_identical_when_unmodified`、`test_load_save_load_field_equal`、`test_save_hub_preserves_comments_after_upsert`、`test_save_hub_preserves_other_sections_after_remove`、`test_save_hub_does_not_create_directory` |
-| (全部) | L17 | `test_modules_have_no_discovery_or_tooling_strings`、`test_types_imports_no_sibling_module` |
+| (全部) | L17 (a)–(e) | `test_types_imports_no_sibling_module`(a)、`test_location_does_not_import_hub`(b)、`test_location_and_hub_never_import_marker`(c)、`test_types_imports_marker_type_only`(d,逐字比對 `import Aapms.Store.Marker (VaultMarker)`)、`test_no_index_or_process_imports`(e)。**五條都只掃 import 行,不做全檔字串搜尋** |
 
 ## 待確認假設
 

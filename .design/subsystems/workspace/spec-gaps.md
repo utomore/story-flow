@@ -3,7 +3,7 @@ id: workspace-spec-gaps
 type: spec-gaps
 title: workspace-spec-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: open
+status: resolved
 created: 2026-08-29
 updated: 2026-08-29
 parent: workspace
@@ -24,4 +24,4 @@ parent: workspace
   `Types.hs` 明確排除在此限制外?(這條 law 的用意看起來是「本 feature 不做 marker 的**讀取**」,
   而 `Types.hs` 只是引用型別、不呼叫 `readMarker`——若是,law 的措辭要改成針對 `readMarker` /
   `markerDir` 這幾個**函式**,而不是針對模組 import。)
-- **狀態**:open
+- **狀態**:resolved(2026-08-29 W1 閘門裁決:L17(c) 拆成 (c)+(d)——`Location.hs` / `Hub.hs` 完全不得 import `Aapms.Store.Marker`;`Types.hs` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`,只拿型別、拿不到任何函式。spec 已改,qa 已補 (d) 的斷言)

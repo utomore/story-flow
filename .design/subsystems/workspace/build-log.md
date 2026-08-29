@@ -77,6 +77,7 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
 | F001 | 0 | 骨架快照紅綠基線(`ws-w1` @ `d23f24c`) | L1–L17 / X1–X27 全體 | **符合預期**:80 條中 5 綠(L16 的 `mkHub` 往返 + L17 的四條 import 檢查,皆為骨架自身承載的事實),其餘 75 條紅 | 無需處置,**無假綠** |
+| F001 | 1 | `test_types_imports_marker_type_only`(L17(d)) | L17(d):「`Types.hs` 對 `Aapms.Store.Marker` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`」 | **qa 誤讀**——測試沒有正規化行尾。law 講的是 import 行的**內容**,而 `\r` 是行終止符的產物;主樹的檔案是 LF、快照 worktree 是 git 全新 checkout 轉成的 CRLF,所以只在後者紅。**這不是快照假象:任何人重新 clone 到 Windows 都會紅** | 附條文原文重派 qa 改測試(五條 L17 共用同一套去 `\r` 的正規化);**不動 spec、不動實作** |
 
 ## 階段結果
 

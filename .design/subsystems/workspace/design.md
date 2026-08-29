@@ -64,17 +64,35 @@ vault 生效**。ADR-017 的「讀跨、寫單一」在這裡被實體化成三�
 ```haskell
 data HubLocation = HubLocation { hlPath :: FilePath, hlSource :: HubSource }
 data HubSource   = FromEnv | FromPlatformDefault
-data Hub                                        -- 已載入的中樞快照,不可變
+data Hub                                        -- 已載入的中樞快照,不可變;**建構子不外露**
 
 hubLocation :: IO HubLocation
 loadHub     :: HubLocation -> IO (Either WorkspaceError Hub)
 saveHub     :: HubLocation -> Hub -> IO (Either WorkspaceError ())   -- 原子寫入
+
+-- 2026-08-29 W1 閘門裁決:Hub 做成不透明型別,建構與底稿各留一個入口
+mkHub         :: [VaultEntry] -> [ProjectEntry] -> Maybe LlmSection -> ToolsConfig -> Text -> Hub
+hubSourceText :: Hub -> Text                    -- 這次載入時的原始檔案文字,saveHub 的底稿
 ```
 
 | 欄位 / 參數 | 型別 | 單位 / 值域 | 語意 |
 |---|---|---|---|
 | `hlPath` | FilePath | 絕對路徑,指向**目錄**(不是 `config.toml`) | 中樞根目錄 |
 | `hlSource` | Enum | `FromEnv`(`AAPMS_HOME` 已設且非空)/ `FromPlatformDefault` | 這個位置怎麼決定的;`doctor` 要印出來 |
+
+| `mkHub` 的第五參數 / `hubSourceText` | Text | 這次載入時 `config.toml` 的**逐字內容**;`mkHub` 造空中樞時為空字串 | `saveHub` 的底稿。四個純增刪函式**只動結構化的四段、不動它**,差異由 `saveHub` 一次收斂——「既有列的順序、註解與空白行原樣保留」(ADR-017 決策二)靠這條成立 |
+
+`Hub` **不外露建構子**(2026-08-29 W1 閘門裁決):它捧著「底稿」與「解析出來的四段」兩半,
+兩者必須來自同一次載入。攤開欄位就沒有任何東西守這個不變量,而 `saveHub` 會照著一個不一致的
+快照把使用者手寫的檔案寫壞——那是一條不會報錯的資料損毀路徑。被否決的替代方案:`Hub (..)`
+全欄位匯出(照抄 graph-core `VaultHandle` 的先例,成本零,代價就是上面那條路徑)。
+
+**`loadHub` 的合規判準**(2026-08-29 W1 閘門裁決,補契約卡驗收標準沒點名的三種情況):
+對**工具自己寫得出來的欄位從嚴**——`veName` / `peName` 去空白後為空、或 `veId` / `peId` 在中樞內
+重複,一律 `HubMalformed`(重複 id 的立場與 graph-core 契約 G 對重複 `vmId` 的處置一致:身分不
+確定時,任何以 id 為鍵的操作都是不確定的);對**工具不認識的東西從寬**——未知的鍵與未知的頂層
+段一律容忍且由 `saveHub` 原樣保留,不是 `HubMalformed`。理由是中樞依 ADR-017 決策二是「可手寫」
+的檔案:嚴格拒收未知段落會讓新版寫出的檔案被舊版判成壞檔,也會拒掉使用者自己加的註記。
 
 `hubLocation` 的解析順序固定兩層:環境變數 `AAPMS_HOME` 非空 → 用它;否則平台預設
 (Windows `%APPDATA%\aapms`,其他平台 XDG `$XDG_CONFIG_HOME/aapms`,該變數未設時 `~/.config/aapms`)。
@@ -392,13 +410,17 @@ hubLocation → loadHub → hubTools
 | 呼叫方向 | 介面 |
 |---|---|
 | 全部模組 → Types | 型別定義與 `WorkspaceError` / `renderWorkspaceError`;Types 不回頭 import 任何一個 |
+| Types → `aapms-store` / `aapms-core` | 只取型別:`StoreError` / `VaultMarker` / `VaultKind` / `VaultId` / `Id`。**2026-08-29 W1 補表**(原本只寫在「Types 為什麼要獨立」的散文裡) |
 | Hub → Location | `configPath :: HubLocation -> FilePath`、`thumbCacheDir`;Hub 自己不解析中樞位置 |
+| Hub → `aapms-store` | `readTextFile`(讀 `config.toml`,一律 UTF-8)、`atomicWriteText`(寫回)、`renderStoreError`(把落地失敗的訊息原樣轉成 `HubUnreadable` / `HubWriteFailed` 的 `Text`,**這一層不翻譯**)。**2026-08-29 W1 補表**(原本只寫在「使用的技術」的散文裡) |
+| Location → `aapms-core` | `Sha256`——`thumbCachePath :: HubLocation -> Sha256 -> FilePath` 的第二參數。**2026-08-29 W1 補表** |
 | Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息 |
 | Discovery → Hub | `hubVaults` 取候選清單;`lookupSelector` 是純函式,只吃 `Hub` 值 |
 | Scope → Discovery | `readVaultRef :: Maybe VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(單一 vault 的「路徑 → 權威身分」);`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
 | Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔) |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |
+| Projects → Hub | `upsertProject :: ProjectEntry -> Hub -> Hub` / `removeProject :: Id -> Hub -> Hub` + `saveHub`。**2026-08-29 W1 閘門裁決補上**:`Hub` 不外露建構子,Projects 的骨架又只有 `Projects.hs`,沒有這兩個入口它動不了 `[[projects]]`。語意與 vault 那一組同構(以 id 為鍵、追加或就地取代、保序) |
 | Lifecycle → Discovery | `AdoptExisting` 與 `addVault` 時讀既有 marker 取 id / kind / name |
 | Projects → `aapms-core` | `newId PPrj`(純函式,時間由呼叫端給);唯一性由 Projects 對中樞既有 `peId` 重試保證 |
 | Tools → Hub | `hubTools` 取 `ToolsConfig`;Tools 不讀檔案格式 |
@@ -462,7 +484,7 @@ hubLocation → loadHub → hubTools
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 1 | hub-registry | 中樞位置解析、`config.toml` 四段的讀寫與可手寫保留、載入失敗即失敗 | Location、Hub | - | - |
+| 1 | hub-registry | 中樞位置解析、`config.toml` 四段的讀寫與可手寫保留、載入失敗即失敗 | Types、Location、Hub | - | F001-hub-registry.md |
 | 2 | vault-discovery | 向上探測 `.aapms/`、selector 解析、重讀 marker 成 `VaultRef`、不可達降級 | Discovery | #1 | - |
 | 3 | scope-resolution | `resolveRead` / `resolveWrite` / `resolvePipeline`、`refs` 遞移展開與擋環、保序去重 | Scope | #2 | - |
 
@@ -489,7 +511,7 @@ hubLocation → loadHub → hubTools
   **契約 C / D / E 的全部型別宣告**(`VaultRef` / `ScopeIssue` / `ReadScope` / `WriteScope` /
   `PipelineScope` / `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` / `AdoptNotice` /
   `PurgeReport` / `ToolOrigin` / `ToolStatus`——**只有型別,函式留給後續 feature**);
-  契約 F 全部(`WorkspaceError` 十五個建構子與 `renderWorkspaceError`)
+  契約 F 全部(`WorkspaceError` 十六個建構子與 `renderWorkspaceError`)
 - **資料流管線段落**:裁決管線的前兩步(`hubLocation` → `loadHub`),以及生命週期管線的最後一步
   (`saveHub`)
 - **驗收標準**:

@@ -32,7 +32,7 @@ parent: workspace
 | # | 問題 | 開發者決定 | 影響範圍 |
 |---|------|-----------|---------|
 | D1 | 工作樹不乾淨且在 `main` 上,怎麼起跑 | 開分支 `feat/2026-08-29-subsys-workspace`,先把三份 design 的產出 commit 成一顆 | 全部波次的 checkpoint |
-| D2 | 四個共用檔案(`aapms-workspace.cabal` / `cabal.project` / `test/Spec.hs` / `Types.hs`)怎麼安排,W4 才平行得安全 | 前三個由**編排者單線維護**,不進任何 feature 的寫入白名單(同 graph-core W6「骨架併入 cabal」的做法);`Types.hs` 在 W1 一次寫齊契約 A–F 的全部型別與 `WorkspaceError` 的十五個建構子,W2 之後沒人再碰它。另外**不設門面模組** `Aapms.Workspace`,界線由 `.cabal` 的 `exposed-modules` 守 | W1(Types 範圍擴大)、W4(平行安全的前提) |
+| D2 | 四個共用檔案(`aapms-workspace.cabal` / `cabal.project` / `test/Spec.hs` / `Types.hs`)怎麼安排,W4 才平行得安全 | 前三個由**編排者單線維護**,不進任何 feature 的寫入白名單(同 graph-core W6「骨架併入 cabal」的做法);`Types.hs` 在 W1 一次寫齊契約 A–F 的全部型別與 `WorkspaceError` 的十六個建構子,W2 之後沒人再碰它。另外**不設門面模組** `Aapms.Workspace`,界線由 `.cabal` 的 `exposed-modules` 守 | W1(Types 範圍擴大)、W4(平行安全的前提) |
 | D3 | 閘門密度 | **標準**:議程為空時降級為非阻塞呈報,有任一條爭議點照常停 | 3c 波次閘門 |
 | D4 | 這次跑到哪裡 | 兩個階段都跑完 | W1–W4 |
 | D5 | 測試框架 | 沿用專案既有的 `hspec` + `hedgehog` + `hspec-hedgehog`(`store/aapms-store.cabal` 已在用),**不新引入依賴** | 全部 qa 委派 |

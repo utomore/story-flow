@@ -3,7 +3,7 @@ id: F003
 type: feature
 title: scope-resolution
 description: "resolveRead / resolveWrite / resolvePipeline、refs 遞移展開與擋環、保序去重"
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: [F001, F002]

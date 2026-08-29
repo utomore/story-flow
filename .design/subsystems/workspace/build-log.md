@@ -108,7 +108,57 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 
 ## 階段結果
 
-### 階段一
+### 階段一(2026-08-29 完成)
+
+**完成**:F001 / F002 / F003 三個 feature,介面 18/18 落地(11 + 4 + 3),零警告。
+測試 **165 examples / 0 failures**;全專案 **1043 examples / 0 failures**。
+
+**qa 紅綠基線**(三波各在骨架快照的獨立 worktree 上驗過,**零未驗證**):
+
+| 波次 | 快照 | 綠 / 紅 | 是否符合 spec 預期 |
+|---|---|---|---|
+| W1 | `d23f24c` | 6 / 75 | ✅ 綠的正是 L16 + L17 五條 import law |
+| W2 | `5b8e104` | 86 / 39 | ✅ F002 那 44 條是 5 綠(L18 a–e)/ 39 紅 |
+| W3 | `86053f6` | 133 / 32 | ✅ F003 那 38 條是 6 綠(L25 a–f)/ 32 紅 |
+
+**白名單對帳**:三波全 `OK`,零違規。
+
+**仲裁**:2 輪(W1 一輪歸因 qa 誤讀、W2 一輪歸因 spec bug),W3 零輪。
+
+**spec-gaps**:G1 / G2 皆 resolved,**無未結條目**。
+
+**契約裁決**:不可逆決定 0 條(新增);新增依賴邊 6 條(全部「散文有、表沒有」,無真實第二方案,
+補表);契約層級假設 6 組(合併前 20 條)。**契約 F 從十六個建構子成長為十七個**
+(`WriteTargetIdDrift`,W3 閘門)。
+
+**自裁清單**:25 條。其中**編排者升級 13 條**、降級 9 條、沿用既有裁決 3 條。
+升級比例偏高(52%),原因明確:F003 的 spec 有九條自裁的層級自答自己寫著「邊界:會」——
+依 `boundary-rules.md` 那就是契約層級。**W4 的委派 prompt 已收緊這條門檻**。
+
+**arch-audit subsys 發現**(依嚴重度):
+
+1. **[中] `workspace` 消費了三個不在 graph-core 對外契約裡的符號**:`readTextFile`
+   (`Aapms.Store.Atomic`)、`renderVaultKind` / `parseVaultKind`(`Aapms.Store.Schema`)。
+   與 2026-08-29 B2 對帳補進去的那四個同一類:程式碼有、散文有,契約章節沒有。
+   建議比照處理,補進 graph-core 契約 E(純文檔)
+2. **[低] L25 的 import 白名單可能開太緊**:F003 的 impl 為了不 import `Aapms.Core.Id`,
+   刻意讓內部 `loop` helper **不寫顯式型別簽名**,靠型別推導取得 `VaultId`。編得過、law 也綠,
+   但「靠省略簽名滿足 import 白名單」是訊號——`VaultId` 是正當需求
+3. **[低,既有] graph-core 的 `md` / `store` / `core` 測試套件有 `-Wmissing-home-modules` 警告**,
+   與 workspace 無關;`aapms-workspace-test` 已補乾淨
+4. **[資訊] 程式碼知識圖覆蓋率 17%**(70/407):成因是測試目錄刻意不列進 `code-paths`、
+   四個尚未設計的子系統、以及 `legacy/`。依賴矩陣的結論只在 graph-core / workspace /
+   service / shell 之間可信
+
+**方向與循環**:圖已重繪至 `27d2499`。**無子系統層級循環依賴**;`workspace → graph-core`
+92 條、方向單一、反向零。套件內模組方向 `Types ← Location ← Hub ← Discovery ← Scope`
+**逐條符合 design.md**,無回頭邊。
+
+**抽象邊界**:`design.md` 全文零私有 helper 名(逐一掃過 `walkAll` / `expandRefs` / `nubOn` /
+`resolveWriteTarget` / `importLinesOf` 等九個,全部 0 命中)。契約卡的負責模組與實際落地檔案
+逐一相符。
+
+### 階段二
 (待跑)
 
 ### 階段二

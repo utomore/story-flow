@@ -3,7 +3,7 @@ id: F002
 type: feature
 title: vault-discovery
 description: "向上探測 .aapms/、selector 解析、重讀 marker 取權威身分、不可達降級"
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: [F001]

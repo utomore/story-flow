@@ -3,7 +3,7 @@ id: F001
 type: feature
 title: hub-registry
 description: "中樞位置解析、config.toml 四段的讀寫與可手寫保留、載入失敗即失敗;Types 一次寫齊契約 A–F 的全部型別"
-status: spec
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: []

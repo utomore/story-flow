@@ -79,7 +79,6 @@ hubSourceText :: Hub -> Text                    -- 這次載入時的原始檔�
 |---|---|---|---|
 | `hlPath` | FilePath | 絕對路徑,指向**目錄**(不是 `config.toml`) | 中樞根目錄 |
 | `hlSource` | Enum | `FromEnv`(`AAPMS_HOME` 已設且非空)/ `FromPlatformDefault` | 這個位置怎麼決定的;`doctor` 要印出來 |
-
 | `mkHub` 的第五參數 / `hubSourceText` | Text | 這次載入時 `config.toml` 的**逐字內容**;`mkHub` 造空中樞時為空字串 | `saveHub` 的底稿。四個純增刪函式**只動結構化的四段、不動它**,差異由 `saveHub` 一次收斂——「既有列的順序、註解與空白行原樣保留」(ADR-017 決策二)靠這條成立 |
 
 `Hub` **不外露建構子**(2026-08-29 W1 閘門裁決):它捧著「底稿」與「解析出來的四段」兩半,
@@ -184,7 +183,7 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 | `wsTarget` | VaultRef | 恰好一個 | 這次指令的**唯一寫入目標** |
 | `rsIssues` / `wsIssues` / `psIssues` | [ScopeIssue] | 可為空;**不中止查詢** | 降級紀錄,由 `shell` 印成警告 |
 | `vrEntry` | Maybe VaultEntry | `Nothing` ⟺ 這個 vault 不在中樞 `[[vaults]]` 裡(向上探測到的未註冊 vault) | 它在中樞的那一列 |
-| `vrPath` | FilePath | 絕對路徑,已正規化(解掉 `.` / `..` / 大小寫依平台);指向含 `.aapms/` 的那一層 | vault 根目錄 |
+| `vrPath` | FilePath | 絕對路徑,**正規化 = `System.Directory.canonicalizePath`**(2026-08-29 W2 閘門釘死):解 `.` / `..`、解 symlink、還原 Windows 8.3 短檔名;指向含 `.aapms/` 的那一層 | vault 根目錄。同一個目錄的兩種寫法會歸一,錯誤訊息印的是工具**真正去看的**那個位置——使用者拿它去 `ls` 才有意義。**被否決**:`makeAbsolute`(純字串 + cwd、不碰檔案系統、好測,但 `C:\x\..\y` 與 `C:\y` 是兩個字串,8.3 短檔名與 symlink 都不還原) |
 | `vrMarker` | VaultMarker | graph-core 契約 E 的型別,**一律來自檔案** | 權威的 `id` / `kind` / `name` / `refs` |
 
 `ScopeIssue` 四個建構子的參數:
@@ -216,7 +215,15 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 4. **`refs` 展開進來的一律唯讀**。它們只出現在 `rsVaults` / `wsRead`,**永遠不會**成為 `wsTarget`
 
 `detectVault` 是 ADR-008 的 git 式探測:從給定目錄逐層往上,回第一個含 `.aapms/` 子目錄的那一層的
-絕對路徑;走到根仍沒有回 `Nothing`。**它只決定寫入目標,不影響查詢範圍。**
+絕對路徑(同樣經 `canonicalizePath`);走到根仍沒有回 `Nothing`。起點**不先驗存在性**,不存在也照樣
+往上走。**它只決定寫入目標,不影響查詢範圍。**
+
+**`lookupSelector` 的比對規則**(2026-08-29 W2 閘門裁決,補契約 C 只說「先比 id 再比 name」沒說
+怎麼比的空缺):兩階段都是**逐字精確比對**——不去前後空白、不忽略大小寫。`veId` 階段萬一撞號,
+處置與 `veName` 撞名**同一套**:回 `VaultSelectorAmbiguous` 並列出全部,不取第一列。理由是這條
+規則被四個 feature 共用(三個 `resolve*` 與 `forgetVault` 都寫「比對規則同 `lookupSelector`」),
+多一種折疊就多一處要各自解釋的地方;而中樞是**可手寫**的檔案,忽略大小寫會讓手寫的 `Foo` 與
+`foo` 突然變成撞名。找不到時的訊息要列得出可用的 vault 名稱,使用者才改得掉。
 
 ### D. 生命週期
 
@@ -414,9 +421,9 @@ hubLocation → loadHub → hubTools
 | Hub → Location | `configPath :: HubLocation -> FilePath`、`thumbCacheDir`;Hub 自己不解析中樞位置 |
 | Hub → `aapms-store` | `readTextFile`(讀 `config.toml`,一律 UTF-8)、`atomicWriteText`(寫回)、`renderStoreError`(把落地失敗的訊息原樣轉成 `HubUnreadable` / `HubWriteFailed` 的 `Text`,**這一層不翻譯**)。**2026-08-29 W1 補表**(原本只寫在「使用的技術」的散文裡) |
 | Location → `aapms-core` | `Sha256`——`thumbCachePath :: HubLocation -> Sha256 -> FilePath` 的第二參數。**2026-08-29 W1 補表** |
-| Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息 |
+| Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息。另用 `markerDir`——`.aapms` 這個目錄名的唯一真相在 graph-core,本子系統不自己寫一份字面值(**2026-08-29 W2 補列**) |
 | Discovery → Hub | `hubVaults` 取候選清單;`lookupSelector` 是純函式,只吃 `Hub` 值 |
-| Scope → Discovery | `readVaultRef :: Maybe VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(單一 vault 的「路徑 → 權威身分」);`detectVault` |
+| Scope → Discovery | `readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
 | Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔) |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |
@@ -424,6 +431,15 @@ hubLocation → loadHub → hubTools
 | Lifecycle → Discovery | `AdoptExisting` 與 `addVault` 時讀既有 marker 取 id / kind / name |
 | Projects → `aapms-core` | `newId PPrj`(純函式,時間由呼叫端給);唯一性由 Projects 對中樞既有 `peId` 重試保證 |
 | Tools → Hub | `hubTools` 取 `ToolsConfig`;Tools 不讀檔案格式 |
+
+**`readVaultRef` 為什麼拆成兩個**(2026-08-29 W2 閘門裁決):本表原本只有一個
+`readVaultRef :: Maybe VaultEntry -> ...`,但契約 C 的 `ScopeIssue` 三個相關建構子**每一個都要求
+一列 `VaultEntry`**——第一參數為 `Nothing`(向上探測到、未註冊的 vault)時失敗通道表達不出來,
+而契約卡又把 `MarkerUnreadable` 指給 Discovery,那個回傳型別也生不出它。兩條路徑的**失敗語意本來
+就不同**:「註冊表裡那一列壞了」是降級(其餘 vault 照跑),「你 cd 所在的 vault 壞了」是硬失敗
+(寫入目標決定不了,ADR-017)。拆開之後型別分得出來。**被否決的替代方案**:給 `ScopeIssue` 加一個
+不帶 `VaultEntry` 的建構子——語意最乾淨,但要改已交付的 `Types.hs`,而 D2 的併發前提正是
+「W2 之後沒人再碰 `Types.hs`」,等於整波重排。
 
 **方向是線性的**:`Types ← Location ← Hub ← Discovery ← Scope`,`Lifecycle` / `Projects` / `Tools`
 各自往左依賴,彼此不互相呼叫。沒有任何一條回頭邊,型別歸屬圖因此無環。
@@ -485,7 +501,7 @@ hubLocation → loadHub → hubTools
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
 | 1 | hub-registry | 中樞位置解析、`config.toml` 四段的讀寫與可手寫保留、載入失敗即失敗 | Types、Location、Hub | - | F001-hub-registry.md |
-| 2 | vault-discovery | 向上探測 `.aapms/`、selector 解析、重讀 marker 成 `VaultRef`、不可達降級 | Discovery | #1 | - |
+| 2 | vault-discovery | 向上探測 `.aapms/`、selector 解析、重讀 marker 成 `VaultRef`、不可達降級 | Discovery | #1 | F002-vault-discovery.md |
 | 3 | scope-resolution | `resolveRead` / `resolveWrite` / `resolvePipeline`、`refs` 遞移展開與擋環、保序去重 | Scope | #2 | - |
 
 ### 階段二:生命週期與本機環境

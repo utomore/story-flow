@@ -1,5 +1,6 @@
 module Main (main) where
 
+import qualified Aapms.Workspace.DiscoverySpec
 import qualified Aapms.Workspace.HubSpec
 import qualified Aapms.Workspace.LocationSpec
 import qualified Aapms.Workspace.TypesSpec
@@ -15,3 +16,4 @@ main = do
     Aapms.Workspace.TypesSpec.spec
     Aapms.Workspace.LocationSpec.spec
     Aapms.Workspace.HubSpec.spec
+    Aapms.Workspace.DiscoverySpec.spec

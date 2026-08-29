@@ -32,7 +32,7 @@ parent: workspace
 | # | 問題 | 開發者決定 | 影響範圍 |
 |---|------|-----------|---------|
 | D1 | 工作樹不乾淨且在 `main` 上,怎麼起跑 | 開分支 `feat/2026-08-29-subsys-workspace`,先把三份 design 的產出 commit 成一顆 | 全部波次的 checkpoint |
-| D2 | 四個共用檔案(`aapms-workspace.cabal` / `cabal.project` / `test/Spec.hs` / `Types.hs`)怎麼安排,W4 才平行得安全 | 前三個由**編排者單線維護**,不進任何 feature 的寫入白名單(同 graph-core W6「骨架併入 cabal」的做法);`Types.hs` 在 W1 一次寫齊契約 A–F 的全部型別與 `WorkspaceError` 的十六個建構子,W2 之後沒人再碰它。另外**不設門面模組** `Aapms.Workspace`,界線由 `.cabal` 的 `exposed-modules` 守 | W1(Types 範圍擴大)、W4(平行安全的前提) |
+| D2 | 四個共用檔案(`aapms-workspace.cabal` / `cabal.project` / `test/Spec.hs` / `Types.hs`)怎麼安排,W4 才平行得安全 | 前三個由**編排者單線維護**,不進任何 feature 的寫入白名單(同 graph-core W6「骨架併入 cabal」的做法);`Types.hs` 在 W1 一次寫齊契約 A–F 的全部型別與 `WorkspaceError` 的建構子(W1 當下十六個;W3 閘門新增 `WriteTargetIdDrift` 成十七個),W2 之後沒人再碰它。另外**不設門面模組** `Aapms.Workspace`,界線由 `.cabal` 的 `exposed-modules` 守 | W1(Types 範圍擴大)、W4(平行安全的前提) |
 | D3 | 閘門密度 | **標準**:議程為空時降級為非阻塞呈報,有任一條爭議點照常停 | 3c 波次閘門 |
 | D4 | 這次跑到哪裡 | 兩個階段都跑完 | W1–W4 |
 | D5 | 測試框架 | 沿用專案既有的 `hspec` + `hedgehog` + `hspec-hedgehog`(`store/aapms-store.cabal` 已在用),**不新引入依賴** | 全部 qa 委派 |
@@ -64,6 +64,9 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | F002 A1 | 待確認假設 | 模組間公開介面表的 `Scope → Discovery`;契約 C 的 `ScopeIssue` / `VaultRef.vrEntry`;契約 F 的 `MarkerUnreadable` | F002(下游 F003) | `readVaultRef` 拆成兩個:`VaultEntry ->`(已註冊,失敗是降級)與 `readVaultRefAt :: Hub ->`(探測到的,失敗是硬錯)。原簽名的 `Maybe VaultEntry` 在 `Nothing` 分支表達不出失敗——`ScopeIssue` 三個建構子都要求一列 `VaultEntry` | 有條件可逆 | **選 a**(照 spec 暫採) | design.md 模組間公開介面表 + 新增一段理由(diff 已確認) |
 | F002 A2 + S3 + S8 + S1 | 待確認假設(合併;S1 / S3 / S8 為編排者升級) | 契約 C 的 `lookupSelector` 與 `vrPath` 值域欄;`detectVault` | F002(下游 F003 / F004 都寫「比對規則同 `lookupSelector`」) | `lookupSelector` 兩階段逐字精確比對(不 trim、不忽略大小寫),id 撞號與 name 撞名同一套處置;「已正規化」釘死成 `canonicalizePath`(否決 `makeAbsolute`);`detectVault` 起點不先驗存在性 | 可逆 | **選 a**(照 spec 暫採) | design.md 契約 C 的 `vrPath` 值域 + 新增「`lookupSelector` 的比對規則」段(diff 已確認) |
 | F002 依賴邊-1 | 新增依賴邊 | `Discovery → aapms-store` | F002 | 表只列 `readMarker`,實際還用 `markerDir`(`.aapms` 目錄名的唯一真相在 graph-core) | 可逆 | **無真實第二方案,不上議程**;改為補表 | design.md 模組間公開介面表(diff 已確認) |
+| F003 A1 | 待確認假設 | 契約 C 的 `resolveWrite` / `WriteScope.wsTarget`;契約 F 的 `NoWriteTarget` / `MarkerUnreadable`;契約 C 的 `ScopeIssue.VaultIdDrift` | F003(下游 F004 的 `syncHub`、`service` 的 `errorCode` 對照表) | 寫入目標 id 漂移時回什麼。spec 先證明「兩條來路的失敗型別」問題會自己消失(selector 那條也走 `readVaultRefAt`),**真正剩下的只有 id 漂移一格** | 可逆但有保存期限 | **選 c(非暫採的 a)**:契約 F 新增 `WriteTargetIdDrift VaultId FilePath VaultId`。採納 spec 的論證——W3 是單 feature 波次,此刻無並發對象,D2 的前提要到 W4 才生效,現在解凍 `Types.hs` 比 W4 之後便宜一個數量級;兩案函式簽名相同,改動只有五處、無 law 重寫、骨架不動 | design.md 契約 F(+1 建構子 +1 段語意說明);`Types.hs`(F001 impl);`TypesSpec.hs`(F001 qa);F003 spec 的 L13(b) / X19 / 資料流 |
+| F003 S2 + S4 + S5 + S9 | 待確認假設(合併;四條**全部是編排者升級**) | 契約 C 的「refs 遞移展開」性質 3 / `rsVaults` 的保序去重 / `RefVaultNotRegistered` / `resolvePipeline` | F003 | 不可達節點**不展開**它自己的 `refs`(三種一視同仁,**含 marker 讀得到的 id 漂移**);BFS 種子優先;重複的未註冊目標只報一則;`resolvePipeline (Just X)` 且 X 不可達 → 空清單 + issue,不回 `VaultKindMismatch` | 可逆 | **選 a**(照 spec 暫採) | design.md 契約 C 新增「展開的走訪規則」四條;F003 spec 的 L7 / L19 / L20 / L21 / L22 升格為條文明文 + 新增 X36 |
+| F003 依賴邊-1~2 | 新增依賴邊 | `Scope → aapms-store`、`Scope → Discovery` | F003 | 前者是 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子 + `VaultKind` 型別(`Types.hs` 裸型別 import 轉不出存取子,`VaultKind` 也不在 Types 的匯出清單);後者是表漏列 `lookupSelector` | 可逆 | **無真實第二方案,不上議程**;改為補表 | design.md 模組間公開介面表(diff 已確認) |
 
 ## 自裁清單
 
@@ -82,6 +85,15 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | F002 S6 | `.aapms` 目錄名從哪來 | 用 graph-core 的 `markerDir`,不自己寫字面值 | `markerDir` | 自報(升級篩命中,**沿用** B2 對帳的知識歸屬裁決) | |
 | F002 S7 | 骨架不寫「只有本體才用得到」的 import | 維持 `-Wall` 零警告;L18(b) 因此寫成條件式 | `markerDir`、`readMarker`、`hubVaults`、`VaultId` | 自報(升級篩命中,**編排者降級**:無真實第二方案) | |
 | F002 S8 | 「正規化」的定義 | 全篇釘死 `canonicalizePath`,不是 `makeAbsolute` | `detectVault`、`readVaultRef`、`readVaultRefAt`、`vrPath` | 自報 → **編排者升級** | (已併入閘門裁決) |
+| F003 S1 | `NoWriteTarget` 帶哪個起點 | `canonicalizePath start`,不是原樣的第三參數 | `resolveWrite`、`NoWriteTarget`、`canonicalizePath` | 自報(升級篩命中,**沿用** W2 釘死的 `canonicalizePath`) | |
+| F003 S3 | 擋環用的 visited 鍵 | 「走到它時用的 `VaultId`」,`Data.Set` | `vmId`、`vmRefs`、`veId`、`VaultId` | 自報(邊界 不會,**維持自裁**) | |
+| F003 S6 | 無 selector 時 kind 不符的處置 | 靜默排除,不產生 `ScopeIssue` | `psRuns`、`psIssues`、`vmKind` | 自報(升級篩命中,**沿用契約卡驗收標準原文**「無 selector 時 `psRuns` 只含 `vmKind` 相符者」) | |
+| F003 S7 | `resolvePipeline` 要不要展開 `refs` | 兩條路都不展開 | `resolvePipeline`、`psRuns`、`vmRefs` | 自報(升級篩命中,**沿用 ADR-017**:`refs` 是收窄時的**讀取**集合,pipeline 是「各跑一次、每次只寫自己的索引」) | |
+| F003 S8 | `VaultKindMismatch` 第一個值取哪個 id | `vmId`(marker),不是 `veId` | `VaultKindMismatch`、`vmId`、`veId` | 自報(升級篩命中,**沿用契約 C 性質 1**「marker 是真相」) | |
+| F003 S10 | 保序去重的鍵與保留哪一次 | 以 `vmId`、保留**首次**出現位置 | `rsVaults`、`wsRead`、`psRuns`、`vmId` | 自報(升級篩命中,**沿用契約卡原文**「順序是第一次出現的位置」) | |
+| F003 S11 | 模組匯出清單 | 只有三個函式,不轉出型別 | `resolveRead`、`resolveWrite`、`resolvePipeline` | 自報(升級篩命中,**沿用** W1/W2 的慣例) | |
+| F003 S12 | 骨架不寫「只有本體才用得到」的 import | L25(b)/(f) 因此寫成條件式 | `readVaultRef`、`readVaultRefAt`、`detectVault`、`lookupSelector`、`hubVaults`、`vmId`、`vmKind`、`vmRefs`、`canonicalizePath` | 自報(升級篩命中,**沿用** F002 S7 的同一裁決) | |
+| F003 升級篩統計 | (編排者記錄)spec 的 12 條自裁裡,**S1 / S2 / S4 / S5 / S6 / S7 / S8 / S9 / S10 九條的層級自答自己寫著「邊界:會」** | 依 `boundary-rules.md`「任一為是即契約層級」,它們本來就不該進自裁清單 | — | 編排者升級篩 | **spec 的層級門檻偏鬆**,W4 的委派 prompt 要求「邊界:會」一律寫進待確認假設,不得放進自裁記錄 |
 | F002 impl-1 | (協議偏離,記錄備查)L18(b) 與 L12(c)/L14 矛盾時 impl **沒有停下該項**,而是暫採 `VaultMarker (..)` 並如實回報 | — | `vmId`、`VaultMarker` | 編排者記錄 | **可接受**:該 law 管的是 import 行本身,不寫某個 import 就編不出來,實務上沒有「停下」這個選項;impl 有完整回報,未隱瞞 |
 
 ## 仲裁紀錄

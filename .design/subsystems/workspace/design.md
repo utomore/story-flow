@@ -214,6 +214,18 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 3. **`refs` 遞移展開對環是安全的**。`A → B → A` 的展開結果是 `{A, B}`,不是錯誤、也不是不終止
 4. **`refs` 展開進來的一律唯讀**。它們只出現在 `rsVaults` / `wsRead`,**永遠不會**成為 `wsTarget`
 
+**展開的走訪規則**(2026-08-29 W3 閘門裁決,補契約沒說到的三處):
+
+- **不可達的節點不展開它自己的 `refs`**,三種不可達一視同仁——包含 marker 讀得到、只是身分對不上的
+  **id 漂移**。理由與性質 1 同一條:身分不確定時,任何以它為起點的關係都是不確定的,而 ADR-017 把
+  id 撞號定義成「有人複製了整個 vault 目錄」,那一串的來源本身就可疑。代價是一個壞掉的中繼 vault
+  會讓它後面整串退出範圍——但那一串本來就是靠它的 marker 才找得到的
+- **走訪是 BFS,種子排第一**,所以 `rsVaults` 的順序是「跟我直接相鄰的先出現」而不是深優先的長鏈
+- **同一個未註冊的 `refs` 目標被多個來源列到時只產生一則** `RefVaultNotRegistered`,`src` 取 BFS 序
+  最早的那個來源
+- **`resolvePipeline (Just X)` 而 X 不可達**時回 `Right (PipelineScope [] [issue])`,**不是**
+  `VaultKindMismatch`——kind 是從 marker 讀出來的,marker 都拿不到就談不上 kind 相不相符
+
 `detectVault` 是 ADR-008 的 git 式探測:從給定目錄逐層往上,回第一個含 `.aapms/` 子目錄的那一層的
 絕對路徑(同樣經 `canonicalizePath`);走到根仍沒有回 `Nothing`。起點**不先驗存在性**,不存在也照樣
 往上走。**它只決定寫入目標,不影響查詢範圍。**
@@ -313,6 +325,7 @@ data WorkspaceError
   | NoWriteTarget FilePath
   | VaultAlreadyInitialized FilePath | VaultDirMissing FilePath | VaultDirNotEmpty FilePath
   | VaultIdCollision VaultId FilePath FilePath
+  | WriteTargetIdDrift VaultId FilePath VaultId     -- 2026-08-29 W3 閘門新增
   | MarkerUnreadable FilePath StoreError
   | ProjectSelectorNotFound Text | ProjectPathMissing Text FilePath
   | InvalidName Text
@@ -330,6 +343,14 @@ renderWorkspaceError :: WorkspaceError -> Text
 `VaultIdCollision` 帶三個值:撞到的 `VaultId`、**中樞裡既有**那個 vault 的路徑、**這次要建立**的路徑
 ——兩個路徑都要印,使用者才看得出是不是自己複製了整個 vault 目錄。
 `ProjectPathMissing` 帶專案名與那個不存在的路徑。`InvalidName` 帶收到的原始字串。
+
+**`WriteTargetIdDrift` 帶三個值**:註冊表記的 `VaultId`、該 vault 的路徑、marker 裡**實際**的
+`VaultId`。它與 `ScopeIssue.VaultIdDrift` 是同一件事的兩種身分:**在讀取路徑上是降級**
+(那個 vault 退出範圍,其餘照跑),**在寫入目標上是硬失敗**(ADR-017:寫入目標決定不了就該
+硬失敗,程式不猜)。2026-08-29 W3 閘門新增,理由是另外兩個候選都會說謊——`NoWriteTarget` 的
+訊息裡「未指定 `--vault`」「向上找不到 `.aapms`」在這條路徑上都不成立,而 `MarkerUnreadable`
+要在這一層捏造一個 graph-core 的 `StoreError`(違反契約 F「這一層不翻譯」),還會叫使用者去修
+一個沒壞的 marker。訊息要說出真正的下一步:`vault check` / `syncHub` / 重新 `vault add`。
 
 ## 內部模組劃分(Internal Modules)
 
@@ -423,8 +444,9 @@ hubLocation → loadHub → hubTools
 | Location → `aapms-core` | `Sha256`——`thumbCachePath :: HubLocation -> Sha256 -> FilePath` 的第二參數。**2026-08-29 W1 補表** |
 | Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息。另用 `markerDir`——`.aapms` 這個目錄名的唯一真相在 graph-core,本子系統不自己寫一份字面值(**2026-08-29 W2 補列**) |
 | Discovery → Hub | `hubVaults` 取候選清單;`lookupSelector` 是純函式,只吃 `Hub` 值 |
-| Scope → Discovery | `readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
+| Scope → Discovery | `lookupSelector`(selector → `VaultEntry`);`readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
+| Scope → `aapms-store` | `VaultMarker` 的 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子,以及 `Aapms.Store.Schema` 的 `VaultKind` 型別(`resolvePipeline` 的簽名是契約 C 寫死的)。**2026-08-29 W3 補表**——`Types.hs` 對 `VaultMarker` 是裸型別 import(F001 的 L17(d) 釘死),轉不出欄位存取子;`VaultKind` 也不在 Types 的匯出清單裡 |
 | Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔) |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |
 | Projects → Hub | `upsertProject :: ProjectEntry -> Hub -> Hub` / `removeProject :: Id -> Hub -> Hub` + `saveHub`。**2026-08-29 W1 閘門裁決補上**:`Hub` 不外露建構子,Projects 的骨架又只有 `Projects.hs`,沒有這兩個入口它動不了 `[[projects]]`。語意與 vault 那一組同構(以 id 為鍵、追加或就地取代、保序) |
@@ -502,7 +524,7 @@ hubLocation → loadHub → hubTools
 |---|---------|-----------|------|------|-----|
 | 1 | hub-registry | 中樞位置解析、`config.toml` 四段的讀寫與可手寫保留、載入失敗即失敗 | Types、Location、Hub | - | F001-hub-registry.md |
 | 2 | vault-discovery | 向上探測 `.aapms/`、selector 解析、重讀 marker 成 `VaultRef`、不可達降級 | Discovery | #1 | F002-vault-discovery.md |
-| 3 | scope-resolution | `resolveRead` / `resolveWrite` / `resolvePipeline`、`refs` 遞移展開與擋環、保序去重 | Scope | #2 | - |
+| 3 | scope-resolution | `resolveRead` / `resolveWrite` / `resolvePipeline`、`refs` 遞移展開與擋環、保序去重 | Scope | #2 | F003-scope-resolution.md |
 
 ### 階段二:生命週期與本機環境
 
@@ -527,7 +549,7 @@ hubLocation → loadHub → hubTools
   **契約 C / D / E 的全部型別宣告**(`VaultRef` / `ScopeIssue` / `ReadScope` / `WriteScope` /
   `PipelineScope` / `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` / `AdoptNotice` /
   `PurgeReport` / `ToolOrigin` / `ToolStatus`——**只有型別,函式留給後續 feature**);
-  契約 F 全部(`WorkspaceError` 十六個建構子與 `renderWorkspaceError`)
+  契約 F 全部(`WorkspaceError` 十七個建構子與 `renderWorkspaceError`(W3 閘門新增 `WriteTargetIdDrift`))
 - **資料流管線段落**:裁決管線的前兩步(`hubLocation` → `loadHub`),以及生命週期管線的最後一步
   (`saveHub`)
 - **驗收標準**:

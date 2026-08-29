@@ -313,6 +313,11 @@ data WorkspaceError
   | -- | 撞到的 'VaultId'、__中樞裡既有__那個 vault 的路徑、__這次要建立__的路徑
     -- ——兩個路徑都要印,使用者才看得出是不是自己複製了整個 vault 目錄
     VaultIdCollision VaultId FilePath FilePath
+  | -- | 寫入目標已經鎖定到這個 vault(中樞記的 id、它的路徑),但重讀 marker
+    -- 發現實際的 id 不是這個——寫入目標決定不了就該硬失敗,不猜(ADR-017)。
+    -- 讀取路徑上同一件事是 'ScopeIssue.VaultIdDrift' 的降級,不是這裡
+    -- (2026-08-29 W3 閘門新增)
+    WriteTargetIdDrift VaultId FilePath VaultId
   | -- | vault 根目錄、graph-core @readMarker@ 回的原件
     MarkerUnreadable FilePath StoreError
   | -- | selector 在中樞比不到任何 'peId' 或 'peName'
@@ -381,6 +386,15 @@ renderWorkspaceError = \case
       <> pack new
       <> ";這通常是整個 vault 目錄被複製過,請只保留其中一個,"
       <> "或對新的那一份重新執行 vault init"
+  WriteTargetIdDrift registered dir actual ->
+    "寫入目標 "
+      <> pack dir
+      <> " 在中樞裡登記的 id 是 "
+      <> unVaultId registered
+      <> ",但 vault marker 裡實際的 id 是 "
+      <> unVaultId actual
+      <> "(id 已經漂移);寫入目標無法確定,請先執行 vault check 或 syncHub 更新中樞,"
+      <> "或對這個目錄重新執行 vault add"
   MarkerUnreadable root e ->
     pack root <> ": 讀取 vault marker 失敗 —— " <> renderStoreError e <> ";請確認後再試"
   ProjectSelectorNotFound s ->

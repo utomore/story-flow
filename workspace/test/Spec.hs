@@ -3,6 +3,7 @@ module Main (main) where
 import qualified Aapms.Workspace.DiscoverySpec
 import qualified Aapms.Workspace.HubSpec
 import qualified Aapms.Workspace.LocationSpec
+import qualified Aapms.Workspace.ScopeSpec
 import qualified Aapms.Workspace.TypesSpec
 import System.IO
 import Test.Hspec
@@ -17,3 +18,4 @@ main = do
     Aapms.Workspace.LocationSpec.spec
     Aapms.Workspace.HubSpec.spec
     Aapms.Workspace.DiscoverySpec.spec
+    Aapms.Workspace.ScopeSpec.spec

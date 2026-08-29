@@ -138,6 +138,8 @@ data MetaWarning
 -- id 與定址(ADR-014)
 newId      :: IdPrefix -> Text -> UTCTime -> Int -> Id      -- 內容 + 時間 + salt;唯一性由 store 重試保證
 parseId    :: Text -> Either IdError (IdPrefix, Id)
+renderId   :: Id -> Text                                   -- 與 parseId 互為反函數;`<prefix>-<8 hex>`
+                                                           -- 2026-08-29 由 workspace 階段二閘門補進契約
 parseRef   :: Text -> Either IdError Ref
 renderRef  :: Ref -> Text
 prefixOf   :: AnyNode -> IdPrefix

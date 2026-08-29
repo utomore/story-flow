@@ -3,7 +3,7 @@ id: F005
 type: feature
 title: project-registry
 description: "中樞 [[projects]] 的註冊、移除、selector 查詢與 prj- 配號"
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: [F001]

@@ -3,7 +3,7 @@ id: workspace-spec-gaps
 type: spec-gaps
 title: workspace-spec-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: open
+status: resolved
 created: 2026-08-29
 updated: 2026-08-29
 parent: workspace
@@ -66,7 +66,7 @@ parent: workspace
   清單裡,但它沒有真的驗過那個符號的來源。`delegation.md` 第 5 條把「相依性查證:打開原始碼讀
   真實簽名」列為**委派模式下品質的唯一防線**——這次是同一波另外兩個 impl 因為共用 build target
   而在幾分鐘內從外部撞出來的,不是防線自己接住的。
-- **狀態**:open
+- **狀態**:**resolved**(2026-08-29 W4 閘門:spec 已把 `exeExtension` 從 L15(f) 移到 L15(d);編排者三處機械驗證一致——`Tools.hs` 從 `System.Directory` import、spec 的事實 5 與串接介面表已更正、`ToolsSpec` 的白名單斷言對齊,F006 的 34 條全綠)
 
 ## G4(F004 / qa)
 
@@ -76,7 +76,7 @@ parent: workspace
 - **需要 spec 回答什麼**:本機對同名連續呼叫兩次 `initVaultAt` 實測得到**兩個不同 id**
   (`vlt-1c5bcb0f` / `vlt-b8122656`)。請補一個 qa 可用、不需讀 graph-core 內部實作就能
   **確定性重現撞號**的做法,或改變 X18 / X19 的觀察點。
-- **狀態**:open(對應測試以 `pendingWith` 標記,原本寫好的斷言留成註解)
+- **狀態**:**已裁決,待 graph-core 修**(2026-08-29 階段二閘門)。裁決:把 `initVaultAt` 的時間提成明碼參數,與 graph-core 自己的 `allocateId`(G8)一致 → 追蹤於 **`graph-core/enhancements/E002-init-vault-at-explicit-time.md`**,與 B002 同一輪做。修完後本條結案、L18 / L19 / X18 / X19 從 `pendingWith` 轉正式斷言
 
 ## G5(F004 / qa)
 
@@ -91,4 +91,4 @@ parent: workspace
 - **編排者註記**:這條與 F006 的注入接縫是**同一類問題**——契約寫了一個錯誤值,但它在真實環境
   裡幾乎觸發不到,於是那條驗收標準沒有人驗得了(A9 可測性)。差別是 F006 那次能靠加一個明碼參數
   解決,這次牽涉的是 graph-core 的例外行為,選 (b) 等於在 workspace 這層補一道例外邊界。
-- **狀態**:open(對應測試以 `pendingWith` 標記)
+- **狀態**:**已裁決,待 graph-core 修**(2026-08-29 階段二閘門)。裁決:**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`(型別已承諾 `Either StoreError`),不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/bugfixes/B002-init-vault-at-leaks-io-exceptions.md`**,與 E002 同一輪做。修完後本條結案、L44 / X41 從 `pendingWith` 轉正式斷言

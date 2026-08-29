@@ -3,7 +3,7 @@ id: workspace-build
 type: build-log
 title: workspace-build
 description: workspace 六個 feature 的委派展開:中樞、探測、裁決、生命週期、專案、工具
-status: in-progress
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 parent: workspace
@@ -21,7 +21,7 @@ parent: workspace
 | 階段一 | W1 | hub-registry | `d23f24c` | **OK**(11 條路徑全落在 impl 白名單 3 / qa 測試檔 4 / 編排者單線 4) | done(測試 80/0;未結 gap G1) |
 | 階段一 | W2 | vault-discovery | `5b8e104` | **OK**(6 條路徑:spec 文檔 1 / impl 白名單 1 / qa 測試檔 2 / 編排者單線 2) | done(測試 125/0;G2 已 resolved) |
 | 階段一 | W3 | scope-resolution | `86053f6` | **OK**(3 條路徑:impl 白名單 1 / qa 測試檔 2) | done(測試 165/0;無新增 gap) |
-| 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | `901764f` | **OK**(8 條路徑:3 impl 白名單 / 3 qa 測試檔 / 1 spec 文檔 / 1 編排者單線。**未追蹤那一行是空的**——無人自建 private helper 模組) | done(測試 310/0/3 pending;未結 gap G3/G4/G5) |
+| 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | `901764f` | **OK**(8 條路徑:3 impl 白名單 / 3 qa 測試檔 / 1 spec 文檔 / 1 編排者單線。**未追蹤那一行是空的**——無人自建 private helper 模組) | done(測試 310/0/3 pending;G3 resolved,G4/G5 已裁決並轉為 graph-core 的 E002/B002) |
 
 **跨子系統依賴**:`workspace` 只依賴 `graph-core`,而 graph-core 九個 feature 全數 `done`
 (`readMarker` / `initVaultAt` / `markerDir` / `configPath` / `indexDbPath` / `atomicWriteText`
@@ -167,8 +167,49 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 `resolveWriteTarget` / `importLinesOf` 等九個,全部 0 命中)。契約卡的負責模組與實際落地檔案
 逐一相符。
 
-### 階段二
-(待跑)
+### 階段二(2026-08-29 完成)
 
-### 階段二
-(待跑)
+**完成**:F004 / F005 / F006 三個 feature **平行**交付,介面 12/12(7 + 3 + 2),零警告。
+`workspace` 測試 **310 / 0 / 3 pending**;全專案 **1188 / 0 / 3 pending**。**子系統 6/6(100%)**。
+
+**qa 紅綠基線**(`ws-w1` @ `901764f`):**195 綠 / 112 紅 / 3 pending**,逐條對上預測——
+195 = W1–W3 的 176 + F004 的 L42 六條 + F005 的 L17 五條 + F006 的 L15 六條與 `ToolSearchPlan`
+形狀兩條。**三個 feature 的 112 條紅全部真紅,零假綠。** 三個 qa 都獨立回報「我跑的時候看到全綠」
+並聲明不拿來當結論——基線只有在凍結的 checkout 上量得到。
+
+**白名單對帳:8 條路徑全合法,零違規。** 特別是 `git ls-files --others` **回空**:六個平行 agent
+沒有一個為了填本體自建 private helper 模組,而那正是 `git diff` 抓不到的一格。
+
+**仲裁:0 輪。**
+
+**契約裁決**:六條(見「待確認假設彙總」)。契約 F 從 17 → **21** 個建構子,五次新增全部同一個
+判準:**借用既有建構子會讓訊息說出一件假的事**。
+
+**層級門檻**:17 條假設全部正確歸位、12 條自裁全部兩問皆否、**升級篩零命中**(階段一是 52%)。
+
+**arch-audit subsys 發現**:
+
+1. **[中] `renderId` 被消費但不在 graph-core 對外契約**——**第四次**同類。**本次已補**
+2. **[中] 兩條 import 界線 law 被同一失敗模式咬過**(G2 逐字白名單漏 `vmId` 讓 law 無解、
+   G3 白名單歸錯套件)。F006 主動改用**子集合**判準並引用 G2;**F002 的 L18(b) 仍是逐字**,
+   目前綠但同屬脆弱類別——**未處理,列為觀察**
+3. **[低] 測試檔有 `-Wname-shadowing` / `-Wunused-matches`**——未處理
+4. **[資訊] 圖已重繪至 `b2b8e17`**:**無循環依賴**;`workspace → graph-core` 131 條方向單一、
+   反向零;套件內八個模組全部線性、無回頭邊
+
+**平行波次的三個副產物**(序列跑不會出現):
+
+1. F006 的 spec 把 `exeExtension` 誤歸 `filepath` 並列進「實測」清單——由 **F005 與 F004 的 impl**
+   因共用 build target 先後撞出(G3)。相依性查證是委派模式下品質的唯一防線,**這次接住它的是
+   平行本身**
+2. 三個 qa 撞到共用檔邊界時都正確停下:F004 的 qa 需要 binary-safe 的目錄快照
+   (`Fixtures.snapshotTree` 假設 UTF-8,而它的 fixture 有真的 SQLite `index.db`),
+   沒去改禁區,改在自己檔裡加一份
+3. F006 的 spec 主動維持子集合白名單而非逐字,理由**直接引用 F002 的 G2**——subagent 從
+   `spec-gaps.md` 裡別的 feature 的傷學到東西
+
+**未結項目(已裁決,待 graph-core 一輪修)**:`initVaultAt` 的兩個洞,都在它第一次被外部消費時
+才現形——**B002**(讓 `IOException` 逸出,型別在說謊)與 **E002**(時間內部取樣,撞號分支測不到,
+與 graph-core 自己的 `allocateId` G8 裁決不一致)。修完後 workspace 的 G4 / G5 結案,
+F004 的 L18 / L19 / L44 與 X18 / X19 / X41 從 `pendingWith` 轉正式斷言。
+

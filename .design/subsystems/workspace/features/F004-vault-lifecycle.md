@@ -3,7 +3,7 @@ id: F004
 type: feature
 title: vault-lifecycle
 description: "中樞建立、vault 的 init/adopt/add/forget、體檢與回寫、purge 清理"
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: [F001, F002]

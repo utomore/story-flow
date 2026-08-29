@@ -3,7 +3,7 @@ id: F006
 type: feature
 title: machine-tools
 description: "7-Zip 的三層探測([tools] 覆寫 → PATH → 內建候選清單)與 ToolStatus"
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-29
 depends-on: [F001]

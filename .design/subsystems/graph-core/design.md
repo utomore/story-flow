@@ -5,7 +5,7 @@ title: graph-core
 description: 統一片段圖譜核心:型別、註冊表、兩種 Markdown 格式與可丟棄的索引
 status: active
 created: 2026-08-23
-updated: 2026-08-26
+updated: 2026-08-29
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
@@ -105,7 +105,28 @@ data NodeTree = NodeTree { ntNode :: Node, ntChildren :: [NodeTree] }
 -- 任一節點的統一視角:service 與 store 對「不知道是哪種節點」的情境用它
 data AnyNode = NEntity Entity | NAsset Asset | NPack Pack | NLicense License | NLevel Level | NNode Node
 anyMeta :: AnyNode -> Meta
+
+-- 以下四個原本只在別的簽名裡被提到名字,2026-08-29 由 service 的 B2 對帳補成正式契約
+data Timeline = Timeline { tlLabel :: Maybe Text, tlOrder :: Maybe Int }
+data NodeKind = KScene | KCast | KCamera | KInteraction | KDialogue | KBranch   -- 封閉,不進註冊表
+data MetaWarning
+  = MissingRequiredField TypeKey Text      -- 型別鍵、缺少的必填欄位名
+  | LinkNotAllowed       TypeKey Text      -- 型別鍵、不在 allowed_links 內的關聯名
+  | UnknownNodeType      TypeKey           -- 節點的 type 不在註冊表內
+  | NameKindNotAllowed   TypeKey Text      -- 型別鍵、不在 name_kinds 內的命名第一段
 ```
+
+| 型別 / 欄位 | 單位 / 值域 | 語意 |
+|---|---|---|
+| `tlLabel` | `Nothing` = 沒有文字標籤;字串可模糊(「崩塌前後」) | 故事內時間點的人話 |
+| `tlOrder` | `Nothing` = 不參與時序排序;有值時**越小越早**,無單位(純序數) | 排序與時序過濾用 |
+| `Maybe Timeline` 為 `Nothing` | 這個節點**根本沒有時間軸** | 與「有時間軸但兩欄皆空」不同,後者不合法 |
+| `NodeKind` | 六個值,**封閉**(ADR-003:Node 的 kind 是引擎自己的東西,不進型別註冊表) | 場景節點種類 |
+| `MetaWarning` | 四個建構子,**全部只是警告**;`checkMeta` 不決定要不要擋 | 擋不擋是 `service` 的業務政策——`MissingRequiredField` 是唯一被 `service` 升級成拒絕寫入的那一類 |
+
+> `MetaWarning` 原帶「**待確認假設 A1**」(建構子清單由 F001 依 #2 的驗收標準反推)。九個 feature
+> 全數完成後該假設已由實作與測試塑定,2026-08-29 標為**已確認**,並升格為對外契約——`service`
+> 的 `ValidationFailed` 政策直接引用這四個建構子。
 
 `pckArchive = Nothing` 表示散檔目錄(`studio/`、`reference/<topic>/`),此時各 asset 的 `astEntry`
 是相對該目錄的路徑。`astKindMeta` 是 kind 專屬 JSON,`aapms-core` 提供型別化讀取
@@ -364,6 +385,48 @@ allocateId        :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either St
 -- newId 一致(2026-08-25 G8 裁決):藏在函式內部取樣,呼叫端就無法預先造出碰撞,salt 重試
 -- 迴圈也就永遠測不到——而碰撞在正常情況下幾乎不發生,那段程式碼可能永遠是錯的而沒人知道
 ```
+
+**寫入與索引的三個 DTO**(2026-08-29 由 `service` 的 B2 對帳補成正式契約;定義照已交付的實作):
+
+```haskell
+data DeleteMode = DeleteSafe | DeleteForce      -- 被指向時擋下來 / 照刪並回報斷點
+data AssetPatch = AssetPatch                    -- 三態:Nothing 不動、Just Nothing 清空、Just (Just v) 設值
+  { apName :: Maybe (Maybe LogicalName), apLicense :: Maybe (Maybe Ref)
+  , apAuthor :: Maybe (Maybe Text), apTags :: Maybe [Text] }   -- apTags 的 Just [] = 清空
+data IndexIssue
+  = SchemaRebuilt { irOldVersion :: Maybe Int, irNewVersion :: Int }  -- Nothing = 全新索引檔
+  | ParseFailed        FilePath MdError            -- 整檔不進索引
+  | TreeInvalid        FilePath [TreeError]        -- 整檔不進索引
+  | DuplicateAssetName FilePath LogicalName        -- 整個 transaction 回滾,整檔不進索引
+  | MetaWarningsFound  FilePath Id [MetaWarning]   -- 節點正常寫入,只是附帶回報
+```
+
+| 型別 / 欄位 | 單位 / 值域 | 語意 |
+|---|---|---|
+| `DeleteMode` | 兩個值 | `DeleteSafe` 在有節點指向目標時拒絕;`DeleteForce` 照刪,斷掉的關聯進 `DeleteResult.drBrokenLinks` |
+| `AssetPatch` 各欄 | **三態**(見上);`apTags` 只有兩態(`Nothing` 不動、`Just []` 清空) | 少一層 `Maybe` 就分不出「不動」與「清空」 |
+| `apTags` | `tags` 住 `Meta` 而非 asset 專屬表,但它是**人給欄位**,所以與另外三欄走同一條路徑 | — |
+| `IndexIssue` 前四個建構子 | **該檔整檔不進索引** | 呼叫端看到它就知道那個檔的節點這次都不在 |
+| `MetaWarningsFound` | **不擋**:節點正常寫入 | `checkMeta` 的契約是「只回警告,不決定要不要擋」;決定權在 `service` |
+
+**vault 目錄佈局與原子寫入**(2026-08-29 由 `workspace` 的 B2 對帳補上為正式對外契約):
+
+```haskell
+markerDir   :: FilePath -> FilePath        -- <root>/.aapms
+configPath  :: FilePath -> FilePath        -- <root>/.aapms/config.toml
+indexDbPath :: FilePath -> FilePath        -- <root>/.aapms/index.db
+atomicWriteText :: FilePath -> Text -> IO (Either StoreError ())   -- 暫存檔 + rename
+```
+
+| 參數 / 回傳 | 單位 / 值域 | 語意 |
+|---|---|---|
+| 三個 `*Path` 的參數 | vault 根目錄的路徑(絕對或相對,原樣接在前面) | **含** `.aapms/` 的那一層 |
+| 三個 `*Path` 的回傳 | 純字串拼接,**不檢查存在性、不做 IO** | vault 內固定佈局的位置 |
+| `atomicWriteText` 的目標路徑 | 絕對或相對;所在目錄必須已存在 | 要寫的檔 |
+
+這四個原本只在程式碼裡 export、不在本章節。`workspace` 消費它們的理由是 A7:vault 目錄的佈局
+(`.aapms/` 底下有什麼)與「設定檔怎麼安全落地」這兩個事實**屬於本子系統**,`forgetVault --delete-index`
+要刪哪個檔、中樞 `config.toml` 怎麼寫回,都不該由呼叫端自己抄一份路徑拼接與 rename 邏輯。
 
 ### F. 查詢 DTO
 

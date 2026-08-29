@@ -5,8 +5,8 @@ title: aapms
 description: 素材與故事設定共用一份片段圖譜的工作室資產管理工具
 status: active
 created: 2026-08-16
-updated: 2026-08-23
-subsystems: [graph-core]
+updated: 2026-08-29
+subsystems: [graph-core, workspace, service, shell]
 ---
 
 # aapms(Alchbees Asset & Project Management System)系統主架構
@@ -93,7 +93,7 @@ aapms [--vault <名稱|id> | --remote <url>] [--json] <名詞> <動詞> [參數]
 | 名詞 | 動詞(摘要) | 範圍 |
 |---|---|---|
 | `workspace` | `setup` / `doctor` / `tools` / `purge` | 中樞與本機診斷 |
-| `vault` | `init` / `add` / `list` / `info` / `forget` / `check` / `migrate` | vault 生命週期;`migrate` 把舊 `.assetdb/` 或 `.storyflow/` 升成 `.aapms/` |
+| `vault` | `init`(`--adopt`)/ `add` / `list` / `info` / `forget` / `check` | vault 生命週期;`init --adopt` 在既有目錄(含舊 `.assetdb/` / `.storyflow/`)上建 `.aapms/`,舊目錄只報告不刪 |
 | `type` | `list` / `show` | 型別註冊表 |
 | `entity` / `asset` / `pack` / `link` / `level` / `node` | 增刪查改 | 圖譜 CRUD;`asset` 多 `scan` / `thumbs`,`pack` 多 `reorganize` |
 | `search` | — | 全文 + facet,**一次回兩種**(asset 與 entity 都命中) |
@@ -110,14 +110,21 @@ aapms [--vault <名稱|id> | --remote <url>] [--json] <名詞> <動詞> [參數]
 - exit code `0` 成功、`1` 業務或傳輸失敗、`2` 用法錯誤
 - **讀跨、寫單一**:查詢類預設涵蓋全部已註冊 vault(可 `--vault` 收窄),**結果每筆帶來源 vault**;
   寫入類的目標 vault 由 `--vault` 或從當前目錄向上探測 `.aapms/` 決定,兩者都沒有就報錯,程式不猜
-- 會改狀態的動作預設只預覽,`--confirm` 才寫入;不可逆操作另需獨立旗標
+- **批次與管線類**的動作(`cluster apply` / `ai apply` / `pack reorganize` / `project sync`)預設只預覽,
+  `--confirm` 才寫入;不可逆操作另需獨立旗標。**單筆 CRUD 不走這條**——它已經由必填的
+  `expected revision` 與明給的參數擋著,再加一道確認只是噪音(2026-08-29 校正:原文寫「會改狀態的
+  動作」過寬,與 legacy 兩邊的實際做法都不符)。「預覽還是寫入」是**業務判斷**,由該操作自己收一個
+  模式參數,不是 `shell` 的分支
 - `--remote` 時改走 HTTP,行為與內嵌模式一致(同一份 servant 型別);**重管線指令在遠端模式下
   以用法錯誤拒絕**(見第 2 點)
 - 非 `--json` 模式的輸出開頭顯示作用中的 vault
 
 ### 2. HTTP(`aapms-serve`)
 
-綁 `127.0.0.1:8787`,無身分驗證,開放非回送介面印警告。`--openapi` 輸出 OpenAPI 3。
+預設綁 `127.0.0.1:8787`。**loopback 模式 token 選配**(設了才驗證);**綁非回送位址時強制要求
+token,沒設就拒絕啟動**——不是印警告(2026-08-29 校正:本節原文寫「開放非回送介面印警告」,
+與 ADR-006 的收緊條款不符,以 ADR-006 為準:警告會被忽略,而「整個 vault 暴露在區域網路上」
+不是靠使用者留意就能緩解的後果)。token 比較用定時比較。`--openapi` 輸出 OpenAPI 3。
 
 暴露的是**圖譜與判斷**:vault 清單、型別、entity / asset / pack / link / level / node 的 CRUD、
 search、context / conflict、workshop、project、`/thumb/<sha256>`(讀內容定址快取,`immutable`
@@ -131,6 +138,11 @@ search、context / conflict、workshop、project、`/thumb/<sha256>`(讀內容�
 ### 3. MCP(`aapms-mcp`)
 
 stdio adapter;tools 與 REST 契約同源(依同一份 servant 型別映射),不另立一套。
+
+**雙模式**(2026-08-29 裁決):**預設內嵌**——AI Agent 直接把 `aapms-mcp` 當子行程 spawn 就能用,
+不必先開 `aapms-serve`;給 `--url` 才改走遠端。與 CLI 共用同一個 `Backend` 抽象(住 `aapms-backend`),
+所以兩種模式的回傳由型別保證一致。tool 名 snake_case、**不帶產品前綴**(legacy 的 `story_flow_*` 退場)。
+暴露的 tool 集合 = REST 路由集合,REST 沒有的 MCP 也沒有。
 
 ### 4. Vault 檔案
 
@@ -185,10 +197,21 @@ path = "C:/Users/User/Documents/alchbees-assets"
 id   = "prj-91c0aa12"
 name = "Circle"
 path = "D:/games/Circle"
+
+[llm]                          # 地端端點,per-machine 不是 per-vault(2026-08-29)
+base_url = "http://127.0.0.1:8080/v1"
+model    = "qwen2.5-7b-instruct"
+
+[tools]                        # 外部工具的位置覆寫;缺席代表「去探測」,不是「沒有」
+seven_zip = "C:/Program Files/7-Zip/7z.exe"
 ```
 
 鍵是 **id,不是名稱也不是路徑**:搬動 vault 只改 `path`,身分與關聯不失聯。`vault init` /
 `vault add` / `project new` 是僅有的寫入點,只追加,保住「可手寫」。
+
+`[[vaults]]` 的 `name` / `kind` 是各 vault marker 的**快取**,marker 才是真相;不一致由
+`vault check` 報告、`workspace doctor` 修。`[llm]` 那張表由 `workspace` 原樣捧著、**不解讀**,
+鍵與語意屬 `ai` 子系統。
 
 ## 子系統劃分(Subsystems & Bounded Contexts)
 
@@ -213,24 +236,34 @@ path = "D:/games/Circle"
   Manifest / Types)+ `store`(Schema / Search / Tokenize)。assetdb 的 Migrate 與 `notes` / `links`
   表**不移植**
 
-#### `workspace` 全局中樞
+#### `workspace` 全局中樞 · [`subsystems/workspace/design.md`](./subsystems/workspace/design.md)
 
-- **定位**:工具自己的狀態——這台機器有哪些 vault 與專案、它們在哪、怎麼納管與移除
-- **涵蓋**:`aapms-workspace`(刻意輕量:只依賴 `aapms-core` 與 TOML 解析)
+- **定位**:工具自己的狀態——這台機器有哪些 vault 與專案、它們在哪、外部工具在不在、怎麼納管與移除
+- **涵蓋**:`aapms-workspace`(依賴 `aapms-core`、`aapms-store` 與 TOML 解析;**不依賴 `service`
+  以上的任何套件**)
 - **職責**:中樞註冊表讀寫;vault 探測(`--vault` → 註冊表、否則向上找 `.aapms/`);
-  `setup` / `init` / `add` / `forget` / `purge` 生命週期;`migrate` 舊 marker;解析「這次指令對哪些
-  vault 生效」(讀跨寫單一的裁決點);全局縮圖快取的位置
-- **對外介面**:「目前作用的 vault 集合」與「中樞設定」兩個查詢,加上生命週期操作
-- **不負責**:vault 裡面裝什麼——它只認 marker,不讀索引內容
+  `setup` / `init`(含 `--adopt`)/ `add` / `forget` / `check` / `purge` 生命週期;解析「這次指令對哪些
+  vault 生效」(讀跨寫單一的裁決點);本機設定(`[llm]` 原樣捧出、`[tools]`)與外部工具探測;
+  全局縮圖快取的位置
+- **對外介面**:「目前作用的 vault 集合」「中樞設定」「本機工具狀態」三組查詢,加上生命週期操作
+- **不負責**:vault 裡面裝什麼——它只認 marker,不讀索引內容,也不開索引連線;`[llm]` 那張表的
+  鍵與語意屬 `ai`
 - **來源**:story-flow `Store.Vault` 的探測與註冊表 + assetdb ADR-011 / ADR-012 的設計(原本
   未實作)
 
+> **2026-08-29 修訂**:本節原寫 `aapms-workspace`「刻意輕量:只依賴 `aapms-core` 與 TOML 解析」,
+> 與同一節的「vault 探測」「讀跨寫單一的裁決點」互斥——vault 身分住在 `.aapms/config.toml`,而
+> 讀它的 `readMarker` 已交付於 `aapms-store`。裁決是讓 workspace 依賴 `aapms-store`,裁決點整段
+> 留在 workspace,graph-core 不動。原句的理由(legacy assetdb 的「server 只准依賴 core + store」)
+> 在 aapms 已不存在。同時 `vault migrate` 收成 `vault init --adopt`(P2 匯出器已放棄,見開發階段表),
+> 本機 `[llm]` 與外部工具設定移入中樞。細節見 `subsystems/workspace/design.md`。
+
 ### 契約
 
-#### `service` 業務契約
+#### `service` 業務契約 · [`subsystems/service/design.md`](./subsystems/service/design.md)
 
 - **定位**:所有業務操作的唯一定義處
-- **涵蓋**:`aapms-service`
+- **涵蓋**:`aapms-service`(依賴 `graph-core` 與 `workspace`)
 - **職責**:以 `ServiceM` 定義 vault / entity / asset / pack / link / level / node / search /
   index / project 註冊的全部操作;錯誤語彙(`code` + 繁中 `message`)的單一來源;樂觀鎖的執行點
 - **對外介面**:`ServiceM` 的業務函式。`shell` 的三個殼與四個領域子系統都只認它
@@ -238,6 +271,12 @@ path = "D:/games/Circle"
   `CabalSpec` 逐字斷言
 - **來源**:story-flow `service`,擴編吸收 assetdb 原本住在 CLI 裡的 ~1,200 行編排邏輯
   (`Ai` / `Cluster` / `Doctor` / `Project` 的業務部分)
+
+> **2026-08-29 補充**:`doctor` 的歸屬在此定案為 `service` 的 `workspaceDoctor`——它組合的全部
+> 來自 `workspace` 與 `graph-core`,不 import 任何領域子系統。這是 `[tools]` 與 `[llm]` 住中樞
+> 的直接後果:否則「彙總這台機器的狀態」在現行拓撲下無處可放(`service` 不能認識領域、`shell`
+> 零業務邏輯)。`Ai` / `Cluster` / `Project` 的編排則留在各自的領域子系統,由那幾次
+> `/subsys-design` 定案。
 
 ### 領域
 
@@ -287,10 +326,13 @@ path = "D:/games/Circle"
 
 ### 外殼
 
-#### `shell` 介面外殼
+#### `shell` 介面外殼 · [`subsystems/shell/design.md`](./subsystems/shell/design.md)
 
 - **定位**:三個殼、零業務邏輯。唯一負責「八個領域如何呈現成一致的一組指令」的地方
-- **涵蓋**:`aapms-api`(只有 servant 型別與 `ToSchema`)、`aapms-cli`、`aapms-server`、`aapms-mcp`
+- **涵蓋**:`aapms-api`(只有 servant 型別與 `ToSchema`)、`aapms-backend`(內嵌 / 遠端的分派抽象)、
+  `aapms-cli`、`aapms-server`、`aapms-mcp`。**五個套件**(2026-08-29:`aapms-backend` 是
+  「MCP 也走雙模式」的直接後果——`Backend` 需要 `servant-client` 與 `aapms-service`,住不進
+  只有型別的 `aapms-api`,而讓 `aapms-mcp` 依賴 `aapms-cli` 會把 optparse 整套拖進去)
 - **職責**:參數解析;統一信封、exit code、錯誤格式;`--vault` / `--remote` 解析;OpenAPI;
   MCP tool 映射;人類可讀輸出的編碼(`hSetEncoding` + Windows console code page)
 - **對外介面**:本文件「系統對外介面」節的 1–3
@@ -306,8 +348,12 @@ path = "D:/games/Circle"
 **依賴順序**(箭頭 = 認識):
 
 ```text
-graph-core · workspace  ◄──  service  ◄──  asset-ingest · conflict · ai · project  ◄──  shell
+graph-core  ◄──  workspace  ◄──  service  ◄──  asset-ingest · conflict · ai · project  ◄──  shell
 ```
+
+**地基內部有一條邊**(2026-08-29 明畫):`workspace → graph-core`。workspace 用 `aapms-store` 的
+`readMarker` / `initVaultAt` 取 vault 的權威身分,用 `markerDir` / `configPath` / `indexDbPath` /
+`atomicWriteText` 取 vault 目錄佈局與原子寫入;反向沒有邊——graph-core 不知道 `--vault`、不讀中樞。
 
 四條硬規則,全部由 `CabalSpec` 以逐字清單釘住(黑名單只擋得住想得到的名字):
 
@@ -318,6 +364,12 @@ graph-core · workspace  ◄──  service  ◄──  asset-ingest · conflict
    不該背影像解碼函式庫;縮圖端點讀掃描時產生的快取。這條取代 assetdb 原本的「server 只准依賴
    core + store」,在新架構下後者太緊(server 本來就要 `conflict` 與 `llm`,那兩個很輕)
 4. **遊戲本體的相依面只有 `aapms-core`**:它零 IO、零重量級相依,`Assets.hs` 只 import 它
+
+`shell` 內部另有兩條建議由 `CabalSpec` 釘住的邊(2026-08-29,已對 `.cabal` 現況查證):
+`aapms-api` **不得**依賴 `servant-server` / `servant-client` / `warp`——它是三個消費端共用的契約
+(它**依賴** `aapms-service` 與有 REST 出口的領域套件是必要的:路由型別要引用那裡的 View 與請求型別);
+`aapms-cli` / `aapms-server` / `aapms-mcp` **不得**直接依賴 `aapms-store` 或 `aapms-workspace`
+——一律經 `service`,否則「殼零業務邏輯」就只剩口號。
 
 **領域之間的橫向相依只有一條**:`conflict` 第 3 層用 `ai` 的 LLM 門面。介面相依,不是層級倒轉;
 `ai` 反過來不認識 `conflict`。`project` 不認識 `asset-ingest`——它需要的「從壓縮檔取單筆」住在
@@ -567,16 +619,17 @@ migration 機制在真相落成檔案後失去存在理由。內部表結構屬 
 
 ## 開發階段
 
-每期結束都是可建置狀態;P3 起每期結束都是可交付狀態。真實資料(`alchbees-assets`)在 P2 就進來,
-schema 還改得動的時候拿真資料驗證。
+每期結束都是可建置狀態;P3 起每期結束都是可交付狀態。真實資料(`alchbees-assets`)在 **P3** 由
+`vault init --adopt` 納管、**P4** 由 `asset scan` 從壓縮檔重建——原本安排在 P2 的一次性匯出器已取消
+(理由見該列)。
 
 | 期 | 內容 | 交付判準 |
 |---|---|---|
 | **P0** 讓名與合樹 | `utomore/aapms` 改名封存為 `assetdb-legacy`;`utomore/story-flow` 改名 `aapms`;assetdb 程式碼以保留歷史的方式併入;全樹改 `Aapms.*` 與 `aapms-*`;搬入 assetdb 的四份純技術 ADR;**契約層測試先立起來**(CLI 信封 / exit code / Markdown roundtrip / index rebuild 等價,不依賴內部型別) | `cabal build all` 綠;契約測試綠;零邏輯改動 |
 | **P1** graph-core | 統一 `Meta` 與短 id;註冊表 `family`;pack Markdown 解析與寫回;一份 schema;FTS5 雙索引;跨 vault `ATTACH` | `rm index.db` → rebuild 兩種 vault 都等價;「藥水」搜得到;`aapms-core` 零重量級相依 |
-| **P2** 真資料進場 | **一次性匯出器**:讀舊 `assetdb.sqlite` → 對每個 pack 產 `pack.md`(重發短 id,帶命名 / 標籤 / 分類 / 授權 / AI 標註);sha256 與 85 MB 縮圖沿用,不重讀 3.2 GB;`vault migrate` | 6,783 筆資源、1,653 筆命名零遺失;匯出後 rebuild 與舊 DB 對帳一致;匯出器隨即從 `cabal.project` 移除 |
-| **P3** 骨幹 | `workspace` + `service` + `shell`(CLI / HTTP / MCP 同期,同一份 servant 型別);舊 marker 探測;`doctor` 合一 | 兩種 vault 都能經統一外殼 CRUD、search 一次回兩種;`--remote` 行為一致;OpenAPI 輸出 |
-| **P4** 素材管線 | `asset-ingest` 移植:pack 身分改 sha256、orphan 反向對帳、掃描寫 pack.md 不覆寫人給欄位;縮圖到全局快取;cluster / reorganize | 搬動與刪除 pack 不留幽靈;`asset scan` 對真 vault 與 P2 匯出結果等價 |
+| ~~**P2** 真資料進場~~ | **取消**(2026-08-29)。原內容是一次性匯出器,讀舊 `assetdb.sqlite` 產 `pack.md`。逐欄查證後推翻前提:`asset_tags`(76,189)與 `asset_categories`(11,538)`source` **100% `inferred`**、1,653 筆 `logical_name` 全部由 `name_clusters` 的 6 條規則展開,人真正寫的只有約 350 行(授權判讀、pack notes、採購欄位、命名規則),而那些都重建得回來。舊庫不刪,**不匯出 ≠ 丟掉**,決定可逆 | — |
+| **P3** 骨幹 | `workspace` + `service` + `shell`(CLI / HTTP / MCP 同期,同一份 servant 型別);`vault init --adopt` 納管既有 `alchbees-assets` 目錄;`doctor` 合一 | 兩種 vault 都能經統一外殼 CRUD、search 一次回兩種;`--remote` 行為一致;OpenAPI 輸出 |
+| **P4** 素材管線 | `asset-ingest` 移植:pack 身分改 sha256、orphan 反向對帳、掃描寫 pack.md 不覆寫人給欄位;縮圖到全局快取;cluster / reorganize | 搬動與刪除 pack 不留幽靈;`asset scan` 對真 vault(27 個 pack、6,783 筆資源)跑得完,`rm index.db` → rebuild 等價 |
 | **P5** 智慧 | `conflict` 接統一索引;`ai`:LLM 客戶端合一、GBNF、素材標註走暫存表、workshop | 衝突偵測候選集含 asset;`ai classify` 與 `workshop` 共用端點 |
 | **P6** 連動 | `project`:Level → Entity → Asset 連動;`story/manifest.json`;manifest **一次升 schema 2**;授權閘門 | 「建專案 → 挑 Level → 自動帶素材 → 擋授權」一條龍 |
 | **P7** 收尾 | web 前端接回新 API;`types.ts` 漂移測試;發佈 zip;`docs/` 與 README 改寫 | 縮圖瀏覽可用;從乾淨機器跑 `aapms workspace setup` 到 `project new` |

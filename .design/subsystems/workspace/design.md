@@ -329,8 +329,17 @@ renderWorkspaceError :: WorkspaceError -> Text
 的型別(`VaultId` / `Id` / `Sha256` / `VaultKind` / `VaultMarker` / `StoreError`),但**不得 import
 本套件的任何其他模組**。其餘七個模組全部往 Types 依賴,型別歸屬圖因此是一棵樹。
 
-`WorkspaceError` 是本套件的唯一錯誤型別,由各 feature 依需要**擴充建構子**,不得另立平行的錯誤
-型別再橋接——多一個型別就是多一套 `render*` 與多一次翻譯,`service` 也會看到兩種形狀。
+`WorkspaceError` 是本套件的唯一錯誤型別,不得另立平行的錯誤型別再橋接——多一個型別就是多一套
+`render*` 與多一次翻譯,`service` 也會看到兩種形狀。
+
+**Types 一次寫齊,不由各 feature 逐波擴充**(2026-08-29,`/subsys-build` 排波次時定案):契約 A–F
+的型別與 `WorkspaceError` 的**全部建構子**、`renderWorkspaceError` 的全部訊息,都在第一個 feature
+一次寫完。理由是階段二的三個 feature 平行執行,若各自往 `Types.hs` 加建構子,那是同一個檔案的
+併發寫入——互蓋當下不會有任何錯誤訊息。契約 F 本來就把建構子列全了,一次寫齊只是照抄契約。
+
+**本套件不設門面模組**(沒有 `Aapms.Workspace`):七個模組全部 `exposed`,界線由 `.cabal` 的
+`exposed-modules` 守(與 graph-core E001「內部模組界線改由 cabal 守」同一個做法),消費端直接
+import 需要的那一個。門面在 `aapms-store` 成立是因為它有一半模組刻意不外露,這裡沒有那個問題。
 
 ## 資料流管線(Data Flow Pipeline)
 
@@ -473,11 +482,14 @@ hubLocation → loadHub → hubTools
 ### hub-registry
 
 - **階段**:階段一
-- **負責模組**:Types(建立骨架,後續 feature 各自擴充建構子)、Location、Hub
+- **負責模組**:Types(**一次寫齊**契約 A–F 的全部型別與 `WorkspaceError` 的全部建構子)、Location、Hub
 - **實作的 Level 2 介面**:契約 A 全部(`HubLocation` / `HubSource` / `Hub` / `hubLocation` /
   `loadHub` / `saveHub`);契約 B 的 `VaultEntry` / `ProjectEntry` / `LlmSection` / `ToolsConfig` /
   `hubVaults` / `hubProjects` / `hubLlm` / `hubTools` / `thumbCacheDir` / `thumbCachePath`;
-  契約 F 的 `HubNotFound` / `HubUnreadable` / `HubMalformed` / `HubWriteFailed`
+  **契約 C / D / E 的全部型別宣告**(`VaultRef` / `ScopeIssue` / `ReadScope` / `WriteScope` /
+  `PipelineScope` / `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` / `AdoptNotice` /
+  `PurgeReport` / `ToolOrigin` / `ToolStatus`——**只有型別,函式留給後續 feature**);
+  契約 F 全部(`WorkspaceError` 十五個建構子與 `renderWorkspaceError`)
 - **資料流管線段落**:裁決管線的前兩步(`hubLocation` → `loadHub`),以及生命週期管線的最後一步
   (`saveHub`)
 - **驗收標準**:
@@ -495,8 +507,13 @@ hubLocation → loadHub → hubTools
     觀察點:契約 B 的 `hubLlm`
   - `thumbCachePath loc (Sha256 h)` 的結果一律是 `<hlPath>/cache/thumbs/<take 2 h>/<h>.png`,而且
     以 `thumbCacheDir loc` 為前綴 — 觀察點:契約 B 的 `thumbCachePath` / `thumbCacheDir`
+  - `renderWorkspaceError` 對 `WorkspaceError` 的**每一個**建構子都回一段非空的繁中訊息,且訊息
+    含該建構子攜帶的路徑 / 名稱 / id(契約 F 逐條規定的那些值) — 觀察點:契約 F 的
+    `renderWorkspaceError`
 - **明確不做**:不建立任何目錄或檔案(那是 `setupHub`,#4);不解讀 `[llm]` 的任何鍵;
-  不驗證 `vePath` 指的目錄真的存在(那是 #2 的重讀 marker)
+  不驗證 `vePath` 指的目錄真的存在(那是 #2 的重讀 marker);**契約 C / D / E 的函式完全不在本
+  feature**——它們住在 Discovery / Scope / Lifecycle / Projects / Tools,那幾個模組由各自的 feature
+  建立,本 feature 只把它們會用到的**型別**一次宣告到位
 
 ### vault-discovery
 

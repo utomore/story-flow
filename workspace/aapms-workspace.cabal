@@ -1,0 +1,68 @@
+cabal-version:      3.4
+name:               aapms-workspace
+version:            0.1.0.0
+synopsis:           aapms 的全局中樞:vault 註冊表、探測與作用範圍裁決
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+-- 本套件不設門面模組(沒有 Aapms.Workspace):七個模組全部 exposed,
+-- 界線由 exposed-modules 守(同 graph-core E001)。消費端直接 import 需要的那一個。
+--
+-- exposed-modules 與 test-suite 的 other-modules 由 /subsys-build 的編排者單線維護
+-- (見 .design/subsystems/workspace/build-log.md 的 D2),不屬任何 feature 的寫入白名單。
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Workspace.Types
+        Aapms.Workspace.Location
+        Aapms.Workspace.Hub
+    build-depends:
+        , base          >=4.14 && <5
+        , containers
+        , directory
+        , filepath
+        , text
+        , time
+        , toml-reader
+        , aapms-core
+        , aapms-store
+
+test-suite aapms-workspace-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   src test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Workspace.Types
+        Aapms.Workspace.Location
+        Aapms.Workspace.Hub
+    build-depends:
+        , base
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , hedgehog
+        , hspec-hedgehog
+        , temporary
+        , text
+        , time
+        , toml-reader
+        , aapms-core
+        , aapms-store

@@ -36,22 +36,43 @@ module Aapms.Workspace.Lifecycle
   , syncHub
   ) where
 
+import Control.Exception (IOException, try)
+import Control.Monad (filterM)
+import Data.List (find)
 import Data.Text (Text)
+import qualified Data.Text as T
 
+import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, markerDir, readMarker)
 import Aapms.Store.Schema (VaultKind)
+import Aapms.Workspace.Discovery (lookupSelector, readVaultRef, readVaultRefAt)
+import Aapms.Workspace.Hub (hubVaults, removeVault, saveHub, upsertVault)
+import Aapms.Workspace.Location (configPath, thumbCacheDir)
 import Aapms.Workspace.Types
-  ( AdoptNotice
-  , DeleteIndex
+  ( AdoptNotice (..)
+  , DeleteIndex (..)
   , Hub
-  , HubLocation
-  , InitMode
-  , PurgeReport
-  , PurgeScope
+  , HubLocation (..)
+  , InitMode (..)
+  , PurgeReport (..)
+  , PurgeScope (..)
   , ScopeIssue
-  , SetupReport
-  , VaultEntry
-  , WorkspaceError
+  , SetupReport (..)
+  , ToolsConfig (..)
+  , VaultEntry (..)
+  , VaultRef (vrMarker)
+  , WorkspaceError (..)
+  , mkHub
   )
+import System.Directory
+  ( canonicalizePath
+  , createDirectoryIfMissing
+  , doesDirectoryExist
+  , doesFileExist
+  , listDirectory
+  , removeFile
+  , removePathForcibly
+  )
+import System.FilePath ((</>))
 
 -- 中樞的建立 -------------------------------------------------------------------
 
@@ -72,7 +93,29 @@ import Aapms.Workspace.Types
 -- 落地失敗(目錄建不出來、檔案寫不進去)一律回
 -- @Left ('Aapms.Workspace.Types.HubWriteFailed' 失敗的那個路徑 原因)@。
 setupHub :: HubLocation -> IO (Either WorkspaceError SetupReport)
-setupHub = undefined
+setupHub loc = do
+  let fp = configPath loc
+      td = thumbCacheDir loc
+      hp = hlPath loc
+  hubExisted <- doesFileExist fp
+  cacheExisted <- doesDirectoryExist td
+  result <-
+    chainE
+      [ if hubExisted
+          then pure (Right ())
+          else do
+            mkR <- tryIO hp (createDirectoryIfMissing True hp)
+            case mkR of
+              Left e -> pure (Left e)
+              Right () -> saveHub loc (mkHub [] [] Nothing (ToolsConfig Nothing) "")
+      , if cacheExisted
+          then pure (Right ())
+          else tryIO td (createDirectoryIfMissing True td)
+      ]
+  pure $
+    fmap
+      (const (SetupReport hp (not hubExisted) (not cacheExisted)))
+      result
 
 -- vault 的建立與納管 -----------------------------------------------------------
 
@@ -109,7 +152,49 @@ initVault
   -> Text
   -> InitMode
   -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
-initVault = undefined
+initVault loc hub dir kind name mode
+  | T.null (T.strip name) = pure (Left (InvalidName name))
+  | otherwise = do
+      dir' <- canonicalizePath dir
+      occupied <- pathExists (markerDir dir')
+      if occupied
+        then pure (Left (VaultAlreadyInitialized dir'))
+        else do
+          modeCheck <- case mode of
+            FreshVault -> do
+              exists <- doesDirectoryExist dir'
+              if not exists
+                then pure (Right ())
+                else do
+                  contents <- listDirectory dir'
+                  pure $
+                    if null contents
+                      then Right ()
+                      else Left (VaultDirNotEmpty dir')
+            AdoptExisting -> do
+              exists <- doesDirectoryExist dir'
+              pure $ if exists then Right () else Left (VaultDirMissing dir')
+          case modeCheck of
+            Left e -> pure (Left e)
+            Right () -> do
+              initR <- initVaultAt dir' kind (T.strip name)
+              case initR of
+                Left err -> do
+                  removePathForcibly (markerDir dir')
+                  pure (Left (VaultInitFailed dir' err))
+                Right m -> case find ((== vmId m) . veId) (hubVaults hub) of
+                  Just existing -> do
+                    removePathForcibly (markerDir dir')
+                    pure (Left (VaultIdCollision (vmId m) (vePath existing) dir'))
+                  Nothing -> do
+                    let legacyCandidates = [dir' </> n | n <- [".assetdb", ".storyflow"]]
+                    legacyMarkers <- filterM doesDirectoryExist legacyCandidates
+                    let entry = VaultEntry (vmId m) (vmName m) (vmKind m) dir'
+                        hub' = upsertVault entry hub
+                    saveR <- saveHub loc hub'
+                    pure $ case saveR of
+                      Left e -> Left e
+                      Right () -> Right (hub', entry, AdoptNotice legacyMarkers)
 
 -- | 把一個__已經是 vault__ 的目錄納管進中樞(該目錄必須已有 @.aapms\/@)。
 --
@@ -127,7 +212,19 @@ addVault
   -> Hub
   -> FilePath
   -> IO (Either WorkspaceError (Hub, VaultEntry))
-addVault = undefined
+addVault loc hub dir = do
+  dir' <- canonicalizePath dir
+  refR <- readVaultRefAt hub dir'
+  case refR of
+    Left e -> pure (Left e)
+    Right ref -> do
+      let m = vrMarker ref
+          entry = VaultEntry (vmId m) (vmName m) (vmKind m) dir'
+          hub' = upsertVault entry hub
+      saveR <- saveHub loc hub'
+      pure $ case saveR of
+        Left e -> Left e
+        Right () -> Right (hub', entry)
 
 -- 撤除 -------------------------------------------------------------------------
 
@@ -149,7 +246,27 @@ forgetVault
   -> Text
   -> DeleteIndex
   -> IO (Either WorkspaceError (Hub, VaultEntry))
-forgetVault = undefined
+forgetVault loc hub sel di =
+  case lookupSelector hub sel of
+    Left e -> pure (Left e)
+    Right entry -> do
+      identityR <- case di of
+        KeepIndex -> pure (Right ())
+        DeleteIndex -> verifyDeleteTarget entry
+      case identityR of
+        Left err -> pure (Left err)
+        Right () -> do
+          let hub' = removeVault (veId entry) hub
+          saveR <- saveHub loc hub'
+          case saveR of
+            Left err -> pure (Left err)
+            Right () -> do
+              deleteR <- case di of
+                KeepIndex -> pure (Right ())
+                DeleteIndex -> removeFileIfExists (indexDbPath (vePath entry))
+              pure $ case deleteR of
+                Left err -> Left err
+                Right () -> Right (hub', entry)
 
 -- | 清理中樞與(可選)各 vault 的索引。
 --
@@ -170,7 +287,31 @@ purge
   -> Hub
   -> PurgeScope
   -> IO (Either WorkspaceError PurgeReport)
-purge = undefined
+purge loc hub scope = do
+  let fp = configPath loc
+      td = thumbCacheDir loc
+  driftCheck <- case scope of
+    PurgeHubOnly -> pure (Right ())
+    PurgeAllVaults -> verifyAllDeleteTargets (hubVaults hub)
+  case driftCheck of
+    Left e -> pure (Left e)
+    Right () -> do
+      hubExisted <- doesFileExist fp
+      hubR <- removeFileIfExists fp
+      case hubR of
+        Left e -> pure (Left e)
+        Right () -> do
+          thumbCount <- countFiles td
+          thumbR <- removeTreeForcibly td
+          case thumbR of
+            Left e -> pure (Left e)
+            Right () -> do
+              indexesR <- case scope of
+                PurgeHubOnly -> pure (Right [])
+                PurgeAllVaults -> removeExistingIndexes (hubVaults hub)
+              pure $ case indexesR of
+                Left e -> Left e
+                Right indexes -> Right (PurgeReport hubExisted thumbCount indexes)
 
 -- 體檢與回寫 -------------------------------------------------------------------
 
@@ -185,7 +326,9 @@ purge = undefined
 -- __不是__ 'Aapms.Workspace.Types.ScopeIssue' 的任何一個建構子,它由 'syncHub'
 -- 直接修掉。
 checkVaults :: Hub -> IO [ScopeIssue]
-checkVaults = undefined
+checkVaults hub = do
+  results <- mapM (\e -> readVaultRef e (vePath e)) (hubVaults hub)
+  pure [issue | Left issue <- results]
 
 -- | 把__修得掉__的漂移(@veName@ \/ @veKind@ 與 marker 不符)回寫中樞;修不掉的
 -- (路徑不見、marker 壞、id 漂移)原樣回傳。
@@ -198,4 +341,104 @@ checkVaults = undefined
 -- __不會__把中樞的值寫進 marker,也不動 @veId@ 與 @vePath@。沒有任何一列需要
 -- 修正時__不寫檔案__。
 syncHub :: HubLocation -> Hub -> IO (Either WorkspaceError (Hub, [ScopeIssue]))
-syncHub = undefined
+syncHub loc hub = do
+  results <- mapM (\e -> (,) e <$> readVaultRef e (vePath e)) (hubVaults hub)
+  let issues = [issue | (_, Left issue) <- results]
+      fixes =
+        [ e {veName = vmName m, veKind = vmKind m}
+        | (e, Right ref) <- results
+        , let m = vrMarker ref
+        , vmName m /= veName e || vmKind m /= veKind e
+        ]
+  if null fixes
+    then pure (Right (hub, issues))
+    else do
+      let hub' = foldr upsertVault hub fixes
+      saveR <- saveHub loc hub'
+      pure $ case saveR of
+        Left e -> Left e
+        Right () -> Right (hub', issues)
+
+-- 私有 helper ------------------------------------------------------------------
+
+-- | 路徑存在,不論是目錄還是普通檔案。
+pathExists :: FilePath -> IO Bool
+pathExists fp = do
+  isFile <- doesFileExist fp
+  if isFile then pure True else doesDirectoryExist fp
+
+-- | 把可能拋出 'IOException' 的動作包成 'HubWriteFailed'(T11:讓七個函式對同一種
+-- 落地失敗給出同一個建構子)。
+tryIO :: FilePath -> IO a -> IO (Either WorkspaceError a)
+tryIO fp act = do
+  r <- try act
+  pure $ case r of
+    Left e -> Left (HubWriteFailed fp (T.pack (show (e :: IOException))))
+    Right v -> Right v
+
+-- | 依序執行一串會失敗的動作,遇到第一個 'Left' 就停。
+chainE :: [IO (Either WorkspaceError ())] -> IO (Either WorkspaceError ())
+chainE [] = pure (Right ())
+chainE (a : as) = do
+  r <- a
+  case r of
+    Left e -> pure (Left e)
+    Right () -> chainE as
+
+-- | 存在才刪(檔案),不存在就跳過、不報錯;刪除本身的 IO 失敗包成 'HubWriteFailed'。
+removeFileIfExists :: FilePath -> IO (Either WorkspaceError ())
+removeFileIfExists fp = do
+  exists <- doesFileExist fp
+  if exists then tryIO fp (removeFile fp) else pure (Right ())
+
+-- | 遞迴刪除整棵樹;@directory@ 的 'removePathForcibly' 本身對不存在的路徑就是
+-- 「什麼都不做」,這裡只補上 IO 失敗轉換成 'HubWriteFailed'。
+removeTreeForcibly :: FilePath -> IO (Either WorkspaceError ())
+removeTreeForcibly fp = tryIO fp (removePathForcibly fp)
+
+-- | 遞迴數某個目錄樹底下的檔案總數(不含目錄本身);目錄不存在回 0。
+countFiles :: FilePath -> IO Int
+countFiles dir = do
+  exists <- doesDirectoryExist dir
+  if not exists
+    then pure 0
+    else do
+      names <- listDirectory dir
+      counts <- mapM countEntry names
+      pure (sum counts)
+  where
+    countEntry name = do
+      let p = dir </> name
+      isDir <- doesDirectoryExist p
+      if isDir then countFiles p else pure 1
+
+-- | 刪索引前的身分驗證(W4 裁決 B):讀不到就通過(照刪);讀得到但 id 與中樞
+-- 那一列不符就拒絕。
+verifyDeleteTarget :: VaultEntry -> IO (Either WorkspaceError ())
+verifyDeleteTarget e = do
+  mr <- readMarker (vePath e)
+  pure $ case mr of
+    Left _ -> Right ()
+    Right m
+      | vmId m == veId e -> Right ()
+      | otherwise -> Left (DeleteTargetIdDrift (veId e) (vePath e) (vmId m))
+
+-- | 對整批 vault 逐一驗身分,全部通過才回 'Right'——'purge' 的
+-- @'PurgeAllVaults'@ 靠它做到「全有或全無」:此刻還沒有任何刪除發生。
+verifyAllDeleteTargets :: [VaultEntry] -> IO (Either WorkspaceError ())
+verifyAllDeleteTargets = chainE . map verifyDeleteTarget
+
+-- | 逐一刪除實際存在的 @index.db@,回傳真的被刪掉的路徑(保序;呼叫前就不存在
+-- 的不列入)。
+removeExistingIndexes :: [VaultEntry] -> IO (Either WorkspaceError [FilePath])
+removeExistingIndexes [] = pure (Right [])
+removeExistingIndexes (e : es) = do
+  let p = indexDbPath (vePath e)
+  exists <- doesFileExist p
+  if not exists
+    then removeExistingIndexes es
+    else do
+      r <- tryIO p (removeFile p)
+      case r of
+        Left err -> pure (Left err)
+        Right () -> fmap (fmap (p :)) (removeExistingIndexes es)

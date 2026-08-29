@@ -21,7 +21,7 @@ parent: workspace
 | 階段一 | W1 | hub-registry | `d23f24c` | **OK**(11 條路徑全落在 impl 白名單 3 / qa 測試檔 4 / 編排者單線 4) | done(測試 80/0;未結 gap G1) |
 | 階段一 | W2 | vault-discovery | `5b8e104` | **OK**(6 條路徑:spec 文檔 1 / impl 白名單 1 / qa 測試檔 2 / 編排者單線 2) | done(測試 125/0;G2 已 resolved) |
 | 階段一 | W3 | scope-resolution | `86053f6` | **OK**(3 條路徑:impl 白名單 1 / qa 測試檔 2) | done(測試 165/0;無新增 gap) |
-| 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | — | — | pending |
+| 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | `901764f` | **OK**(8 條路徑:3 impl 白名單 / 3 qa 測試檔 / 1 spec 文檔 / 1 編排者單線。**未追蹤那一行是空的**——無人自建 private helper 模組) | done(測試 310/0/3 pending;未結 gap G3/G4/G5) |
 
 **跨子系統依賴**:`workspace` 只依賴 `graph-core`,而 graph-core 九個 feature 全數 `done`
 (`readMarker` / `initVaultAt` / `markerDir` / `configPath` / `indexDbPath` / `atomicWriteText`
@@ -47,9 +47,9 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | hub-registry | F001 | F001-hub-registry.md | `workspace/src/Aapms/Workspace/Types.hs`<br>`workspace/src/Aapms/Workspace/Location.hs`<br>`workspace/src/Aapms/Workspace/Hub.hs` | opus | sonnet | sonnet | **impl-done**(80/0) |
 | vault-discovery | F002 | F002-vault-discovery.md | `workspace/src/Aapms/Workspace/Discovery.hs` | opus | sonnet | sonnet | **impl-done**(125/0) |
 | scope-resolution | F003 | F003-scope-resolution.md | `workspace/src/Aapms/Workspace/Scope.hs` | opus | sonnet | sonnet | **impl-done**(165/0) |
-| vault-lifecycle | F004 | F004-vault-lifecycle.md | `workspace/src/Aapms/Workspace/Lifecycle.hs` | opus | sonnet | sonnet | pending |
-| project-registry | F005 | F005-project-registry.md | `workspace/src/Aapms/Workspace/Projects.hs` | opus | sonnet | sonnet | pending |
-| machine-tools | F006 | F006-machine-tools.md | `workspace/src/Aapms/Workspace/Tools.hs` | opus | sonnet | sonnet | pending |
+| vault-lifecycle | F004 | F004-vault-lifecycle.md | `workspace/src/Aapms/Workspace/Lifecycle.hs` | opus | sonnet | sonnet | **impl-done** |
+| project-registry | F005 | F005-project-registry.md | `workspace/src/Aapms/Workspace/Projects.hs` | opus | sonnet | sonnet | **impl-done** |
+| machine-tools | F006 | F006-machine-tools.md | `workspace/src/Aapms/Workspace/Tools.hs` | opus | sonnet | sonnet | **impl-done** |
 
 **編排者單線維護、不進任何白名單的檔案**:`cabal.project`、`workspace/aapms-workspace.cabal`、
 `workspace/test/Spec.hs`。

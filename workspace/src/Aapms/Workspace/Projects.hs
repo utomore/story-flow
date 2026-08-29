@@ -34,15 +34,21 @@ module Aapms.Workspace.Projects
   , allocateProjectId
   ) where
 
+import Data.List (find)
 import Data.Text (Text)
-import Data.Time (UTCTime)
+import qualified Data.Text as T
+import Data.Time (UTCTime, getCurrentTime)
 
-import Aapms.Core.Id (Id)
+import System.Directory (canonicalizePath, doesDirectoryExist)
+
+import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, renderId)
+import Aapms.Workspace.Hub (removeProject, saveHub, upsertProject)
 import Aapms.Workspace.Types
   ( Hub
   , HubLocation
-  , ProjectEntry
-  , WorkspaceError
+  , ProjectEntry (ProjectEntry, peId, peName, pePath)
+  , WorkspaceError (InvalidName, ProjectAlreadyRegistered, ProjectPathMissing, ProjectSelectorAmbiguous, ProjectSelectorNotFound)
+  , hubProjects
   )
 
 -- | 把一個既有目錄註冊成中樞 @[[projects]]@ 的一列,並寫回 @config.toml@。
@@ -69,15 +75,37 @@ import Aapms.Workspace.Types
 -- 'Aapms.Workspace.Hub.loadHub' 的合規判準要求的形狀(空名與非絕對路徑都會讓
 -- 下一次載入回 @HubMalformed@)。
 --
--- __同一個路徑註冊兩次得到兩列、兩個不同的 id__(見 spec 的待確認假設 A1):
--- 本模組不做路徑去重,「這兩列其實是同一個專案」不是註冊表擁有的事實。
+-- __同一個路徑不得註冊兩次__(2026-08-29 W4 閘門裁決,見 spec 的待確認假設 A1):
+-- 前置檢查在配號之前多一步——這次正規化後的路徑逐字等於中樞既有某一列的
+-- 'Aapms.Workspace.Types.pePath' 時,回
+-- @Left ('Aapms.Workspace.Types.ProjectAlreadyRegistered' 既有那一列的 id 既有那一列的路徑)@,
+-- __不對既有列重新正規化__(A6)。
 registerProject
   :: HubLocation
   -> Hub
   -> FilePath
   -> Text
   -> IO (Either WorkspaceError (Hub, ProjectEntry))
-registerProject = undefined
+registerProject loc hub dir name =
+  let nm = T.strip name
+  in  if T.null nm
+        then pure (Left (InvalidName name))
+        else do
+          dir' <- canonicalizePath dir
+          exists <- doesDirectoryExist dir'
+          if not exists
+            then pure (Left (ProjectPathMissing nm dir'))
+            else case find ((== dir') . pePath) (hubProjects hub) of
+              Just e0 -> pure (Left (ProjectAlreadyRegistered (peId e0) (pePath e0)))
+              Nothing -> do
+                now <- getCurrentTime
+                let pid = allocateProjectId (hubProjects hub) nm now
+                    e = ProjectEntry {peId = pid, peName = nm, pePath = dir'}
+                    hub' = upsertProject e hub
+                result <- saveHub loc hub'
+                pure $ case result of
+                  Left err -> Left err
+                  Right () -> Right (hub', e)
 
 -- | 把一列從中樞 @[[projects]]@ 移除並寫回 @config.toml@。
 --
@@ -89,10 +117,10 @@ registerProject = undefined
 -- 兩階段都__逐字精確比對__(不去前後空白、不忽略大小寫、不做前綴或子字串比對);
 -- id 階段有命中時 name 階段完全不參與。
 --
--- 差別只有一處:契約 F __沒有__ project 版的 @Ambiguous@ 建構子,所以命中兩列以上時
--- 回 @Left ('Aapms.Workspace.Types.ProjectSelectorNotFound' selector)@ 並__不刪任何
--- 一列__——寧可不動,也不靜默挑一列刪掉(見 spec 的待確認假設 A2)。
--- 兩階段都沒命中同樣是 @ProjectSelectorNotFound@。
+-- 命中兩列以上時(2026-08-29 W4 閘門新增)回
+-- @Left ('Aapms.Workspace.Types.ProjectSelectorAmbiguous' selector 全部撞到的列)@,
+-- 並__不刪任何一列__——寧可不動,也不靜默挑一列刪掉(見 spec 的待確認假設 A2)。
+-- 兩階段都沒命中回 @ProjectSelectorNotFound@。
 --
 -- 命中恰好一列時:'Aapms.Workspace.Hub.removeProject' 刪整列 →
 -- 'Aapms.Workspace.Hub.saveHub' 原子寫回,回新的 'Hub' 與__被移除的那一列__。
@@ -104,7 +132,19 @@ forgetProject
   -> Hub
   -> Text
   -> IO (Either WorkspaceError (Hub, ProjectEntry))
-forgetProject = undefined
+forgetProject loc hub s =
+  let byId = filter ((== s) . renderId . peId) (hubProjects hub)
+      byName = filter ((== s) . peName) (hubProjects hub)
+      hits = if not (null byId) then byId else byName
+  in  case hits of
+        [e] -> do
+          let hub' = removeProject (peId e) hub
+          result <- saveHub loc hub'
+          pure $ case result of
+            Left err -> Left err
+            Right () -> Right (hub', e)
+        [] -> pure (Left (ProjectSelectorNotFound s))
+        es -> pure (Left (ProjectSelectorAmbiguous s es))
 
 -- | 配一個在給定清單裡不撞號的 @prj-@ id。__純函式__:相同輸入必得相同輸出,
 -- __時間由呼叫端給__('registerProject' 自己取 @getCurrentTime@ 再傳進來,
@@ -125,4 +165,9 @@ forgetProject = undefined
 -- 把配號抽成這個純函式,契約 D 的簽名一個字不動,而「撞號時以 salt 遞增重試」
 -- 這條驗收標準變成可以直接斷言的。
 allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id
-allocateProjectId = undefined
+allocateProjectId existing nm t = go 0
+  where
+    taken = map peId existing
+    go salt =
+      let cand = newId PPrj nm t salt
+      in  if cand `elem` taken then go (salt + 1) else cand

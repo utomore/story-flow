@@ -26,14 +26,20 @@
 module Aapms.Workspace.Tools
   ( -- * 契約 E
     detectSevenZip
-
-    -- * 可注入的探測計畫
     -- $plan
   , ToolSearchPlan (..)
   , detectSevenZipIn
   ) where
 
-import Aapms.Workspace.Types (ToolStatus, ToolsConfig)
+import Aapms.Workspace.Types
+  ( ToolOrigin (FromCandidate, FromPath, FromToolsConfig, NotFound)
+  , ToolStatus (ToolStatus)
+  , ToolsConfig (tcSevenZip)
+  )
+import Data.List (nub)
+import System.Directory (doesFileExist, executable, exeExtension, getPermissions)
+import System.Environment (lookupEnv)
+import System.FilePath (splitSearchPath, (<.>), (</>))
 
 -- $plan
 -- 'detectSevenZip' 的兩份外部清單(@PATH@ 的目錄、內建候選清單)在真實環境下是
@@ -66,7 +72,10 @@ data ToolSearchPlan = ToolSearchPlan
 -- 而 @searched@ 必為非空(內建候選清單非空)——訊息要說得出下一步,所以「找過哪些
 -- 地方」是必要資訊。
 detectSevenZip :: ToolsConfig -> IO ToolStatus
-detectSevenZip = undefined
+detectSevenZip cfg = do
+  pathEnv <- lookupEnv "PATH"
+  let dirs = maybe [] splitSearchPath pathEnv
+  detectSevenZipIn (ToolSearchPlan dirs sevenZipCandidates) cfg
 
 -- | 'detectSevenZip' 的可注入版本:@PATH@ 目錄與候選清單都由呼叫端給。
 --
@@ -79,4 +88,62 @@ detectSevenZip = undefined
 -- 'Aapms.Workspace.Types.tsSearched' 是這串候選被問過的那一段前綴(命中時以命中的
 -- 那一項結尾,全不中時是完整的一串),路徑一律__逐字__捧著,不做任何正規化。
 detectSevenZipIn :: ToolSearchPlan -> ToolsConfig -> IO ToolStatus
-detectSevenZipIn = undefined
+detectSevenZipIn plan cfg = do
+  let probes = buildProbes plan cfg
+  (searched, hit) <- probeAll probes
+  pure $ case hit of
+    Just p -> ToolStatus "7-Zip" (Just p) (originOf plan cfg p) searched
+    Nothing -> ToolStatus "7-Zip" Nothing NotFound searched
+
+-- | 「存在且可執行」判準(私有):先問存在,再問可執行,__順序不可調換__——
+-- 'getPermissions' 對不存在的路徑會拋例外,而契約 E 沒有失敗通道。
+qualifies :: FilePath -> IO Bool
+qualifies p = do
+  exists <- doesFileExist p
+  if exists then executable <$> getPermissions p else pure False
+
+-- | 內建候選清單(第三層),逐字沿用 legacy @Sidecar.hs@,__順序不變、不隨平台過濾__。
+sevenZipCandidates :: [FilePath]
+sevenZipCandidates =
+  [ "C:\\Program Files\\7-Zip\\7z.exe"
+  , "C:\\Program Files (x86)\\7-Zip\\7z.exe"
+  , "/usr/bin/7z"
+  , "/usr/local/bin/7z"
+  , "/opt/homebrew/bin/7z"
+  , "/usr/bin/7zz"
+  , "/opt/homebrew/bin/7zz"
+  ]
+
+-- | PATH 層的查詢名稱(第二層),__依此順序__,不含 legacy 的 @"7za"@。
+sevenZipNames :: [String]
+sevenZipNames = ["7z", "7zz"]
+
+-- | 第二層(PATH)展開後的候選路徑:__名稱外層、目錄內層__。
+pathLayer :: ToolSearchPlan -> [FilePath]
+pathLayer plan = [d </> (n <.> exeExtension) | n <- sevenZipNames, d <- tspPathDirs plan]
+
+-- | 三層依序串起來、保序去重(跨層):覆寫 → PATH → 內建候選清單。
+buildProbes :: ToolSearchPlan -> ToolsConfig -> [FilePath]
+buildProbes plan cfg = nub (l1 ++ l2 ++ l3)
+  where
+    l1 = maybe [] (: []) (tcSevenZip cfg)
+    l2 = pathLayer plan
+    l3 = tspCandidates plan
+
+-- | 依序對候選路徑問 'qualifies',命中即停。回傳「被問過的那段前綴」與命中的路徑
+-- (全不中則回傳完整清單與 'Nothing')。
+probeAll :: [FilePath] -> IO ([FilePath], Maybe FilePath)
+probeAll = go []
+  where
+    go acc [] = pure (reverse acc, Nothing)
+    go acc (p : ps) = do
+      ok <- qualifies p
+      let acc' = p : acc
+      if ok then pure (reverse acc', Just p) else go acc' ps
+
+-- | 命中的路徑屬於哪一層:判定順序恒為覆寫 → PATH → 候選清單。
+originOf :: ToolSearchPlan -> ToolsConfig -> FilePath -> ToolOrigin
+originOf plan cfg p
+  | tcSevenZip cfg == Just p = FromToolsConfig
+  | p `elem` pathLayer plan = FromPath
+  | otherwise = FromCandidate

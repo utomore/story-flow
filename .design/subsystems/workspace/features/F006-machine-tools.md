@@ -139,8 +139,23 @@ ToolsConfig` 一列,那描述的是**資料流向**(Tools 讀的是 `ToolsConfig
    那個實機教訓)。
    → **驗收標準第 3 條(三層都找不到)在這台機器上永遠觸發不到**,除非候選清單可以被替換掉。
    這是 A1(注入接縫)存在的唯一理由。
-5. **`exeExtension` 在 Windows 是 `".exe"`、POSIX 是 `""`**;`"7z" <.> exeExtension` 在 Windows
-   得到 `"7z.exe"`、在 POSIX 得到 `"7z"`。一條式子兩個平台都對,law 因此寫得出跨平台的版本(L10)。
+5. **`exeExtension` 由 `directory-1.3.10.0` 的 `System.Directory` 匯出,不是 `filepath` 的。**
+   型別 `exeExtension :: String`,haddock 原文:「Filename extension for executable files
+   (**including the dot if any**) (usually `""` on POSIX systems and `".exe"` on Windows
+   or OS/2)」——**值含前導點**,是 `".exe"` 而不是 `"exe"`。所以
+   `"7z" <.> exeExtension` 在 Windows 得到 `"7z.exe"`、在 POSIX 得到 `"7z"`(`<.>` 對已經帶點的
+   副檔名不會補第二個點);一條式子兩個平台都對,law 因此寫得出跨平台的版本(L10)。
+
+   > **2026-08-29 W4 更正(spec-gaps G3)**:本條原文寫的是「`exeExtension` 在 Windows 是
+   > `".exe"`、POSIX 是 `""`」,而且**把符號的來源歸給 `filepath` 的 `System.FilePath`**
+   > ——**值是對的、來源是錯的,而來源那一半從來沒有驗過**。當初只實測了 `exeExtension` 的
+   > *值*(印出來是 `".exe"`),就把整條寫進「實測」清單,沒有去查它由哪個套件匯出。
+   > `filepath-1.5.4.0` 的 `System.FilePath` / `System.FilePath.Windows` / `System.FilePath.Posix`
+   > 三個模組都**沒有**這個符號(`System.Info` 也沒有)。這條由 impl 撞到並如實回報、經編排者
+   > 獨立查證後修正,連帶要改 L15(d) 與 L15(f) 的白名單歸屬。
+   > **留著這段紀錄的用意**:`delegation.md` 把相依性查證列為委派模式下品質的**唯一防線**,
+   > 而這一條正是防線漏掉的樣本——**寫進「實測」清單的東西,每一個子句都要真的跑過或真的查過**,
+   > 不能因為同一句話裡有一半驗過就整句標成實測。
 6. **`normalise` / `makeAbsolute` 在 Windows 會把 `/` 換成 `\`**(實測
    `normalise "C:/Program Files/7-Zip/7z.exe" == "C:\\Program Files\\7-Zip\\7z.exe"`)。而
    system.md「對外介面」第 6 節的中樞範例寫的是 `seven_zip = "C:/Program Files/7-Zip/7z.exe"`
@@ -241,7 +256,7 @@ detectSevenZipIn plan cfg
 | `getPermissions :: FilePath -> IO Permissions` | `directory` 的 `System.Directory` | - | 判準第二步;**對不存在的路徑會拋例外**,所以第一步不可省 |
 | `executable :: Permissions -> Bool` | `directory` 的 `System.Directory` | - | Windows 看副檔名、POSIX 看 x 位元;平台差異委給它 |
 | `splitSearchPath :: String -> [FilePath]` | `filepath` 的 `System.FilePath` | - | 把 `PATH` 切成目錄清單(平台分隔符由它處理) |
-| `exeExtension :: String` | `filepath` 的 `System.FilePath` | - | Windows `".exe"` / POSIX `""`;第二層的副檔名 |
+| `exeExtension :: String` | **`directory` 的 `System.Directory`**(**不是** `filepath`——2026-08-29 W4 更正,見「相依性查證」事實 5 與 spec-gaps G3) | - | Windows `".exe"` / POSIX `""`,**值含前導點**;第二層的副檔名 |
 | `(<.>) :: FilePath -> String -> FilePath`、`(</>) :: FilePath -> FilePath -> FilePath` | `filepath` 的 `System.FilePath` | - | 拼出 `d </> ("7z" <.> exeExtension)` |
 | `lookupEnv :: String -> IO (Maybe String)` | `base` 的 `System.Environment` | - | 讀 `PATH`;**用 `lookupEnv` 不用 `getEnv`**——後者在變數未設時拋例外,而契約 E 沒有失敗通道 |
 
@@ -417,17 +432,30 @@ detectSevenZipIn plan cfg
   - (c) **完全不得** import 任何 `Aapms.Store.*` 或 `Aapms.Core.*` 模組——本 feature 不碰
     vault、不碰 marker、不碰索引、不寫任何檔案,契約 E 的三個型別也不涉及它們的任何型別。
   - (d) **若**有 `import System.Directory` 的行,它的匯入清單必須是
-    `{doesFileExist, executable, getPermissions}` 的**子集合**。這條守的是「**只問不動**」:
-    清單一旦長出 `createDirectory` / `createDirectoryIfMissing` / `removeFile` /
-    `removeDirectory*` / `renameFile` / `copyFile` / `setPermissions` / `canonicalizePath` /
-    `makeAbsolute` / `findExecutable` / `findExecutables*` 任何一個,或被放寬成無清單的
-    `import System.Directory`,這條就紅——L8(不正規化)、L11(不動檔案系統)與 A3
-    (不用 `SearchPath`)因此守得住,而不是只寫在 Haddock 裡。
+    `{doesFileExist, executable, exeExtension, getPermissions}` 的**子集合**。這條守的是
+    「**只問不動**」:清單一旦長出 `createDirectory` / `createDirectoryIfMissing` /
+    `removeFile` / `removeDirectory*` / `renameFile` / `copyFile` / `setPermissions` /
+    `canonicalizePath` / `makeAbsolute` / `findExecutable` / `findExecutables*` 任何一個,
+    或被放寬成無清單的 `import System.Directory`,這條就紅——L8(不正規化)、L11(不動檔案
+    系統)與 A3(不用 `SearchPath`)因此守得住,而不是只寫在 Haddock 裡。
+    **`exeExtension` 在這一格,不在 (f)**:它由 `directory` 匯出,不是 `filepath`
+    (2026-08-29 W4 更正,spec-gaps G3;見「相依性查證」事實 5)。
+    impl 交件時的實際 import 行逐字是:
+    `import System.Directory (doesFileExist, executable, exeExtension, getPermissions)`
   - (e) **若**有 `import System.Environment` 的行,它的匯入清單必須是 `{lookupEnv}` 的
     **子集合**——`getEnv` 在變數未設時拋例外(違反 L12),`setEnv` / `getArgs` /
     `getExecutablePath` 都不屬於本 feature。
   - (f) **若**有 `import System.FilePath` 的行,它的匯入清單必須是
-    `{(</>), (<.>), exeExtension, splitSearchPath}` 的**子集合**。
+    `{(</>), (<.>), splitSearchPath}` 的**子集合**——**`exeExtension` 已移出本格**
+    (它由 `directory` 匯出,歸 (d);2026-08-29 W4 更正,spec-gaps G3)。
+    impl 交件時的實際 import 行逐字是:
+    `import System.FilePath (splitSearchPath, (<.>), (</>))`
+
+  **(d) 與 (f) 的判準仍是「子集合」,不是逐字比對**(未隨本次更正改變):G3 這條 gap 正好是
+  「白名單漏了一個實際需要的符號」——逐字比對會讓同一類漏列**直接變成紅燈而不是可通過的子集**,
+  而 F002 的 G2 是同一種傷(逐字白名單漏了 `vmId`,害 law 沒有任何合法實作滿足得了)。
+  子集合的形式讓「漏列」只表現成「白名單比實際寬鬆」,禁得住的東西(寫入類函式、
+  `findExecutable`)照樣禁得住。上面兩行逐字串是**現況紀錄**,供事後對帳,不是判準本身。
 
   **判準只看 import 行,不做全檔字串搜尋**:本檔的 Haddock 本來就會提到 `findExecutable` /
   `SearchPath` / `canonicalizePath` / `asset-ingest` 這些名字來說明界線,全檔搜尋會把「文件

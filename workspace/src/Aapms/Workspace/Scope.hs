@@ -36,16 +36,31 @@ module Aapms.Workspace.Scope
   , resolvePipeline
   ) where
 
+import Data.Either (partitionEithers)
+import Data.List (find)
+import qualified Data.Set as Set
 import Data.Text (Text)
 
+import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmRefs))
 import Aapms.Store.Schema (VaultKind)
+import Aapms.Workspace.Discovery
+  ( detectVault
+  , lookupSelector
+  , readVaultRef
+  , readVaultRefAt
+  )
+import Aapms.Workspace.Hub (hubVaults)
 import Aapms.Workspace.Types
   ( Hub
-  , PipelineScope
-  , ReadScope
-  , WorkspaceError
-  , WriteScope
+  , PipelineScope (..)
+  , ReadScope (..)
+  , ScopeIssue (..)
+  , VaultEntry (..)
+  , VaultRef (..)
+  , WorkspaceError (..)
+  , WriteScope (..)
   )
+import System.Directory (canonicalizePath)
 
 -- | 查詢類指令的作用範圍(ADR-017 決策三:__讀跨__)。
 --
@@ -64,7 +79,18 @@ import Aapms.Workspace.Types
 --
 -- 'Aapms.Workspace.Types.rsVaults' __保序去重__(以 @vmId@,保留首次出現的位置)。
 resolveRead :: Hub -> Maybe Text -> IO (Either WorkspaceError ReadScope)
-resolveRead = undefined
+resolveRead hub Nothing = do
+  (vaults, issues) <- walkAll hub
+  pure (Right (ReadScope vaults issues))
+resolveRead hub (Just s) = case lookupSelector hub s of
+  Left err -> pure (Left err)
+  Right e -> do
+    seedR <- readVaultRef e (vePath e)
+    case seedR of
+      Left iss -> pure (Right (ReadScope [] [iss]))
+      Right seed -> do
+        (vaults, issues) <- expandRefs hub seed
+        pure (Right (ReadScope vaults issues))
 
 -- | 寫入類指令的作用範圍(ADR-017 決策三:__寫單一__)。第三參數是向上探測的
 -- 起點,通常是行程的當前目錄。
@@ -88,7 +114,33 @@ resolveRead = undefined
 -- 展開進來的一律唯讀。目標可以是__未註冊__的 vault(向上探測到、中樞裡沒有那一
 -- 列),此時 'Aapms.Workspace.Types.vrEntry' 是 @Nothing@。
 resolveWrite :: Hub -> Maybe Text -> FilePath -> IO (Either WorkspaceError WriteScope)
-resolveWrite = undefined
+resolveWrite hub sel start = do
+  targetR <- resolveWriteTarget hub sel start
+  case targetR of
+    Left err -> pure (Left err)
+    Right target -> do
+      (reads', issues) <- expandRefs hub target
+      pure (Right (WriteScope target reads' issues))
+
+-- | 私有:寫入目標的裁決,恒經 @readVaultRefAt@(硬失敗通道)。
+resolveWriteTarget :: Hub -> Maybe Text -> FilePath -> IO (Either WorkspaceError VaultRef)
+resolveWriteTarget hub Nothing start = do
+  mRoot <- detectVault start
+  case mRoot of
+    Nothing -> do
+      s' <- canonicalizePath start
+      pure (Left (NoWriteTarget s'))
+    Just root -> readVaultRefAt hub root
+resolveWriteTarget hub (Just s) _start = case lookupSelector hub s of
+  Left err -> pure (Left err)
+  Right e -> do
+    r <- readVaultRefAt hub (vePath e)
+    case r of
+      Left err -> pure (Left err)
+      Right ref
+        | vmId (vrMarker ref) /= veId e ->
+            pure (Left (WriteTargetIdDrift (veId e) (vrPath ref) (vmId (vrMarker ref))))
+        | otherwise -> pure (Right ref)
 
 -- | 管線類指令的作用範圍(ADR-017 決策三:對每個符合 @kind@ 的 vault __各跑一次__,
 -- 每次只寫自己的索引)。第二參數是這條管線只對哪種 vault 有意義。
@@ -103,4 +155,60 @@ resolveWrite = undefined
 -- 展開進來的一律唯讀。@X@ 不可達時仍回 @Right@(空清單 + 一則 issue)——marker
 -- 讀不到就判不了 kind,不能倒過來回 'Aapms.Workspace.Types.VaultKindMismatch'。
 resolvePipeline :: Hub -> VaultKind -> Maybe Text -> IO (Either WorkspaceError PipelineScope)
-resolvePipeline = undefined
+resolvePipeline hub k Nothing = do
+  (vaults, issues) <- walkAll hub
+  let runs = filter ((== k) . vmKind . vrMarker) vaults
+  pure (Right (PipelineScope runs issues))
+resolvePipeline hub k (Just s) = case lookupSelector hub s of
+  Left err -> pure (Left err)
+  Right e -> do
+    r <- readVaultRef e (vePath e)
+    case r of
+      Left iss -> pure (Right (PipelineScope [] [iss]))
+      Right ref
+        | vmKind (vrMarker ref) /= k ->
+            pure (Left (VaultKindMismatch (vmId (vrMarker ref)) k (vmKind (vrMarker ref))))
+        | otherwise -> pure (Right (PipelineScope [ref] []))
+
+-- | 私有 helper:__不展開 @refs@__,依中樞順序讀每一列,保序去重(以 @vmId@)。
+walkAll :: Hub -> IO ([VaultRef], [ScopeIssue])
+walkAll hub = do
+  results <- mapM (\e -> readVaultRef e (vePath e)) (hubVaults hub)
+  let (issues, refs) = partitionEithers results
+  pure (nubOn (vmId . vrMarker) refs, issues)
+
+-- | 私有 helper:種子 + @refs@ 的遞移展開(BFS,種子排第一)。
+-- visited 以「走到它時用的 @VaultId@」為鍵,單調成長,故任何 @refs@ 圖都終止。
+expandRefs :: Hub -> VaultRef -> IO ([VaultRef], [ScopeIssue])
+expandRefs hub seed =
+  loop (Set.singleton seedId) [seed] [] initialQueue
+  where
+    seedId = vmId (vrMarker seed)
+    initialQueue = [(seedId, t) | t <- vmRefs (vrMarker seed)]
+
+    loop _visited out issues [] = pure (nubOn (vmId . vrMarker) out, issues)
+    loop visited out issues ((src, t) : rest)
+      | Set.member t visited = loop visited out issues rest
+      | otherwise =
+          let visited' = Set.insert t visited
+          in case find ((== t) . veId) (hubVaults hub) of
+               Nothing ->
+                 loop visited' out (issues ++ [RefVaultNotRegistered src t]) rest
+               Just e -> do
+                 r <- readVaultRef e (vePath e)
+                 case r of
+                   Left iss -> loop visited' out (issues ++ [iss]) rest
+                   Right ref ->
+                     let newEdges = [(vmId (vrMarker ref), t') | t' <- vmRefs (vrMarker ref)]
+                     in loop visited' (out ++ [ref]) issues (rest ++ newEdges)
+
+-- | 私有 helper:保序去重,保留鍵第一次出現的位置(@nubOn@)。
+nubOn :: Ord k => (a -> k) -> [a] -> [a]
+nubOn key = go Set.empty
+  where
+    go _ [] = []
+    go seen (x : xs)
+      | Set.member k seen = go seen xs
+      | otherwise = x : go (Set.insert k seen) xs
+      where
+        k = key x

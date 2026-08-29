@@ -23,6 +23,10 @@ module Aapms.Workspace.Fixtures
   , markerTomlText
   , snapshotTree
 
+    -- * F003:spec「數據」節「測試素材:一組固定的 vault 佈局」
+  , ScopeVaults (..)
+  , withScopeVaults
+
   , -- * id / 值 helper
     idOf
   , vaultIdText
@@ -71,12 +75,14 @@ import qualified TOML
 import Aapms.Core.Id (Id, VaultId (..), parseId)
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Types
-  ( HubLocation (..)
+  ( Hub
+  , HubLocation (..)
   , HubSource (..)
   , LlmSection (..)
   , ProjectEntry (..)
   , ToolsConfig (..)
   , VaultEntry (..)
+  , mkHub
   )
 
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory)
@@ -204,6 +210,88 @@ snapshotTree root = sortOn fst <$> go ""
         else do
           content <- readUtf8NoTranslate full
           pure [(rel, content)]
+
+--------------------------------------------------------------------------------
+-- F003:spec「數據」節「測試素材:一組固定的 vault 佈局」
+
+-- | spec 表格裡的八個 vault(A–D、M、P、Z、E),一次建好在同一個暫存目錄 'svRoot'
+-- 底下,型別與欄位值逐字照抄 spec 表(id \/ kind \/ name \/ refs、中樞 @veId@ \/
+-- @veKind@ \/ @veName@)。@P@(@T\/gone@)刻意__不建立__;@E@(@T\/e@)刻意
+-- __不進__ 'svHub'(未註冊);@M@ 只建 @.aapms\/@ 目錄、__不寫__ @config.toml@
+-- (marker 壞)。'svHub' 的 @[[vaults]]@ 順序固定是 A, B, C, D, M, P, Z(spec 原文)。
+data ScopeVaults = ScopeVaults
+  { svRoot :: FilePath
+  , svPathA :: FilePath
+  , svPathB :: FilePath
+  , svPathC :: FilePath
+  , svPathD :: FilePath
+  , svPathM :: FilePath
+  , svPathGone :: FilePath
+  , svPathZ :: FilePath
+  , svPathE :: FilePath
+  , svEntryA :: VaultEntry
+  , svEntryB :: VaultEntry
+  , svEntryC :: VaultEntry
+  , svEntryD :: VaultEntry
+  , svEntryM :: VaultEntry
+  , svEntryP :: VaultEntry
+  , svEntryZ :: VaultEntry
+  , svHub :: Hub
+  }
+
+-- | 建好 'ScopeVaults' 佈局,交給動作跑;動作結束後暫存目錄整個刪掉
+-- (經 'withTempHubDir')。
+withScopeVaults :: (ScopeVaults -> IO a) -> IO a
+withScopeVaults act = withTempHubDir $ \root -> do
+  let pathA = root </> "a"
+      pathB = root </> "b"
+      pathC = root </> "c"
+      pathD = root </> "d"
+      pathM = root </> "m"
+      pathGone = root </> "gone"
+      pathZ = root </> "z"
+      pathE = root </> "e"
+  writeVaultMarker pathA (markerTomlText "vlt-aaaa1111" "asset" "a" ["vlt-bbbb2222"])
+  writeVaultMarker pathB (markerTomlText "vlt-bbbb2222" "story" "b" ["vlt-cccc3333"])
+  writeVaultMarker pathC (markerTomlText "vlt-cccc3333" "asset" "c" ["vlt-aaaa1111"])
+  writeVaultMarker pathD (markerTomlText "vlt-dddd4444" "asset" "d" [])
+  createDirectoryIfMissing True (pathM </> ".aapms") -- .aapms/ 在,沒有 config.toml：marker 壞
+  writeVaultMarker pathZ (markerTomlText "vlt-99998888" "asset" "z" [])
+  writeVaultMarker pathE (markerTomlText "vlt-eeee5555" "story" "e" [])
+  let entryA = VaultEntry (VaultId "vlt-aaaa1111") "a" AssetVault pathA
+      entryB = VaultEntry (VaultId "vlt-bbbb2222") "b" StoryVault pathB
+      entryC = VaultEntry (VaultId "vlt-cccc3333") "c" AssetVault pathC
+      entryD = VaultEntry (VaultId "vlt-dddd4444") "d" AssetVault pathD
+      entryM = VaultEntry (VaultId "vlt-mmmm1111") "m" AssetVault pathM
+      entryP = VaultEntry (VaultId "vlt-pppp1111") "p" AssetVault pathGone
+      entryZ = VaultEntry (VaultId "vlt-77776666") "z" AssetVault pathZ -- 與 marker 的 vlt-99998888 不符：id 漂移
+      hub =
+        mkHub
+          [entryA, entryB, entryC, entryD, entryM, entryP, entryZ]
+          []
+          Nothing
+          (ToolsConfig Nothing)
+          ""
+  act
+    ScopeVaults
+      { svRoot = root
+      , svPathA = pathA
+      , svPathB = pathB
+      , svPathC = pathC
+      , svPathD = pathD
+      , svPathM = pathM
+      , svPathGone = pathGone
+      , svPathZ = pathZ
+      , svPathE = pathE
+      , svEntryA = entryA
+      , svEntryB = entryB
+      , svEntryC = entryC
+      , svEntryD = entryD
+      , svEntryM = entryM
+      , svEntryP = entryP
+      , svEntryZ = entryZ
+      , svHub = hub
+      }
 
 --------------------------------------------------------------------------------
 -- id / 值 helper

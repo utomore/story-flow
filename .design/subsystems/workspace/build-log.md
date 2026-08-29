@@ -20,7 +20,7 @@ parent: workspace
 |---|---|---|---|---|---|
 | 階段一 | W1 | hub-registry | `d23f24c` | **OK**(11 條路徑全落在 impl 白名單 3 / qa 測試檔 4 / 編排者單線 4) | done(測試 80/0;未結 gap G1) |
 | 階段一 | W2 | vault-discovery | `5b8e104` | **OK**(6 條路徑:spec 文檔 1 / impl 白名單 1 / qa 測試檔 2 / 編排者單線 2) | done(測試 125/0;G2 已 resolved) |
-| 階段一 | W3 | scope-resolution | — | — | pending |
+| 階段一 | W3 | scope-resolution | `86053f6` | **OK**(3 條路徑:impl 白名單 1 / qa 測試檔 2) | done(測試 165/0;無新增 gap) |
 | 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | — | — | pending |
 
 **跨子系統依賴**:`workspace` 只依賴 `graph-core`,而 graph-core 九個 feature 全數 `done`
@@ -46,7 +46,7 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 |---|---|---|---|---|---|---|---|
 | hub-registry | F001 | F001-hub-registry.md | `workspace/src/Aapms/Workspace/Types.hs`<br>`workspace/src/Aapms/Workspace/Location.hs`<br>`workspace/src/Aapms/Workspace/Hub.hs` | opus | sonnet | sonnet | **impl-done**(80/0) |
 | vault-discovery | F002 | F002-vault-discovery.md | `workspace/src/Aapms/Workspace/Discovery.hs` | opus | sonnet | sonnet | **impl-done**(125/0) |
-| scope-resolution | F003 | F003-scope-resolution.md | `workspace/src/Aapms/Workspace/Scope.hs` | opus | sonnet | sonnet | pending |
+| scope-resolution | F003 | F003-scope-resolution.md | `workspace/src/Aapms/Workspace/Scope.hs` | opus | sonnet | sonnet | **impl-done**(165/0) |
 | vault-lifecycle | F004 | F004-vault-lifecycle.md | `workspace/src/Aapms/Workspace/Lifecycle.hs` | opus | sonnet | sonnet | pending |
 | project-registry | F005 | F005-project-registry.md | `workspace/src/Aapms/Workspace/Projects.hs` | opus | sonnet | sonnet | pending |
 | machine-tools | F006 | F006-machine-tools.md | `workspace/src/Aapms/Workspace/Tools.hs` | opus | sonnet | sonnet | pending |
@@ -103,6 +103,7 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 | F001 | 0 | 骨架快照紅綠基線(`ws-w1` @ `d23f24c`) | L1–L17 / X1–X27 全體 | **符合預期**:80 條中 5 綠(L16 的 `mkHub` 往返 + L17 的四條 import 檢查,皆為骨架自身承載的事實),其餘 75 條紅 | 無需處置,**無假綠** |
 | F002 | 0 | 骨架快照紅綠基線(`ws-w1` @ `5b8e104`) | L1–L18 / X1–X24 全體 | **符合預期**:125 條中 86 綠(W1 的 81 條 + F002 的 L18 五條 import law),F002 的其餘 39 條全紅 | 無需處置,**無假綠** |
 | F002 | 1 | `test_discovery_marker_import_is_id_reader_only`(L18(b)) | L18(b) 的逐字 import 字串,與 L12(c) / L14 的 `vmId` 比對 | **spec bug**——同一份 spec 內部矛盾:(b) 的白名單只有 `markerDir` / `readMarker`,但 L12(c) / L14 要用 `vmId`,而 `Types.hs` 是裸型別 import、轉不出欄位存取子。**qa 與 impl 互相不可見,卻各自從相反方向撞到同一條**(impl:照 spec 寫編不出來;qa:照 spec 寫恆紅) | 停下回報開發者 → 裁決收緊成 `VaultMarker (vmId)` → spec 改條文、impl 收窄 import、qa 對齊期望值 |
+| F003 | 0 | 骨架快照紅綠基線(`ws-w1` @ `86053f6`) | L1–L25 / X1–X36 全體 | **符合預期**:165 條中 133 綠(W1/W2 的 127 條 + F003 的 L25 六條 import law),F003 其餘 32 條全紅 | 無需處置,**無假綠**;本 feature 零仲裁輪次 |
 | F001 | 1 | `test_types_imports_marker_type_only`(L17(d)) | L17(d):「`Types.hs` 對 `Aapms.Store.Marker` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`」 | **qa 誤讀**——測試沒有正規化行尾。law 講的是 import 行的**內容**,而 `\r` 是行終止符的產物;主樹的檔案是 LF、快照 worktree 是 git 全新 checkout 轉成的 CRLF,所以只在後者紅。**這不是快照假象:任何人重新 clone 到 Windows 都會紅** | 附條文原文重派 qa 改測試(五條 L17 共用同一套去 `\r` 的正規化);**不動 spec、不動實作** |
 
 ## 階段結果

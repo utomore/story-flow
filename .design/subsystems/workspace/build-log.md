@@ -18,7 +18,7 @@ parent: workspace
 
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
-| 階段一 | W1 | hub-registry | — | — | pending |
+| 階段一 | W1 | hub-registry | `d23f24c` | **OK**(11 條路徑全落在 impl 白名單 3 / qa 測試檔 4 / 編排者單線 4) | done(測試 80/0;未結 gap G1) |
 | 階段一 | W2 | vault-discovery | — | — | pending |
 | 階段一 | W3 | scope-resolution | — | — | pending |
 | 階段二 | W4 | vault-lifecycle, project-registry, machine-tools | — | — | pending |
@@ -44,7 +44,7 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 
 | feature | id | 檔名 | 骨架檔案 | spec 模型 | qa 模型 | impl 模型 | 狀態 |
 |---|---|---|---|---|---|---|---|
-| hub-registry | F001 | F001-hub-registry.md | `workspace/src/Aapms/Workspace/Types.hs`<br>`workspace/src/Aapms/Workspace/Location.hs`<br>`workspace/src/Aapms/Workspace/Hub.hs` | opus | sonnet | sonnet | pending |
+| hub-registry | F001 | F001-hub-registry.md | `workspace/src/Aapms/Workspace/Types.hs`<br>`workspace/src/Aapms/Workspace/Location.hs`<br>`workspace/src/Aapms/Workspace/Hub.hs` | opus | sonnet | sonnet | **impl-done**(80/0) |
 | vault-discovery | F002 | F002-vault-discovery.md | `workspace/src/Aapms/Workspace/Discovery.hs` | opus | sonnet | sonnet | pending |
 | scope-resolution | F003 | F003-scope-resolution.md | `workspace/src/Aapms/Workspace/Scope.hs` | opus | sonnet | sonnet | pending |
 | vault-lifecycle | F004 | F004-vault-lifecycle.md | `workspace/src/Aapms/Workspace/Lifecycle.hs` | opus | sonnet | sonnet | pending |
@@ -58,19 +58,25 @@ D2 的回寫已套進 `design.md`:「內部模組劃分」補上「Types 一次�
 
 | 來源 | 類型 | 契約錨點 | 波及 feature | 假設 / 決定 | 可逆性 | 閘門裁決 | 回寫位置 |
 |---|---|---|---|---|---|---|---|
-| (尚無) | | | | | | | |
+| F001 A1 + A2 | 待確認假設(合併) | 契約 A 的 `Hub`;契約 B 四個 getter;模組間公開介面 `Lifecycle → Hub` | F001(下游 F004 / F005) | `Hub` 不透明 + `mkHub` / `hubSourceText`;`Hub.hs` 補對稱的 `upsertProject` / `removeProject` | 有條件可逆 | **選 a**(照 spec 暫採) | design.md 契約 A + 模組間公開介面表(diff 已確認) |
+| F001 A3 + S1 + S2 | 待確認假設(合併;S1 / S2 為編排者升級) | 契約 A 的 `loadHub`;契約 F 的 `HubMalformed`;契約 B 的 `veName` / `peName` / `veId` / `peId` 值域 | F001 | 對工具自己寫得出來的欄位從嚴(空 name、重複 id → `HubMalformed`),對未知鍵與未知頂層段從寬(容忍且保留) | 可逆 | **選 a**(照 spec 暫採) | design.md 契約 A 新增「`loadHub` 的合規判準」段(diff 已確認) |
+| F001 依賴邊-1~3 | 新增依賴邊 | `Types → aapms-store`、`Hub → aapms-store`、`Location → aapms-core` | F001 | 三條在 design.md 散文裡都有依據,只是「模組間公開介面」表沒收 | 可逆 | **無真實第二方案,不上議程**;改為補表 | design.md 模組間公開介面表(diff 已確認) |
 
 ## 自裁清單
 
 | 來源 | 判斷點 | 採取 | 觸及符號 | 出處 | 抽查 |
 |---|---|---|---|---|---|
-| (尚無) | | | | | |
+| F001 S1 | 未知鍵與未知頂層段的處置 | 容忍且原樣保留,不是 `HubMalformed` | `loadHub`、`HubMalformed` | 自報 → **編排者升級** | (已併入閘門裁決,照 a) |
+| F001 S2 | 中樞內重複 id 的處置 | `HubMalformed`,沿用既有建構子 | `loadHub`、`HubMalformed`、`veId`、`peId` | 自報 → **編排者升級** | (已併入閘門裁決,照 a) |
+| F001 S3 | `saveHub` 不建立父目錄 | 失敗原樣包成 `HubWriteFailed` | `saveHub`、`HubWriteFailed`、`atomicWriteText` | 自報(升級篩命中,但**沿用契約卡「明確不做」**,不上閘門) | |
+| F001 S4 | 平台預設路徑怎麼取 | `getXdgDirectory XdgConfig "aapms"`,不寫平台分支 | `hubLocation`、`hlPath`、`FromPlatformDefault` | 自報(升級篩命中,**編排者降級**:寫不出真實的第二方案) | |
+| F001 S5 | `Hub` / `WorkspaceError` 的 deriving | derive `Show` / `Eq`;`LlmSection` 走 `deriving newtype` | `Hub`、`WorkspaceError`、`LlmSection` | 自報(升級篩命中,**編排者降級**:hspec 的硬需求) | |
 
 ## 仲裁紀錄
 
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
-| (尚無) | | | | | |
+| F001 | 0 | 骨架快照紅綠基線(`ws-w1` @ `d23f24c`) | L1–L17 / X1–X27 全體 | **符合預期**:80 條中 5 綠(L16 的 `mkHub` 往返 + L17 的四條 import 檢查,皆為骨架自身承載的事實),其餘 75 條紅 | 無需處置,**無假綠** |
 
 ## 階段結果
 

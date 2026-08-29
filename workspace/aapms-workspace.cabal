@@ -49,6 +49,10 @@ test-suite aapms-workspace-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Workspace.Fixtures
+        Aapms.Workspace.TypesSpec
+        Aapms.Workspace.LocationSpec
+        Aapms.Workspace.HubSpec
         Aapms.Workspace.Types
         Aapms.Workspace.Location
         Aapms.Workspace.Hub

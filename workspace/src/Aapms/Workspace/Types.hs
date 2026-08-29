@@ -58,11 +58,12 @@ module Aapms.Workspace.Types
 
 import Data.Map.Strict (Map)
 import Data.Text (Text)
+import qualified Data.Text as T
 
-import Aapms.Core.Id (Id, VaultId)
-import Aapms.Store.Error (StoreError)
+import Aapms.Core.Id (Id, VaultId (..))
+import Aapms.Store.Error (StoreError, renderStoreError)
 import Aapms.Store.Marker (VaultMarker)
-import Aapms.Store.Schema (VaultKind)
+import Aapms.Store.Schema (VaultKind, renderVaultKind)
 import qualified TOML
 
 -- 契約 A:中樞位置與載入 -------------------------------------------------------
@@ -328,4 +329,69 @@ data WorkspaceError
 -- 責任範圍是 'WorkspaceError' 的__全部__建構子,不再有第二個 @render*@;每一則
 -- 都要含該建構子攜帶的路徑 \/ 名稱 \/ id。
 renderWorkspaceError :: WorkspaceError -> Text
-renderWorkspaceError = undefined
+renderWorkspaceError = \case
+  HubNotFound fp ->
+    pack fp
+      <> ": 找不到中樞設定檔(config.toml 不存在);請先執行 workspace setup 建立"
+  HubUnreadable fp reason ->
+    pack fp
+      <> ": 中樞設定檔讀取失敗 —— "
+      <> reason
+      <> ";請確認檔案存在、可讀,且是合法的 TOML"
+  HubMalformed fp reason ->
+    pack fp <> ": 中樞設定檔內容不合規 —— " <> reason <> ";請修正後再試"
+  HubWriteFailed fp reason ->
+    pack fp <> ": 中樞設定檔寫入失敗 —— " <> reason <> ";請確認目錄存在且可寫"
+  VaultSelectorNotFound s ->
+    "找不到符合「"
+      <> s
+      <> "」的 vault;請確認 id 或名稱是否正確,或先執行 vault list 查看可用的 vault"
+  VaultSelectorAmbiguous s es ->
+    "「"
+      <> s
+      <> "」在中樞裡比對到多個 vault:"
+      <> T.intercalate "、" (map ambiguousEntry es)
+      <> ";請改用完整的 id 指定"
+  VaultKindMismatch vid want got ->
+    "vault "
+      <> unVaultId vid
+      <> " 的種類是 "
+      <> renderVaultKind got
+      <> ",與要求的 "
+      <> renderVaultKind want
+      <> " 不符;請改用符合種類的 vault,或改用 --vault 指定其他 vault"
+  NoWriteTarget start ->
+    pack start
+      <> ": 從這裡向上找不到任何 .aapms 目錄,且未指定 --vault;"
+      <> "請先執行 vault init,或改用 --vault 指定寫入目標"
+  VaultAlreadyInitialized dir ->
+    pack dir
+      <> ": 這個目錄已經是 vault(.aapms 已存在);請改用既有的 vault,或指定其他空目錄"
+  VaultDirMissing dir ->
+    pack dir <> ": 目錄不存在,無法採用既有內容;請確認路徑,或改用建立全新 vault 的模式"
+  VaultDirNotEmpty dir ->
+    pack dir
+      <> ": 目錄非空,無法建立全新 vault;請改用採用既有內容的模式,或指定空目錄"
+  VaultIdCollision vid old new ->
+    "vault id "
+      <> unVaultId vid
+      <> " 已經被 "
+      <> pack old
+      <> " 使用,無法再指派給 "
+      <> pack new
+      <> ";這通常是整個 vault 目錄被複製過,請只保留其中一個,"
+      <> "或對新的那一份重新執行 vault init"
+  MarkerUnreadable root e ->
+    pack root <> ": 讀取 vault marker 失敗 —— " <> renderStoreError e <> ";請確認後再試"
+  ProjectSelectorNotFound s ->
+    "找不到符合「"
+      <> s
+      <> "」的專案;請確認 id 或名稱是否正確,或先執行 project list 查看可用的專案"
+  ProjectPathMissing name fp ->
+    "專案「" <> name <> "」指向的路徑 " <> pack fp <> " 不存在;請確認路徑,或改用其他專案"
+  InvalidName raw ->
+    "名稱「" <> raw <> "」不合法(去除前後空白後為空);請提供非空的名稱"
+  where
+    pack = T.pack
+    unVaultId (VaultId t) = t
+    ambiguousEntry e = unVaultId (veId e) <> "(" <> pack (vePath e) <> ")"

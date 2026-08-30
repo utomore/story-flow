@@ -92,6 +92,55 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 
 ## 階段結果
 
+### 階段一閘門結果(2026-08-30)
+
+**閘門結論:通過,就此停下**(開發者裁決,與 D3 一致)。階段二 / 三的六個 feature 留待下一次
+`/subsys-build service`(接續模式,從 W3 起)。
+
+**完成**:`F001` / `F002` 兩份 `status: done`;**介面 49/49 已實作**,`service/src` 未實作標記清零。
+`aapms-service` 從無到有:Laws 52 條、Examples 62 個、**測試 120 / 0**。
+
+**測試**(編排者獨立重跑,非採信回報):`aapms-core` 224 / `aapms-types` 42 / `aapms-md` 327 /
+`aapms-store` 294 / `aapms-workspace` 310(3 pending)/ `aapms-service` **120** /
+`aapms-contract-rules` 6,合計 **1323 examples、0 failures**,零回歸。
+
+**qa 紅綠基線**:三次快照驗證,**「該紅卻綠」與「該綠卻紅」皆 0**。
+**白名單對帳**:三次全 OK,零違規、零新增未追蹤檔。
+
+**契約裁決**:15 條經閘門逐條裁決(不可逆決定 5 / 新增依賴邊 2 / 契約假設 7 / 阻塞項授權 1),
+**無「快速檔逕行採用」、無「空議程自動放行」**——嚴格檔的代價與收穫都兌現了。
+**自裁 9 條**,編排者降級 0、升級 2;抽查 4 條**全部成立**。
+
+**仲裁**:2 輪,歸因 **spec bug 3 / impl 錯 0 / qa 誤讀 0**。
+
+**本階段最重要的發現:五條「測試永遠不會紅」的契約缺陷**,沒有一條是測試抓到的——
+
+| | 缺陷 | 怎麼被發現的 |
+|---|---|---|
+| W1 | `ServiceM` 被加了未登記的 `MonadError` 實例(全域可見、匯出清單藏不住) | **骨架快照比對**(測試 53/53 全綠) |
+| W2 | `workspaceSetup` 在 `ServiceM` 裡**執行不到**,`svHubCreated` 恒 `False`,「乾淨機器的第一次 setup」沒人做得了 | spec subagent 讀契約 A 時推出來的 |
+| W2 | `vaultInit` 丟棄 `AdoptNotice`,workspace 掃出來的舊 marker 在這一層被揉掉 | 同上 |
+| W2 | X10 的預期依賴「這台機器剛好沒裝 7-Zip」 | **qa 寫不出斷言而撞牆** |
+| W2 | X19b 的預期依賴「只在資源生命週期第一次發生的事件」 | 同上 |
+
+前三條是**契約被悄悄擴大或悄悄縮小**,後兩條是**驗收標準寫得出來但驗不到**(`contract-readiness.md`
+的 A9,與 graph-core 的 G5 同一個根)。加上跨波次的那條(F001 的 X28 把會隨波次成長的量寫成定值),
+**這一階段的六條缺陷全部落在契約邊界上,全部逃得過測試**。
+
+**留給後續的四條**(不阻擋,已列進偏離清單):
+
+1. **`RegistrySource` 的 `FromEnv` 撞名**:W2 的 S1 裁決是「上游改建構子名」根除,但那動 `aapms-workspace`
+   / `aapms-types` 的已交付契約,`/subsys-build` 不委派 enhance → **另開文檔**,scope 由開發者定。
+   在那之前 F002 不 re-export `RegistrySource`,`shell` 要 `dvRegistry` 得自己 import `aapms-types`,
+   而那條邊還沒進 `system.md` 的通訊拓撲
+2. **知識圖含凍結舊碼的幽靈邊**:圖顯示 `shell → service` 30 條,全部來自 `api/src/Aapms/Api.hs`
+   —— 但 `api/` 被 `cabal.project` 註解掉、編不過,那是 knot 從舊 `.hie` 快取抽到的。
+   `legacy/service-and-interfaces`(112 節點)與 `legacy/assetdb`(122 節點)同樣在圖裡。
+   **下一次 `/arch-audit system` 會據此判出不存在的跨子系統依賴** → 建議建圖時排除 `legacy/` 與凍結目錄
+3. **graph-core 的三處 `IOException` 逸出**(`ensureDir` / `vaultMarkdownFiles` / `toVaultRelative`+`openVault`),
+   2026-08-30 `/arch-audit subsys graph-core` 的發現 1,是否開 B003 待裁
+4. **`Index.hs:146` 的 ADR-022 違反**(CJK 預切在 SQLite 交易內求值,且被一句錯的註解掩護),同上發現 2
+
 ### 階段一 骨幹
 
 **W2 `workspace-facade`(F002):done**(2026-08-30)

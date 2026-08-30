@@ -1,0 +1,89 @@
+cabal-version:      3.4
+name:               aapms-service
+version:            0.1.0.0
+synopsis:           aapms 的業務契約層(所有業務操作的唯一定義處)
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Service
+        Aapms.Service.Error
+        Aapms.Service.Json
+        Aapms.Service.Monad
+        Aapms.Service.Types
+    -- ADR-006:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
+    -- servant / warp / optparse-applicative 出現在這裡即為架構違規(service-and-interfaces/F001 T1)。
+    build-depends:
+        , aeson
+        , base            >=4.14 && <5
+        , containers
+        , mtl
+        , sqlite-simple
+        , aapms-core
+        , aapms-md
+        , aapms-store
+        , aapms-types
+        , text
+        , time
+
+test-suite aapms-service-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Service.AliasIndexSpec
+        Aapms.Service.CabalSpec
+        Aapms.Service.EndToEndSpec
+        Aapms.Service.EntityReadSpec
+        Aapms.Service.EntityWriteSpec
+        Aapms.Service.EnvSpec
+        Aapms.Service.ErrorSpec
+        Aapms.Service.FacadeSpec
+        Aapms.Service.Fixtures
+        Aapms.Service.JsonSpec
+        Aapms.Service.LevelSpec
+        Aapms.Service.LinkGraphSpec
+        Aapms.Service.LinkSpec
+        Aapms.Service.MonadSpec
+        Aapms.Service.TypeListSpec
+        Aapms.Service.TypesSpec
+        Aapms.Service.ValidateSpec
+        Aapms.Service.VaultConfigSpec
+        Aapms.Service.LocateSpec
+        Aapms.Service.VaultRootSpec
+        Aapms.Service.VaultSpec
+    build-depends:
+        , aeson
+        , base
+        , bytestring
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , mtl
+        , aapms-core
+        , aapms-md
+        , aapms-service
+        , aapms-store
+        , aapms-types
+        , temporary
+        , text
+        , time

@@ -1,71 +1,108 @@
--- | 業務層測試的共用底稿。
+-- | F001 測試共用的臨時目錄、環境變數與固定佈局。
 --
--- ADR-006 的正面影響之一是「@service@ 可以直接用 hspec 做完整的業務測試」,
--- 前提是測試__不能碰使用者真實的環境__。兩個環境變數因此在每次建臨時 Vault 時
--- 一起設好:
+-- spec「數據」節「測試素材:一組固定的工作區佈局」的字面實作:
 --
--- * @STORYFLOW_VAULTS@ 指向臨時目錄裡的 @vaults.toml@,不動
---   @~\/.config\/aapms\/@
--- * @STORYFLOW_REGISTRY@ 指向原始碼樹的 @types\/registry\/@ ——測的是真正的
---   五份型別宣告,因為「註冊表在執行期找得到」正是 service-and-interfaces/F001 的驗收標準之一
+-- @
+-- \<tmp\>\/hub\/config.toml          -- [[vaults]] 兩列:VA(story)、VB(asset);無 [llm]
+-- \<tmp\>\/va\/.aapms\/config.toml    -- id = VA, kind = story, name = "story", refs = []
+-- \<tmp\>\/vb\/.aapms\/config.toml    -- id = VB, kind = asset, name = "assets", refs = []
+-- \<tmp\>\/outside\/                 -- 不是 vault,也不在任何 vault 底下
+-- @
+--
+-- 'AAPMS_HOME' 指向 @hub\/@,'STORYFLOW_REGISTRY'(對照 'Aapms.Types.Loader.registryEnvVar')
+-- 指向專案的 @types\/registry\/@ ——用真正的型別宣告,「註冊表在執行期找得到」正是
+-- 驗收標準之一(對照 legacy @service-and-interfaces@ 的 'Aapms.Service.Fixtures.withVaultDir' 同一個理由)。
 module Aapms.Service.Fixtures
-  ( -- * 環境
-    withServiceEnv
-  , withVaultDir
+  ( -- * 固定佈局
+    FixedLayout (..)
+  , withFixedLayout
+  , vaKindText
+  , vbKindText
+
+    -- * 環境變數 / 臨時目錄的底層 helper
   , withEnvVars
+  , withTempRoot
   , registryDir
+  , aapmsHomeVar
 
-    -- * 跑業務操作
-  , runS
-  , runE
-  , orDieS
-  , shouldFailWith
+    -- * 中樞 / marker 檔案的讀寫
+  , writeHubConfigAt
+  , hubConfigText
+  , writeVaultMarkerAt
+  , markerTomlText
 
-    -- * 請求建構
-  , newEntity
-  , newFragment
-  , newLevel
-  , newNode
+  , -- * 開/關 Env 的便利包裝
+    openEnvOrDie
+  , withOpenEnv
 
-    -- * 其他
-  , idOf
-  , refOf
-  , rootOf
-  , firstChildId
-  , sceneKind
-  , castKind
+    -- * 讀骨架原始碼(L23/X24/X25 用)
+  , serviceSourceFiles
+  , readServiceSource
+
+    -- * F002:遞迴快照(L9/X9 用)、顯式 UTF-8 讀寫
+  , snapshotTree
+  , readUtf8NoTranslate
+  , writeUtf8NoTranslate
+
+    -- * 雜項
+  , orDie
+  , toTomlPath
+  , describeServiceResult
   ) where
 
 import Control.Exception (bracket)
+import Data.List (isSuffixOf, sortOn)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.Id (Id, Ref, parseId, parseRef)
-import Aapms.Core.Level (Level (..), Node (..), NodeKind (KCast, KScene))
-import Aapms.Core.Meta (Meta (..), Source (Human), Status (Canon), emptyTimeline)
-import Aapms.Core.Tree (NodeTree (..))
-import Aapms.Service
-import System.Directory (doesDirectoryExist)
+import qualified Data.Text.IO as TIO
+import System.Directory
+  ( createDirectoryIfMissing
+  , doesDirectoryExist
+  , listDirectory
+  )
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.FilePath ((</>))
+import System.IO
+  ( IOMode (ReadMode, WriteMode)
+  , hSetEncoding
+  , hSetNewlineMode
+  , noNewlineTranslation
+  , utf8
+  , withFile
+  )
 import System.IO.Temp (withSystemTempDirectory)
-import Test.Hspec
 
--- 環境 -------------------------------------------------------------------------
+import Aapms.Core.Id (VaultId (..))
+import Aapms.Types.Loader (registryEnvVar)
 
--- | 原始碼樹裡的 @types\/registry\/@。
---
--- 測試的工作目錄是套件目錄(@service\/@),但直接跑執行檔時可能是專案根目錄,
--- 兩種都試過再放棄——找不到就直接讓測試爆掉,而不是靜默用空註冊表跑完。
-registryDir :: IO FilePath
-registryDir = go candidates
-  where
-    candidates = ["../types/registry", "types/registry", "../../types/registry"]
-    go [] = fail "找不到 types/registry/;測試需要真正的型別註冊表"
-    go (c : rest) = do
-      ok <- doesDirectoryExist c
-      if ok then pure c else go rest
+import Aapms.Service.Monad (Env, closeEnv, openEnv)
+import Aapms.Service.Types (ServiceError, renderServiceError)
 
--- | 設定環境變數跑一段,結束後還原成原本的值(沒設過就還原成沒設)。
+--------------------------------------------------------------------------------
+-- 顯式 UTF-8、不做換行轉換的讀寫(對照 memory「hedgehog 在 cp950 下會蓋掉真正的失敗」)
+
+readUtf8NoTranslate :: FilePath -> IO Text
+readUtf8NoTranslate fp = withFile fp ReadMode $ \h -> do
+  hSetEncoding h utf8
+  hSetNewlineMode h noNewlineTranslation
+  txt <- TIO.hGetContents h
+  T.length txt `seq` pure txt
+
+writeUtf8NoTranslate :: FilePath -> Text -> IO ()
+writeUtf8NoTranslate fp content = withFile fp WriteMode $ \h -> do
+  hSetEncoding h utf8
+  hSetNewlineMode h noNewlineTranslation
+  TIO.hPutStr h content
+
+--------------------------------------------------------------------------------
+-- 環境變數 / 臨時目錄
+
+-- | 'Aapms.Workspace.Location.hubLocation' 讀的環境變數名。字面常數獨立宣告
+-- (不依賴 production 介面),與 'Aapms.Types.Loader.registryEnvVar' 同一個道理。
+aapmsHomeVar :: String
+aapmsHomeVar = "AAPMS_HOME"
+
+-- | 設定一批環境變數跑一段動作,結束後還原(沒設過就還原成沒設)。
 withEnvVars :: [(String, String)] -> IO a -> IO a
 withEnvVars vars act = bracket save restore (const act)
   where
@@ -76,134 +113,202 @@ withEnvVars vars act = bracket save restore (const act)
       pure (k, old)
     restore = mapM_ (\(k, mv) -> maybe (unsetEnv k) (setEnv k) mv)
 
--- | 一個臨時目錄,環境變數已經指到它自己的 @vaults.toml@ 與真正的註冊表。
-withVaultDir :: (FilePath -> IO a) -> IO a
-withVaultDir act =
-  withSystemTempDirectory "aapms-service" $ \dir -> do
-    reg <- registryDir
-    withEnvVars
-      [ ("STORYFLOW_VAULTS", dir </> "vaults.toml")
-      , ("STORYFLOW_REGISTRY", reg)
-      ]
-      (act dir)
+-- | 一個空的臨時目錄,測完自動刪除。
+withTempRoot :: (FilePath -> IO a) -> IO a
+withTempRoot = withSystemTempDirectory "aapms-service"
 
--- | 臨時目錄 + 已建好並登記的 Vault + 開好的 'Env'。
-withServiceEnv :: (Env -> IO a) -> IO a
-withServiceEnv act = withVaultDir $ \dir -> do
-  _ <- orDieS =<< createVault dir "liftgame"
-  bracket (openEnvAt dir) closeEnv act
+-- | 專案的 @types\/registry\/@:測試工作目錄可能是套件目錄(@service\/@)或專案根,
+-- 兩種都試過再放棄(對照 legacy @service-and-interfaces@ 的
+-- 'Aapms.Service.Fixtures.registryDir')。
+registryDir :: IO FilePath
+registryDir = go candidates
   where
-    openEnvAt dir = fst <$> (orDieS =<< openEnv Nothing dir)
+    candidates = ["../types/registry", "types/registry", "../../types/registry"]
+    go [] = fail "找不到 types/registry/;測試需要真正的型別註冊表"
+    go (c : rest) = do
+      ok <- doesDirectoryExist c
+      if ok then pure c else go rest
 
--- 跑業務操作 --------------------------------------------------------------------
+-- | Windows 的反斜線在 TOML 字串裡要跳脫;測試素材一律改用正斜線
+-- (對照 workspace fixtures 的 'sampleHubText')。
+toTomlPath :: FilePath -> Text
+toTomlPath = T.pack . map (\c -> if c == '\\' then '/' else c)
 
--- | 跑一個業務操作,失敗就讓測試爆掉並印出人看得懂的訊息。
-runS :: Env -> ServiceM a -> IO a
-runS env m = orDieS =<< runService env m
+--------------------------------------------------------------------------------
+-- 中樞 / marker 檔案
 
--- | 期待失敗時用:原樣把 'Either' 交出來。
-runE :: Env -> ServiceM a -> IO (Either ServiceError a)
-runE = runService
+writeHubConfigAt :: FilePath -> Text -> IO ()
+writeHubConfigAt hubDir content = do
+  createDirectoryIfMissing True hubDir
+  writeUtf8NoTranslate (hubDir </> "config.toml") content
 
-orDieS :: Either ServiceError a -> IO a
-orDieS = either (fail . T.unpack . renderServiceError) pure
+-- | 兩列 @[[vaults]]@,依 spec「數據」節逐字。
+hubConfigText :: [(VaultId, Text, Text, FilePath)] -> Text
+hubConfigText entries = T.unlines (concatMap oneVault entries)
+  where
+    oneVault (VaultId idText, name, kind, path) =
+      [ "[[vaults]]"
+      , "id   = \"" <> idText <> "\""
+      , "name = \"" <> name <> "\""
+      , "kind = \"" <> kind <> "\""
+      , "path = \"" <> toTomlPath path <> "\""
+      , ""
+      ]
 
--- | 斷言某個操作以特定的錯誤收場。比對用 @errorCode@ 之外還印出訊息,
--- 失敗時才看得出實際發生了什麼。
-shouldFailWith :: (Show a) => Either ServiceError a -> Text -> Expectation
-shouldFailWith r code = case r of
-  Left e
-    | errorCode e == code -> pure ()
-    | otherwise ->
-        expectationFailure $
-          "預期 "
-            <> T.unpack code
-            <> ",實際是 "
-            <> T.unpack (errorCode e)
-            <> ":"
-            <> T.unpack (renderServiceError e)
-  Right x -> expectationFailure ("預期失敗(" <> T.unpack code <> "),但成功了:" <> show x)
+writeVaultMarkerAt :: FilePath -> Text -> IO ()
+writeVaultMarkerAt root content = do
+  createDirectoryIfMissing True (root </> ".aapms")
+  writeUtf8NoTranslate (root </> ".aapms" </> "config.toml") content
 
--- 請求建構 ---------------------------------------------------------------------
+-- | spec「數據」節 marker 檔案格式的字面樣板(對照 workspace fixtures 的
+-- 'markerTomlText')。
+markerTomlText :: VaultId -> Text -> Text -> [VaultId] -> Text
+markerTomlText (VaultId idText) kindText nameText refs =
+  T.unlines
+    [ "id   = \"" <> idText <> "\""
+    , "kind = \"" <> kindText <> "\""
+    , "name = \"" <> nameText <> "\""
+    , "refs = [" <> T.intercalate ", " (map (\(VaultId r) -> "\"" <> r <> "\"") refs) <> "]"
+    ]
 
--- | 型別 + 標題 + 一句話總結。其餘欄位是各測試自己 record update 上去。
-newEntity :: Text -> Text -> Text -> NewEntityReq
-newEntity ty title summary =
-  NewEntityReq
-    { nerType = ty
-    , nerTitle = title
-    , nerSummary = summary
-    , nerBody = ""
-    , nerTags = []
-    , nerAliases = []
-    , nerStatus = Canon
-    , nerTimeline = emptyTimeline
-    , nerLinks = []
-    , nerSource = Human
-    }
+vaKindText, vbKindText :: Text
+vaKindText = "story"
+vbKindText = "asset"
 
-newFragment :: Text -> Text -> NewFragmentReq
-newFragment title summary =
-  NewFragmentReq
-    { nfrTitle = title
-    , nfrSummary = summary
-    , nfrBody = ""
-    , nfrType = Nothing
-    , nfrTags = []
-    , nfrAliases = []
-    , nfrStatus = Nothing
-    , nfrTimeline = Nothing
-    , nfrLinks = []
-    , nfrSource = Nothing
-    }
+--------------------------------------------------------------------------------
+-- 固定佈局
 
-newLevel :: Text -> Text -> NodeKind -> NewLevelReq
-newLevel title rootTitle rootKind =
-  NewLevelReq
-    { nlrTitle = title
-    , nlrSummary = title <> "的說明"
-    , nlrBody = ""
-    , nlrRootTitle = rootTitle
-    , nlrRootKind = rootKind
-    , nlrStatus = Canon
-    }
+data FixedLayout = FixedLayout
+  { flRoot :: FilePath
+  , flHubDir :: FilePath
+  , flVaPath :: FilePath
+  , flVbPath :: FilePath
+  , flOutsidePath :: FilePath
+  , flVaId :: VaultId
+  , flVbId :: VaultId
+  }
 
-newNode :: Text -> NodeKind -> NewNodeReq
-newNode title kind =
-  NewNodeReq
-    { nnrTitle = title
-    , nnrKind = kind
-    , nnrSummary = ""
-    , nnrBody = ""
-    , nnrLinks = []
-    }
+-- | 建好 spec「測試素材」那組固定佈局,設好 'aapmsHomeVar' 與 'registryEnvVar'
+-- 兩個環境變數(真正的 @types\/registry\/@),交給動作跑;結束後臨時目錄整個刪除、
+-- 環境變數還原。
+withFixedLayout :: (FixedLayout -> IO a) -> IO a
+withFixedLayout act = withTempRoot $ \root -> do
+  reg <- registryDir
+  let hubDir = root </> "hub"
+      vaPath = root </> "va"
+      vbPath = root </> "vb"
+      outsidePath = root </> "outside"
+      vaId = VaultId "vlt-aaaa1111"
+      vbId = VaultId "vlt-bbbb2222"
+  createDirectoryIfMissing True outsidePath
+  writeVaultMarkerAt vaPath (markerTomlText vaId vaKindText "story" [])
+  writeVaultMarkerAt vbPath (markerTomlText vbId vbKindText "assets" [])
+  writeHubConfigAt
+    hubDir
+    (hubConfigText [(vaId, "story", vaKindText, vaPath), (vbId, "assets", vbKindText, vbPath)])
+  withEnvVars [(aapmsHomeVar, hubDir), (registryEnvVar, reg)] $
+    act
+      FixedLayout
+        { flRoot = root
+        , flHubDir = hubDir
+        , flVaPath = vaPath
+        , flVbPath = vbPath
+        , flOutsidePath = outsidePath
+        , flVaId = vaId
+        , flVbId = vbId
+        }
 
--- 其他 -------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- 開/關 Env
 
--- | Level 的根 Node。'LevelView' 帶的是整棵樹,但要往下掛節點時要的是根的 id。
-rootOf :: LevelView -> Id
-rootOf = lvlRoot . lvLevel
+-- | 'openEnv' 一定得成功時用:失敗就讓測試爆掉並印出 'renderServiceError'。
+openEnvOrDie :: Maybe Text -> FilePath -> IO Env
+openEnvOrDie sel cwd =
+  openEnv sel cwd >>= either (\e -> fail ("openEnv 失敗:" <> T.unpack (renderServiceError e))) pure
 
--- | 樹上第一個子節點的 id ——「剛剛掛上去的那個」。
-firstChildId :: NodeTree -> Id
-firstChildId t = case ntChildren t of
-  (c : _) -> metaId (nodMeta (ntNode c))
-  [] -> error "測試預期這棵樹至少有一個子節點"
+-- | 開一個 'Env' 跑一段動作,結束後 'closeEnv'(不經 'Aapms.Service.Monad.withEnv',
+-- 因為 'withEnv' 本身就是 L7 的受測對象)。
+withOpenEnv :: Maybe Text -> FilePath -> (Env -> IO a) -> IO a
+withOpenEnv sel cwd = bracket (openEnvOrDie sel cwd) closeEnv
 
--- | 只 import 門面的測試(T16)也需要 'NodeKind' 的值,而門面沒有(也不該)
--- 重新匯出 core 的建構子。借道底稿,測試本身因此仍然只認得門面。
-sceneKind :: NodeKind
-sceneKind = KScene
+--------------------------------------------------------------------------------
+-- 讀骨架原始碼(L23/X24/X25 用)
 
-castKind :: NodeKind
-castKind = KCast
+-- | @service\/src\/@ 的實際位置。測試工作目錄可能是套件目錄或專案根
+-- (對照 "Aapms.Workspace.Fixtures.readWorkspaceSource")。
+resolveServiceSrcDir :: IO FilePath
+resolveServiceSrcDir = go ["src", "service" </> "src"]
+  where
+    go [] = fail "找不到 service/src/"
+    go (c : rest) = do
+      ok <- doesDirectoryExist c
+      if ok then pure c else go rest
 
-idOf :: Text -> Id
-idOf t = case parseId t of
-  Right (_, i) -> i
-  Left e -> error ("測試裡的 id 不合法:" <> show e)
+-- | 讀單一個骨架原始碼檔(相對於 @service\/src\/@,例如
+-- @"Aapms\/Service\/Scope.hs"@)。
+readServiceSource :: FilePath -> IO Text
+readServiceSource rel = do
+  dir <- resolveServiceSrcDir
+  readUtf8NoTranslate (dir </> rel)
 
-refOf :: Text -> Ref
-refOf t = case parseRef t of
-  Right r -> r
-  Left e -> error ("測試裡的 ref 不合法:" <> show e)
+-- | @service\/src\/@ 底下__遞迴__取得的每一個 @.hs@ 檔,(相對路徑、檔案全文)。
+-- __不是一份寫死的清單__(L23 明文):之後 F002–F008 新增的模組都自動被納入。
+-- 相對路徑一律用正斜線,不受平台影響。
+serviceSourceFiles :: IO [(FilePath, Text)]
+serviceSourceFiles = do
+  root <- resolveServiceSrcDir
+  rels <- filter (".hs" `isSuffixOf`) <$> walk root ""
+  mapM (\rel -> (,) (normSlashes rel) <$> readUtf8NoTranslate (root </> rel)) rels
+  where
+    walk root rel = do
+      let full = if null rel then root else root </> rel
+      isDir <- doesDirectoryExist full
+      if isDir
+        then do
+          entries <- listDirectory full
+          concat <$> mapM (\e -> walk root (if null rel then e else rel </> e)) entries
+        else pure [rel]
+    normSlashes = map (\c -> if c == '\\' then '/' else c)
+
+--------------------------------------------------------------------------------
+-- F002:遞迴快照(L9/X9「唯讀」用)
+
+-- | 一個目錄底下__遞迴__的每一個檔案(相對路徑、顯式 UTF-8\/不轉換換行讀出的
+-- 內容),依相對路徑排序,供前後兩次快照逐一比對。本套件底下要快照的檔案
+-- (@config.toml@)全是我們自己用 'writeUtf8NoTranslate' 寫出來的,這個讀法因此
+-- 忠實反映位元組(不像 'Prelude.readFile' 會依 locale 猜編碼、動換行序列)。
+-- 目錄不存在時回 @[]@(呼叫端若預期它存在,自己斷言)。相對路徑一律用正斜線,
+-- 不受平台影響(對照 'serviceSourceFiles')。
+snapshotTree :: FilePath -> IO [(FilePath, Text)]
+snapshotTree root = do
+  exists <- doesDirectoryExist root
+  if not exists
+    then pure []
+    else do
+      rels <- walk ""
+      sortOn fst <$> mapM (\rel -> (,) (normSlashes rel) <$> readUtf8NoTranslate (root </> rel)) rels
+  where
+    walk rel = do
+      let full = if null rel then root else root </> rel
+      isDir <- doesDirectoryExist full
+      if isDir
+        then do
+          entries <- listDirectory full
+          concat <$> mapM (\e -> walk (if null rel then e else rel </> e)) entries
+        else pure [rel]
+    normSlashes = map (\c -> if c == '\\' then '/' else c)
+
+--------------------------------------------------------------------------------
+-- 雜項
+
+-- | 攤平一個測試前置作業裡「一定得成功」的 'Either'(對照
+-- "Aapms.Workspace.Fixtures.orDie")。
+orDie :: (Show e) => Either e a -> IO a
+orDie = either (\e -> fail ("測試前置作業失敗:" <> show e)) pure
+
+-- | 除錯用:只印 'Left' 那一側——F002 多個操作的成功酬載(例如
+-- 'Aapms.Workspace.Types.Hub'\/'Aapms.Store.Marker.VaultHandle')不透明或沒有
+-- 'Show' 實例,對照 F001 'Aapms.Service.MonadSpec.describeEnvResult' 同一個理由。
+describeServiceResult :: Either ServiceError a -> String
+describeServiceResult (Left e) = "Left (" <> show e <> ")"
+describeServiceResult (Right _) = "Right <..>"

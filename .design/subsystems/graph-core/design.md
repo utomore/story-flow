@@ -5,7 +5,7 @@ title: graph-core
 description: 統一片段圖譜核心:型別、註冊表、兩種 Markdown 格式與可丟棄的索引
 status: active
 created: 2026-08-23
-updated: 2026-08-29
+updated: 2026-08-30
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
@@ -325,7 +325,8 @@ data VaultMarker = VaultMarker { vmId :: VaultId, vmKind :: VaultKind, vmName ::
 data VaultHandle                                              -- 含 marker、根目錄、索引連線、型別註冊表
 
 readMarker  :: FilePath -> IO (Either StoreError VaultMarker)
-initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)   -- 寫 marker、建空索引
+initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)   -- 寫 marker、建空索引;時間取當下
+initVaultAtWith :: FilePath -> VaultKind -> Text -> UTCTime -> IO (Either StoreError VaultMarker)  -- 同上,時間由呼叫端給
 openVault   :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))  -- schema 不符重建、過時刷新
 closeVault  :: VaultHandle -> IO ()
 
@@ -341,6 +342,15 @@ handle,索引路徑因此叫得動 `checkMeta`(資料流管線「`aapms-core` �
 「`checkMeta` 的警告進 `IndexIssue`」都靠它)。**不採「各函式加參數」**——`openVault` 自己就要做
 過時刷新,註冊表遲早得在 handle 裡,分次加只會讓簽名逐次長胖。註冊表載入失敗讓程序死在啟動階段
 (契約 C),`openVault` 收得到它代表這個順序被型別釘死。`initVaultAt` 只寫 marker 與空索引,不需要。
+
+**`initVaultAtWith` 是明碼時間的入口**(2026-08-30 開發者裁決,graph-core/E002):vault 的 id 是
+`newId PVlt name t 0`,時間藏在函式內部取樣時呼叫端就造不出兩個相同的 id,而 `workspace` 的
+`initVault` 有一整條「新 id 撞到中樞既有 id 就回 `VaultIdCollision` 並回滾」的分支,它的正確性
+只能靠造出一次碰撞來驗——這與 `allocateId` 的 2026-08-25 **G8 裁決**是同一個判準。
+**採薄包裝而非直接改簽名**:`initVaultAt` 逐字維持原簽名、內部取當下時間後轉呼
+`initVaultAtWith`,既有呼叫端一行都不用改。被否決的替代方案是**直接在 `initVaultAt` 加第四個
+參數**(與 `allocateId` 形狀完全一致、只有一個入口、「時間明碼」由型別強制而非紀律維持);
+否決的代價已知並接受:留下兩個入口,而較短的 `initVaultAt` 仍會看時鐘。
 
 ```haskell
 

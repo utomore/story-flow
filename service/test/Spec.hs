@@ -1,25 +1,25 @@
+-- | @aapms-service@ 測試的彙總器。
+--
+-- __這是手寫彙總器,不是 hspec-discover__:新增測試模組後必須自己在下面的
+-- 'main' 裡加一行 @describe@\/@Spec.spec@,否則它一條都不會被執行,而測試輸出
+-- 看起來仍然全綠(graph-core\/E001 踩過這個坑:12 條測試整批沒跑而沒有人發現)。
+--
+-- 同時要把模組名加進 @aapms-service.cabal@ 的 @test-suite@ @other-modules@ ——
+-- 那個檔案由 @\/subsys-build@ 的編排者單線維護(build-log 的 D1),qa 不碰它,
+-- 請在回報裡列出要加的模組名。
 module Main (main) where
 
-import qualified Aapms.Service.AliasIndexSpec
-import qualified Aapms.Service.CabalSpec
-import qualified Aapms.Service.EndToEndSpec
-import qualified Aapms.Service.EntityReadSpec
-import qualified Aapms.Service.EntityWriteSpec
-import qualified Aapms.Service.EnvSpec
-import qualified Aapms.Service.ErrorSpec
-import qualified Aapms.Service.FacadeSpec
-import qualified Aapms.Service.JsonSpec
-import qualified Aapms.Service.LevelSpec
-import qualified Aapms.Service.LinkGraphSpec
-import qualified Aapms.Service.LinkSpec
+import qualified Aapms.Service.MachineDoctorSpec
+import qualified Aapms.Service.MachineRegistrySpec
+import qualified Aapms.Service.MachineSetupPurgeSpec
+import qualified Aapms.Service.MachineVaultInfoSpec
+import qualified Aapms.Service.MachineVaultSpec
+import qualified Aapms.Service.MachineWriteOpsSpec
 import qualified Aapms.Service.MonadSpec
-import qualified Aapms.Service.TypeListSpec
+import qualified Aapms.Service.NestedRunServiceSpec
+import qualified Aapms.Service.PathLiteralSpec
+import qualified Aapms.Service.ScopeSpec
 import qualified Aapms.Service.TypesSpec
-import qualified Aapms.Service.ValidateSpec
-import qualified Aapms.Service.VaultConfigSpec
-import qualified Aapms.Service.LocateSpec
-import qualified Aapms.Service.VaultRootSpec
-import qualified Aapms.Service.VaultSpec
 import System.IO
 import Test.Hspec
 
@@ -28,23 +28,16 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    Aapms.Service.CabalSpec.spec
-    Aapms.Service.ErrorSpec.spec
-    Aapms.Service.MonadSpec.spec
-    Aapms.Service.EnvSpec.spec
+    -- service/F001
     Aapms.Service.TypesSpec.spec
-    Aapms.Service.JsonSpec.spec
-    Aapms.Service.ValidateSpec.spec
-    Aapms.Service.VaultSpec.spec
-    describe "llm-workshop-mcp/F001 T4 vaultConfig" Aapms.Service.VaultConfigSpec.spec
-    describe "llm-workshop-mcp/F002 T2 vaultRoot" Aapms.Service.VaultRootSpec.spec
-    describe "G-E002 T2/T3 registryHint 與 locateVault" Aapms.Service.LocateSpec.spec
-    Aapms.Service.TypeListSpec.spec
-    Aapms.Service.EntityReadSpec.spec
-    Aapms.Service.AliasIndexSpec.spec
-    Aapms.Service.EntityWriteSpec.spec
-    Aapms.Service.LinkSpec.spec
-    Aapms.Service.LinkGraphSpec.spec
-    Aapms.Service.LevelSpec.spec
-    Aapms.Service.FacadeSpec.spec
-    Aapms.Service.EndToEndSpec.spec
+    Aapms.Service.MonadSpec.spec
+    Aapms.Service.ScopeSpec.spec
+    Aapms.Service.NestedRunServiceSpec.spec
+    -- service/F002
+    Aapms.Service.MachineVaultSpec.spec
+    Aapms.Service.MachineDoctorSpec.spec
+    Aapms.Service.MachineSetupPurgeSpec.spec
+    Aapms.Service.MachineWriteOpsSpec.spec
+    Aapms.Service.MachineVaultInfoSpec.spec
+    Aapms.Service.MachineRegistrySpec.spec
+    Aapms.Service.PathLiteralSpec.spec

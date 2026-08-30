@@ -1,11 +1,23 @@
 cabal-version:      3.4
 name:               aapms-service
 version:            0.1.0.0
-synopsis:           aapms 的業務契約層(所有業務操作的唯一定義處)
+synopsis:           aapms 的業務契約層:ServiceM、錯誤語彙、樂觀鎖與業務驗證的執行點
 license:            BSD-3-Clause
 author:             Alchbees Studio
 maintainer:         lhm.stu@gmail.com
 build-type:         Simple
+
+-- 本套件不設門面模組(沒有 Aapms.Service):模組全部 exposed,界線由 exposed-modules 守
+-- (同 graph-core E001 與 workspace)。消費端直接 import 需要的那一個。
+--
+-- ADR-006 / ADR-015:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
+-- servant / warp / optparse-applicative / aeson 出現在這裡即為架構違規
+-- (aeson 的編碼規則沿用 aapms-core 的 Json 模組,ToSchema/ToJSON 的責任在 shell)。
+-- 也不得依賴任何領域子系統(archive / ingest / reorg / conflict / llm / ai / workshop / project)。
+--
+-- exposed-modules 與 test-suite 的 other-modules 由 /subsys-build 的編排者單線維護
+-- (見 .design/subsystems/service/build-log.md 的 D1),不屬任何 feature 的寫入白名單。
+-- 目前只含階段一 W1 的三個模組;後續波次由編排者逐波加入。
 
 common warnings
     ghc-options: -Wall -Wcompat
@@ -23,67 +35,55 @@ library
     import:           warnings, lang
     hs-source-dirs:   src
     exposed-modules:
-        Aapms.Service
-        Aapms.Service.Error
-        Aapms.Service.Json
-        Aapms.Service.Monad
         Aapms.Service.Types
-    -- ADR-006:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
-    -- servant / warp / optparse-applicative 出現在這裡即為架構違規(service-and-interfaces/F001 T1)。
+        Aapms.Service.Monad
+        Aapms.Service.Scope
+        Aapms.Service.Machine
     build-depends:
-        , aeson
-        , base            >=4.14 && <5
+        , base          >=4.14 && <5
         , containers
+        , directory
         , mtl
-        , sqlite-simple
+        , text
         , aapms-core
-        , aapms-md
         , aapms-store
         , aapms-types
-        , text
-        , time
+        , aapms-workspace
 
 test-suite aapms-service-test
     import:           warnings, lang
     type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
+    hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
-        Aapms.Service.AliasIndexSpec
-        Aapms.Service.CabalSpec
-        Aapms.Service.EndToEndSpec
-        Aapms.Service.EntityReadSpec
-        Aapms.Service.EntityWriteSpec
-        Aapms.Service.EnvSpec
-        Aapms.Service.ErrorSpec
-        Aapms.Service.FacadeSpec
+        Aapms.Service.Types
+        Aapms.Service.Monad
+        Aapms.Service.Scope
+        Aapms.Service.Machine
         Aapms.Service.Fixtures
-        Aapms.Service.JsonSpec
-        Aapms.Service.LevelSpec
-        Aapms.Service.LinkGraphSpec
-        Aapms.Service.LinkSpec
-        Aapms.Service.MonadSpec
-        Aapms.Service.TypeListSpec
         Aapms.Service.TypesSpec
-        Aapms.Service.ValidateSpec
-        Aapms.Service.VaultConfigSpec
-        Aapms.Service.LocateSpec
-        Aapms.Service.VaultRootSpec
-        Aapms.Service.VaultSpec
+        Aapms.Service.MonadSpec
+        Aapms.Service.ScopeSpec
+        Aapms.Service.NestedRunServiceSpec
+        Aapms.Service.MachineVaultSpec
+        Aapms.Service.MachineDoctorSpec
+        Aapms.Service.MachineSetupPurgeSpec
+        Aapms.Service.MachineWriteOpsSpec
+        Aapms.Service.MachineVaultInfoSpec
+        Aapms.Service.MachineRegistrySpec
+        Aapms.Service.PathLiteralSpec
     build-depends:
-        , aeson
         , base
-        , bytestring
         , containers
         , directory
         , filepath
         , hspec
+        , hedgehog
+        , hspec-hedgehog
         , mtl
-        , aapms-core
-        , aapms-md
-        , aapms-service
-        , aapms-store
-        , aapms-types
         , temporary
         , text
-        , time
+        , aapms-core
+        , aapms-store
+        , aapms-types
+        , aapms-workspace

@@ -16,7 +16,10 @@ packages:
   -- P1(graph-core 重建)期間凍結下游:core 型別換成統一 Meta 後下游編不過。
   -- 依 ADR-018 接受 P1–P2 兩邊不完整,P3 重建 service / shell 時依序加回。
   -- 決策見 .design/subsystems/graph-core/build-log.md D1(範圍已由 G-B001 收窄)。
-  -- service/
+  -- service/ 的舊實作已於 2026-08-30 搬進 legacy/service-and-interfaces/(移植參考,不建置)。
+  -- 2026-08-30 起由 /subsys-build service 逐波重建,見 .design/subsystems/service/build-log.md。
+  -- 目前只含階段一 W1 的三個模組;exposed-modules 由編排者逐波加入。
+  service/
   -- conflict/
   -- llm/
   -- workshop/

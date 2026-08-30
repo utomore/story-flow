@@ -1,241 +1,217 @@
--- | 業務層的回傳型別與請求型別。
+-- | @aapms-service@ 的線上格式與錯誤語彙(design.md「內部模組劃分」的 Types)。
 --
--- __不另造一套與 'Meta' \/ 'Entity' 平行的 DTO__:核心型別已經有完整的 aeson
--- 實例("Aapms.Core.Json"),複製一份十四個欄位的 DTO 只會製造兩份要同步
--- 維護的編碼規則。View 型別只包一層,補上__檔案裡沒有、只有索引知道__的資訊
--- (路徑、錨點、警告)。
+-- 擁有的事實(唯一真相來源):__線上格式__——契約 C \/ B 的全部 View 型別;
+-- 以及__錯誤語彙__——'errorCode' 的 snake_case 識別碼與 'renderServiceError' 的
+-- 繁中訊息。三個殼(CLI \/ HTTP \/ MCP)共用的 @code@ 與訊息只有這一份
+-- (system.md 全域錯誤策略第 1 條)。
 --
--- 請求型別則與 @store@ 的 @NewEntity@ 等分開:那些帶 @nePath@ 之類的落地細節,
--- 這裡的是業務語彙,而且要能從 JSON 解出來(service-and-interfaces/F003 的 API 契約直接吃它們)。
+-- __全部 View 型別住這裡__(2026-08-30 W2 閘門 A1):契約卡的「負責模組」指的是
+-- 誰__實作那些操作__,不是型別住哪。View 散進六個模組會讓 @shell@ 要 import 六處
+-- 才拿得齊一個回應,而「線上格式」這個事實依知識歸屬只能有一個持有者。實作那些
+-- 操作的模組('Aapms.Service.Machine' 等)在自己的匯出清單裡原地 re-export,
+-- 消費端的 import 路徑因此不受影響。
+--
+-- __本模組不得 import 本套件的任何其他模組__(design.md「Types 為什麼要獨立」):
+-- 'ServiceError' 捧著下層的 'StoreError' \/ 'WorkspaceError' \/ 'RegistryError',
+-- 而其餘六個模組每一個都回 @Either 'ServiceError' a@;型別定義與錯誤型別若分居
+-- 兩處就是相依環。本模組只依賴 @aapms-core@ \/ @aapms-store@ \/ @aapms-types@ \/
+-- @aapms-workspace@ 的型別。
+--
+-- __建構子逐波擴充__(build-log D1 \/ 配號表):F001 只寫契約 F 的前四個建構子
+-- (執行環境開得起來所需的那些);'UnknownType' 由 F002 加入(@showType@ 的失敗
+-- 路徑);'ValidationFailed' 起的其餘建構子屬 F003–F006 的範圍,由編排者在該波的
+-- 白名單裡明確授權後加入。這與 @aapms-workspace@ 的 Types「一次寫齊」相反,理由是
+-- 本子系統的波次__不平行__(build-log 排程表),沒有併發互蓋的風險,而分波加入能
+-- 讓每一波的 -Wincomplete-patterns 直接指出還沒處理的建構子。
 module Aapms.Service.Types
-  ( -- * View
-    EntityView (..)
-  , evId
-  , evRevision
-  , LevelView (..)
-  , lvId
-  , lvRevision
+  ( -- * 契約 C:本機 View 型別
+    SetupView (..)
+  , PurgeView (..)
   , VaultView (..)
-  , SearchHit (..)
-  , LinkReport (..)
-  , IndexReport (..)
-  , DeleteReport (..)
+  , VaultInfoView (..)
+  , DoctorView (..)
+  , ProjectView (..)
 
-    -- * 請求
-  , NewEntityReq (..)
-  , NewFragmentReq (..)
-  , NewLevelReq (..)
-  , NewNodeReq (..)
-  , EntityPatch (..)
-  , emptyPatch
-  , patchOverride
-
-    -- * 佔位
-  , placeholderId
+    -- * 契約 F:錯誤
+  , ServiceError (..)
+  , errorCode
+  , renderServiceError
   ) where
 
-import Control.Applicative ((<|>))
 import Data.Text (Text)
-import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Id (Id, parseId)
-import Aapms.Core.Level (Level (..), NodeKind)
-import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Meta (..), Source, Status, Timeline)
-import Aapms.Core.Tree (NodeTree)
-import Aapms.Md (MetaOverride (..))
 
--- View ------------------------------------------------------------------------
+import Aapms.Core.Id (Id, VaultId)
+import Aapms.Core.Registry (RegistryError, renderRegistryError)
+import Aapms.Store.Error (StoreError, renderStoreError)
+import Aapms.Store.Schema (IndexIssue, VaultKind)
+import Aapms.Types.Loader (RegistrySource)
+import Aapms.Workspace.Types
+  ( HubSource
+  , ScopeIssue
+  , ToolStatus
+  , WorkspaceError
+  , renderWorkspaceError
+  )
 
--- | 一個 Entity 加上索引才知道的事。
-data EntityView = EntityView
-  { evEntity :: Entity
-  , evPath :: FilePath
-  -- ^ Vault 相對路徑
-  , evAnchor :: Maybe Text
-  -- ^ @Nothing@ = 檔案層主體
-  , evWarnings :: [Text]
-  -- ^ 型別檢查與 md 的警告,已 render 成繁中
-  }
-  deriving stock (Show, Eq)
+--------------------------------------------------------------------------------
+-- 契約 C:本機 View 型別
 
--- | 兩個最常被問到的欄位:id 與 revision。
+-- | @workspace setup@ 的線上投影:'Aapms.Workspace.Types.SetupReport' 的三欄
+-- 逐欄對應(@spHubPath@ \/ @spHubCreated@ \/ @spCacheCreated@)。
 --
--- 存在的理由不是省字。介面層的每一次修改都是__先讀再寫__(樂觀鎖沒有逃生口),
--- 而「從 View 挖出 id 與 revision」如果要靠呼叫端自己往下鑽三層
--- (@metaId . entMeta . evEntity@),那 CLI、server、MCP 就會各鑽一次。
-evId :: EntityView -> Id
-evId = metaId . entMeta . evEntity
-
-evRevision :: EntityView -> Int
-evRevision = metaRevision . entMeta . evEntity
-
--- | 回__樹__而不是扁平的 @[Node]@:'Aapms.Core.Tree.buildTree' 已經驗證過
--- 合法性,把驗證結果丟掉再讓 CLI 與 server 各自重建一次,就是三個地方各有一份
--- 樹邏輯。
-data LevelView = LevelView
-  { lvLevel :: Level
-  , lvTree :: NodeTree
-  , lvPath :: FilePath
+-- 'svHubPath' 是__中樞根目錄__(等於 'Aapms.Workspace.Types.hlPath'),不是
+-- @config.toml@ 的路徑。
+data SetupView = SetupView
+  { svHubPath :: FilePath
+  -- ^ 中樞根目錄。
+  , svHubCreated :: Bool
+  -- ^ 這次呼叫__建立了__中樞註冊表檔;@False@ = 它本來就在。
+  , svCacheCreated :: Bool
+  -- ^ 這次呼叫__建立了__縮圖快取目錄;@False@ = 它本來就在。
   }
   deriving stock (Show, Eq)
 
--- | Level 主體的 id 與 revision。@addNode@ \/ @removeNode@ 的樂觀鎖鎖的是
--- 整份 Level 檔,所以要的是這一份 revision,不是某個 Node 的。
-lvId :: LevelView -> Id
-lvId = metaId . lvlMeta . lvLevel
+-- | @workspace purge@ 的線上投影:'Aapms.Workspace.Types.PurgeReport' 的三欄
+-- 逐欄對應(@prHubRemoved@ \/ @prThumbsRemoved@ \/ @prVaultIndexesRemoved@)。
+data PurgeView = PurgeView
+  { pvHubRemoved :: Bool
+  -- ^ 中樞註冊表檔本來存在且已被刪除。
+  , pvThumbsRemoved :: Int
+  -- ^ 被刪掉的縮圖檔數,@>= 0@。
+  , pvVaultIndexesRemoved :: [FilePath]
+  -- ^ 被刪掉的每個 vault 索引檔路徑;'Aapms.Workspace.Types.PurgeHubOnly' 時
+  -- 恒為空清單。
+  }
+  deriving stock (Show, Eq)
 
-lvRevision :: LevelView -> Int
-lvRevision = metaRevision . lvlMeta . lvLevel
-
--- | @vvEntityCount@ 是 'Maybe':'Aapms.Service.listVaults' 不會為了數幾筆
--- 就把每個 Vault 的索引都打開(那會觸發全 Vault 的過時掃描),因此那條路徑
--- 給不出數字。給 @0@ 會是說謊。
+-- | 一個 vault 在本機的樣子(design.md 契約 C)。
+--
+-- 前四欄逐欄來自中樞的那一列(或未註冊 vault 的 marker),後兩欄是本層對「這一列
+-- 現在還算不算數」的兩個判斷。
 data VaultView = VaultView
-  { vvName :: Text
-  , vvRoot :: FilePath
-  , vvEntityCount :: Maybe Int
+  { vvId :: VaultId
+  , vvName :: Text
+  , vvKind :: VaultKind
+  , vvPath :: FilePath
+  -- ^ vault 根目錄的絕對路徑。
+  , vvRegistered :: Bool
+  -- ^ @False@ = 這是向上探測到、但__不在中樞__的 vault。讓 @doctor@ 說得出
+  -- 「你在一個未註冊的 vault 裡」。
+  , vvReachable :: Bool
+  -- ^ @False@ = 路徑不存在或 marker 讀不出來;對應 @aapms-workspace@ 的
+  -- 'Aapms.Workspace.Types.VaultPathMissing' \/
+  -- 'Aapms.Workspace.Types.VaultMarkerBroken'。
+  -- 'Aapms.Workspace.Types.VaultIdDrift' __不__使本欄為 @False@:marker 讀得到、
+  -- 路徑也在,只是身分與中樞記的那一列不符。
   }
   deriving stock (Show, Eq)
 
-data SearchHit = SearchHit
-  { shMeta :: Meta
-  , shSnippet :: Text
-  , shScore :: Maybe Double
-  -- ^ 0–1,越大越相關。FTS5 路徑帶正規化後的 bm25
-  -- ('Aapms.Store.Query.normalizeBm25');中文兩字詞走的 @LIKE@ 路徑是
-  -- @ORDER BY e.id@,沒有相關度可言,一律 'Nothing'。
-  --
-  -- 呼叫端拿到 'Nothing' 時該做的是__依名次自己回退__,不是捏一個假分數:
-  -- 「我不知道有多相關」與「相關度是 0.5」是兩件事(conflict-detection/F003)。
+-- | @vault info@ 的結果:一筆 'VaultView' 加上__要開索引才算得出來__的兩欄。
+data VaultInfoView = VaultInfoView
+  { viVault :: VaultView
+  , viCounts :: [(Text, Int)]
+  -- ^ 節點數。鍵是 'Aapms.Core.Id.IdPrefix' 的文字表示
+  -- (@ent@ \/ @ast@ \/ @pck@ \/ …),值 @> 0@;數量為零的 prefix __不出現__。
+  , viIssues :: [IndexIssue]
+  -- ^ 該 vault 被開啟時一併回報的索引問題清單。
   }
   deriving stock (Show, Eq)
 
--- | 正向與反向一次給:「這個片段跟什麼有關」在作者心裡是一個問題,不是兩個。
-data LinkReport = LinkReport
-  { lrOutgoing :: [Link]
-  , lrIncoming :: [(Id, Link)]
-  -- ^ (來源 id, 那一筆關聯)
-  }
-  deriving stock (Show, Eq)
-
-data IndexReport = IndexReport
-  { irFiles :: Int
-  , irIssues :: [Text]
-  }
-  deriving stock (Show, Eq)
-
--- | 欄位不沿用 @store@ 的 @DeleteResult@ 命名(@drPath@ 等):兩個型別在
--- "Aapms.Service" 同時在作用域裡,同名欄位會直接撞在一起。
-data DeleteReport = DeleteReport
-  { delPath :: FilePath
-  , delRemoved :: [Id]
-  -- ^ 刪整份檔案時不只一個
-  , delBrokenLinks :: [(Id, Link)]
-  -- ^ 強制刪除打斷的關聯
-  }
-  deriving stock (Show, Eq)
-
--- 請求 -------------------------------------------------------------------------
-
-data NewEntityReq = NewEntityReq
-  { nerType :: Text
-  , nerTitle :: Text
-  , nerSummary :: Text
-  , nerBody :: Text
-  , nerTags :: [Text]
-  , nerAliases :: [Text]
-  , nerStatus :: Status
-  , nerTimeline :: Timeline
-  , nerLinks :: [Link]
-  , nerSource :: Source
-  }
-  deriving stock (Show, Eq)
-
--- | 只填__與檔案層不同__的欄位,其餘留 @Nothing@ 讓繼承生效。
--- @summary@ 不繼承,所以它不是 'Maybe'。
-data NewFragmentReq = NewFragmentReq
-  { nfrTitle :: Text
-  , nfrSummary :: Text
-  , nfrBody :: Text
-  , nfrType :: Maybe Text
-  , nfrTags :: [Text]
-  , nfrAliases :: [Text]
-  , nfrStatus :: Maybe Status
-  , nfrTimeline :: Maybe Timeline
-  , nfrLinks :: [Link]
-  , nfrSource :: Maybe Source
-  }
-  deriving stock (Show, Eq)
-
-data NewLevelReq = NewLevelReq
-  { nlrTitle :: Text
-  , nlrSummary :: Text
-  , nlrBody :: Text
-  , nlrRootTitle :: Text
-  , nlrRootKind :: NodeKind
-  , nlrStatus :: Status
-  }
-  deriving stock (Show, Eq)
-
-data NewNodeReq = NewNodeReq
-  { nnrTitle :: Text
-  , nnrKind :: NodeKind
-  , nnrSummary :: Text
-  , nnrBody :: Text
-  , nnrLinks :: [Link]
-  }
-  deriving stock (Show, Eq)
-
--- | 只改有給值的欄位。
+-- | @workspace doctor@ 的結果:這台機器的狀態彙總。
 --
--- @epTitle@ 不走 'MetaOverride' ——標題在檔案層是 frontmatter 的一欄、在節層是
--- 標題行本身,兩者 'MetaOverride' 都表達不了,所以它由
--- 'Aapms.Store.Write.writeEntityPatch' 另外吃。
-data EntityPatch = EntityPatch
-  { epTitle :: Maybe Text
-  , epSummary :: Maybe Text
-  , epTags :: Maybe [Text]
-  , epStatus :: Maybe Status
-  , epTimeline :: Maybe Timeline
-  , epAliases :: Maybe [Text]
-  , epSource :: Maybe Source
+-- 這是唯一一個「彙總這台機器狀態」的地方。組合的全部來自 @aapms-workspace@ 與
+-- graph-core,__不 import 任何領域子系統__。
+data DoctorView = DoctorView
+  { dvHubPath :: FilePath
+  -- ^ 中樞根目錄。
+  , dvHubSource :: HubSource
+  -- ^ 中樞位置是怎麼決定的。
+  , dvRegistry :: RegistrySource
+  -- ^ 型別註冊表是從三層定位的哪一層找到的。
+  , dvVaults :: [VaultView]
+  , dvScopeIssues :: [ScopeIssue]
+  , dvTools :: [ToolStatus]
+  , dvLlmConfigured :: Bool
+  -- ^ @True@ ⟺ 中樞有 @[llm]@ 段。__只報告有沒有,不報告內容__——鍵與語意屬
+  -- @ai@ 子系統,而且金鑰不該進診斷輸出。
   }
   deriving stock (Show, Eq)
 
-emptyPatch :: EntityPatch
-emptyPatch =
-  EntityPatch
-    { epTitle = Nothing
-    , epSummary = Nothing
-    , epTags = Nothing
-    , epStatus = Nothing
-    , epTimeline = Nothing
-    , epAliases = Nothing
-    , epSource = Nothing
-    }
+-- | 一個已登錄專案在本機的樣子(design.md 契約 C)。
+data ProjectView = ProjectView
+  { pvId :: Id
+  , pvName :: Text
+  , pvPath :: FilePath
+  -- ^ 專案根目錄的絕對路徑。
+  , pvReachable :: Bool
+  -- ^ @False@ = 那個路徑不是既存目錄。
+  }
+  deriving stock (Show, Eq)
 
--- | 把 patch 疊在目前的覆寫上。
---
--- @patch 有值就蓋過去,沒值就保留原樣__包括原本的 @Nothing@__ ——節層的
--- @Nothing@ 代表「繼承檔案層」,把它填成具體值等於偷偷把繼承來的欄位釘死在
--- 節上(entity-graph-core/F003 的繼承規則就白寫了)。
-patchOverride :: EntityPatch -> MetaOverride -> MetaOverride
-patchOverride EntityPatch {..} ov =
-  ov
-    { moSummary = epSummary <|> moSummary ov
-    , moTags = epTags <|> moTags ov
-    , moStatus = epStatus <|> moStatus ov
-    , moTimeline = epTimeline <|> moTimeline ov
-    , moAliases = epAliases <|> moAliases ov
-    , moSource = epSource <|> moSource ov
-    }
+--------------------------------------------------------------------------------
+-- 契約 F:錯誤
 
--- | 還沒配置 id 的新實體在__寫入前的驗證__階段用的佔位 id。
+-- | @aapms-service@ 的__唯一__錯誤型別(design.md 契約 F)。不得另立平行的錯誤
+-- 型別再橋接——多一個型別就是多一套 @render*@,@shell@ 也會看到兩種形狀。
 --
--- 'Aapms.Core.Registry.checkEntity' 不看 id,它只是為了讓 'Meta' 完整。
--- 驗證發生在寫檔之前,而 id 是 @store@ 查過索引才配得出來的,所以這個順序下
--- 一定會有一段「還沒有 id 的 Entity」。
-placeholderId :: Id
-placeholderId = case parseId "ent-00000000" of
-  Right (_, i) -> i
-  Left e -> error ("不可能:ent-00000000 應為合法 id —— " <> show e)
+-- 下層錯誤__原樣包、不重寫訊息__:前四個建構子都捧著下層的錯誤原件,訊息由對方的
+-- @render*@ 產生;本層擁有的是 @code@(哪一類失敗),不是訊息。'UnknownType'
+-- 相反:它是__本層自己的判斷__(下面沒有對應的錯誤原件),訊息因此也由本層擁有。
+data ServiceError
+  = -- | graph-core 的落地失敗,原件。訊息委派
+    -- 'Aapms.Store.Error.renderStoreError'
+    StoreFailed StoreError
+  | -- | @aapms-workspace@ 的工作區設定失敗,原件。訊息委派
+    -- 'Aapms.Workspace.Types.renderWorkspaceError'
+    WorkspaceFailed WorkspaceError
+  | -- | 型別註冊表__定位不到__(三層都沒找到,或環境變數指向不存在的目錄):
+    -- 'Aapms.Types.Loader.locateRegistry' 回的原件。與 'RegistryLoadFailed' 分成
+    -- 兩個建構子是因為 @code@ 要分得出「去裝\/去設環境變數」與「型別宣告寫錯了」
+    RegistryUnavailable RegistryError
+  | -- | 型別註冊表__載入失敗__(目錄找到了但內容不合規):
+    -- 'Aapms.Types.Loader.loadRegistry' 回的原件
+    RegistryLoadFailed RegistryError
+  | -- | 註冊表裡沒有這個型別鍵(F002 的 @showType@;F004 起的寫入路徑同用)。
+    -- 酬載是__那個鍵的字串本身__,不是別的訊息
+    UnknownType Text
+  deriving stock (Show, Eq)
+
+-- | 機器用的穩定識別碼:snake_case、__不帶產品前綴__(legacy MCP 的
+-- @story_flow_*@ 在此退場)。
+--
+-- 規則只有一條:__建構子名的 snake_case__(@StoreFailed@ → @store_failed@)。
+-- 規則寫下來而不是逐條列舉,是為了讓後續波次加建構子時不必回頭問「這個該叫
+-- 什麼」——@code@ 表因此不是一份要維護的對照表,而是建構子名的函數。
+--
+-- 責任範圍是 'ServiceError' 的__全部__建構子;回傳恒非空、兩兩相異。
+errorCode :: ServiceError -> Text
+errorCode = \case
+  StoreFailed _ -> "store_failed"
+  WorkspaceFailed _ -> "workspace_failed"
+  RegistryUnavailable _ -> "registry_unavailable"
+  RegistryLoadFailed _ -> "registry_load_failed"
+  UnknownType _ -> "unknown_type"
+
+-- | 繁中訊息,__每一則說出下一步該做什麼__(system.md 全域錯誤策略第 2 條)。
+--
+-- 四個__包裝__建構子一律逐字委派下層的 @render*@,本層一個字都不加:
+-- 'Aapms.Store.Error.renderStoreError' \/
+-- 'Aapms.Workspace.Types.renderWorkspaceError' \/
+-- 'Aapms.Core.Registry.renderRegistryError'。加前綴會讓同一則訊息在 @service@
+-- 與在下層各長一個樣,而下層的訊息已經寫過「下一步」。
+--
+-- 兩個註冊表建構子因此渲染成__相同__的文字;分辨它們是 'errorCode' 的責任。
+--
+-- 'UnknownType' __本層自撰、不委派__:它下面沒有對應的錯誤原件可委派,判斷是
+-- 本層做的,訊息也就屬本層。訊息必須帶出那個鍵,並說出兩條下一步。
+renderServiceError :: ServiceError -> Text
+renderServiceError = \case
+  StoreFailed e -> renderStoreError e
+  WorkspaceFailed e -> renderWorkspaceError e
+  RegistryUnavailable e -> renderRegistryError e
+  RegistryLoadFailed e -> renderRegistryError e
+  UnknownType k ->
+    "型別註冊表裡沒有「"
+      <> k
+      <> "」這個型別鍵。用 type list 看目前有哪些型別,或到型別註冊表目錄"
+      <> "(types/registry/)補一份宣告後重試。"

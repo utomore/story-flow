@@ -3,7 +3,7 @@ id: E002
 type: enhance
 title: init-vault-at-explicit-time
 description: initVaultAt 的時間提成明碼參數,並讓它不再逸出 IOException
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-30
 depends-on: [F001, F005]
@@ -198,11 +198,19 @@ L18 / L19 / X18 / X19 **不受影響**(見 Scope)。
 
 | 測試打到的 | 預期 |
 |---|---|
-| R1 / R2 / R3 / R5(`initVaultAt` 的現有行為) | **綠**(現況就是對的) |
+| R1 / R2a / R3 / R5(`initVaultAt` 的現有行為) | **綠**(現況就是對的) |
+| R2b(R2 打到 `initVaultAtWith` 的那一半) | **紅** —— R2 的法條文字涵蓋兩個入口,而 `initVaultAtWith` 是本次新增的介面 |
 | R4(簽名逐字比對) | **綠**(骨架原文自身承載的事實) |
 | L1 / L2 / L3 / E2 / E3 / E6(`initVaultAtWith`) | **紅**(骨架是 `undefined`) |
 | L4 / L5 / E5(不逸出) | **紅**(`initVaultAt` 目前會拋) |
 
 ## 實作備註
 
-(撰寫時留空)
+- **2026-08-30,編排者在骨架快照上驗紅綠時發現「骨架上的紅綠預期」表寫錯一列**:原表把 R2 整條
+  標成綠,但 R2 的法條文字涵蓋 `initVaultAt` 與 `initVaultAtWith` **兩個入口**,後者在骨架上是
+  `undefined`,依 `spec-roles.md` 的 qa 交付判準第一列本來就該紅。qa 把 R2 拆成 R2a / R2b 兩條測試
+  是對的,測試名也標了「預期紅」;只有它回報表格那一欄標成綠(qa 回報內部不一致,測試本身正確)。
+  **更正的是預測表,法條 R2 一個字沒動。** 快照實跑:15 examples / 10 紅 / 5 綠,**「該紅卻綠」0 條**。
+- **委派時序**:qa 與 impl 平行送出,qa 跑測試時 impl 已經填完本體,所以 qa 自己看到的是 15 條全綠、
+  9 條不符預期。qa 依規範**沒有刪測試也沒有放寬斷言**,照實回報並交給編排者在快照上驗——這正是
+  骨架快照機制存在的理由。

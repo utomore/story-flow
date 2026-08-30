@@ -3,13 +3,18 @@ id: workspace-spec-gaps
 type: spec-gaps
 title: workspace-spec-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: resolved
+status: open
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 parent: workspace
 ---
 
 # workspace spec 缺口
+
+> **狀態行的寫法**:`scan-status.mjs` 的正則是 `^\s*[-*]\s*狀態\s*[::]\s*(\S+)`,抓到的第一個
+> 非空白詞必須逐字是 `open` 或 `resolved`。寫成 `- **狀態**:` 或 `- 狀態:**resolved**` 都會讓它
+> 解析失敗、**靜默 fallback 成 open** —— 2026-08-30 的 status 掃描就因此多報了三條假的未結條目。
+> 粗體留給值後面的說明文字,不要套在 `狀態` 這兩個字或值本身上。
 
 ## G1(F001 / qa)
 
@@ -24,7 +29,7 @@ parent: workspace
   `Types.hs` 明確排除在此限制外?(這條 law 的用意看起來是「本 feature 不做 marker 的**讀取**」,
   而 `Types.hs` 只是引用型別、不呼叫 `readMarker`——若是,law 的措辭要改成針對 `readMarker` /
   `markerDir` 這幾個**函式**,而不是針對模組 import。)
-- **狀態**:resolved(2026-08-29 W1 閘門裁決:L17(c) 拆成 (c)+(d)——`Location.hs` / `Hub.hs` 完全不得 import `Aapms.Store.Marker`;`Types.hs` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`,只拿型別、拿不到任何函式。spec 已改,qa 已補 (d) 的斷言)
+- 狀態:resolved(2026-08-29 W1 閘門裁決:L17(c) 拆成 (c)+(d)——`Location.hs` / `Hub.hs` 完全不得 import `Aapms.Store.Marker`;`Types.hs` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`,只拿型別、拿不到任何函式。spec 已改,qa 已補 (d) 的斷言)
 
 ## G2(F002 / impl)
 
@@ -42,7 +47,7 @@ parent: workspace
 - **佐證**(編排者查證):`store/src/Aapms/Store/Marker.hs` 的匯出清單是 `VaultMarker (..)`;
   `workspace/src/Aapms/Workspace/Types.hs:65` 是 `import Aapms.Store.Marker (VaultMarker)`。
   兩者合起來確認「Types 拿不到欄位存取子、也就轉不出去」這個前提成立。
-- **狀態**:resolved(2026-08-29 W2 閘門裁決:逐字字串**收緊**成 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` —— 只放行 `vmId` 一個欄位存取子,不是 `VaultMarker (..)`。這條 law 從此守的是「Discovery 只讀 id」:日後在本模組碰 `vmRefs`(#3)或 `vmKind` 會紅。spec 已改條文、紅綠預期與對照表(測試名同步改為 `test_discovery_marker_import_is_id_reader_only`);impl 已收窄 import 行;qa 已對齊期望值)
+- 狀態:resolved(2026-08-29 W2 閘門裁決:逐字字串**收緊**成 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` —— 只放行 `vmId` 一個欄位存取子,不是 `VaultMarker (..)`。這條 law 從此守的是「Discovery 只讀 id」:日後在本模組碰 `vmRefs`(#3)或 `vmKind` 會紅。spec 已改條文、紅綠預期與對照表(測試名同步改為 `test_discovery_marker_import_is_id_reader_only`);impl 已收窄 import 行;qa 已對齊期望值)
 
 ## G3(F006 / impl)
 
@@ -66,7 +71,7 @@ parent: workspace
   清單裡,但它沒有真的驗過那個符號的來源。`delegation.md` 第 5 條把「相依性查證:打開原始碼讀
   真實簽名」列為**委派模式下品質的唯一防線**——這次是同一波另外兩個 impl 因為共用 build target
   而在幾分鐘內從外部撞出來的,不是防線自己接住的。
-- **狀態**:**resolved**(2026-08-29 W4 閘門:spec 已把 `exeExtension` 從 L15(f) 移到 L15(d);編排者三處機械驗證一致——`Tools.hs` 從 `System.Directory` import、spec 的事實 5 與串接介面表已更正、`ToolsSpec` 的白名單斷言對齊,F006 的 34 條全綠)
+- 狀態:resolved(2026-08-29 W4 閘門:spec 已把 `exeExtension` 從 L15(f) 移到 L15(d);編排者三處機械驗證一致——`Tools.hs` 從 `System.Directory` import、spec 的事實 5 與串接介面表已更正、`ToolsSpec` 的白名單斷言對齊,F006 的 34 條全綠)
 
 ## G4(F004 / qa)
 
@@ -76,7 +81,7 @@ parent: workspace
 - **需要 spec 回答什麼**:本機對同名連續呼叫兩次 `initVaultAt` 實測得到**兩個不同 id**
   (`vlt-1c5bcb0f` / `vlt-b8122656`)。請補一個 qa 可用、不需讀 graph-core 內部實作就能
   **確定性重現撞號**的做法,或改變 X18 / X19 的觀察點。
-- **狀態**:**已裁決,待 graph-core 修**(2026-08-29 階段二閘門)。裁決:把 `initVaultAt` 的時間提成明碼參數,與 graph-core 自己的 `allocateId`(G8)一致 → 追蹤於 **`graph-core/enhancements/E002-init-vault-at-explicit-time.md`**,與 B002 同一輪做。修完後本條結案、L18 / L19 / X18 / X19 從 `pendingWith` 轉正式斷言
+- 狀態:open(2026-08-30 更新)。原裁決(2026-08-29 階段二閘門)是「把 `initVaultAt` 的時間提成明碼參數,與 `allocateId`(G8)一致」,追蹤於 **`graph-core/E002`**。**E002 已於 2026-08-30 完成(`initVaultAtWith` 收明碼 `UTCTime`),但本條並未因此結案** —— 編排者在 E002 的 scope 討論中查出:X18 / X19 的建構是「學一個 id → 塞進中樞 → 呼叫 **workspace 的 `initVault`**」,而 `initVault` 內部**自己**取樣 `getCurrentTime` 再往下傳,測試控制不到那個值,兩次呼叫仍得到不同 id。**要關本條,接縫必須延伸到 `initVault` 自己**(workspace 契約 F 加一列,形狀比照 `initVaultAtWith`),那是 workspace 的 enhance,不是 graph-core 的。L18 / L19 / X18 / X19 維持 `pendingWith`
 
 ## G5(F004 / qa)
 
@@ -91,4 +96,4 @@ parent: workspace
 - **編排者註記**:這條與 F006 的注入接縫是**同一類問題**——契約寫了一個錯誤值,但它在真實環境
   裡幾乎觸發不到,於是那條驗收標準沒有人驗得了(A9 可測性)。差別是 F006 那次能靠加一個明碼參數
   解決,這次牽涉的是 graph-core 的例外行為,選 (b) 等於在 workspace 這層補一道例外邊界。
-- **狀態**:**已裁決,待 graph-core 修**(2026-08-29 階段二閘門)。裁決:**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`(型別已承諾 `Either StoreError`),不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/bugfixes/B002-init-vault-at-leaks-io-exceptions.md`**,與 E002 同一輪做。修完後本條結案、L44 / X41 從 `pendingWith` 轉正式斷言
+- 狀態:resolved(2026-08-30)。裁決(2026-08-29 階段二閘門):**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`,不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/B002`**,已於 2026-08-30 隨 E002 同一份 spec 完成(對應 E002 的 L4 / L5 / E5 / E6;`initVaultAt` 與 `initVaultAtWith` 對「父層被一般檔案佔住」都回 `Left (FileWriteFailed (markerDir root) msg)`,不拋例外)。**workspace 這一側還有一步**:`LifecycleSpec.hs:477-491` 的 L44 / X41 目前仍是 `pendingWith`,要由 workspace 自己的一輪把它改成正式斷言(graph-core 的測試不會替它轉綠)

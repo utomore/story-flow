@@ -21,6 +21,7 @@ module Aapms.Store.Marker
   , indexDbPath
   ) where
 
+import Control.Exception (IOException, try)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -143,30 +144,40 @@ parseMarker fp txt = case TOML.decode txt of
 -- __不逸出 @IOException@__(graph-core\/B002):簽名承諾了
 -- @Either StoreError@,檔案系統的失敗一律轉成 'StoreError' 回傳。
 initVaultAtWith :: FilePath -> VaultKind -> Text -> UTCTime -> IO (Either StoreError VaultMarker)
-initVaultAtWith = undefined
+initVaultAtWith givenRoot kind name now = do
+  rootR <- try (makeAbsolute givenRoot) :: IO (Either IOException FilePath)
+  case rootR of
+    Left e -> pure (Left (FileReadFailed givenRoot (T.pack (show e))))
+    Right root -> do
+      existsR <- try (doesFileExist (configPath root)) :: IO (Either IOException Bool)
+      case existsR of
+        Left e -> pure (Left (FileReadFailed (configPath root) (T.pack (show e))))
+        Right True -> pure (Left (VaultAlreadyInitialized root))
+        Right False -> do
+          mkDirR <- try (createDirectoryIfMissing True (markerDir root)) :: IO (Either IOException ())
+          case mkDirR of
+            Left e -> pure (Left (FileWriteFailed (markerDir root) (T.pack (show e))))
+            Right () -> do
+              let vid = VaultId (renderId (newId PVlt name now 0))
+                  marker = VaultMarker vid kind name []
+              writeR <- atomicWriteText (configPath root) (renderMarker marker)
+              case writeR of
+                Left e -> pure (Left e)
+                Right () ->
+                  openIndexAt (indexDbPath root) vid kind name >>= \case
+                    Left e -> pure (Left e)
+                    Right (conn, _issues) -> do
+                      -- 全新索引檔一定會有一筆 SchemaRebuilt,對 initVaultAtWith
+                      -- 而言這不是「問題」而是預期行為,忽略回傳的 issues
+                      closeIndex conn
+                      pure (Right marker)
 
+-- | 'initVaultAtWith' 的薄包裝:取當下時間後轉呼(graph-core\/E002)。對外行為
+-- 除了「不再拋 'IOException'」以外完全不變。
 initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)
 initVaultAt givenRoot kind name = do
-  root <- makeAbsolute givenRoot
-  exists <- doesFileExist (configPath root)
-  if exists
-    then pure (Left (VaultAlreadyInitialized root))
-    else do
-      createDirectoryIfMissing True (markerDir root)
-      now <- getCurrentTime
-      let vid = VaultId (renderId (newId PVlt name now 0))
-          marker = VaultMarker vid kind name []
-      writeR <- atomicWriteText (configPath root) (renderMarker marker)
-      case writeR of
-        Left e -> pure (Left e)
-        Right () ->
-          openIndexAt (indexDbPath root) vid kind name >>= \case
-            Left e -> pure (Left e)
-            Right (conn, _issues) -> do
-              -- 全新索引檔一定會有一筆 SchemaRebuilt,對 initVaultAt 而言這不
-              -- 是「問題」而是預期行為,忽略回傳的 issues
-              closeIndex conn
-              pure (Right marker)
+  now <- getCurrentTime
+  initVaultAtWith givenRoot kind name now
 
 renderMarker :: VaultMarker -> Text
 renderMarker VaultMarker {..} =

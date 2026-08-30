@@ -3,7 +3,7 @@ id: B002
 type: bugfix
 title: init-vault-at-leaks-io-exceptions
 description: initVaultAt 宣告回 Either StoreError 卻讓 IOException 逸出,型別在說謊
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-30
 parent: graph-core

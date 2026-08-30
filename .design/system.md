@@ -5,8 +5,8 @@ title: aapms
 description: 素材與故事設定共用一份片段圖譜的工作室資產管理工具
 status: active
 created: 2026-08-16
-updated: 2026-08-29
-subsystems: [graph-core, workspace, service, shell]
+updated: 2026-08-31
+subsystems: [graph-core, workspace, service, asset-ingest, conflict, ai, project, shell]
 ---
 
 # aapms(Alchbees Asset & Project Management System)系統主架構
@@ -16,10 +16,14 @@ subsystems: [graph-core, workspace, service, shell]
 > `.design/system.md`。整合評估見 `assetdb/docs/assetdb-into-storyflow-integration-report.md`;
 > 本文件與該報告不一致處**以本文件為準**(報告是提案,本文件是裁決)。
 >
-> `subsystems` 清單只列已重建者:舊的四個子系統文檔(`entity-graph-core` / `service-and-interfaces` /
-> `conflict-detection` / `llm-workshop-mcp`)描述的是合併前的邊界,已移至 `.design/legacy/`
-> (連同已結案的 G-E001 / G-E002),將依本文件「子系統劃分」節逐一以 `/subsys-design` 重建並回填;
-> 重建前它們只作為移植時的參考,不再是權威,狀態掃描不讀它們。
+> `subsystems` 是**完整名冊**,不是已建檔清單:下面「子系統劃分」列到的八個 slug 全部在裡面,
+> 含還沒有 `design.md` 的 `asset-ingest` / `conflict` / `ai` / `project`。分母必須來自規劃、
+> 不能來自產出——名冊若只收已重建的,還沒開工的那一半就不在任何進度數字裡,報表會愈做愈接近
+> 100%。(2026-08-31 修訂:原文寫「只列已重建者」,與此相反,依 `doc-lifecycle.md` 的名冊定義改正。)
+>
+> 舊的四個子系統文檔(`entity-graph-core` / `service-and-interfaces` / `conflict-detection` /
+> `llm-workshop-mcp`)描述的是合併前的邊界,已移至 `.design/legacy/`(連同已結案的 G-E001 /
+> G-E002),只作為移植時的參考,不再是權威,狀態掃描不讀它們。
 
 ## 需求說明
 
@@ -222,6 +226,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `graph-core` 片段圖譜核心 · [`subsystems/graph-core/design.md`](./subsystems/graph-core/design.md)
 
+- **design.md**:`subsystems/graph-core/design.md`
 - **定位**:把檔案變成可查詢的統一圖譜,並守住「檔案是真相、索引可丟」
 - **涵蓋**:`types/registry/*.toml`、`aapms-core`(零 IO:`Meta` / `Entity` / `Asset` / `Pack` /
   `Link` / `Level` / `Node`、短 id、命名文法、Manifest schema——**遊戲本體會 import 它,零重量級
@@ -238,6 +243,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `workspace` 全局中樞 · [`subsystems/workspace/design.md`](./subsystems/workspace/design.md)
 
+- **design.md**:`subsystems/workspace/design.md`
 - **定位**:工具自己的狀態——這台機器有哪些 vault 與專案、它們在哪、外部工具在不在、怎麼納管與移除
 - **涵蓋**:`aapms-workspace`(依賴 `aapms-core`、`aapms-store` 與 TOML 解析;**不依賴 `service`
   以上的任何套件**)
@@ -262,6 +268,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `service` 業務契約 · [`subsystems/service/design.md`](./subsystems/service/design.md)
 
+- **design.md**:`subsystems/service/design.md`
 - **定位**:所有業務操作的唯一定義處
 - **涵蓋**:`aapms-service`(依賴 `graph-core` 與 `workspace`)
 - **職責**:以 `ServiceM` 定義 vault / entity / asset / pack / link / level / node / search /
@@ -282,21 +289,25 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `asset-ingest` 素材落地
 
+- **design.md**:未建
 - **定位**:把壓縮檔變成圖譜節點與縮圖,不解壓、不複製
 - **涵蓋**:`aapms-archive`(ZIP 原生 + 7-Zip sidecar)、`aapms-ingest`(走訪、雜湊、格式處理器、
   縮圖、檔名叢集)、`aapms-reorg`(快照 → 計畫 → 執行 → 對帳 → 回退)
-- **職責**:掃描 vault 的 `library/`,對每個 pack 產生或更新 pack Markdown 與索引;內容定址縮圖;
-  叢集推論命名規則;結構搬遷。**pack 身分以壓縮檔 sha256 為鍵,掃描結束反向對帳 orphan**
-  (修掉「搬動留幽靈、刪除留幽靈」的已知缺陷)
+- **職責**:掃描 vault 的 `library/`,把每個壓縮檔變成 pack Markdown、索引列與縮圖
+- **職責細節**:對每個 pack 產生或更新 pack Markdown 與索引;內容定址縮圖;叢集推論命名規則;
+  結構搬遷。**pack 身分以壓縮檔 sha256 為鍵,掃描結束反向對帳 orphan**(修掉「搬動留幽靈、
+  刪除留幽靈」的已知缺陷)
 - **對外介面**:`scan` / `thumbs` / `cluster` / `reorganize` 四條管線,經 `service` 對外
 - **不負責**:命名文法本身(在 `graph-core`)、授權判斷(在 `project`)
 - **來源**:assetdb `archive` + `ingest` + `reorg` 原樣移植,改接統一 `Meta` 與 pack Markdown
 
 #### `conflict` 衝突偵測
 
+- **design.md**:未建
 - **定位**:回答「這段新劇情和既有設定有沒有矛盾」,指到片段
 - **涵蓋**:`aapms-conflict`
-- **職責**:圖遍歷(`contradicts` / `supersedes`)→ FTS5 候選撈取(只以 `canon` 為基準)→ LLM
+- **職責**:圖遍歷 → FTS5 候選撈取 → LLM 逐對判斷,把矛盾指回具體片段
+- **職責細節**:圖遍歷(`contradicts` / `supersedes`)→ FTS5 候選撈取(只以 `canon` 為基準)→ LLM
   逐對判斷。候選集自然含 asset 節點(同一張索引),但 S5 的判斷層只比對文字
 - **對外介面**:`POST /conflict/context`、`POST /conflict/check` 與對應 CLI
 - **不負責**:寫入圖譜
@@ -304,10 +315,12 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `ai` LLM 與工作坊
 
+- **design.md**:未建
 - **定位**:把「和模型對談」變成圖譜上的節點與標註
 - **涵蓋**:`aapms-llm`(OpenAI 相容端點抽象 + GBNF 文法編譯,**一份客戶端**)、`aapms-ai`
   (素材分類、視覺標註、建議暫存與套用、自然語句查詢規劃)、`aapms-workshop`(階段式引導狀態機)
-- **職責**:端點抽象供 `conflict` 第 3 層與兩種標註共用;素材側的建議走暫存表 + 人工閘門;
+- **職責**:把「和模型對談」收斂成一份 LLM 客戶端、素材標註與階段式工作坊三件事
+- **職責細節**:端點抽象供 `conflict` 第 3 層與兩種標註共用;素材側的建議走暫存表 + 人工閘門;
   故事側的工作坊依註冊表 `stages` 逐階段產出多個片段
 - **對外介面**:LLM 門面(供 `conflict`)、`ai *` 與 `workshop *` 操作
 - **不負責**:決定建議是否採納——那是人的事,`confirm` 才寫入
@@ -315,9 +328,11 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `project` 專案產出
 
+- **design.md**:未建
 - **定位**:從圖譜挑東西,產出一個可以離開 vault 獨立存在的遊戲專案
 - **涵蓋**:`aapms-project`
-- **職責**:單筆解壓 → 正規化命名 → `assets/manifest.json` + `Assets.hs`;故事引用清單
+- **職責**:從圖譜挑素材與故事、正規化落地成專案目錄,並在授權不明時擋下
+- **職責細節**:單筆解壓 → 正規化命名 → `assets/manifest.json` + `Assets.hs`;故事引用清單
   `story/manifest.json`;**連動**:給一個 Level,順 `involves` 找 Entity,再順 `uses` / `depicts`
   找 Asset,一次列出;授權閘門(不可商用與授權未查證一律擋下);增量 `sync`
 - **對外介面**:`project new / sync / add / remove / list`
@@ -328,6 +343,7 @@ seven_zip = "C:/Program Files/7-Zip/7z.exe"
 
 #### `shell` 介面外殼 · [`subsystems/shell/design.md`](./subsystems/shell/design.md)
 
+- **design.md**:`subsystems/shell/design.md`
 - **定位**:三個殼、零業務邏輯。唯一負責「八個領域如何呈現成一致的一組指令」的地方
 - **涵蓋**:`aapms-api`(只有 servant 型別與 `ToSchema`)、`aapms-backend`(內嵌 / 遠端的分派抽象)、
   `aapms-cli`、`aapms-server`、`aapms-mcp`。**五個套件**(2026-08-29:`aapms-backend` 是
@@ -619,20 +635,20 @@ migration 機制在真相落成檔案後失去存在理由。內部表結構屬 
 
 ## 開發階段
 
-每期結束都是可建置狀態;S3 起每期結束都是可交付狀態。真實資料(`alchbees-assets`)在 **S3** 由
+每個階段結束都是可建置狀態;S3 起每個階段結束都是可交付狀態。真實資料(`alchbees-assets`)在 **S3** 由
 `vault init --adopt` 納管、**S4** 由 `asset scan` 從壓縮檔重建——原本安排在 S2 的一次性匯出器已取消
 (理由見該列)。
 
-| 期 | 內容 | 交付判準 |
-|---|---|---|
-| **S0** 讓名與合樹 | `utomore/aapms` 改名封存為 `assetdb-legacy`;`utomore/story-flow` 改名 `aapms`;assetdb 程式碼以保留歷史的方式併入;全樹改 `Aapms.*` 與 `aapms-*`;搬入 assetdb 的四份純技術 ADR;**契約層測試先立起來**(CLI 信封 / exit code / Markdown roundtrip / index rebuild 等價,不依賴內部型別) | `cabal build all` 綠;契約測試綠;零邏輯改動 |
-| **S1** graph-core | 統一 `Meta` 與短 id;註冊表 `family`;pack Markdown 解析與寫回;一份 schema;FTS5 雙索引;跨 vault `ATTACH` | `rm index.db` → rebuild 兩種 vault 都等價;「藥水」搜得到;`aapms-core` 零重量級相依 |
-| ~~**S2** 真資料進場~~ | **取消**(2026-08-29)。原內容是一次性匯出器,讀舊 `assetdb.sqlite` 產 `pack.md`。逐欄查證後推翻前提:`asset_tags`(76,189)與 `asset_categories`(11,538)`source` **100% `inferred`**、1,653 筆 `logical_name` 全部由 `name_clusters` 的 6 條規則展開,人真正寫的只有約 350 行(授權判讀、pack notes、採購欄位、命名規則),而那些都重建得回來。舊庫不刪,**不匯出 ≠ 丟掉**,決定可逆 | — |
-| **S3** 骨幹 | `workspace` + `service` + `shell`(CLI / HTTP / MCP 同期,同一份 servant 型別);`vault init --adopt` 納管既有 `alchbees-assets` 目錄;`doctor` 合一 | 兩種 vault 都能經統一外殼 CRUD、search 一次回兩種;`--remote` 行為一致;OpenAPI 輸出 |
-| **S4** 素材管線 | `asset-ingest` 移植:pack 身分改 sha256、orphan 反向對帳、掃描寫 pack.md 不覆寫人給欄位;縮圖到全局快取;cluster / reorganize | 搬動與刪除 pack 不留幽靈;`asset scan` 對真 vault(27 個 pack、6,783 筆資源)跑得完,`rm index.db` → rebuild 等價 |
-| **S5** 智慧 | `conflict` 接統一索引;`ai`:LLM 客戶端合一、GBNF、素材標註走暫存表、workshop | 衝突偵測候選集含 asset;`ai classify` 與 `workshop` 共用端點 |
-| **S6** 連動 | `project`:Level → Entity → Asset 連動;`story/manifest.json`;manifest **一次升 schema 2**;授權閘門 | 「建專案 → 挑 Level → 自動帶素材 → 擋授權」一條龍 |
-| **S7** 收尾 | web 前端接回新 API;`types.ts` 漂移測試;發佈 zip;`docs/` 與 README 改寫 | 縮圖瀏覽可用;從乾淨機器跑 `aapms workspace setup` 到 `project new` |
+| 階段 | 內容 | 涵蓋子系統 | 里程碑 | 狀態 |
+|---|---|---|---|---|
+| **S0** 讓名與合樹 | `utomore/aapms` 改名封存為 `assetdb-legacy`;`utomore/story-flow` 改名 `aapms`;assetdb 程式碼以保留歷史的方式併入;全樹改 `Aapms.*` 與 `aapms-*`;搬入 assetdb 的四份純技術 ADR;**契約層測試先立起來**(CLI 信封 / exit code / Markdown roundtrip / index rebuild 等價,不依賴內部型別) | (全樹,不屬單一子系統) | `cabal build all` 綠;契約測試綠;零邏輯改動 | 已達成(2026-08-23) |
+| **S1** graph-core | 統一 `Meta` 與短 id;註冊表 `family`;pack Markdown 解析與寫回;一份 schema;FTS5 雙索引;跨 vault `ATTACH` | graph-core | `rm index.db` → rebuild 兩種 vault 都等價;「藥水」搜得到;`aapms-core` 零重量級相依 | 已達成(2026-08-29;九個 feature 全數 done,里程碑以測試 fixture 驗;對真 vault 的重跑隨 S3 納管後補) |
+| **S2** 真資料進場(取消) | **取消**(2026-08-29)。原內容是一次性匯出器,讀舊 `assetdb.sqlite` 產 `pack.md`。逐欄查證後推翻前提:`asset_tags`(76,189)與 `asset_categories`(11,538)`source` **100% `inferred`**、1,653 筆 `logical_name` 全部由 `name_clusters` 的 6 條規則展開,人真正寫的只有約 350 行(授權判讀、pack notes、採購欄位、命名規則),而那些都重建得回來。舊庫不刪,**不匯出 ≠ 丟掉**,決定可逆 | — | — | 已達成(2026-08-29 取消,無交付項) |
+| **S3** 骨幹 | `workspace` + `service` + `shell`(CLI / HTTP / MCP 同期,同一份 servant 型別);`vault init --adopt` 納管既有 `alchbees-assets` 目錄;`doctor` 合一 | workspace、service、shell | 兩種 vault 都能經統一外殼 CRUD、search 一次回兩種;`--remote` 行為一致;OpenAPI 輸出 | 進行中 |
+| **S4** 素材管線 | `asset-ingest` 移植:pack 身分改 sha256、orphan 反向對帳、掃描寫 pack.md 不覆寫人給欄位;縮圖到全局快取;cluster / reorganize | asset-ingest | 搬動與刪除 pack 不留幽靈;`asset scan` 對真 vault(27 個 pack、6,783 筆資源)跑得完,`rm index.db` → rebuild 等價 | 未開始 |
+| **S5** 智慧 | `conflict` 接統一索引;`ai`:LLM 客戶端合一、GBNF、素材標註走暫存表、workshop | conflict、ai | 衝突偵測候選集含 asset;`ai classify` 與 `workshop` 共用端點 | 未開始 |
+| **S6** 連動 | `project`:Level → Entity → Asset 連動;`story/manifest.json`;manifest **一次升 schema 2**;授權閘門 | project | 「建專案 → 挑 Level → 自動帶素材 → 擋授權」一條龍 | 未開始 |
+| **S7** 收尾 | web 前端接回新 API;`types.ts` 漂移測試;發佈 zip;`docs/` 與 README 改寫 | shell | 縮圖瀏覽可用;從乾淨機器跑 `aapms workspace setup` 到 `project new` | 未開始 |
 
 **S0 越晚做衝突越大**——它讓所有既有分支需要重解,必須在任何邏輯改動之前完成。
 

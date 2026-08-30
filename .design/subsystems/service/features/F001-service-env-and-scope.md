@@ -3,7 +3,7 @@ id: F001
 type: feature
 title: service-env-and-scope
 description: "Env(中樞 + 註冊表 + handle 快取 + 全域鎖)、openEnv / runService / closeEnv / withEnv、三個範圍取得口、ServiceError 前四個建構子與 errorCode / renderServiceError"
-status: open
+status: done
 created: 2026-08-30
 updated: 2026-08-30
 depends-on: [graph-core/F001, graph-core/F002, graph-core/F005, graph-core/F009, workspace/F001, workspace/F003]

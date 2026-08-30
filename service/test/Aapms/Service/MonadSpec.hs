@@ -23,6 +23,7 @@
 -- X5b       askHubLocation/askCwd 原樣捧著         -> test_ask_hub_location_and_cwd_example
 -- X5c       askRegistry/askNaming 同一次載入        -> test_ask_registry_and_naming_example
 -- X6        askHub/reloadHub                       -> test_ask_hub_and_reload_hub_example
+-- L24,X26,X27 finallyService 兩條路徑都收尾恰好一次 -> prop_finally_service_success_runs_cleanup_once, prop_finally_service_short_circuit_runs_cleanup_once, test_finally_service_success_example, test_finally_service_short_circuit_example
 -- @
 module Aapms.Service.MonadSpec (spec) where
 
@@ -457,6 +458,62 @@ spec = describe "F001 Aapms.Service.Monad" $ do
               length (hubVaults before) `shouldBe` 2
               length (hubVaults after) `shouldBe` 3
             Left e -> expectationFailure (show e)
+
+  --------------------------------------------------------------------------
+  describe "L24/X26/X27: finallyService 兩條路徑都收尾恰好一次" $ do
+    it "prop_finally_service_success_runs_cleanup_once (L24 成功路徑): 對任意 v,finallyService (pure v) fin 回 Right v、fin 恰好執行一次,且收尾發生在動作之後" $
+      hedgehog $ do
+        v <- forAll (Gen.int (Range.linear (-1000) 1000))
+        outcome <- liftIO $ withFixedLayout $ \fl ->
+          withOpenEnv Nothing (flVaPath fl) $ \env -> do
+            c <- newIORef (0 :: Int)
+            order <- newIORef ([] :: [Int])
+            let action = liftIO (modifyIORef' order (++ [1])) >> pure v
+                fin = liftIO (modifyIORef' c (+ 1) >> modifyIORef' order (++ [2]))
+            r <- runService env (finallyService action fin)
+            n <- readIORef c
+            seen <- readIORef order
+            pure (r, n, seen)
+        let (r, n, seen) = outcome
+        r === Right v
+        n === 1
+        seen === [1, 2]
+
+    it "prop_finally_service_short_circuit_runs_cleanup_once (L24 短路路徑): 對任意 ServiceError e,finallyService (throwService e) fin 回 Left e(短路不被吞掉)、fin 恰好執行一次,且收尾發生在動作之後" $
+      hedgehog $ do
+        path <- forAll (Gen.text (Range.linear 1 8) Gen.alpha)
+        let e = WorkspaceFailed (NoWriteTarget ("/" <> T.unpack path))
+        outcome <- liftIO $ withFixedLayout $ \fl ->
+          withOpenEnv Nothing (flVaPath fl) $ \env -> do
+            c <- newIORef (0 :: Int)
+            order <- newIORef ([] :: [Int])
+            let action = (liftIO (modifyIORef' order (++ [1])) >> throwService e) :: ServiceM ()
+                fin = liftIO (modifyIORef' c (+ 1) >> modifyIORef' order (++ [2]))
+            r <- runService env (finallyService action fin)
+            n <- readIORef c
+            seen <- readIORef order
+            pure (r, n, seen)
+        let (r, n, seen) = outcome
+        r === Left e
+        n === 1
+        seen === [1, 2]
+
+    it "test_finally_service_success_example (X26): runService env (finallyService (pure 42) fin),c 起始為 0" $
+      withFixedLayout $ \fl ->
+        withOpenEnv Nothing (flVaPath fl) $ \env -> do
+          c <- newIORef (0 :: Int)
+          r <- runService env (finallyService (pure (42 :: Int)) (liftIO (modifyIORef' c (+ 1))))
+          r `shouldBe` Right 42
+          readIORef c `shouldReturn` 1
+
+    it "test_finally_service_short_circuit_example (X27): 短路不被吞掉(與 X13 逐欄相同),c 起始為 0" $
+      withFixedLayout $ \fl ->
+        withOpenEnv Nothing (flVaPath fl) $ \env -> do
+          c <- newIORef (0 :: Int)
+          let e = WorkspaceFailed (NoWriteTarget "/x")
+          r <- runService env (finallyService (throwService e :: ServiceM Int) (liftIO (modifyIORef' c (+ 1))))
+          r `shouldBe` Left e
+          readIORef c `shouldReturn` 1
 
 --------------------------------------------------------------------------------
 -- helper

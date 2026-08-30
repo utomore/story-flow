@@ -18,7 +18,7 @@ parent: service
 
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
-| 階段一 | W1 | service-env-and-scope | `fd65e0c`(第一輪;spec 修訂後會有新的) | **OK**(2026-08-30,無違規) | 仲裁中:spec bug 待修 |
+| 階段一 | W1 | service-env-and-scope | `fd65e0c`(輪 1)、`eb73830`(輪 2) | **OK**(輪 1、輪 2 各對一次,皆無違規) | **done**(2026-08-30,`aapms-service-test` 62/0) |
 | 階段一 | W2 | workspace-facade | | | 未開始 |
 | 階段二 | W3–W6 | node-read / node-write / asset-naming / level-and-node | | | 本次不跑 |
 | 階段三 | W7 | search-facade ∥ index-ops | | | 本次不跑 |
@@ -45,7 +45,7 @@ parent: service
 
 | feature | id | 檔名 | 骨架檔案 | spec 模型 | qa 模型 | impl 模型 | 狀態 |
 |---|---|---|---|---|---|---|---|
-| service-env-and-scope | F001 | F001-service-env-and-scope.md | `service/src/Aapms/Service/Types.hs`、`service/src/Aapms/Service/Monad.hs`、`service/src/Aapms/Service/Scope.hs` | opus | sonnet | sonnet | spec 委派中 |
+| service-env-and-scope | F001 | F001-service-env-and-scope.md | `service/src/Aapms/Service/Types.hs`、`service/src/Aapms/Service/Monad.hs`、`service/src/Aapms/Service/Scope.hs` | opus | sonnet | sonnet | **impl-done**(62/0 綠) |
 | workspace-facade | F002 | F002-workspace-facade.md | `service/src/Aapms/Service/Machine.hs` | opus | sonnet | sonnet | 未開始 |
 
 **骨架檔案不重疊**:W1 與 W2 各自一波,不平行,但仍逐波指派 —— `Types.hs` 由 F001 建骨架,
@@ -86,4 +86,23 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 
 ### 階段一 骨幹
 
-(進行中)
+**W1 `service-env-and-scope`(F001):done**(2026-08-30)
+
+- **介面 26/26 已實作**(Types 3 + Monad 20 + Scope 3);Laws 25 條、Examples 32 個
+- **測試**:`aapms-service-test` **62 examples / 0 failures**(全新套件)。完整套件 core 224 / types 42 /
+  md 327 / store 294 / workspace 310(3 pending)/ contract-rules 6,**全部 0 failures,零回歸**
+- **qa 紅綠基線**(編排者在骨架快照上驗,兩輪各一次):
+  - 輪 1 @ `fd65e0c`:53 條 → **50 紅 / 3 綠**,該紅卻綠 **0**
+  - 輪 2 @ `eb73830`:62 條 → **14 紅 / 48 綠**,該紅卻綠 **0**。14 條紅全部可追到當時的兩個
+    `undefined`(`finallyService`、`finallyCloseVaultSet`);綠的是 L23 與 L25 兩組靜態斷言
+  - **兩輪的 qa 都是在 impl 已經併發填完之後才跑測試的**,自己看到的都是全綠;兩次都如實回報、
+    沒有為了湊綠刪測試或放寬斷言。鑑別力是編排者在快照上補回來的
+- **白名單對帳**:輪 1、輪 2 各跑一次(`git diff --name-only <快照>` + `git ls-files --others --exclude-standard`),
+  **皆 OK**,每條路徑都落在 impl 白名單 / qa 測試檔 / 編排者單線寫的檔案
+- **仲裁**:1 輪(上限 3)。歸因分佈 **spec bug 1 / impl 錯 0 / qa 誤讀 0**
+- **契約變更**:`design.md` 動了四處 —— 相依行補 `aapms-types`、契約 F 的兩個 `RegistryError`、
+  模組間公開介面表補 `indexIssuesFor` 與新增 `Machine / Read / Write → Monad` 一列(含 `finallyService`
+  與「刻意不給 `MonadError` 實例」的理由)
+- **本波最有價值的產出是兩條靜態 law**:**L23** 擋巢狀 `runService` 死鎖、**L25** 擋任何人再給
+  `ServiceM` 加 instance。兩條都掃整個 `service/src/`,**F002–F008 每一波新增的模組自動落入**,
+  不需要有人記得

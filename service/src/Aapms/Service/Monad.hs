@@ -333,4 +333,10 @@ liftWorkspace action = do
 -- 'ServiceM' 不再是不透明型別(本 feature 不可逆決定第一列)。本組合子把那個能力
 -- __收斂成一個登記過的名字__:拆 'ServiceM' 的 newtype 這件事只發生在本模組內部。
 finallyService :: ServiceM a -> ServiceM b -> ServiceM a
-finallyService = undefined
+finallyService (ServiceM act) (ServiceM cleanup) = ServiceM $ do
+  env <- ask
+  result <-
+    liftIO $
+      runExceptT (runReaderT act env)
+        `finally` runExceptT (runReaderT cleanup env)
+  either throwError pure result

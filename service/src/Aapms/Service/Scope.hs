@@ -25,8 +25,10 @@ module Aapms.Service.Scope
   , withPipeline
   ) where
 
+import Control.Monad.IO.Class (liftIO)
+
 import Aapms.Store.Marker (VaultHandle)
-import Aapms.Store.MultiVault (VaultSet, openVaultSet)
+import Aapms.Store.MultiVault (VaultSet, closeVaultSet, openVaultSet)
 import Aapms.Store.Schema (VaultKind)
 import Aapms.Workspace.Scope (resolvePipeline, resolveRead, resolveWrite)
 import Aapms.Workspace.Types
@@ -41,6 +43,7 @@ import Aapms.Service.Monad
   , askCwd
   , askHub
   , askSelector
+  , finallyService
   , handleFor
   , liftStore
   , liftWorkspace
@@ -111,4 +114,4 @@ withPipeline kind k = do
 -- 'ServiceM' 只有 @Functor@ \/ @Applicative@ \/ @Monad@ \/ @MonadIO@ 四個實例
 -- (L25),攔截的能力收斂在 'Aapms.Service.Monad' 匯出的那一個組合子裡。
 finallyCloseVaultSet :: VaultSet -> ServiceM a -> ServiceM a
-finallyCloseVaultSet = undefined
+finallyCloseVaultSet vs action = finallyService action (liftIO (closeVaultSet vs))

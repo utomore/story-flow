@@ -3,7 +3,7 @@ id: workspace-spec-gaps
 type: spec-gaps
 title: workspace-spec-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: open
+status: done
 created: 2026-08-29
 updated: 2026-08-30
 parent: workspace
@@ -81,7 +81,8 @@ parent: workspace
 - **需要 spec 回答什麼**:本機對同名連續呼叫兩次 `initVaultAt` 實測得到**兩個不同 id**
   (`vlt-1c5bcb0f` / `vlt-b8122656`)。請補一個 qa 可用、不需讀 graph-core 內部實作就能
   **確定性重現撞號**的做法,或改變 X18 / X19 的觀察點。
-- 狀態:open(2026-08-30 更新)。原裁決(2026-08-29 階段二閘門)是「把 `initVaultAt` 的時間提成明碼參數,與 `allocateId`(G8)一致」,追蹤於 **`graph-core/E002`**。**E002 已於 2026-08-30 完成(`initVaultAtWith` 收明碼 `UTCTime`),但本條並未因此結案** —— 編排者在 E002 的 scope 討論中查出:X18 / X19 的建構是「學一個 id → 塞進中樞 → 呼叫 **workspace 的 `initVault`**」,而 `initVault` 內部**自己**取樣 `getCurrentTime` 再往下傳,測試控制不到那個值,兩次呼叫仍得到不同 id。**要關本條,接縫必須延伸到 `initVault` 自己**(workspace 契約 F 加一列,形狀比照 `initVaultAtWith`),那是 workspace 的 enhance,不是 graph-core 的。L18 / L19 / X18 / X19 維持 `pendingWith`
+- **處置沿革**(2026-08-30 稍早的紀錄,已由下方狀態行結案):原裁決(2026-08-29 階段二閘門)是「把 `initVaultAt` 的時間提成明碼參數,與 `allocateId`(G8)一致」,追蹤於 **`graph-core/E002`**。**E002 已於 2026-08-30 完成(`initVaultAtWith` 收明碼 `UTCTime`),但本條並未因此結案** —— 編排者在 E002 的 scope 討論中查出:X18 / X19 的建構是「學一個 id → 塞進中樞 → 呼叫 **workspace 的 `initVault`**」,而 `initVault` 內部**自己**取樣 `getCurrentTime` 再往下傳,測試控制不到那個值,兩次呼叫仍得到不同 id。**要關本條,接縫必須延伸到 `initVault` 自己**(workspace 契約 F 加一列,形狀比照 `initVaultAtWith`),那是 workspace 的 enhance,不是 graph-core 的。L18 / L19 / X18 / X19 維持 `pendingWith`
+- 狀態:resolved(2026-08-30)。接縫已由 **`workspace/E001`** 補上:`initVaultWith` 收明碼 `UTCTime`(契約 D),`initVault` 退成薄包裝、簽名一字未動。X18 / X19 的建構改成「用同一個 `t` 算出 `newId PVlt name t 0` → 塞進中樞 → 呼叫 `initVaultWith … t`」,撞號**決定性重現**,qa 全程不必讀 graph-core 的 `newId` 實作(期望值由公開純函式自己算)。對應 E001 的 L4 / L5 與 E5 / E6;`LifecycleSpec.hs` 的兩條 `pendingWith` 已轉成正式斷言。編排者在骨架快照(`initVaultWith = undefined`)上驗過:兩條在骨架上**紅**、impl 填完後**綠**,鑑別力成立
 
 ## G5(F004 / qa)
 
@@ -96,4 +97,4 @@ parent: workspace
 - **編排者註記**:這條與 F006 的注入接縫是**同一類問題**——契約寫了一個錯誤值,但它在真實環境
   裡幾乎觸發不到,於是那條驗收標準沒有人驗得了(A9 可測性)。差別是 F006 那次能靠加一個明碼參數
   解決,這次牽涉的是 graph-core 的例外行為,選 (b) 等於在 workspace 這層補一道例外邊界。
-- 狀態:resolved(2026-08-30)。裁決(2026-08-29 階段二閘門):**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`,不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/B002`**,已於 2026-08-30 隨 E002 同一份 spec 完成(對應 E002 的 L4 / L5 / E5 / E6;`initVaultAt` 與 `initVaultAtWith` 對「父層被一般檔案佔住」都回 `Left (FileWriteFailed (markerDir root) msg)`,不拋例外)。**workspace 這一側還有一步**:`LifecycleSpec.hs:477-491` 的 L44 / X41 目前仍是 `pendingWith`,要由 workspace 自己的一輪把它改成正式斷言(graph-core 的測試不會替它轉綠)
+- 狀態:resolved(2026-08-30)。裁決(2026-08-29 階段二閘門):**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`,不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/B002`**,已於 2026-08-30 隨 E002 同一份 spec 完成(對應 E002 的 L4 / L5 / E5 / E6;`initVaultAt` 與 `initVaultAtWith` 對「父層被一般檔案佔住」都回 `Left (FileWriteFailed (markerDir root) msg)`,不拋例外)。**workspace 這一側還有一步**:`LifecycleSpec.hs:477-491` 的 L44 / X41 目前仍是 `pendingWith`,要由 workspace 自己的一輪把它改成正式斷言(graph-core 的測試不會替它轉綠)。**該步已於 2026-08-30 由 `workspace/E001` 的 R5 完成**:`test_init_vault_init_failure_is_vault_init_failed` 現在是打 `initVault` 的正式斷言,編排者在骨架快照上驗過它**從第一天就綠**(回歸 law,現況程式碼本來就正確)。本條至此完全結案

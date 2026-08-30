@@ -99,28 +99,59 @@
 -- (f) 不得 import System.Process                                      -> test_lifecycle_no_process_import           [綠]
 -- @
 --
--- __X18\/X19(撞號)的測試構造說明__:@initVaultAt@ 產生的 id 帶時間成分
--- (spec「相依性查證」3),qa 不得讀 graph-core 的 @newId@ 實作決定確切的時間解析度。
--- 本檔依 spec X18 原文「以固定時間 \/ 名稱造出撞號」的字面指示,先對一個丟棄用的探測
--- 目錄真的呼叫一次 @initVaultAt@ 學出這次會產生的 id,立刻把它塞進中樞的一列(路徑指到
--- 另一個地方),馬上對真正的目標目錄用__同一個 name__呼叫 @initVault@——時間視窗夠近時
--- 會撞號。這是 qa 對「如何構造」的實作自由(spec 用「例如」\/「以…造出」開放做法),
--- 不是對 spec 行為的腦補;若環境的時間解析度導致這兩條測試偶發不穩,不影響骨架階段的
--- 紅綠判定(七個函式本體皆 @undefined@,無論如何都會拋例外而紅)。
+-- __(以上 X18\/X19\/X41 三條 pending 已由 E001 收掉,見下方 E001 對照;
+-- 舊版「以固定時間\/名稱造出撞號」的非決定性構造說明已隨之作廢,不再適用。)__
+--
+-- __E001__(@.design\/subsystems\/workspace\/enhancements\/E001-init-vault-explicit-time.md@):
+-- 新增 'initVaultWith'(@initVault@ 的明碼時間版本),收掉上面 F004 的三條
+-- @pendingWith@(G4\/G5 尾巴)。骨架只有 'initVaultWith' 是 @undefined@,其餘六個
+-- 函式(含 'initVault')本體都已是現況實作,__預期欄不再是一律紅__,逐條見下:
+--
+-- @
+-- E001 回歸 law(現況程式碼,骨架未動)
+-- R1  initVault 簽名逐字不變                    -> 由既有呼叫端持續以 6 參數呼叫 initVault 編譯通過保證(T2\/T3\/T4\/T11 各測試) [綠]
+-- R2  前置檢查四條不變                          -> 既有 T2 測試 + test_init_vault_rejected_when_already_initialized_by_prior_init (E8) [綠]
+-- R3  成功時身分逐欄來自 marker                 -> test_init_vault_entry_mirrors_marker + test_init_vault_happy_path_alchbees_assets (E1) [綠]
+-- R4  initVault 仍每次取當下時間                -> test_init_vault_takes_current_time_each_call (E9) [綠]
+-- R5  initVault 建檔失敗 -> VaultInitFailed,不留半成品 -> test_init_vault_init_failure_is_vault_init_failed (E7,= F004 X41\/L44,已從 pendingWith 轉正) [綠]
+-- R6  L42 其餘五條(a)(c)(d)(e)(f)不放寬          -> 既有 test_lifecycle_* 各測試,未變動 [綠]
+--
+-- E001 新 law(全部經 initVaultWith,骨架 undefined)
+-- L1  決定性:同名同時間、不同空目錄 veId 相同    -> test_init_vault_with_same_time_same_id (E3) + property [紅]
+-- L2  id 的來源逐字可算(newId PVlt …)            -> test_init_vault_with_id_matches_new_id_formula (E4) + property [紅]
+-- L3  薄包裝等價(除 veId 外逐欄相同)             -> property「L3(property): …」;另由 E1 與 E3\/E4 對照覆蓋 [紅]
+-- L4  撞號的三個值                               -> test_init_vault_id_collision_carries_both_paths (E5,= F004 X18\/L18,已從 pendingWith 轉正) [紅]
+-- L5  撞號要回滾                                 -> test_init_vault_id_collision_rolls_back (E6,= F004 X19\/L19,已從 pendingWith 轉正) [紅]
+-- L6  Aapms.Store.Marker import 行新逐字字串(取代 F004 L42(b)) -> test_lifecycle_marker_import_is_exact [紅——骨架的 import 行尚未加 initVaultAtWith]
+-- L7  initVaultWith 建檔失敗 -> VaultInitFailed,不留半成品      -> test_init_vault_with_init_failure_is_vault_init_failed (E10) [紅]
+-- @
+--
+-- __L18\/L19 的舊構造已棄置__:F004 原本嘗試「連續呼叫 initVaultAt 賭時間視窗夠近」
+-- 撞號,本機實測會產生不同 id、不可確定性重現(即 spec-gap 本次-1,現由 E001 解決)。
+-- E001 用 'initVaultWith' 收同一個明碼 @t@,決定性造出撞號,不再需要賭時間視窗。
+--
+-- __above L1-L7 的 [紅]\/[綠] 標記是本檔__骨架階段__(僅 'initVaultWith' 為
+-- @undefined@)__下的預期__,依 @spec-roles.md@「qa 的交付判準」逐條標。qa 交付時
+-- (2026-08-30)實際跑 @cabal test aapms-workspace-test@ 觀察到__全部 319 examples
+-- 0 failures 0 pending__,含上面預期紅的 L1-L5\/L7——即 'initVaultWith' 骨架階段
+-- 已被(併發的)impl 填上本體,不再是 @undefined@。委派模式下 qa 不保證骨架快照
+-- (@spec-roles.md@「骨架快照」);本檔如實記錄兩者,紅綠判定以編排者在骨架快照上
+-- 驗到的結果為準,不是本檔觀察到的這次執行結果。
 module Aapms.Workspace.LifecycleSpec (spec) where
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
-import Data.List (dropWhileEnd, isPrefixOf, sortOn)
+import Data.List (dropWhileEnd, isPrefixOf, sort, sortOn)
 import qualified Data.Text as T
-import Hedgehog (annotate, failure, forAll, (===))
+import Data.Time (Day (ModifiedJulianDay), UTCTime (..), getCurrentTime, secondsToDiffTime)
+import Hedgehog (Gen, annotate, failure, forAll, (===))
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Core.Id (VaultId (..))
-import Aapms.Store.Marker (VaultMarker (..), indexDbPath, initVaultAt, markerDir, readMarker)
+import Aapms.Core.Id (IdPrefix (PVlt), VaultId (..), newId, renderId)
+import Aapms.Store.Marker (VaultMarker (..), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Discovery (lookupSelector)
 import Aapms.Workspace.Fixtures
@@ -157,6 +188,14 @@ moduleNameOf l = takeWhile (\c -> c /= ' ' && c /= '(') (drop (length ("import "
 
 lifecycleImportLines :: IO [String]
 lifecycleImportLines = importLinesOf "Aapms/Workspace/Lifecycle.hs"
+
+-- | 任意的 'UTCTime',給 E001 L1\/L2\/L3 的通用性質測試用(對照
+-- "Aapms.Workspace.ProjectsSpec.genUTCTime";@Fixtures.hs@ 不可修改,本檔各自複製一份)。
+genUTCTime :: Gen UTCTime
+genUTCTime = do
+  d <- Gen.integral (Range.linear 60000 62000)
+  s <- Gen.integral (Range.linear 0 86399)
+  pure (UTCTime (ModifiedJulianDay d) (secondsToDiffTime s))
 
 -- | 只用得到 hubVaults 的最小 Hub(purge \/ checkVaults \/ syncHub \/ forgetVault 只讀
 -- hubVaults,其餘三段填什麼都不影響本 feature 的任何行為)。
@@ -474,80 +513,208 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right _ -> doesFileExist (indexDbPath canonV) >>= (`shouldBe` True)
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_init_failure_is_vault_init_failed (X41, L44)" $
-      -- 本機實測(2026-08-29):用「V 的父層被一個檔案佔用」建構(見下方註解掉的版本)
-      -- 時,initVaultAt 內部的 createDirectoryIfMissing 讓 CreateDirectory
-      -- AlreadyExists 這個 IOException __未捕捉地往上拋__,不是回傳 Left——
-      -- 這條路徑根本沒有機會走到 initVault 要驗的 (Left (VaultInitFailed …), Left …)
-      -- 分支。qa 不得讀 graph-core 的 initVaultAt 實作決定它到底在哪些情境捕捉例外、
-      -- 在哪些情境直接拋出,故 X41 描述的「以固定方式讓 initVaultAt 回 Left」無法在
-      -- 不腦補的前提下確定性重現,見回報的 spec-gap 本次-2。
-      pendingWith
-        "X41/L44:「V 的父層被檔案佔用」的建構讓 initVaultAt 拋出未捕捉的 IOException \
-        \(CreateDirectory AlreadyExists)而不是回傳 Left,無法驗證 initVault 是否把它包成 \
-        \VaultInitFailed;需要 spec 或 impl 補一個確定會讓 initVaultAt 回 Left 的重現方式 \
-        \(見 spec-gap 本次-2)"
-
-    -- 以下是依 spec X41 原文字面嘗試的建構,留著給日後解 spec-gap 本次-2 時參考:
-    --
-    -- withHubAndRoot $ \loc _ ->
-    --   withTempHubDir $ \blockerRoot -> do
-    --     let blocker = blockerRoot </> "blocker"
-    --         vDir = blocker </> "sub"
-    --     writeFile blocker "not a directory"
-    --     canonV <- canonicalizePath vDir
-    --     expected <- initVaultAt canonV AssetVault "name"
-    --     beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
-    --     r <- initVault loc (hubWith []) vDir AssetVault "name" FreshVault
-    --     case (r, expected) of
-    --       (Left (VaultInitFailed p err), Left expectedErr) -> do
-    --         p `shouldBe` canonV
-    --         err `shouldBe` expectedErr
-    --       other -> expectationFailure ("預期 (VaultInitFailed, Left) 成對失敗,得到 " <> show other)
-    --     doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
-    --     afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
-    --     afterCfg `shouldBe` beforeCfg
+    it "test_init_vault_init_failure_is_vault_init_failed (X41, L44, E001 E7/R5): \
+       \V 的父層被一般檔案佔用,initVaultAt 回 Left 時 initVault 轉成 VaultInitFailed 且不留半成品" $
+      -- E001 現況分析(2026-08-30 `cabal repl aapms-workspace` 實測)確認:改用「blocker
+      -- 是一般檔案,vDir = blocker/sub」這個建構時,initVaultAt 回 Right (Left
+      -- (FileWriteFailed …)) 而不是拋未捕捉的 IOException(graph-core B002 隨 E002 修好);
+      -- canonicalizePath 對這個建構也不拋例外。G5 的 workspace 側尾巴,本條從 pendingWith
+      -- 轉正。err 與直接呼叫 initVaultAt 逐欄相同,這是 R5 的字面要求(err 是原件、不轉譯)。
+      withHubAndRoot $ \loc _ ->
+        withTempHubDir $ \blockerRoot -> do
+          let blocker = blockerRoot </> "blocker"
+              vDir = blocker </> "sub"
+          writeFile blocker "not a directory"
+          canonV <- canonicalizePath vDir
+          expected <- initVaultAt canonV AssetVault "name"
+          beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
+          r <- initVault loc (hubWith []) vDir AssetVault "name" FreshVault
+          case (r, expected) of
+            (Left (VaultInitFailed p err), Left expectedErr) -> do
+              p `shouldBe` canonV
+              err `shouldBe` expectedErr
+            other -> expectationFailure ("預期 (VaultInitFailed, Left) 成對失敗,得到 " <> show other)
+          doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
+          afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
+          afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
-  describe "T4/L18-L20/X18-X19: initVault 撞號" $ do
-    it "test_init_vault_id_collision_carries_both_paths (X18, L18)" $
-      -- 本機實測(2026-08-29):對同一個 name 連續呼叫兩次 initVaultAt(相隔僅一個
-      -- IO 動作)得到兩個__不同__的 id(例如 vlt-1c5bcb0f / vlt-b8122656),證明
-      -- newId 的時間\/亂數解析度細過「同名快速連續呼叫」這個視窗,X18 原文「以固定
-      -- 時間\/名稱造出撞號」在不讀 graph-core 的 newId 實作、不能控制時鐘的前提下
-      -- 無法確定性重現。見回報的 spec-gap 本次-1。
-      pendingWith
-        "X18/L18:無法在不讀 graph-core newId 實作\\/不能凍結時間的前提下確定性造出兩次 \
-        \initVaultAt 呼叫的 id 撞號(本機實測兩次呼叫產生不同 id);見 spec-gap 本次-1"
+  describe "T4/L18-L20/X18-X19: initVault 撞號(E001 L4/L5 用 initVaultWith 決定性重建)" $ do
+    it "test_init_vault_id_collision_carries_both_paths (X18, L18, E001 E5/L4): \
+       \用同一個明碼 t 決定性造出撞號,回傳的三個值逐欄相符" $
+      -- E001 解掉 spec-gap 本次-1(F004 原本靠連續呼叫 initVaultAt 賭時間視窗,
+      -- 本機實測會產生不同 id、不可確定性重現)。改用 initVaultWith 收同一個明碼 t:
+      -- 先用 newId PVlt name t 0 算出「這次會產生的 id」(L2 的公式,qa 不必讀
+      -- graph-core 實作),塞進中樞當既有列,再對一個空目錄以同一個 name/t 呼叫
+      -- initVaultWith,保證撞號。
+      withHubAndRoot $ \loc root -> do
+        t <- getCurrentTime
+        let vDir = root </> "v"
+            existingPath = "C:/somewhere/old"
+            existingId = VaultId (renderId (newId PVlt "same-name" t 0))
+            existingEntry = VaultEntry existingId "old" StoryVault existingPath
+            hub = hubWith [existingEntry]
+        canonV <- canonicalizePath vDir
+        r <- initVaultWith loc hub vDir AssetVault "same-name" FreshVault t
+        r `shouldBe` Left (VaultIdCollision existingId existingPath canonV)
+        let msg = renderWorkspaceError (VaultIdCollision existingId existingPath canonV)
+        msg `shouldSatisfy` T.isInfixOf (T.pack existingPath)
+        msg `shouldSatisfy` T.isInfixOf (T.pack canonV)
 
-    it "test_init_vault_id_collision_rolls_back (X19, L19, L20)" $
-      -- 同上一條的建構限制(spec-gap 本次-1);L20「任何 Left 都不動中樞檔案」已由
-      -- 其餘前置檢查\/L44 測試涵蓋,不因此條 pending 而失去覆蓋。
-      pendingWith
-        "X19/L19:同 test_init_vault_id_collision_carries_both_paths,撞號情境無法確定性重現;\
-        \見 spec-gap 本次-1"
+    it "test_init_vault_id_collision_rolls_back (X19, L19, L20, E001 E6/L5): \
+       \撞號後 .aapms\\/ 不存在、其餘檔案與中樞不變,重跑一次改用 initVault 得到 Right" $
+      withHubAndRoot $ \loc root -> do
+        t <- getCurrentTime
+        let vDir = root </> "v"
+            existingPath = "C:/somewhere/old"
+            existingId = VaultId (renderId (newId PVlt "same-name" t 0))
+            existingEntry = VaultEntry existingId "old" StoryVault existingPath
+            hub = hubWith [existingEntry]
+        canonV <- canonicalizePath vDir
+        beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
+        r <- initVaultWith loc hub vDir AssetVault "same-name" FreshVault t
+        case r of
+          Left (VaultIdCollision _ _ _) -> do
+            doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
+            remaining <- doesDirectoryExist canonV
+            if remaining then listDirectory canonV >>= (`shouldBe` []) else pure ()
+            afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
+            afterCfg `shouldBe` beforeCfg
+            r2 <- initVault loc hub vDir AssetVault "another-name" FreshVault
+            case r2 of
+              Right _ -> pure ()
+              Left err -> expectationFailure ("回滾後重跑 initVault 預期 Right,得到 " <> show err)
+          other -> expectationFailure ("預期 VaultIdCollision,得到 " <> show other)
 
-    -- 以下是依 spec X18\/X19 原文「以固定時間\/名稱造出撞號」嘗試的建構,留著給日後解
-    -- spec-gap 本次-1 時參考(本機實測會因為兩次 initVaultAt 呼叫產生不同 id 而失敗):
-    --
-    -- withHubAndRoot $ \loc root ->
-    --   withTempHubDir $ \probeRoot -> do
-    --     let probe = probeRoot </> "o"
-    --         vDir = root </> "v"
-    --     createDirectoryIfMissing True probe
-    --     canonO <- canonicalizePath probe
-    --     learned <- orDie =<< initVaultAt canonO AssetVault "same-name"
-    --     let hub = hubWith [VaultEntry (vmId learned) "same-name" (vmKind learned) canonO]
-    --     canonV <- canonicalizePath vDir
-    --     r <- initVault loc hub vDir AssetVault "same-name" FreshVault
-    --     r `shouldBe` Left (VaultIdCollision (vmId learned) canonO canonV)
-    --     -- （撞號後的回滾,原本另一條測試驗的事)
-    --     case r of
-    --       Left (VaultIdCollision _ _ _) -> do
-    --         doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
-    --         afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
-    --         afterCfg `shouldBe` beforeCfg
-    --       other -> expectationFailure ("預期撞號,得到 " <> show other)
+  --------------------------------------------------------------------------
+  describe "E001 R2-R4,L1-L3,L7/E1,E3,E4,E8,E9,E10: initVaultWith 明碼時間版本" $ do
+    it "test_init_vault_happy_path_alchbees_assets (E1, R3): 空目錄、AssetVault、\
+       \\"alchbees-assets\"、FreshVault,initVault 成功,entry 四欄如 R3,中樞多一列" $
+      withHubAndRoot $ \loc root -> do
+        let vDir = root </> "v"
+            hub0 = hubWith []
+        canonV <- canonicalizePath vDir
+        r <- initVault loc hub0 vDir AssetVault "alchbees-assets" FreshVault
+        case r of
+          Right (hub', e, notice) -> do
+            notice `shouldBe` AdoptNotice []
+            m <- orDie =<< readMarker canonV
+            veId e `shouldBe` vmId m
+            veName e `shouldBe` vmName m
+            veKind e `shouldBe` vmKind m
+            vePath e `shouldBe` canonV
+            hubVaults hub' `shouldBe` hubVaults hub0 ++ [e]
+          Left err -> expectationFailure ("預期 Right,得到 " <> show err)
+
+    it "test_init_vault_rejected_when_already_initialized_by_prior_init (E8, R2): \
+       \對 initVault 成功建出的目錄,換個名字、AdoptExisting 再呼叫一次" $
+      withHubAndRoot $ \loc root -> do
+        let vDir = root </> "v"
+        _ <- orDie =<< initVault loc (hubWith []) vDir AssetVault "alchbees-assets" FreshVault
+        canonV <- canonicalizePath vDir
+        before <- readFile (vaultMarkerConfigFile canonV)
+        r <- initVault loc (hubWith []) vDir AssetVault "another-name" AdoptExisting
+        r `shouldBe` Left (VaultAlreadyInitialized canonV)
+        after <- readFile (vaultMarkerConfigFile canonV)
+        after `shouldBe` before
+
+    it "test_init_vault_takes_current_time_each_call (E9, R4): 同一個 name、兩個空目錄,\
+       \連續兩次 initVault 得到不同的 veId" $
+      withHubAndRoot $ \loc root -> do
+        let d1 = root </> "v1"
+            d2 = root </> "v2"
+        (_, e1, _) <- orDie =<< initVault loc (hubWith []) d1 AssetVault "same-name" FreshVault
+        (_, e2, _) <- orDie =<< initVault loc (hubWith []) d2 AssetVault "same-name" FreshVault
+        veId e1 `shouldNotBe` veId e2
+
+    it "test_init_vault_with_same_time_same_id (E3, L1): 同一個 t、兩個相異空目錄,\
+       \兩次 initVaultWith 的 veId 相同" $
+      withHubAndRoot $ \loc root -> do
+        t <- getCurrentTime
+        let d1 = root </> "v1"
+            d2 = root </> "v2"
+        (_, e1, _) <- orDie =<< initVaultWith loc (hubWith []) d1 StoryVault "liftgame" FreshVault t
+        (_, e2, _) <- orDie =<< initVaultWith loc (hubWith []) d2 StoryVault "liftgame" FreshVault t
+        veId e1 `shouldBe` veId e2
+
+    it "L1(property): 任意 kind\\/name\\/t\\/兩個相異空目錄,initVaultWith 的 veId 相同" $
+      hedgehog $ do
+        kind <- forAll genVaultKind
+        name <- forAll genName
+        t <- forAll genUTCTime
+        result <- liftIO $ withHubAndRoot $ \loc root -> do
+          let d1 = root </> "v1"
+              d2 = root </> "v2"
+          r1 <- initVaultWith loc (hubWith []) d1 kind name FreshVault t
+          r2 <- initVaultWith loc (hubWith []) d2 kind name FreshVault t
+          pure (r1, r2)
+        case result of
+          (Right (_, e1, _), Right (_, e2, _)) -> veId e1 === veId e2
+          other -> annotate (show other) >> failure
+
+    it "test_init_vault_with_id_matches_new_id_formula (E4, L2): veId == VaultId (renderId (newId PVlt \"liftgame\" t 0))" $
+      withHubAndRoot $ \loc root -> do
+        t <- getCurrentTime
+        let vDir = root </> "v"
+        (_, e, _) <- orDie =<< initVaultWith loc (hubWith []) vDir StoryVault "liftgame" FreshVault t
+        veId e `shouldBe` VaultId (renderId (newId PVlt "liftgame" t 0))
+
+    it "L2(property): 任意 kind\\/name\\/t,veId 逐字等於 newId 公式" $
+      hedgehog $ do
+        kind <- forAll genVaultKind
+        name <- forAll genName
+        t <- forAll genUTCTime
+        result <- liftIO $ withHubAndRoot $ \loc root -> do
+          let vDir = root </> "v"
+          initVaultWith loc (hubWith []) vDir kind name FreshVault t
+        case result of
+          Right (_, e, _) -> veId e === VaultId (renderId (newId PVlt (T.strip name) t 0))
+          other -> annotate (show other) >> failure
+
+    it "L3(property): 任意 kind\\/name\\/t,initVault 與 initVaultWith 除 veId\\/vePath 外逐欄相同(薄包裝等價)" $
+      hedgehog $ do
+        kind <- forAll genVaultKind
+        name <- forAll genName
+        t <- forAll genUTCTime
+        outcome <- liftIO $ withHubAndRoot $ \loc root -> do
+          let d1 = root </> "v1"
+              d2 = root </> "v2"
+          r1 <- initVault loc (hubWith []) d1 kind name FreshVault
+          r2 <- initVaultWith loc (hubWith []) d2 kind name FreshVault t
+          case (r1, r2) of
+            (Right (hub1', e1, n1), Right (hub2', e2, n2)) -> do
+              files1 <- sort <$> listDirectory (markerDir (vePath e1))
+              files2 <- sort <$> listDirectory (markerDir (vePath e2))
+              pure $
+                Right
+                  ( (veName e1, veKind e1, n1, length (hubVaults hub1'), files1)
+                  , (veName e2, veKind e2, n2, length (hubVaults hub2'), files2)
+                  )
+            other -> pure (Left (show other))
+        case outcome of
+          Right (left', right') -> left' === right'
+          Left msg -> annotate msg >> failure
+
+    it "test_init_vault_with_init_failure_is_vault_init_failed (E10, L7): V 的父層被一般檔案佔用,\
+       \initVaultAtWith 回 Left 時 initVaultWith 轉成 VaultInitFailed 且不留半成品" $
+      withHubAndRoot $ \loc _ ->
+        withTempHubDir $ \blockerRoot -> do
+          let blocker = blockerRoot </> "blocker"
+              vDir = blocker </> "sub"
+          writeFile blocker "not a directory"
+          canonV <- canonicalizePath vDir
+          t <- getCurrentTime
+          expected <- initVaultAtWith canonV AssetVault "name" t
+          beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
+          r <- initVaultWith loc (hubWith []) vDir AssetVault "name" FreshVault t
+          case (r, expected) of
+            (Left (VaultInitFailed p err), Left expectedErr) -> do
+              p `shouldBe` canonV
+              err `shouldBe` expectedErr
+            other -> expectationFailure ("預期 (VaultInitFailed, Left) 成對失敗,得到 " <> show other)
+          doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
+          afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
+          afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
   describe "T5/L16/X15-X17: AdoptNotice" $ do
@@ -976,13 +1143,14 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         )
         sibling
 
-    it "test_lifecycle_marker_import_is_exact (b,條件式): 若有 import Aapms.Store.Marker,\
-       \必須逐字是 \"import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, markerDir, readMarker)\"" $ do
+    it "test_lifecycle_marker_import_is_exact (E001 L6,取代 F004 L42(b)): 若有 import \
+       \Aapms.Store.Marker,必須逐字是 \"import Aapms.Store.Marker (VaultMarker (vmId, \
+       \vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)\"" $ do
       importLines <- lifecycleImportLines
       let markerLines = filter (\l -> moduleNameOf l == "Aapms.Store.Marker") importLines
       markerLines
         `shouldSatisfy` all
-          (== "import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, markerDir, readMarker)")
+          (== "import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)")
 
     it "test_lifecycle_schema_import_is_type_only (c): 骨架階段起就是實斷言,只取 VaultKind" $ do
       importLines <- lifecycleImportLines

@@ -5,7 +5,7 @@ title: workspace
 description: 工具自己的狀態:中樞註冊表、vault 探測與作用範圍裁決、本機設定與外部工具
 status: active
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 parent: system
 related-adr: [ADR-008, ADR-014, ADR-017]
 code-paths: [workspace/src]
@@ -247,6 +247,9 @@ data PurgeScope  = PurgeHubOnly | PurgeAllVaults
 setupHub    :: HubLocation -> IO (Either WorkspaceError SetupReport)
 initVault   :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode
             -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
+-- 2026-08-30 E001:時間明碼,撞號分支才測得到(同 allocateProjectId 的理由)
+initVaultWith :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> UTCTime
+              -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
 addVault    :: HubLocation -> Hub -> FilePath -> IO (Either WorkspaceError (Hub, VaultEntry))
 forgetVault :: HubLocation -> Hub -> Text -> DeleteIndex -> IO (Either WorkspaceError (Hub, VaultEntry))
 checkVaults :: Hub -> IO [ScopeIssue]
@@ -268,6 +271,7 @@ data PurgeReport = PurgeReport
 | `initVault` 第三參數 | FilePath | 絕對或相對路徑,內部正規化為絕對 | vault 根目錄 |
 | `initVault` 第四參數 | VaultKind | `AssetVault` / `StoryVault`;**必填,不猜** | 一個 vault 一種 kind(ADR-017 決策一) |
 | `initVault` 第五參數 | Text | 去除前後空白後長度 ≥ 1;否則 `InvalidName` | vault 名稱,寫進 marker 的 `name` |
+| `initVaultWith` 第七參數 | UTCTime | 任意時間值 | **新 vault 的 id 由它決定**(`newId PVlt 名稱 時間 0`)。前六個參數與語意和 `initVault` 完全相同,`initVault` 是「取當下時間後轉呼它」的薄包裝。時間放最後,與 `allocateProjectId`、graph-core 的 `initVaultAtWith` 一致(2026-08-30 E001) |
 | `addVault` 第三參數 | FilePath | 絕對或相對路徑,內部正規化為絕對;該目錄**必須已有** `.aapms/` | 要納管的既有 vault |
 | `forgetVault` 第三參數 | Text | 非空;比對規則同 `lookupSelector`(先 id 後 name) | 要移除的 vault |
 | `registerProject` 第三/第四參數 | FilePath、Text | 路徑必須存在(否則 `ProjectPathMissing`);名稱去空白後長度 ≥ 1 | 專案根目錄、專案名 |
@@ -477,7 +481,7 @@ hubLocation → loadHub → hubTools
 | Scope → Discovery | `lookupSelector`(selector → `VaultEntry`);`readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
 | Scope → `aapms-store` | `VaultMarker` 的 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子,以及 `Aapms.Store.Schema` 的 `VaultKind` 型別(`resolvePipeline` 的簽名是契約 C 寫死的)。**2026-08-29 W3 補表**——`Types.hs` 對 `VaultMarker` 是裸型別 import(F001 的 L17(d) 釘死),轉不出欄位存取子;`VaultKind` 也不在 Types 的匯出清單裡 |
-| Lifecycle → `aapms-store` | `initVaultAt`(寫 marker + 空索引)、`indexDbPath`(`--delete-index` 要刪的那一個檔)、`markerDir`(`.aapms` 這個名字的唯一真相)、`readMarker` 與 `VaultMarker` 的 `vmId` / `vmKind` / `vmName` 三個欄位存取子(刪索引前驗身分、`syncHub` 對帳)。**2026-08-29 W4 補表** |
+| Lifecycle → `aapms-store` | `initVaultAt` 與 **`initVaultAtWith`**(寫 marker + 空索引;後者收明碼 `UTCTime`,**2026-08-30 E001 補列**——`initVaultWith` 靠它把時間往下傳)、`indexDbPath`(`--delete-index` 要刪的那一個檔)、`markerDir`(`.aapms` 這個名字的唯一真相)、`readMarker` 與 `VaultMarker` 的 `vmId` / `vmKind` / `vmName` 三個欄位存取子(刪索引前驗身分、`syncHub` 對帳)。**2026-08-29 W4 補表** |
 | Lifecycle → Location | `configPath`(**中樞的**)與 `thumbCacheDir`——`setupHub` 建中樞、`purge` 清快取要用。**2026-08-29 W4 補表**(表裡原本整條不存在) |
 | Projects → Hub | `upsertProject` / `removeProject`(見上)+ `hubProjects`(撞號比對與 selector 候選都要讀它)。**2026-08-29 W4 補表** |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |

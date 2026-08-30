@@ -1,0 +1,74 @@
+cabal-version:      3.4
+name:               aapms-service
+version:            0.1.0.0
+synopsis:           aapms 的業務契約層:ServiceM、錯誤語彙、樂觀鎖與業務驗證的執行點
+license:            BSD-3-Clause
+author:             Alchbees Studio
+maintainer:         lhm.stu@gmail.com
+build-type:         Simple
+
+-- 本套件不設門面模組(沒有 Aapms.Service):模組全部 exposed,界線由 exposed-modules 守
+-- (同 graph-core E001 與 workspace)。消費端直接 import 需要的那一個。
+--
+-- ADR-006 / ADR-015:這一層不涉及 HTTP 與終端輸出,build-depends 就是那條界線的證明。
+-- servant / warp / optparse-applicative / aeson 出現在這裡即為架構違規
+-- (aeson 的編碼規則沿用 aapms-core 的 Json 模組,ToSchema/ToJSON 的責任在 shell)。
+-- 也不得依賴任何領域子系統(archive / ingest / reorg / conflict / llm / ai / workshop / project)。
+--
+-- exposed-modules 與 test-suite 的 other-modules 由 /subsys-build 的編排者單線維護
+-- (見 .design/subsystems/service/build-log.md 的 D1),不屬任何 feature 的寫入白名單。
+-- 目前只含階段一 W1 的三個模組;後續波次由編排者逐波加入。
+
+common warnings
+    ghc-options: -Wall -Wcompat
+
+common lang
+    default-language:   GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        StrictData
+
+library
+    import:           warnings, lang
+    hs-source-dirs:   src
+    exposed-modules:
+        Aapms.Service.Types
+        Aapms.Service.Monad
+        Aapms.Service.Scope
+    build-depends:
+        , base          >=4.14 && <5
+        , containers
+        , mtl
+        , text
+        , aapms-core
+        , aapms-store
+        , aapms-types
+        , aapms-workspace
+
+test-suite aapms-service-test
+    import:           warnings, lang
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   src test
+    main-is:          Spec.hs
+    other-modules:
+        Aapms.Service.Types
+        Aapms.Service.Monad
+        Aapms.Service.Scope
+    build-depends:
+        , base
+        , containers
+        , directory
+        , filepath
+        , hspec
+        , hedgehog
+        , hspec-hedgehog
+        , mtl
+        , temporary
+        , text
+        , aapms-core
+        , aapms-store
+        , aapms-types
+        , aapms-workspace

@@ -5,7 +5,7 @@ title: vault-lifecycle
 description: "中樞建立、vault 的 init/adopt/add/forget、體檢與回寫、purge 清理"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 depends-on: [F001, F002]
 related-adr: [ADR-008, ADR-014, ADR-017]
 related-feature: []
@@ -588,7 +588,10 @@ example 必須從一份真的有註解的 `config.toml` 經 `loadHub` 造 `Hub`,
     「彼此不互相呼叫」。本套件內允許的 import 只有 `Aapms.Workspace.Types` /
     `Aapms.Workspace.Location` / `Aapms.Workspace.Hub` / `Aapms.Workspace.Discovery` 四個。
   - (b) **若**有對 `Aapms.Store.Marker` 的 import 行,它**必須逐字是**
-    `import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, markerDir, readMarker)`。
+    `import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)`。
+    (**2026-08-30 E001 修訂**:字串多了 `initVaultAtWith` 一個名字——`initVaultWith` 要靠它把明碼
+    時間往下傳。守的三件事①②③**一條都沒有放寬**。E001 落地前的原字串不含 `initVaultAtWith`;
+    以 **E001 的 L6 為準**。)
     **這條 law 守的是三件事,不是 import 衛生**:①放行的欄位存取子沒有 `vmRefs`,所以日後有人
     在本模組展開 `refs`(那是 Scope 的事)會編得過但**這條紅**;②沒有 `openVault` /
     `closeVault` / `VaultHandle`——**不開索引、不重建索引**;③沒有 `configPath`,所以中樞與

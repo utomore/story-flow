@@ -57,6 +57,11 @@ test-suite aapms-service-test
         Aapms.Service.Types
         Aapms.Service.Monad
         Aapms.Service.Scope
+        Aapms.Service.Fixtures
+        Aapms.Service.TypesSpec
+        Aapms.Service.MonadSpec
+        Aapms.Service.ScopeSpec
+        Aapms.Service.NestedRunServiceSpec
     build-depends:
         , base
         , containers

@@ -18,7 +18,7 @@ parent: service
 
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
-| 階段一 | W1 | service-env-and-scope | (3d 委派 qa/impl 前填) | | spec 委派中 |
+| 階段一 | W1 | service-env-and-scope | `fd65e0c`(第一輪;spec 修訂後會有新的) | **OK**(2026-08-30,無違規) | 仲裁中:spec bug 待修 |
 | 階段一 | W2 | workspace-facade | | | 未開始 |
 | 階段二 | W3–W6 | node-read / node-write / asset-naming / level-and-node | | | 本次不跑 |
 | 階段三 | W7 | search-facade ∥ index-ops | | | 本次不跑 |
@@ -79,7 +79,8 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 
 | feature | 輪次 | 失敗的測試 | 對應的 spec 條文 | 歸因 | 處置 |
 |---|---|---|---|---|---|
-| (尚未進入 qa / impl 階段) | | | | | |
+| F001 | **0**(qa 紅綠基線) | — | 「1-to-1 測試對照表」的紅綠預期欄 | **驗過,0 條「該紅卻綠」** | 在骨架快照 `fd65e0c` 的 worktree 上跑 qa 的 53 條:**50 紅 / 3 綠**。綠的恰好是 L23 / X24 / X25(對 `service/src/` 原始碼文字的靜態斷言,依 `spec-roles.md` 交付判準第二列本來就該綠),其餘 50 條全部打到 `undefined`。**qa 自己跑出來的 53/53 全綠不算數** —— 它跑的時候 impl 已經併發填完本體,qa 如實回報了這件事、沒有為了湊綠動任何斷言 |
+| F001 | 1 | (非紅燈:契約被悄悄擴大) | 無對應條文 —— spec 的資料流寫了「結束時(**含例外**)`closeVaultSet`」,卻沒給任何機制 | **spec bug** | impl 在 `Monad.hs:140` 自加 `deriving newtype instance MonadError ServiceError ServiceM` + `StandaloneDeriving` pragma,讓 `Scope.hs` 能用 mtl 的 `catchError` 寫收尾。**instance 全域可見、匯出清單藏不住**,等於給 F002–F008 與三個殼一條沒登記的公開 API,與不可逆決定 #1(`ServiceM` 不透明)衝突。**測試 53/53 全綠,一條都不會紅** —— 抓到它的是骨架快照比對,不是測試。2026-08-30 開發者裁決:**改成不暴露 instance 的收尾組合子**(Monad 匯出一個範圍受控的組合子,內部自己拆 newtype;`ServiceM` 對外仍只有 `Functor/Applicative/Monad/MonadIO`)。spec 定向修訂中,之後 impl 重跑一輪、qa 補新 law 的測試 |
 
 ## 階段結果
 

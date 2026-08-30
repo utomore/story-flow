@@ -26,11 +26,25 @@ module Aapms.Service.Scope
   ) where
 
 import Aapms.Store.Marker (VaultHandle)
-import Aapms.Store.MultiVault (VaultSet)
+import Aapms.Store.MultiVault (VaultSet, openVaultSet)
 import Aapms.Store.Schema (VaultKind)
-import Aapms.Workspace.Types (VaultRef)
+import Aapms.Workspace.Scope (resolvePipeline, resolveRead, resolveWrite)
+import Aapms.Workspace.Types
+  ( PipelineScope (psRuns)
+  , ReadScope (rsVaults)
+  , VaultRef
+  , WriteScope (wsRead, wsTarget)
+  )
 
-import Aapms.Service.Monad (ServiceM)
+import Aapms.Service.Monad
+  ( ServiceM
+  , askCwd
+  , askHub
+  , askSelector
+  , handleFor
+  , liftStore
+  , liftWorkspace
+  )
 
 -- | 讀取範圍(ADR-017:__讀跨__)。把 'Aapms.Workspace.Scope.resolveRead' 的裁決
 -- 換成一個開好的 'VaultSet',連同它涵蓋的 'VaultRef' 清單一起交給第一參數。
@@ -46,7 +60,13 @@ import Aapms.Service.Monad (ServiceM)
 -- 'Aapms.Store.MultiVault.closeVaultSet';被 @ATTACH@ 的那些 'VaultHandle'
 -- __不__被關閉,它們留在快取裡由 'Aapms.Service.Monad.closeEnv' 收。
 withRead :: (VaultSet -> [VaultRef] -> ServiceM a) -> ServiceM a
-withRead = undefined
+withRead k = do
+  hub <- askHub
+  sel <- askSelector
+  scope <- liftWorkspace (resolveRead hub sel)
+  handles <- mapM handleFor (rsVaults scope)
+  vs <- liftStore (openVaultSet handles)
+  finallyCloseVaultSet vs (k vs (rsVaults scope))
 
 -- | 寫入範圍(ADR-017:__寫單一__)。第一參數收到的是寫入目標那一個 vault 的
 -- handle,以及讀取範圍(目標 + @refs@ 展開)組成的 'VaultSet' ——關聯目標檢查
@@ -58,7 +78,15 @@ withRead = undefined
 --
 -- 'VaultSet' 的生命週期同 'withRead'。
 withWrite :: (VaultHandle -> VaultSet -> ServiceM a) -> ServiceM a
-withWrite = undefined
+withWrite k = do
+  hub <- askHub
+  sel <- askSelector
+  cwd <- askCwd
+  scope <- liftWorkspace (resolveWrite hub sel cwd)
+  targetHandle <- handleFor (wsTarget scope)
+  readHandles <- mapM handleFor (wsRead scope)
+  vs <- liftStore (openVaultSet readHandles)
+  finallyCloseVaultSet vs (k targetHandle vs)
 
 -- | 管線範圍(ADR-017:對每個符合 @kind@ 的 vault __各跑一次__)。第一參數是這條
 -- 管線只對哪種 vault 有意義,第二參數收到的是那些 vault 的 handle,__依
@@ -69,4 +97,18 @@ withWrite = undefined
 --
 -- 符合條件的 vault 一個都沒有時仍呼叫第二參數,給一個空清單。
 withPipeline :: VaultKind -> ([VaultHandle] -> ServiceM a) -> ServiceM a
-withPipeline = undefined
+withPipeline kind k = do
+  hub <- askHub
+  sel <- askSelector
+  scope <- liftWorkspace (resolvePipeline hub kind sel)
+  handles <- mapM handleFor (psRuns scope)
+  k handles
+
+-- | 私有 helper:結束時(含短路路徑)保證
+-- 'Aapms.Store.MultiVault.closeVaultSet' 恰好被呼叫一次。
+--
+-- 走 'Aapms.Service.Monad.finallyService' ——本模組__不__自己攔截短路:
+-- 'ServiceM' 只有 @Functor@ \/ @Applicative@ \/ @Monad@ \/ @MonadIO@ 四個實例
+-- (L25),攔截的能力收斂在 'Aapms.Service.Monad' 匯出的那一個組合子裡。
+finallyCloseVaultSet :: VaultSet -> ServiceM a -> ServiceM a
+finallyCloseVaultSet = undefined

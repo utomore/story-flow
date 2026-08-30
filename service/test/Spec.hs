@@ -9,7 +9,20 @@
 -- 請在回報裡列出要加的模組名。
 module Main (main) where
 
-import Test.Hspec (hspec)
+import qualified Aapms.Service.MonadSpec
+import qualified Aapms.Service.NestedRunServiceSpec
+import qualified Aapms.Service.ScopeSpec
+import qualified Aapms.Service.TypesSpec
+import System.IO
+import Test.Hspec
 
 main :: IO ()
-main = hspec $ pure ()
+main = do
+  hSetEncoding stdout utf8
+  hSetEncoding stderr utf8
+  hspec $ do
+    -- service/F001
+    Aapms.Service.TypesSpec.spec
+    Aapms.Service.MonadSpec.spec
+    Aapms.Service.ScopeSpec.spec
+    Aapms.Service.NestedRunServiceSpec.spec

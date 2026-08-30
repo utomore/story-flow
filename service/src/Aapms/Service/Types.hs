@@ -24,9 +24,9 @@ module Aapms.Service.Types
 
 import Data.Text (Text)
 
-import Aapms.Core.Registry (RegistryError)
-import Aapms.Store.Error (StoreError)
-import Aapms.Workspace.Types (WorkspaceError)
+import Aapms.Core.Registry (RegistryError, renderRegistryError)
+import Aapms.Store.Error (StoreError, renderStoreError)
+import Aapms.Workspace.Types (WorkspaceError, renderWorkspaceError)
 
 -- | @aapms-service@ 的__唯一__錯誤型別(design.md 契約 F)。不得另立平行的錯誤
 -- 型別再橋接——多一個型別就是多一套 @render*@,@shell@ 也會看到兩種形狀。
@@ -58,7 +58,11 @@ data ServiceError
 --
 -- 責任範圍是 'ServiceError' 的__全部__建構子;回傳恒非空、兩兩相異。
 errorCode :: ServiceError -> Text
-errorCode = undefined
+errorCode = \case
+  StoreFailed _ -> "store_failed"
+  WorkspaceFailed _ -> "workspace_failed"
+  RegistryUnavailable _ -> "registry_unavailable"
+  RegistryLoadFailed _ -> "registry_load_failed"
 
 -- | 繁中訊息,__每一則說出下一步該做什麼__(system.md 全域錯誤策略第 2 條)。
 --
@@ -70,4 +74,8 @@ errorCode = undefined
 --
 -- 兩個註冊表建構子因此渲染成__相同__的文字;分辨它們是 'errorCode' 的責任。
 renderServiceError :: ServiceError -> Text
-renderServiceError = undefined
+renderServiceError = \case
+  StoreFailed e -> renderStoreError e
+  WorkspaceFailed e -> renderWorkspaceError e
+  RegistryUnavailable e -> renderRegistryError e
+  RegistryLoadFailed e -> renderRegistryError e

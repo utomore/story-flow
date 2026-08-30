@@ -57,26 +57,33 @@ module Aapms.Service.Monad
   , throwService
   , liftStore
   , liftWorkspace
+
+    -- * 收尾(模組間公開介面:Scope 與 F002 起的全部模組 → Monad)
+  , finallyService
   ) where
 
-import Control.Concurrent.MVar (MVar)
-import Control.Monad.Except (ExceptT)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (ReaderT)
-import Data.IORef (IORef)
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
+import Control.Exception (finally)
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 
 import Aapms.Core.Id (VaultId)
 import Aapms.Core.Naming (NamingVocab)
 import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Store.Error (StoreError)
-import Aapms.Store.Marker (VaultHandle)
+import Aapms.Store.Marker (VaultHandle, VaultMarker (vmId), closeVault, openVault)
 import Aapms.Store.Schema (IndexIssue)
-import Aapms.Types.Loader (RegistrySource)
-import Aapms.Workspace.Types (Hub, HubLocation, VaultRef, WorkspaceError)
+import Aapms.Types.Loader (RegistrySource, loadRegistry, locateRegistry)
+import Aapms.Workspace.Hub (loadHub)
+import Aapms.Workspace.Location (hubLocation)
+import Aapms.Workspace.Types (Hub, HubLocation, VaultRef (vrMarker, vrPath), WorkspaceError)
 
-import Aapms.Service.Types (ServiceError)
+import Aapms.Service.Types (ServiceError (..))
 
 -- | 一次執行期間的全部資源:中樞快照 + 型別註冊表 + selector + 起點目錄 +
 -- handle 快取 + 全域鎖(design.md 契約 A)。
@@ -123,8 +130,17 @@ data Env = Env
 --
 -- 匯出的是型別本身,__不是建構子__:能執行它的只有 'runService',而 'runService'
 -- 是唯一拿鎖的地方。露出建構子等於露出一條繞過鎖的路。
+--
+-- __實例只有這四個,不得再加__(L25 以原始碼文字靜態守住):類別方法__不進匯出
+-- 清單__,所以多 derive 一個實例就是多一條沒有登記在 design.md 介面表上的對外
+-- API——任何 import 本模組的模組都會自動拿到它的方法。需要攔截短路的能力時,走
+-- 'finallyService' 這個__範圍受控的組合子__,而不是 @MonadError@ 實例。
 newtype ServiceM a = ServiceM (ReaderT Env (ExceptT ServiceError IO) a)
   deriving newtype (Functor, Applicative, Monad, MonadIO)
+
+-- | 私有:取出目前的 'Env'。不匯出——存取一律經下面那組 @ask*@。
+askEnv :: ServiceM Env
+askEnv = ServiceM ask
 
 -- | 建立執行環境:解析中樞位置 → 載入中樞 → 定位並載入型別註冊表。
 --
@@ -137,7 +153,38 @@ newtype ServiceM a = ServiceM (ReaderT Env (ExceptT ServiceError IO) a)
 -- 中樞載不起來或註冊表載不起來時回 @Left@,__不退回一個空的 'Env'__
 -- (system.md 全域錯誤策略第 3 條)。
 openEnv :: Maybe Text -> FilePath -> IO (Either ServiceError Env)
-openEnv = undefined
+openEnv sel cwd = do
+  loc <- hubLocation
+  hubR <- loadHub loc
+  case hubR of
+    Left e -> pure (Left (WorkspaceFailed e))
+    Right hub -> do
+      locR <- locateRegistry
+      case locR of
+        Left e -> pure (Left (RegistryUnavailable e))
+        Right (dir, src) -> do
+          regR <- loadRegistry dir
+          case regR of
+            Left e -> pure (Left (RegistryLoadFailed e))
+            Right (registry, naming) -> do
+              hubRef <- newIORef hub
+              handlesRef <- newIORef Map.empty
+              issuesRef <- newIORef Map.empty
+              lock <- newMVar ()
+              pure $
+                Right
+                  Env
+                    { envHubLocation = loc
+                    , envHubRef = hubRef
+                    , envRegistry = registry
+                    , envNaming = naming
+                    , envRegistrySource = src
+                    , envSelector = sel
+                    , envCwd = cwd
+                    , envHandles = handlesRef
+                    , envIndexIssues = issuesRef
+                    , envLock = lock
+                    }
 
 -- | 在一個 'Env' 上跑一段業務操作,__全程持有 'envLock'__。
 --
@@ -146,7 +193,8 @@ openEnv = undefined
 --
 -- __不__關閉任何 handle:handle 的生命週期屬 'Env',由 'closeEnv' 收。
 runService :: Env -> ServiceM a -> IO (Either ServiceError a)
-runService = undefined
+runService env (ServiceM action) =
+  withMVar (envLock env) (\_ -> runExceptT (runReaderT action env))
 
 -- | 關閉這個 'Env' 開過的__全部__ vault handle 並清空快取。
 --
@@ -154,22 +202,32 @@ runService = undefined
 -- 沒關就刪不掉,而 'withEnv' 的例外路徑與呼叫端的顯式 'closeEnv' 都可能走到,
 -- 不冪等就會變成「第二次呼叫對已關的連線再關一次」。
 closeEnv :: Env -> IO ()
-closeEnv = undefined
+closeEnv env = do
+  handles <- readIORef (envHandles env)
+  mapM_ closeVault (Map.elems handles)
+  writeIORef (envHandles env) Map.empty
+  writeIORef (envIndexIssues env) Map.empty
 
 -- | 'openEnv' 與 'closeEnv' 的成對包裝:'openEnv' 成功才跑第三參數,結束時
 -- (含例外路徑)必定 'closeEnv'。
 --
 -- 'openEnv' 失敗時第三參數__不被呼叫__,直接把 @Left@ 傳出去。
 withEnv :: Maybe Text -> FilePath -> (Env -> IO a) -> IO (Either ServiceError a)
-withEnv = undefined
+withEnv sel cwd f = do
+  envR <- openEnv sel cwd
+  case envR of
+    Left e -> pure (Left e)
+    Right env -> Right <$> (f env `finally` closeEnv env)
 
 -- | 中樞根目錄與它的來源。一次執行期間不變。
 askHubLocation :: ServiceM HubLocation
-askHubLocation = undefined
+askHubLocation = envHubLocation <$> askEnv
 
 -- | 目前的中樞快照。
 askHub :: ServiceM Hub
-askHub = undefined
+askHub = do
+  env <- askEnv
+  liftIO (readIORef (envHubRef env))
 
 -- | 從磁碟重新載入中樞、換掉快照,並回傳新的那一份。
 --
@@ -178,27 +236,34 @@ askHub = undefined
 --
 -- 載入失敗時以 'WorkspaceFailed' 短路——中樞剛被自己寫過卻讀不回來,是硬錯誤。
 reloadHub :: ServiceM Hub
-reloadHub = undefined
+reloadHub = do
+  env <- askEnv
+  hubR <- liftIO (loadHub (envHubLocation env))
+  case hubR of
+    Left e -> throwService (WorkspaceFailed e)
+    Right hub -> do
+      liftIO (writeIORef (envHubRef env) hub)
+      pure hub
 
 -- | 型別註冊表。
 askRegistry :: ServiceM TypeRegistry
-askRegistry = undefined
+askRegistry = envRegistry <$> askEnv
 
 -- | 命名文法詞彙表(與 'askRegistry' 來自同一次載入)。
 askNaming :: ServiceM NamingVocab
-askNaming = undefined
+askNaming = envNaming <$> askEnv
 
 -- | 註冊表是從三層定位的哪一層找到的。
 askRegistrySource :: ServiceM RegistrySource
-askRegistrySource = undefined
+askRegistrySource = envRegistrySource <$> askEnv
 
 -- | @--vault@ 的原始字串,未經解讀。
 askSelector :: ServiceM (Maybe Text)
-askSelector = undefined
+askSelector = envSelector <$> askEnv
 
 -- | 向上探測的起點(絕對路徑)。
 askCwd :: ServiceM FilePath
-askCwd = undefined
+askCwd = envCwd <$> askEnv
 
 -- | 取得一個 vault 的 handle:先查快取,沒有才開,開好放回快取。
 --
@@ -209,24 +274,63 @@ askCwd = undefined
 -- 同一個 'VaultRef' 的第二次呼叫回__同一個__ handle,不再碰檔案系統。開啟失敗
 -- 以 'StoreFailed' 短路。
 handleFor :: VaultRef -> ServiceM VaultHandle
-handleFor = undefined
+handleFor ref = do
+  env <- askEnv
+  let vid = vmId (vrMarker ref)
+  cache <- liftIO (readIORef (envHandles env))
+  case Map.lookup vid cache of
+    Just h -> pure h
+    Nothing -> do
+      r <- liftIO (openVault (envRegistry env) (vrPath ref))
+      case r of
+        Left e -> throwService (StoreFailed e)
+        Right (h, issues) -> do
+          liftIO (modifyIORef' (envHandles env) (Map.insert vid h))
+          liftIO (modifyIORef' (envIndexIssues env) (Map.insert vid issues))
+          pure h
 
 -- | 某個 vault __第一次__被 'handleFor' 開啟時一併回的 'IndexIssue' 清單。
 --
 -- 這個 vault 在本次執行期間還沒被開過時回空清單——「沒開過」與「開過但沒有問題」
 -- 從這個出口看不出差別,而呼叫端(@vaultInfo@)本來就會先讓它被開起來。
 indexIssuesFor :: VaultId -> ServiceM [IndexIssue]
-indexIssuesFor = undefined
+indexIssuesFor vid = do
+  env <- askEnv
+  issues <- liftIO (readIORef (envIndexIssues env))
+  pure (Map.findWithDefault [] vid issues)
 
 -- | 以一個 'ServiceError' 短路目前的 'ServiceM'。
 throwService :: ServiceError -> ServiceM a
-throwService = undefined
+throwService e = ServiceM (throwError e)
 
 -- | 跑一個 graph-core 的 IO 動作,@Left@ 原樣包成 'StoreFailed' 後短路。
 liftStore :: IO (Either StoreError a) -> ServiceM a
-liftStore = undefined
+liftStore action = do
+  r <- liftIO action
+  either (throwService . StoreFailed) pure r
 
 -- | 跑一個 @aapms-workspace@ 的 IO 動作,@Left@ 原樣包成 'WorkspaceFailed'
 -- 後短路。
 liftWorkspace :: IO (Either WorkspaceError a) -> ServiceM a
-liftWorkspace = undefined
+liftWorkspace action = do
+  r <- liftIO action
+  either (throwService . WorkspaceFailed) pure r
+
+-- | 收尾組合子:@finallyService 動作 收尾@。
+--
+-- 跑第一個動作;無論它__正常結束__、以 'throwService' __短路__、還是拋出 IO
+-- 例外,第二個動作都__恰好被執行一次__,然後第一個動作的結果__原樣__傳出——
+-- 短路原樣再短路,例外原樣重拋。第二個動作的回傳值被丟棄。
+--
+-- 參數順序與語意對齊 'Control.Exception.finally'。
+--
+-- __為什麼是一個組合子,而不是給 'ServiceM' 一個 @MonadError@ 實例__:
+-- 'Aapms.Service.Scope' 的三個 @with*@ 要保證
+-- 'Aapms.Store.MultiVault.VaultSet' 在第一參數結束時(含短路路徑)被關掉,而那
+-- 需要攔截短路的能力。derive 一個實例辦得到,但類別方法__不進匯出清單__:每一個
+-- import 本模組的模組都會自動拿到 @catchError@ 與一條繞過 'throwService' 的
+-- 拋出路徑,那是沒有登記在 design.md「模組間公開介面」表上的對外 API,也讓
+-- 'ServiceM' 不再是不透明型別(本 feature 不可逆決定第一列)。本組合子把那個能力
+-- __收斂成一個登記過的名字__:拆 'ServiceM' 的 newtype 這件事只發生在本模組內部。
+finallyService :: ServiceM a -> ServiceM b -> ServiceM a
+finallyService = undefined

@@ -86,7 +86,7 @@ Vault 設定)才驗證。token 比較用定時比較,不用 `==`——短路比�
 
 **中立**
 
-- P3 要輸出 OpenAPI 文件,讓 claude code 只靠文件就能接;這也是 MCP adapter 的生成依據
+- S3 要輸出 OpenAPI 文件,讓 claude code 只靠文件就能接;這也是 MCP adapter 的生成依據
 - 雙模式逼出一個套件切分:servant API 型別必須獨立成 `storyflow-api`,不能住在
   `storyflow-server` 裡。CLI 的遠端模式需要那份型別去產生 `servant-client`,但一個預設
   根本不開伺服器的執行檔不該被拖進 `warp` 與 `servant-server`(service-and-interfaces/F003)

@@ -68,4 +68,4 @@ Node A
 
 **中立**
 
-- 需要在 P2 就提供 `level lint`,檢查孤兒節點、`order` 衝突、指向不存在 Node 的 `convergesTo`
+- 需要在 S2 就提供 `level lint`,檢查孤兒節點、`order` 衝突、指向不存在 Node 的 `convergesTo`

@@ -42,7 +42,7 @@ store 測試全部建立在這個形狀上。
 | 時間 | 事件 |
 |---|---|
 | F006(2026-08-23) | `Fixtures.hs` 首次把 `licenses.md` 放在 vault 根、pack 放在 `packs/` |
-| F008(2026-08-25) | `WriteSpec.hs` 的 L8 撞上這件事,被仲裁糾正;qa **另建**一份路徑正確的 fixture,並在 `:339-341` 留下註解說明「不沿用 F006 那份」——**個案繞開,沒有修源頭** |
+| F008(2026-08-25) | `WriteSpec.hs` 的 LAW-8 撞上這件事,被仲裁糾正;qa **另建**一份路徑正確的 fixture,並在 `:339-341` 留下註解說明「不沿用 F006 那份」——**個案繞開,沒有修源頭** |
 | F007 | `SearchSpec.hs:299` 照抄 `packs/…` |
 | F009(2026-08-26) | `MultiVaultSpec.hs:363-364` 再照抄一次 |
 | 階段三閘門(2026-08-26) | 列為「留給後續的四條」第 1 條,建議走 `/bugfix` |
@@ -68,7 +68,7 @@ SearchSpec.hs:299:  , ("packs/fts-vendor/pack.md", ftsPackMd)
 對照 `WriteSpec.hs:344` 的 `licensesPath = "library/licenses.md"`(唯一正確的一份),
 **三份 fixture 兩種寫法**。
 
-機械化的重現條件寫成 T1 的測試(見下):對每一份 vault fixture 的檔案組,
+機械化的重現條件寫成 STEP-1 的測試(見下):對每一份 vault fixture 的檔案組,
 「每個 `licenses.md` 的路徑等於 `library/licenses.md`」與「每個 `pack.md` 的路徑以
 `library/` 開頭」兩條在修復前皆為假。
 
@@ -88,7 +88,7 @@ SearchSpec.hs:299:  , ("packs/fts-vendor/pack.md", ftsPackMd)
 ## 修復方向
 
 1. **先立守衛**:在 `Fixtures.hs` 加一個純函式 `vaultLayoutViolations`,吃一份 vault 檔案組,
-   回傳違反 `system.md:439` 的路徑清單。判準只取兩條**機械可判定**的子句,避免重蹈 G3 / G12
+   回傳違反 `system.md:439` 的路徑清單。判準只取兩條**機械可判定**的子句,避免重蹈 GAP-3 / GAP-12
    (文字掃描分不出註解與程式碼)的覆轍——這裡比對的是 fixture 的**資料結構**,不是原始碼文字:
    - 路徑的檔名是 `licenses.md` → 路徑必須恰好是 `library/licenses.md`
    - 路徑的檔名是 `pack.md` → 路徑必須以 `library/` 開頭
@@ -113,17 +113,17 @@ SearchSpec.hs:299:  , ("packs/fts-vendor/pack.md", ftsPackMd)
 
 ## TodoList
 
-- [x] T1: `Fixtures.hs` 加 `vaultLayoutViolations` 純函式並匯出;新增 `VaultLayoutSpec` 斷言五份 fixture 檔案組,接進 `Spec.hs` 與 `.cabal`;確認**修復前失敗** `dep: -`
-- [x] T2: 修正 `Fixtures.hs` 的 `assetVaultFiles` 路徑 `dep: T1`
-- [x] T3: 修正 `MultiVaultSpec.hs` 的 `vaultBFiles` 路徑 `dep: T1`
-- [x] T4: 修正 `SearchSpec.hs` 的 `ftsVaultFiles` 路徑 `dep: T1`
-- [x] T5: 同步 `IndexSpec.hs` / `WriteSpec.hs` / `CreateSpec.hs` 以路徑字面定位的斷言 `dep: T2,T3,T4`
-- [x] T6: 更新 `WriteSpec.hs:339-341` 已失效的註解 `dep: T2`
-- [x] T7: 修正 `md/src/Aapms/Md/Error.hs:98` 的誤導註解(宣稱骨架留 `undefined`,該分支早已實作) `dep: -`
+- [x] STEP-1: `Fixtures.hs` 加 `vaultLayoutViolations` 純函式並匯出;新增 `VaultLayoutSpec` 斷言五份 fixture 檔案組,接進 `Spec.hs` 與 `.cabal`;確認**修復前失敗** `dep: -`
+- [x] STEP-2: 修正 `Fixtures.hs` 的 `assetVaultFiles` 路徑 `dep: T1`
+- [x] STEP-3: 修正 `MultiVaultSpec.hs` 的 `vaultBFiles` 路徑 `dep: T1`
+- [x] STEP-4: 修正 `SearchSpec.hs` 的 `ftsVaultFiles` 路徑 `dep: T1`
+- [x] STEP-5: 同步 `IndexSpec.hs` / `WriteSpec.hs` / `CreateSpec.hs` 以路徑字面定位的斷言 `dep: T2,T3,T4`
+- [x] STEP-6: 更新 `WriteSpec.hs:339-341` 已失效的註解 `dep: T2`
+- [x] STEP-7: 修正 `md/src/Aapms/Md/Error.hs:98` 的誤導註解(宣稱骨架留 `undefined`,該分支早已實作) `dep: -`
 
 ## 驗證方式
 
-- T1 的測試在修復前為紅(逐條列出違規路徑)、T2–T5 後轉綠
+- STEP-1 的測試在修復前為紅(逐條列出違規路徑)、STEP-2–STEP-5 後轉綠
 - `cabal test all` 全綠,且 store 的 example 數只增不減(修復前 273)
 - `grep -rn '"packs/\|"licenses.md"' store/test/` 在 fixture 檔案組裡零命中
 
@@ -131,16 +131,16 @@ SearchSpec.hs:299:  , ("packs/fts-vendor/pack.md", ftsPackMd)
 
 **實際修法與「修復方向」一致,無偏差。**
 
-守衛(T1):
+守衛(STEP-1):
 
 - `store/test/Aapms/Store/Fixtures.hs:283-298` 新增純函式
   `vaultLayoutViolations :: [(FilePath, Text)] -> [FilePath]`,已匯出;路徑先正規化反斜線再比對
-- 新增 `store/test/Aapms/Store/VaultLayoutSpec.hs`(L1 / L2 對五份檔案組各一條,加 E3 證明
+- 新增 `store/test/Aapms/Store/VaultLayoutSpec.hs`(LAW-1 / LAW-2 對五份檔案組各一條,加 EX-3 證明
   判準不是恆真),接進 `store/test/Spec.hs` 與 `store/aapms-store.cabal` 的 `other-modules`
 - `MultiVaultSpec` / `SearchSpec` 的模組匯出各多一項(`vaultAFiles` / `vaultBFiles` /
   `ftsVaultFiles`),讓守衛掃得到原本是模組私有的檔案組
 
-**修復前的紅燈(T1 驗收,已實際觀測)**:279 examples / **3 failures**,逐條指出違規路徑——
+**修復前的紅燈(STEP-1 驗收,已實際觀測)**:279 examples / **3 failures**,逐條指出違規路徑——
 
 ```
 Fixtures.assetVaultFiles      expected: []  but got: ["packs/test-vendor/pack.md","licenses.md"]
@@ -148,9 +148,9 @@ MultiVaultSpec.vaultBFiles    expected: []  but got: ["packs/potions/pack.md","l
 SearchSpec.ftsVaultFiles      expected: []  but got: ["packs/fts-vendor/pack.md"]
 ```
 
-同一輪 `storyVaultFiles` / `vaultAFiles` 為綠、E3 為綠,所以不是「整批全紅」也不是斷言恆真。
+同一輪 `storyVaultFiles` / `vaultAFiles` 為綠、EX-3 為綠,所以不是「整批全紅」也不是斷言恆真。
 
-路徑修正(T2–T5)——一律補足 `system.md:439` 的完整形狀,pack 連 `<pack-slug>` 那一層也補上:
+路徑修正(STEP-2–STEP-5)——一律補足 `system.md:439` 的完整形狀,pack 連 `<pack-slug>` 那一層也補上:
 
 | 檔案 | 修正前 | 修正後 |
 |---|---|---|
@@ -162,10 +162,10 @@ SearchSpec.ftsVaultFiles      expected: []  but got: ["packs/fts-vendor/pack.md"
 | `IndexSpec.hs`(9 處) | `packs/test-vendor/pack.md`、`packs/dup/pack.md` | 對應的 `library/packs/…` |
 | `WriteSpec.hs`(2 處)、`CreateSpec.hs:346` | `packs/test-vendor/pack.md` | `library/packs/test-vendor/test-pack/pack.md` |
 
-註解(T6 / T7):
+註解(STEP-6 / STEP-7):
 
 - `WriteSpec.hs:337-342` 的「不沿用 F006 fixture」理由已失效(源頭已修),改寫成仍然成立的
-  理由(L8 只需要一份乾淨的授權檔),並註記原理由已被 B001 解除
+  理由(LAW-8 只需要一份乾淨的授權檔),並註記原理由已被 B001 解除
 - `md/src/Aapms/Md/Error.hs:98` 原文宣稱 `HeadingTooDeep` 分支「骨架留 undefined」,該分支
   在 F004 交付時就已填實,註解已成誤導。改寫成「建骨架時刻意留 undefined……交付後已填實」,
   保住原本要傳達的設計理由(spec 與 impl 兩次獨立轉錄)而不再誤導後人
@@ -175,7 +175,7 @@ SearchSpec.ftsVaultFiles      expected: []  but got: ["packs/fts-vendor/pack.md"
 - `cabal build all` 全綠
 - `cabal test all`:`aapms-core` 224 / 0、`aapms-types` 42 / 0、`aapms-md` 327 / 0、
   `aapms-store` **279 / 0**、`aapms-contract-rules-test` 6 / 0 —— 合計 **878 examples、0 failures**
-- store 由 273 增為 279(+6 = VaultLayoutSpec 的 5 條 fixture 斷言 + E3),**沒有任何既有測試
+- store 由 273 增為 279(+6 = VaultLayoutSpec 的 5 條 fixture 斷言 + EX-3),**沒有任何既有測試
   因為改路徑而失效**——這也順帶證明了沒有斷言是靠舊路徑成立的
 - hedgehog 相關連跑三次,`aapms-store` 三次皆 279 / 0
 - `grep -rn '"packs/\|"licenses.md"' store/test/` 在 fixture 檔案組裡零命中;剩餘命中只有

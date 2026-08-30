@@ -63,7 +63,7 @@ story-flow 全部以 Haskell 撰寫(核心服務與 CLI),並**完整沿用 asset
 
 **負面 / 成本**
 
-- 開發速度短期一定慢於 Python,特別是 P1 的 Markdown 解析與 P5 的 LLM 串接
+- 開發速度短期一定慢於 Python,特別是 S1 的 Markdown 解析與 S5 的 LLM 串接
 - GHC 9.14 仍偏新,部分套件的 `base` 上界未放寬,可能需要逐一 `allow-newer`(assetdb 已踩過,
   照抄它的作法)
 - TOML 解析、MCP protocol 在 Haskell 沒有現成的一等公民套件,可能要自己寫薄層

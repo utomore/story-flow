@@ -29,7 +29,7 @@ accepted。supersedes assetdb ADR-003(ULID 永久身分)。
 
 ULID 在 assetdb 的對外契約份量比報告估的小:遊戲端的 `Assets.hs` 以**邏輯名稱**為 key
 (`AssetKey "ui_gui_travel-book-frame_001"`),完全看不到 ULID;ULID 只出現在 `manifest.json` 的
-一個欄位,而 manifest 本來就要升 schema 2(P6)重新產生。
+一個欄位,而 manifest 本來就要升 schema 2(S6)重新產生。
 
 ## 決策(Decision)
 
@@ -44,7 +44,7 @@ ULID 在 assetdb 的對外契約份量比報告估的小:遊戲端的 `Assets.hs
 `Assets.hs` 的 key;`ast-` id 是圖譜內部的節點身分,兩者並存、職責不同:`name` 可能在命名決策
 改變時更動,`id` 從掃描進來那一刻起不變。
 
-**四、P2 匯出時重發 id。** 舊 ULID 不保留為欄位——它沒有任何讀者。對帳舊 manifest 以 `sha256` +
+**四、S2 匯出時重發 id。** 舊 ULID 不保留為欄位——它沒有任何讀者。對帳舊 manifest 以 `sha256` +
 `name`,不以 ULID。
 
 ## 考慮過的替代方案(Alternatives Considered)
@@ -66,8 +66,8 @@ ULID 在 assetdb 的對外契約份量比報告估的小:遊戲端的 `Assets.hs
 
 **負面 / 成本**
 
-- 6,783 筆資源、27 個 pack 一次性重編號(隨 P2 匯出一起發生,不另付成本)
-- 舊 `manifest.json` 的 `id` 欄位作廢;已產出的專案在 P6 升 schema 2 時重新產生
+- 6,783 筆資源、27 個 pack 一次性重編號(隨 S2 匯出一起發生,不另付成本)
+- 舊 `manifest.json` 的 `id` 欄位作廢;已產出的專案在 S6 升 schema 2 時重新產生
 - 短 id 的產生需要索引在場(重試保證唯一);`core` 提供純函式、`store` 負責重試,這個分工已在
   story-flow 運作
 - assetdb ADR-012 選 `ATTACH` 的理由之一「ULID 跨 vault 不撞鍵」失效,改由「結果帶 vault 欄位」

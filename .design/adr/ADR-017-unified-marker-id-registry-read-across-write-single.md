@@ -92,10 +92,10 @@ accepted。擴充 ADR-008(多 vault、git 式探測);吸收並 supersede assetdb
 **任何情況不碰 `library/` 與 Markdown**——它們是真相。
 
 **六、`vault migrate`** 把 `.assetdb/`(舊 assetdb)或 `.storyflow/`(舊 story-flow)升成 `.aapms/`:
-寫入 `id` / `kind`,舊索引檔丟棄(純索引,重建即可)。asset 側的人給資料由 P2 匯出器處理,
+寫入 `id` / `kind`,舊索引檔丟棄(純索引,重建即可)。asset 側的人給資料由 S2 匯出器處理,
 不在 `migrate` 裡。
 
-> **修訂(2026-08-29,`/subsys-design workspace`)——本條收成 `vault init --adopt`**:P2 匯出器已
+> **修訂(2026-08-29,`/subsys-design workspace`)——本條收成 `vault init --adopt`**:S2 匯出器已
 > 取消(逐欄查證後,舊庫的標籤 / 分類 100% 機器產、命名由 6 條規則展開,見 system.md 開發階段表)。
 > 扣掉資料搬遷後,`migrate` 剩下的「在既有目錄上寫出 `.aapms/config.toml`、不碰 `library/`」與
 > 「在既有目錄上 `init`」是同一件事;而 `.storyflow/` 那條分支在目標機器上**沒有任何真實對象**

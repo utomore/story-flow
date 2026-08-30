@@ -308,11 +308,11 @@ stdin 的 JSON-RPC → Mcp.Rpc 解析 → tool 名 → 同一份請求型別
 
 ## 開發階段
 
-對應主架構 **P3「骨幹」**,與 `workspace`、`service` 同期,是三者中的**最下游**:`service` 的
-階段一(骨幹)是它的前提。P3 的交付判準有三條要在這裡才驗得到——「兩種 vault 都能經統一外殼
+對應主架構 **S3「骨幹」**,與 `workspace`、`service` 同期,是三者中的**最下游**:`service` 的
+階段一(骨幹)是它的前提。S3 的交付判準有三條要在這裡才驗得到——「兩種 vault 都能經統一外殼
 CRUD」「`--remote` 行為一致」「OpenAPI 輸出」。
 
-P4–P6 各領域接上時,本子系統的工作都是同一種形狀:`api` 加路由 → `cli` 加子指令 → `mcp` 自動
+S4–S6 各領域接上時,本子系統的工作都是同一種形狀:`api` 加路由 → `cli` 加子指令 → `mcp` 自動
 多一個 tool,**不再改本文件的契約**。
 
 ## 功能規劃
@@ -333,7 +333,7 @@ P4–P6 各領域接上時,本子系統的工作都是同一種形狀:`api` 加�
 | 5 | http-server | handler、`AppState`、token middleware 與啟動閘門、`code` → 狀態碼、warp、`--openapi` | Server.* | #1 | - |
 | 6 | mcp-adapter | stdio JSON-RPC、tool 映射與命名、雙模式 | Mcp.Tools、Mcp.Rpc | #2 | - |
 
-小結:共 **6 個 features、2 個階段**;全部完成即主架構 P3 交付:兩種 vault 都能經統一外殼 CRUD、
+小結:共 **6 個 features、2 個階段**;全部完成即主架構 S3 交付:兩種 vault 都能經統一外殼 CRUD、
 `search` 一次回兩種、`--remote` 與內嵌行為一致、`aapms-serve --openapi` 輸出得了 OpenAPI 3。
 
 ## Feature 契約卡

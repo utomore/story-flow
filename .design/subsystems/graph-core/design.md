@@ -124,7 +124,7 @@ data MetaWarning
 | `NodeKind` | 六個值,**封閉**(ADR-003:Node 的 kind 是引擎自己的東西,不進型別註冊表) | 場景節點種類 |
 | `MetaWarning` | 四個建構子,**全部只是警告**;`checkMeta` 不決定要不要擋 | 擋不擋是 `service` 的業務政策——`MissingRequiredField` 是唯一被 `service` 升級成拒絕寫入的那一類 |
 
-> `MetaWarning` 原帶「**待確認假設 A1**」(建構子清單由 F001 依 #2 的驗收標準反推)。九個 feature
+> `MetaWarning` 原帶「**待確認假設 ASM-1**」(建構子清單由 F001 依 #2 的驗收標準反推)。九個 feature
 > 全數完成後該假設已由實作與測試塑定,2026-08-29 標為**已確認**,並升格為對外契約——`service`
 > 的 `ValidationFailed` 政策直接引用這四個建構子。
 
@@ -180,7 +180,7 @@ audioMeta :: Value -> Maybe AudioMeta
   必須同一種形狀**,否則比對時要剝掉 vault 前綴,剝完又回到會撞號的狀態(這是 2026-08-23 閘門的二輪補正)。
   節點**自身身分**的欄位不在此列:`ManifestAsset` 的 `id` 維持裸短 id,因為它另有一個並列的 `vault` 欄位
 - `Manifest` 頂層帶 **`packs` / `licenses` 去重清單**,每筆 license 含八個授權維度。專案要能離開 vault
-  獨立存在:P6 的授權閘門必須在專案資料夾內就判斷得出「這個專案能不能商用」,不回頭讀 vault;
+  獨立存在:S6 的授權閘門必須在專案資料夾內就判斷得出「這個專案能不能商用」,不回頭讀 vault;
   共用同一份 CC0 的數十個 pack 也不必各自重複八個欄位
 
 ### C. 註冊表(`aapms-types`)
@@ -239,7 +239,7 @@ renderDocument    :: Document -> Text
 updateFrontmatter :: (Meta -> Meta) -> Document -> Either MdError Document
 overrideAt        :: Id -> Document -> Either MdError MetaOverride   -- 讀出某節目前的 override(store 樂觀鎖比對用)
 
--- 節層 meta 區塊的另一半:型別專屬條目(2026-08-24,見下方 G2)
+-- 節層 meta 區塊的另一半:型別專屬條目(2026-08-24,見下方 GAP-2)
 newtype MetaExtras                                   -- 以「原始行」保存,不解 YAML
 extrasOf   :: Section -> MetaExtras
 extrasAt   :: Id -> Document -> Either MdError MetaExtras
@@ -253,7 +253,7 @@ updateSectionBody :: Id -> Text -> Document -> Either MdError Document
 appendSection     :: NewSection -> Document -> Either MdError Document
 -- 插在指定父節點的子樹之後(= 成為它的最後一個子節點);nsLevel 必須等於父節點的 secLevel + 1
 insertSection     :: Id -> NewSection -> Document -> Either MdError Document
--- NewSection 的 payload 對節點種類做 sum(2026-08-24 裁決,見下方 G1)
+-- NewSection 的 payload 對節點種類做 sum(2026-08-24 裁決,見下方 GAP-1)
 data NewSection = NewSection
   { nsId :: Id, nsLevel :: Int, nsTitle :: Text, nsBody :: Text
   , nsPayload :: NewSectionPayload }
@@ -264,7 +264,7 @@ data NewSectionPayload
   | NSNode     MetaOverride NewNode  -- Level 檔的一個節點
 removeSection     :: Id -> Document -> Either MdError Document
 newDocument       :: DocKind -> Meta -> Text -> Document
--- 檔案層 frontmatter 的另一半:型別專屬條目(2026-08-25,見下方 G17)
+-- 檔案層 frontmatter 的另一半:型別專屬條目(2026-08-25,見下方 GAP-17)
 newtype FrontExtras                                       -- MetaExtras 的 newtype:兩層不得混用
 frontExtrasOf           :: Document -> FrontExtras        -- 判準:鍵不在 frontmatterFieldOrder 裡
 renderFrontmatterWith   :: Meta -> FrontExtras -> LineEnding -> Text  -- 兩半都要,少一半編不過
@@ -279,7 +279,7 @@ data NewPackFront = NewPackFront
 packFrontExtras         :: NewPackFront -> FrontExtras
 ```
 
-**G2 定案(2026-08-24)——節層 meta 區塊在型別上切成兩半**:`MetaOverride` 只涵蓋 `Meta` 的十三欄,
+**GAP-2 定案(2026-08-24)——節層 meta 區塊在型別上切成兩半**:`MetaOverride` 只涵蓋 `Meta` 的十三欄,
 所以它當唯一管道時,`updateSection` 重寫 meta 區塊會**靜默刪掉**節的型別專屬條目(asset 的 `sha256` /
 `entry` / `ext` / `meta` / `license` / `author`、license 的八個授權維度)——這是已重現的資料破壞,
 而 `pack.md` 依 ADR-013 是素材中繼資料的真相。改法:另一半以 `MetaExtras`(**原始行**,不解 YAML)保存,
@@ -288,7 +288,7 @@ packFrontExtras         :: NewPackFront -> FrontExtras
 `key:` 行 + 其後縮排行」讓 `meta:` 的巢狀值整段留得住。`updateSectionExtras` 是契約 E 的
 `writeAssetFields` / `upsertLicense` 唯一走得通的路。
 
-**G1 定案(2026-08-24)**:`NewSection` 原本只有 `nsMeta :: MetaOverride` 一個管道,而 `MetaOverride`
+**GAP-1 定案(2026-08-24)**:`NewSection` 原本只有 `nsMeta :: MetaOverride` 一個管道,而 `MetaOverride`
 沒有 asset 的 `sha256` / `entry` / `ext` / `meta` / `license` / `author`,也沒有 license 的八個授權維度
 ——`appendSection` / `addSection` 因此寫不出能通過 `toPack` / `toLicenses` 驗證的完整新節。改成
 **對節點種類做 sum**(`NewSectionPayload`,封閉建構子),與契約 A 的 `AnyNode`、`LinkKind` 同一個模式:
@@ -296,7 +296,7 @@ packFrontExtras         :: NewPackFront -> FrontExtras
 **不採**「把 asset / license 欄位塞進 `MetaOverride`」——那個型別是 md 與 store 共用的節層繼承 DTO,
 污染它會動到 ADR-010 位元組保留所依賴的繼承規則。
 
-**G17 定案(2026-08-25)—— 檔案層 frontmatter 也切成兩半**:這是 **G2 的同構缺陷換一層**。
+**GAP-17 定案(2026-08-25)—— 檔案層 frontmatter 也切成兩半**:這是 **GAP-2 的同構缺陷換一層**。
 `Aapms.Core.Json` 的 `FromJSON Pack` 把 `vendor` / `archive` / `sha256` / `license` / `author` /
 `source_url` / `ai_disclosure` 與 `Meta` 的十四欄**攤平在同一層 frontmatter 物件**解碼,但寫入介面
 (`newDocument` / `renderFrontmatter` / `updateFrontmatter`)只吃 `Meta`、`frontmatterFieldOrder`
@@ -306,10 +306,10 @@ packFrontExtras         :: NewPackFront -> FrontExtras
 保住 `Meta` 那一半。判準是「鍵不在 `frontmatterFieldOrder` 裡」而不是列舉 pack 七欄,所以註冊表
 宣告的任意檔案層欄位也一併保住。`renderFrontmatter` / `newDocument` 保留為「沒有專屬欄位」的特化
 (四種文件裡三種的 frontmatter 確實只有 `Meta`),但**寫 `pack.md` 用它們就是資料遺失**。
-`FrontExtras` 是 `MetaExtras` 的 **newtype 而非別名**(2026-08-25 A11 裁決):底層機制共用,
+`FrontExtras` 是 `MetaExtras` 的 **newtype 而非別名**(2026-08-25 ASM-11 裁決):底層機制共用,
 但型別上擋住「節層 extras 餵進檔案層」——那種混用不會編譯錯誤,只會安靜地寫出髒資料,
-而本子系統已經被同類缺陷咬過兩次(G2 節層、G17 檔案層),兩次都不是測試抓到的。
-**G17 能潛伏是因為沒有任何 law 測檔案層往返**,所以本次的驗收核心是那條往返 law。
+而本子系統已經被同類缺陷咬過兩次(GAP-2 節層、GAP-17 檔案層),兩次都不是測試抓到的。
+**GAP-17 能潛伏是因為沒有任何 law 測檔案層往返**,所以本次的驗收核心是那條往返 law。
 
 `docKind` 只看檔案層 `type`:`level` → `LevelDoc`、`asset-pack` → `PackDoc`、`asset-license` → `LicenseDoc`、
 其餘一律 `TopicDoc`(md 不認識註冊表)。`licenses.md` 的檔案層是**容器不是節點**:frontmatter 寫
@@ -346,7 +346,7 @@ handle,索引路徑因此叫得動 `checkMeta`(資料流管線「`aapms-core` �
 **`initVaultAtWith` 是明碼時間的入口**(2026-08-30 開發者裁決,graph-core/E002):vault 的 id 是
 `newId PVlt name t 0`,時間藏在函式內部取樣時呼叫端就造不出兩個相同的 id,而 `workspace` 的
 `initVault` 有一整條「新 id 撞到中樞既有 id 就回 `VaultIdCollision` 並回滾」的分支,它的正確性
-只能靠造出一次碰撞來驗——這與 `allocateId` 的 2026-08-25 **G8 裁決**是同一個判準。
+只能靠造出一次碰撞來驗——這與 `allocateId` 的 2026-08-25 **GAP-8 裁決**是同一個判準。
 **採薄包裝而非直接改簽名**:`initVaultAt` 逐字維持原簽名、內部取當下時間後轉呼
 `initVaultAtWith`,既有呼叫端一行都不用改。被否決的替代方案是**直接在 `initVaultAt` 加第四個
 參數**(與 `allocateId` 形狀完全一致、只有一個入口、「時間明碼」由型別強制而非紀律維持);
@@ -375,7 +375,7 @@ closeVaultSet   :: VaultSet -> IO ()                 -- 與 closeVault 對稱:�
 vaultSetIds     :: VaultSet -> [VaultId]             -- 這個集合實際涵蓋哪些 vault(去重後、保序)
 maxAttachedVaults :: Int                             -- ATTACH 上限,供呼叫端事前檢查而不必先失敗一次
 
--- 懸空引用(2026-08-26 A3 定稿):兩種成因分開,呼叫端才修得對
+-- 懸空引用(2026-08-26 ASM-3 定稿):兩種成因分開,呼叫端才修得對
 data DanglingRef = DanglingRef
   { drSource :: Id, drLink :: Link, drTarget :: Ref, drReason :: DanglingReason }
 data DanglingReason = TargetVaultAbsent | TargetNodeMissing   -- 目標 vault 不在集合裡 / vault 在但節點不存在
@@ -394,7 +394,7 @@ upsertLicense     :: VaultHandle -> License                     -> IO (Either St
 deleteNode        :: VaultHandle -> Id -> Revision -> DeleteMode -> IO (Either StoreError DeleteResult)
 allocateId        :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
 -- salt 遞增重試直到不撞;碰撞查詢失敗即失敗,不靜默照發。時間是明碼參數,與 aapms-core 的
--- newId 一致(2026-08-25 G8 裁決):藏在函式內部取樣,呼叫端就無法預先造出碰撞,salt 重試
+-- newId 一致(2026-08-25 GAP-8 裁決):藏在函式內部取樣,呼叫端就無法預先造出碰撞,salt 重試
 -- 迴圈也就永遠測不到——而碰撞在正常情況下幾乎不發生,那段程式碼可能永遠是錯的而沒人知道
 ```
 
@@ -444,7 +444,7 @@ parseVaultKind  :: Text -> Maybe VaultKind      -- 只認 asset / story,其餘 N
 | `readTextFile` | 失敗回 `StoreError`,訊息由 `renderStoreError` 產生 | 讀文字檔的唯一入口。**一律當 UTF-8,不看本機 locale**——這條在 Windows 上不是小事,`workspace` 讀中樞 `config.toml` 與本子系統讀 `.md` 必須同一種行為 |
 | `renderVaultKind` / `parseVaultKind` | 文字表示只有 `asset` / `story` 兩個值,兩者互為反函數 | `kind` 進 TOML(vault marker 與中樞註冊表)與進錯誤訊息用**同一份**表示。`parseVaultKind` 對其餘字串回 `Nothing`,由呼叫端決定怎麼報錯 |
 
-前四個原本只在程式碼裡 export、不在本章節。`workspace` 消費它們的理由是 A7:vault 目錄的佈局
+前四個原本只在程式碼裡 export、不在本章節。`workspace` 消費它們的理由是 ASM-7:vault 目錄的佈局
 (`.aapms/` 底下有什麼)與「設定檔怎麼安全落地」這兩個事實**屬於本子系統**,`forgetVault --delete-index`
 要刪哪個檔、中樞 `config.toml` 怎麼寫回,都不該由呼叫端自己抄一份路徑拼接與 rename 邏輯。
 
@@ -478,7 +478,7 @@ data SearchResult = SearchResult { srHits :: [SearchHit], srTotal :: Int, srFace
 `render*` 繁中訊息,**每一則說出下一步該做什麼**。上層(`service`)原樣包,不重寫。
 跨 vault 的 `TooManyVaults Int Int`(當前數量、上限)必須列出兩個數字。
 `openVaultSet` 收到**兩個不同路徑、卻帶相同 `vmId`** 的 handle 時回專屬錯誤並列出兩個路徑
-(2026-08-26 A5 裁決):依 ADR-017,vault 的身分就是 marker 裡的 id,撞號代表有人複製了整個
+(2026-08-26 ASM-5 裁決):依 ADR-017,vault 的身分就是 marker 裡的 id,撞號代表有人複製了整個
 vault 目錄,此時任何跨 vault 的 `Ref` 解析都是不確定的。**同一個路徑被傳兩次則保序去重**
 ——那是無害的呼叫端疏忽(例如預設 vault 又被顯式指定一次),不該讓整個查詢掛掉。
 
@@ -552,7 +552,7 @@ workspace 解析出本次生效的 vault 集合 → service 逐一 openVault →
   → 一個讀連線 ATTACH 每個 vault 的索引(超過上限 → TooManyVaults,列出數量)
   → listAcross:UNION 各索引同名表,排序、分頁、facet 在 SQL 層完成(與單 vault 的 listNodes 一致)
   → searchAcross:兩張 FTS 表 × N 個 vault 的 bm25 分數在 Haskell 合併去重後排序分頁
-    (2026-08-26 A1 裁決,與單 vault 的 search 一致——分數合併推進 SQL 做得到但會把 SQL 組裝弄髒)
+    (2026-08-26 ASM-1 裁決,與單 vault 的 search 一致——分數合併推進 SQL 做得到但會把 SQL 組裝弄髒)
   → 每筆結果帶 VaultId;lookupRef 依 Ref 的 vault 欄位路由,缺省為呼叫端傳入的預設 vault
   → checkReferences:本 vault 所有 links 的目標逐一 lookupRef,找不到的回 DanglingRef
 ```
@@ -666,9 +666,9 @@ fts_map(rowid PK, node_id)
 
 ## 開發階段
 
-對應主架構 **P1**(全部)。P0 的契約測試(Markdown roundtrip、索引等價)在 P0 對舊程式碼立起來,
+對應主架構 **S1**(全部)。S0 的契約測試(Markdown roundtrip、索引等價)在 S0 對舊程式碼立起來,
 本子系統的每個 feature 都必須讓它們維持綠燈。內部里程碑即下方三個階段;階段二結束時
-`rebuildIndex` 已能對兩種 vault 跑,階段三結束時主架構 P1 的三條交付判準全部可驗。
+`rebuildIndex` 已能對兩種 vault 跑,階段三結束時主架構 S1 的三條交付判準全部可驗。
 
 ## 功能規劃
 
@@ -696,7 +696,7 @@ fts_map(rowid PK, node_id)
 | 8 | store-write-operations | 建檔 / 增節 / 改寫 / 刪除 / Node / License 的寫入改接統一 `Meta`;`AssetPatch`;樂觀鎖;`allocateId` | Write | #4, #6 | F008-store-write-operations.md |
 | 9 | store-multi-vault-read | `VaultSet`:ATTACH、`*Across`、`lookupRef`、`TooManyVaults`、`checkReferences` | MultiVault | #7 | F009-store-multi-vault-read.md |
 
-小結:共 **9 個 features、3 個階段**;全部完成即主架構 P1 交付:`rm index.db` → rebuild 兩種
+小結:共 **9 個 features、3 個階段**;全部完成即主架構 S1 交付:`rm index.db` → rebuild 兩種
 vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
 
 ## Feature 契約卡
@@ -750,7 +750,7 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
 - **實作的 Level 2 介面**:契約 D 全部;「模組間公開介面」的 `aapms-md` ↔ `aapms-core`(含 `MetaOverride`);
   契約 G 的 `MdError`
 - **資料流管線段落**:讀取管線的「parseDocument → docKind → to*」一段;寫入管線的「md 寫回」一段
-- **驗收標準**:四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同(P0 契約測試
+- **驗收標準**:四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同(S0 契約測試
   持續綠);繼承規則照本文件表格——pack.md 的節層 `type` 不繼承且缺漏是錯誤;
   `toPack` 把檔案層轉成 `Pack`、每節轉成 `Asset`;`toLicenses` 每節一個 `License`,八個維度缺漏為
   `Nothing` 而非錯誤(`commercial` 與 `attribution_required` 除外,缺漏是錯誤);`appendSection`
@@ -784,7 +784,7 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
 - **資料流管線段落**:讀取管線從「files 表比對」到「整檔替換進索引」,以及查詢出口的非全文部分
 - **驗收標準**:對 story vault 與 asset vault 各一個測試 fixture,`rebuildIndex` 兩次結果相同;
   `rm index.db` 後 `openVault` + `rebuildIndex` 與刪除前的 `listNodes` / `linksFrom` 結果相同
-  (P0 契約測試);`childrenOf pck` 回該 pack 全部 asset、`childrenOf ent`(主體)回其片段;
+  (S0 契約測試);`childrenOf pck` 回該 pack 全部 asset、`childrenOf ent`(主體)回其片段;
   `files` 表以 mtime / size 偵測外部改動並只重讀那個檔;`checkMeta` 的警告與 `buildTree` 的錯誤
   進 `IndexIssue`,不中斷整批;單一 vault 內 `assets.name` 重複是 `IndexIssue` 錯誤;
   `pack.md` 條目為 `missing` 狀態的 asset 仍在索引、`listNodes` 預設不回
@@ -802,8 +802,8 @@ vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
   `sqFacets = True` 時 `FacetCounts` 五個維度都有;查詢只走 trigram / cjk 兩條 FTS 路徑
   (由 `routeOf` 釘死),**沒有第三條比對路徑**(2026-08-24 改寫:原文是「`LIKE` 路徑在程式碼裡
   不存在」,但用文字掃描斷言關鍵字不存在分不出註解與程式碼——要保證的是**可觀察行為**,不是原始碼字面);
-  索引體積對 6,783 筆 asset 在可接受範圍(記錄數字,不設硬上限)——**這一條等 P2 真資料進場再驗**,
-  P1 不合成大 fixture
+  索引體積對 6,783 筆 asset 在可接受範圍(記錄數字,不設硬上限)——**這一條等 S2 真資料進場再驗**,
+  S1 不合成大 fixture
 - **明確不做**:不引入 ICU / jieba;不做自然語句查詢(`ai`);不做跨 vault(#9)
 
 ### store-write-operations

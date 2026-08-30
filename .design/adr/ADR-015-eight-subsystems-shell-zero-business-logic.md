@@ -86,6 +86,6 @@ ADR-011 拒絕把 `api` / `server` / `cli` 拆出 `service-and-interfaces`,理�
 
 **負面 / 成本**
 
-- 拆 assetdb CLI 的 ~1,200 行是 P3 最大的工作量
+- 拆 assetdb CLI 的 ~1,200 行是 S3 最大的工作量
 - 八個子系統八份 `design.md`,舊四份要重建;`/arch-audit status` 在重建完成前會一直列出缺口
 - `shell` 零業務邏輯需要 code review 紀律,`CabalSpec` 擋得住相依方向,擋不住一個 `if`

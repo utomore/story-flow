@@ -51,7 +51,7 @@ related-feature: []
 被階段一其餘 feature 依賴——可與 `md-unified-sections`(#4)等階段二 feature 平行開發,只要 F001 /
 F002 先定案。
 
-D1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / `project` / `cli` / … 舊碼一律
+DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / `project` / `cli` / … 舊碼一律
 不碰、不考慮相容。
 
 ## 對應的 Level 2 契約
@@ -107,7 +107,7 @@ D1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / `pr
 - `imageMeta :: ManifestAsset -> Maybe ImageMeta` / `audioMeta :: ManifestAsset -> Maybe AudioMeta`
   —— `legacy/assetdb/core/src/AssetDB/Manifest.hs:142-146`(`parseMaybe parseJSON . maMeta`;
   **簽名改變**:契約 B 寫的是 `Value -> Maybe ImageMeta`,拿掉了 `ManifestAsset` 包裝,直接吃
-  `Value`——見「JSON 形狀規格」的 `meta` 欄位與待確認假設 A1)
+  `Value`——見「JSON 形狀規格」的 `meta` 欄位與待確認假設 ASM-1)
 - `checkVersion :: Int -> Parser ()` —— `legacy/assetdb/core/src/AssetDB/Manifest.hs:176-185`
   (「版本不符要直接拒絕載入並給出明確訊息」的立場原樣沿用,訊息文字改成 schema 2 與
   `aapms project sync`)
@@ -150,7 +150,7 @@ D1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / `pr
 沿用舊 `Manifest.hs:165-185` 的 fail-fast 順序:`FromJSON` 先讀 `schemaVersion` 欄位、版本不符
 立刻 `fail` 明確中文訊息,不繼續解析其餘欄位(避免版本不符時連鎖冒出一堆缺欄位錯誤,蓋掉真正
 原因)。`Manifest` 與 `StoryManifest` **各自有獨立的 `schemaVersion` 欄位與獨立的版本常數**——
-`story/manifest.json` 是本次新增的檔案,schema 1 時代不存在,理由見待確認假設 A4。
+`story/manifest.json` 是本次新增的檔案,schema 1 時代不存在,理由見待確認假設 ASM-4。
 
 ```haskell
 checkSchemaVersion :: Text -> Int -> Int -> Parser ()
@@ -177,13 +177,13 @@ checkSchemaVersion docName expected got
 舊版 `maPack :: Maybe Text` / `maLicense :: Maybe Text` 存的是**名稱**,合併後 pack 與 license
 都是圖譜節點(ADR-012)、有短 id。契約卡沒有規定這兩欄的確切型別,只規定欄位存在;本 feature
 最初選擇存**同 vault 內的短 id**(`Maybe Id`),2026-08-23 階段一閘門裁決改為 **`Maybe Ref`**
-——見下方「已裁決假設」A2 與「實作備註」。
+——見下方「已裁決假設」ASM-2 與「實作備註」。
 
 **manifest 內部引用一律 vault 化**(2026-08-23 二輪裁決,補正第一輪的不完整之處):第一輪只把
 `ManifestAsset.maPack` / `maLicense` 這兩個「指過去」的欄位改成 `Ref`,但頂層 `packs` /
 `licenses` 清單裡被指的那一端(`ManifestPack.mpId` / `ManifestLicense.mlId`)仍是裸短 `Id`,
 造成「引用」與「被引用」兩端形狀不對稱——要比對得先剝掉 asset 端的 vault 前綴,剝掉後又回到
-短 id 只在單一 vault 內唯一、跨 vault 撞名的原始問題,A2 想擋的事情沒真正擋成。修正後
+短 id 只在單一 vault 內唯一、跨 vault 撞名的原始問題,ASM-2 想擋的事情沒真正擋成。修正後
 `ManifestPack.mpId`、`ManifestLicense.mlId`、`ManifestPack.mpLicense`(它指向頂層 licenses
 清單,同樣的引用關係)全部改成 `Ref`,manifest 內部的引用圖(asset → pack、asset → license、
 pack → license)兩端一致,用 `Ref` 相等比對就能唯一對應,兩個 vault 各有一筆 `pck-11223344`
@@ -227,8 +227,8 @@ data ManifestAsset = ManifestAsset
   , maType    :: TypeKey   -- 註冊表鍵,asset-<kind>(F002 宣告的 8 個值之一)
   , maSha256  :: Sha256
   , maVault   :: VaultId   -- 來源 vault id
-  , maPack    :: Maybe Ref -- 所屬 pack 節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 A2)
-  , maLicense :: Maybe Ref -- 授權節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 A2)
+  , maPack    :: Maybe Ref -- 所屬 pack 節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 ASM-2)
+  , maLicense :: Maybe Ref -- 授權節點的跨 vault 參照,"<vault>:<id>"(2026-08-23 裁決 ASM-2)
   , maMeta    :: Value     -- kind 專屬 JSON;imageMeta/audioMeta 型別化讀取
   }
 
@@ -386,7 +386,7 @@ data Manifest = Manifest
 data ManifestAsset = ManifestAsset
   { maId :: Id, maKey :: AssetKey, maPath :: Text, maType :: TypeKey, maSha256 :: Sha256
   , maVault :: VaultId, maPack :: Maybe Ref, maLicense :: Maybe Ref, maMeta :: Value
-  -- ^ maPack / maLicense:2026-08-23 階段一閘門裁決 A2,從 Maybe Id 改為 Maybe Ref
+  -- ^ maPack / maLicense:2026-08-23 階段一閘門裁決 ASM-2,從 Maybe Id 改為 Maybe Ref
   }
   deriving stock (Eq, Show)
 
@@ -433,48 +433,48 @@ audioMeta :: Value -> Maybe AudioMeta
 
 ## TodoList
 
-- [x] T1: `Manifest.hs`(新):`AssetKey`、`Manifest`/`ManifestAsset`/`ManifestPack`/`ManifestLicense`、
+- [x] STEP-1: `Manifest.hs`(新):`AssetKey`、`Manifest`/`ManifestAsset`/`ManifestPack`/`ManifestLicense`、
   `StoryManifest`/`StoryManifestEntry`、`ImageMeta`/`AudioMeta`、兩個 `currentSchemaVersion` 常數、
   `manifestIndex`、`imageMeta`、`audioMeta`  `dep: F001, F002`
-- [x] T2: `Json.hs`(F001 基礎上擴充):上述全部型別的 `ToJSON`/`FromJSON`,`Manifest`/
+- [x] STEP-2: `Json.hs`(F001 基礎上擴充):上述全部型別的 `ToJSON`/`FromJSON`,`Manifest`/
   `StoryManifest` 的 `FromJSON` 各自先檢查 `schemaVersion` 再解析其餘欄位  `dep: T1`
-- [x] T3: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Manifest`  `dep: T1`
-- [x] T4: 新增 golden fixtures `core/test/golden/manifest.golden.json` +
+- [x] STEP-3: `aapms-core.cabal`:`exposed-modules` 加入 `Aapms.Core.Manifest`  `dep: T1`
+- [x] STEP-4: 新增 golden fixtures `core/test/golden/manifest.golden.json` +
   `core/test/golden/story-manifest.golden.json`(手寫,對應本文件「JSON 形狀規格」的範例)
   `dep: T1`
-- [x] T5: `core/test/Aapms/Core/ManifestSpec.hs`:golden roundtrip(兩份檔案各自 decode → encode →
+- [x] STEP-5: `core/test/Aapms/Core/ManifestSpec.hs`:golden roundtrip(兩份檔案各自 decode → encode →
   語意相同 JSON;decode 後的型別值可再 encode/decode 相等)  `dep: T2, T4`
-- [x] T6: `ManifestSpec.hs`:`schemaVersion` 錯誤路徑(`Manifest` 與 `StoryManifest` 各自對
+- [x] STEP-6: `ManifestSpec.hs`:`schemaVersion` 錯誤路徑(`Manifest` 與 `StoryManifest` 各自對
   `schemaVersion = 1` 與 `= 3` 回 `Left`,錯誤訊息含「請重新產生」)  `dep: T2`
-- [x] T7: `ManifestSpec.hs`:`manifestIndex` 正確性(以 `AssetKey` 建表、查得到已知 key、查不到
+- [x] STEP-7: `ManifestSpec.hs`:`manifestIndex` 正確性(以 `AssetKey` 建表、查得到已知 key、查不到
   不存在 key)  `dep: T1`
-- [x] T8: `ManifestSpec.hs`:`imageMeta`/`audioMeta` 型別化讀取(相符 kind 的 `Value` 回 `Just` 且
+- [x] STEP-8: `ManifestSpec.hs`:`imageMeta`/`audioMeta` 型別化讀取(相符 kind 的 `Value` 回 `Just` 且
   欄位正確;不相符/欄位缺漏回 `Nothing` 或以預設值解析,對照 `ImageMeta`/`AudioMeta` 各自的
   `FromJSON`)  `dep: T1, T2`
-- [x] T9: `core/test/Spec.hs` 的 `describe` 清單加入 `ManifestSpec`  `dep: T5, T6, T7, T8`
+- [x] STEP-9: `core/test/Spec.hs` 的 `describe` 清單加入 `ManifestSpec`  `dep: T5, T6, T7, T8`
 
 ## 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | test_manifest_types_construct | 全部新型別可建構、欄位可存取;`AssetKey` 可比較與排序(`Ord`) |
-| T2 | test_json_field_names | `toJSON` 一筆 `ManifestAsset` 恰好得到 `id`/`key`/`path`/`type`/`sha256`/`vault`/`pack`/`license`/`meta` 九個鍵;`toJSON` 一筆 `StoryManifestEntry` 恰好得到 `ref`/`title`/`summary`/`purpose`/`revision` 五個鍵 |
-| T3 | test_cabal_exposes_manifest | `aapms-core.cabal` 的 `exposed-modules` 含 `Aapms.Core.Manifest` |
-| T4 | test_golden_files_valid_json | 兩份 golden 檔可被 `eitherDecodeStrict` 解成合法 `Value`,且 `schemaVersion` 鍵存在且為 `2` |
-| T5 | test_golden_roundtrip | `manifest.golden.json` decode 成 `Manifest`、encode 回去與原始檔案語意相同(鍵序無關);`story-manifest.golden.json` 對 `StoryManifest` 同樣成立 |
-| T6 | test_schema_version_rejected | `Manifest`/`StoryManifest` 對 `schemaVersion = 1` 與 `= 3` 的 `FromJSON` 皆回 `Left`,訊息字串含 `"請重新產生"` |
-| T7 | test_manifest_index | 3 筆 fixture asset 建出的 `manifestIndex`,對已知 `AssetKey` 回 `Just`、對不存在的 `AssetKey` 回 `Nothing` |
-| T8 | test_image_audio_meta | 合法 image `Value` → `imageMeta` 回 `Just` 且四欄正確;合法 audio `Value` → `audioMeta` 回 `Just`;image `Value` 餵給 `audioMeta` 回 `Nothing`;`imColorCount` 缺漏時 `imageMeta` 仍解析成功(`Nothing`) |
-| T9 | test_spec_registration | `core/test/Spec.hs` 的 `describe` 清單引用 `ManifestSpec` |
+| STEP-1 | test_manifest_types_construct | 全部新型別可建構、欄位可存取;`AssetKey` 可比較與排序(`Ord`) |
+| STEP-2 | test_json_field_names | `toJSON` 一筆 `ManifestAsset` 恰好得到 `id`/`key`/`path`/`type`/`sha256`/`vault`/`pack`/`license`/`meta` 九個鍵;`toJSON` 一筆 `StoryManifestEntry` 恰好得到 `ref`/`title`/`summary`/`purpose`/`revision` 五個鍵 |
+| STEP-3 | test_cabal_exposes_manifest | `aapms-core.cabal` 的 `exposed-modules` 含 `Aapms.Core.Manifest` |
+| STEP-4 | test_golden_files_valid_json | 兩份 golden 檔可被 `eitherDecodeStrict` 解成合法 `Value`,且 `schemaVersion` 鍵存在且為 `2` |
+| STEP-5 | test_golden_roundtrip | `manifest.golden.json` decode 成 `Manifest`、encode 回去與原始檔案語意相同(鍵序無關);`story-manifest.golden.json` 對 `StoryManifest` 同樣成立 |
+| STEP-6 | test_schema_version_rejected | `Manifest`/`StoryManifest` 對 `schemaVersion = 1` 與 `= 3` 的 `FromJSON` 皆回 `Left`,訊息字串含 `"請重新產生"` |
+| STEP-7 | test_manifest_index | 3 筆 fixture asset 建出的 `manifestIndex`,對已知 `AssetKey` 回 `Just`、對不存在的 `AssetKey` 回 `Nothing` |
+| STEP-8 | test_image_audio_meta | 合法 image `Value` → `imageMeta` 回 `Just` 且四欄正確;合法 audio `Value` → `audioMeta` 回 `Just`;image `Value` 餵給 `audioMeta` 回 `Nothing`;`imColorCount` 缺漏時 `imageMeta` 仍解析成功(`Nothing`) |
+| STEP-9 | test_spec_registration | `core/test/Spec.hs` 的 `describe` 清單引用 `ManifestSpec` |
 
 ## 已裁決假設(2026-08-23 階段一閘門)
 
-原「待確認假設」A1–A4 已由開發者裁決,結果如下:
+原「待確認假設」ASM-1–ASM-4 已由開發者裁決,結果如下:
 
-- A1(`imageMeta` / `audioMeta` 簽名歸屬):**接受,維持現狀**。`Value -> Maybe ImageMeta` /
+- ASM-1(`imageMeta` / `audioMeta` 簽名歸屬):**接受,維持現狀**。`Value -> Maybe ImageMeta` /
   `Value -> Maybe AudioMeta` 留在 `aapms-core`(定義處在 `Manifest.hs`,型別類別掛勾在
   `Json.hs`),同時適用於 `ManifestAsset.meta` 與 F001 的 `Asset.astKindMeta` 兩處。不搬移歸屬。
-- A2(`ManifestAsset.pack` / `maLicense` 的型別):**要改**。原判斷(`Maybe Id`,同 vault 內短
+- ASM-2(`ManifestAsset.pack` / `maLicense` 的型別):**要改**。原判斷(`Maybe Id`,同 vault 內短
   id)推翻,改為 **`Maybe Ref`**,JSON 編碼 `"<vault>:<id>"`(例:
   `"pack": "vlt-a0c4e1f8:pck-11223344"`)。理由:短 id 只在單一 vault 內唯一,專案的素材未來
   可能來自兩個 vault;現在多寫十幾個字元,換掉「開第二個 vault 時既有專案全部要重產」的風險。
@@ -482,7 +482,7 @@ audioMeta :: Value -> Maybe AudioMeta
   `Manifest` 頂層 `packs` / `licenses` 清單裡 `ManifestPack.mpId` / `ManifestLicense.mlId` 維持
   `Id`。**二輪裁決**(同日,補正一輪的不完整之處)發現這樣「引用」與「被引用」兩端形狀不對稱:
   要把 asset 的 `pack` 對到頂層清單項目得先剝掉 vault 前綴,剝掉後又回到短 id 跨 vault 撞名的
-  原始問題——A2 想擋的事情沒真正擋成。於是把 `ManifestPack.mpId`、`ManifestLicense.mlId`、
+  原始問題——ASM-2 想擋的事情沒真正擋成。於是把 `ManifestPack.mpId`、`ManifestLicense.mlId`、
   `ManifestPack.mpLicense`(它指向頂層 licenses 清單,同樣是內部引用)**一併改成 `Ref`**,
   manifest 內部的整張引用圖(asset → pack、asset → license、pack → license)vault 化到底,
   兩端用 `Ref` 相等比對即可唯一對應,不必剝前綴。
@@ -490,9 +490,9 @@ audioMeta :: Value -> Maybe AudioMeta
   (fixture)、`core/test/Aapms/Core/ManifestSpec.hs`(測試),`Json.hs` 的 `ToJSON`/`FromJSON`
   無需改動(`Maybe Ref` / `Ref` 已透過既有的 `instance ToJSON/FromJSON Ref`——即
   `renderRef`/`parseRef`——自動編解碼,不必另寫實例)。
-- A3(`Manifest` 頂層 `packs` / `licenses` 去重清單):**接受,維持現狀**。理由:專案要能離開
-  vault 獨立存在,P6 授權閘門要在專案資料夾內就判斷得出能不能商用,不回頭讀 vault。
-- A4(`StoryManifest` 獨立 `schemaVersion`):**接受,維持現狀**。理由與原判斷相同,為未來
+- ASM-3(`Manifest` 頂層 `packs` / `licenses` 去重清單):**接受,維持現狀**。理由:專案要能離開
+  vault 獨立存在,S6 授權閘門要在專案資料夾內就判斷得出能不能商用,不回頭讀 vault。
+- ASM-4(`StoryManifest` 獨立 `schemaVersion`):**接受,維持現狀**。理由與原判斷相同,為未來
   `story/manifest.json` 若要 schema 3 預留同一套拒絕機制。
 
 ## 實作備註
@@ -509,11 +509,11 @@ audioMeta :: Value -> Maybe AudioMeta
 - `maPack` / `maLicense`(以及 `ManifestPack`/`ManifestLicense` 內的選填欄位)採用 aeson 對
   `Maybe a` 的內建行為:鍵**恆存在**,`Nothing` 編碼為 `null` 而非省略鍵。這與 `Asset`/`Pack` 等
   型別「`Nothing` 就省略鍵」的既有慣例不同,但與 F003 doc 給的 JSON 範例(`"pack": null` 顯式出現)
-  和驗收標準 T2「恰好九個鍵」一致,屬型別內部 JSON 形狀的自主決定,不影響契約簽名。
+  和驗收標準 STEP-2「恰好九個鍵」一致,屬型別內部 JSON 形狀的自主決定,不影響契約簽名。
 - golden 檔案讀取沿用 `CabalSpec.hs` 的雙路徑探測寫法(`core/test/golden/...` 與
   `test/golden/...`),因為測試可能從專案根目錄或 `core/` 底下執行。
 
-### 2026-08-23 重工(一輪):A2 裁決「要改」的落地(`ManifestAsset.pack` / `license` 改 `Maybe Ref`)
+### 2026-08-23 重工(一輪):ASM-2 裁決「要改」的落地(`ManifestAsset.pack` / `license` 改 `Maybe Ref`)
 
 - `Manifest.hs`:`ManifestAsset.maPack` / `maLicense` 型別從 `Maybe Id` 改為 `Maybe Ref`;
   `ManifestPack` / `ManifestLicense` 當時不動(它們自己的 `id` 視為本 manifest 內定義,
@@ -538,7 +538,7 @@ audioMeta :: Value -> Maybe AudioMeta
 「被引用」的一端(頂層 `packs`/`licenses` 清單裡的 `id`)仍是裸短 id。後果是要比對兩端得先
 剝掉 asset 端的 vault 前綴,剝掉後又回到短 id 只在單一 vault 內唯一的原始問題——兩個 vault
 各有一筆 `pck-11223344` 時,頂層 `packs` 會出現兩筆撞名的 `"id": "pck-11223344"`,無法區分,
-A2「換掉跨 vault 撞名風險」的目的沒有真正達成。
+ASM-2「換掉跨 vault 撞名風險」的目的沒有真正達成。
 
 - `Manifest.hs`:`ManifestPack.mpId` 從 `Id` 改為 `Ref`;`ManifestLicense.mlId` 從 `Id` 改為
   `Ref`;`ManifestPack.mpLicense` 從 `Maybe Id` 改為 `Maybe Ref`(它指向頂層 `licenses` 清單,

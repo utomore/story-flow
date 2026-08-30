@@ -2,7 +2,7 @@
 id: G-B001
 type: bugfix
 title: contract-rules-frozen-out-of-build
-description: 相依方向的四條硬規則在 P1 期間無人斷言,違規可靜默通過
+description: 相依方向的四條硬規則在 S1 期間無人斷言,違規可靜默通過
 status: done
 created: 2026-08-26
 updated: 2026-08-26
@@ -19,7 +19,7 @@ subsystems: [graph-core]
 `system.md`「通訊拓撲與原則」定義四條硬規則,由 `contract/test/Aapms/Contract/CabalRulesSpec.hs`
 逐字釘住。ADR-018 決策二明訂這組契約測試「**整個重建期都有效**」。
 
-實際上從 P1 開跑起,這四條規則**一條都沒有在跑**:
+實際上從 S1 開跑起,這四條規則**一條都沒有在跑**:
 
 | 規則 | 應由誰斷言 | 現在誰在斷言 |
 |---|---|---|
@@ -31,7 +31,7 @@ subsystems: [graph-core]
 規則 4 的降級要單獨看:`system.md` 在四條硬規則的段落明文寫著「**黑名單只擋得住想得到的名字**」,
 而白名單版本被關掉之後,留下的正好是它點名不夠用的那一種。
 
-影響範圍:P1 正在重建的就是規則 2 所管的那四個地基套件,守衛卻是零;而 P3 要重建 `service` 與
+影響範圍:S1 正在重建的就是規則 2 所管的那四個地基套件,守衛卻是零;而 S3 要重建 `service` 與
 `shell` 時,規則 1 與 3 才是主要的防線,依現況也不會回來。
 
 ## 重現步驟
@@ -63,7 +63,7 @@ $ cabal build all --dry-run
 根因**不在** `CabalRulesSpec` 自己。它的檔頭就寫明是為了在重建期存活而設計的:
 
 - `contract/test/Aapms/Contract/CabalRulesSpec.hs:1-8`「只讀 `.cabal` 檔的文字,不依賴 Cabal library」
-  「套件還沒建的(P3 之後才有的 workspace / archive / …)**自動略過**;建了就自動受檢」
+  「套件還沒建的(S3 之後才有的 workspace / archive / …)**自動略過**;建了就自動受檢」
 - `forbid` 對 `M.lookup` 失敗直接 `pure ()`,`findCabals` 掃的是**磁碟上的目錄**而不是 `cabal.project`
 
 也就是說,它本來就不需要任何下游套件存在。真正的原因在打包方式:
@@ -77,10 +77,10 @@ build-tool-depends:
 ```
 
 其中五組(CLI 信封、Markdown roundtrip、索引等價、OpenAPI golden、命名文法)確實要跑執行檔,
-只有 `CabalRulesSpec` 不用。build-log D1 凍結下游套件時,`cabal.project:20` 把 `contract/` 整個
+只有 `CabalRulesSpec` 不用。build-log DEC-1 凍結下游套件時,`cabal.project:20` 把 `contract/` 整個
 註解掉——**一條不吃執行檔的規則測試,被連坐進了吃執行檔的凍結範圍**。
 
-D1 的處置「契約測試到 P3 重建 service / shell 時回來」在當時是對的判斷,但它把粒度定在整個
+DEC-1 的處置「契約測試到 S3 重建 service / shell 時回來」在當時是對的判斷,但它把粒度定在整個
 `contract/` 套件,而缺陷的粒度是單一 stanza。
 
 ## 修復方向
@@ -90,20 +90,20 @@ D1 的處置「契約測試到 P3 重建 service / shell 時回來」在當時�
 1. `contract/test/RulesMain.hs` — 規則測試的專屬入口,**不走 hspec-discover**(走了就會把另外五組
    `*Spec.hs` 一起吸進來,又繞回原問題)
 2. `contract/aapms-contract.cabal` 拆出 `aapms-contract-rules-test`,不帶 `build-tool-depends`;
-   原本的 `aapms-contract-test` 以 `flag executables`(`default: False`)收起來,P3 重建
+   原本的 `aapms-contract-test` 以 `flag executables`(`default: False`)收起來,S3 重建
    `shell` 時把 default 翻成 True 即可,不必再動結構
 3. `cabal.project` 把 `contract/` 取消註解
 
-**與 D1 的偏差**:D1 寫「契約測試到 P3 才回來」,本修復讓其中一組提前回來。依 `doc-lifecycle.md`
+**與 DEC-1 的偏差**:DEC-1 寫「契約測試到 S3 才回來」,本修復讓其中一組提前回來。依 `doc-lifecycle.md`
 的權威順序,ADR-018(開發者已 accepted)高於 build-log 的編排決策,而 ADR-018 決策二要求的正是
-「整個重建期都有效」。D1 的凍結**範圍**被收窄,凍結**理由**(下游編不過)完全保留。
+「整個重建期都有效」。DEC-1 的凍結**範圍**被收窄,凍結**理由**(下游編不過)完全保留。
 
 **替代方案與否決理由**:
 
-- **另開 `contract-rules/` 套件**:界線最乾淨,但把 ADR-018 的契約層拆成兩個套件,P3 之後要再合回來
+- **另開 `contract-rules/` 套件**:界線最乾淨,但把 ADR-018 的契約層拆成兩個套件,S3 之後要再合回來
   或永久維護兩份 `.cabal`。為了一個 stanza 的粒度問題付一個套件的代價,不划算
-- **等 P3 一起處理**:零當下成本。三個月後的代價是 P3 重建 `service` 與 `shell` 的整段期間——正是
-  規則 1 與 3 最需要防線的時候——仍然沒有守衛,而 D11 已經記下 `service` 現在就有一條穿透
+- **等 S3 一起處理**:零當下成本。三個月後的代價是 S3 重建 `service` 與 `shell` 的整段期間——正是
+  規則 1 與 3 最需要防線的時候——仍然沒有守衛,而 DEC-11 已經記下 `service` 現在就有一條穿透
   `aapms-store` 內部模組的 import 等著被搬進新程式碼
 
 **不動的東西**:`CabalRulesSpec.hs` 的規則內容一行不改(它現在的四條規則是對的,只是沒在跑);
@@ -111,11 +111,11 @@ D1 的處置「契約測試到 P3 重建 service / shell 時回來」在當時�
 
 ## TodoList
 
-- [x] T1: 突變注入確認現況守衛抓不到(缺陷存在證明)  `dep: -`
-- [x] T2: 新增 `contract/test/RulesMain.hs` 專屬入口  `dep: T1`
-- [x] T3: `contract/aapms-contract.cabal` 拆出 `aapms-contract-rules-test`,原 suite 收進 `flag executables`  `dep: T2`
-- [x] T4: `cabal.project` 取消註解 `contract/`  `dep: T3`
-- [x] T5: 重跑突變確認轉紅、還原後全綠  `dep: T4`
+- [x] STEP-1: 突變注入確認現況守衛抓不到(缺陷存在證明)  `dep: -`
+- [x] STEP-2: 新增 `contract/test/RulesMain.hs` 專屬入口  `dep: T1`
+- [x] STEP-3: `contract/aapms-contract.cabal` 拆出 `aapms-contract-rules-test`,原 suite 收進 `flag executables`  `dep: T2`
+- [x] STEP-4: `cabal.project` 取消註解 `contract/`  `dep: T3`
+- [x] STEP-5: 重跑突變確認轉紅、還原後全綠  `dep: T4`
 
 ## 驗證方式
 
@@ -166,16 +166,16 @@ D1 的處置「契約測試到 P3 重建 service / shell 時回來」在當時�
 
 **一個超出預期的收穫**:`findCabals` 掃的是磁碟上的目錄而非 `cabal.project`,所以規則 1 與 3 現在
 **連被凍結的 `service` / `api` / `server` / `mcp` 都在受檢**(測試輸出的第一條斷言證實找得到
-`aapms-service`)。P3 重建時這些規則不是「才回來」,而是**一路都在**。
+`aapms-service`)。S3 重建時這些規則不是「才回來」,而是**一路都在**。
 
 **依賴檢查**:新 test-suite 的 `build-depends` 只有 base / bytestring / containers / directory /
 filepath / hspec / text,無任何 `aapms-*`——`CabalRulesSpec` 的自檢斷言(第 6 條)本身就在守這件事,
 已通過。production 程式碼零改動,無新增 import 方向。
 
-**留給 P3 的一個動作**:`contract/aapms-contract.cabal` 的 `flag executables` 要在 `cli/` 與
+**留給 S3 的一個動作**:`contract/aapms-contract.cabal` 的 `flag executables` 要在 `cli/` 與
 `server/` 加回 `cabal.project` 時翻成 `default: True`,另外五組契約測試才會回來。flag 的
 `description` 已寫明這件事。
 
-**順帶發現、不在本次修復範圍**:`build-log.md` 的 D1 決策文字仍寫「契約測試到 P3 重建
-service / shell 時回來」,與現況不符(規則那一組已提前回來)。建議在 D1 那一列補一句指向本文檔的
+**順帶發現、不在本次修復範圍**:`build-log.md` 的 DEC-1 決策文字仍寫「契約測試到 S3 重建
+service / shell 時回來」,與現況不符(規則那一組已提前回來)。建議在 DEC-1 那一列補一句指向本文檔的
 交叉引用,但那是編排紀錄的維護,不由本次 bugfix 代改。

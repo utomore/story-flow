@@ -43,7 +43,7 @@ related-feature: []
 
 追加兩條由「明確不做」推出來的硬界線:**本 feature 不建立、不修改、不刪除任何檔案或目錄**
 (連 `.aapms/` 都不建),也**不執行任何外部程式**(那是 #6)。兩者都寫成可機械驗證的條文
-(L4、L12、L17)。
+(LAW-4、LAW-12、LAW-17)。
 
 ## 相依性
 
@@ -94,7 +94,7 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 readVaultRef :: Maybe VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)
 ```
 
-> **本 spec 對這一列的偏離(見「待確認假設」A1)**:這個簽名**表達不出**「未註冊的 vault 讀不到
+> **本 spec 對這一列的偏離(見「待確認假設」ASM-1)**:這個簽名**表達不出**「未註冊的 vault 讀不到
 > marker」——`ScopeIssue` 的三個相關建構子(`VaultPathMissing` / `VaultMarkerBroken` /
 > `VaultIdDrift`)**都要求一列 `VaultEntry`**,而第一參數為 `Nothing` 時沒有那一列可捧。這是
 > design.md 內部兩處的矛盾(模組間介面表 vs 契約 C 的 `ScopeIssue`),不是契約卡漏寫。
@@ -245,7 +245,7 @@ readVaultRefAt hub p                              -- 只知道路徑(向上探�
 | `readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)` | 只知道路徑時的權威身分:讀 marker 取 id,再回中樞反查決定 `vrEntry`;讀不到就是硬失敗 | `workspace/src/Aapms/Workspace/Discovery.hs:100` |
 
 模組匯出清單只有這四個函式;型別一律讓消費端從 `Aapms.Workspace.Types` 取,本模組**不轉出**
-任何型別(理由見「實作備註」S5)。
+任何型別(理由見「實作備註」SELF-5)。
 
 ## 數據
 
@@ -285,85 +285,85 @@ refs = []
 ### 中樞素材
 
 `Hub` 是不透明型別,測試造它走 `mkHub vs ps llm tools txt`(F001 的唯一建構入口)。本 feature
-只讀 `hubVaults`,所以 `ps` / `llm` / `tools` / `txt` 填什麼都不影響結果(L8 就在驗這件事)。
+只讀 `hubVaults`,所以 `ps` / `llm` / `tools` / `txt` 填什麼都不影響結果(LAW-8 就在驗這件事)。
 
 ## Laws
 
 ### 向上探測
 
-- **L1(命中的是最近的那一層)**:對任意目錄 `d`,若 `detectVault d == Just p`,則同時成立:
+- **LAW-1(命中的是最近的那一層)**:對任意目錄 `d`,若 `detectVault d == Just p`,則同時成立:
   (a) `p` 是絕對路徑且不含 `.` / `..` 片段;(b) `p </> ".aapms"` 是**既存目錄**;
   (c) `p` 是「`d` 正規化後的路徑」的祖先或它自己;(d) 從 `d` 正規化後的路徑往上到 `p` **之前**
   的每一層,`.aapms` 都不是既存目錄(所以命中的是**最近**的那一層,不是最外面那一層)。
-- **L2(到根仍沒有就是 `Nothing`,而且一定終止)**:若從 `d` 正規化後往上逐層檢查,一路到
+- **LAW-2(到根仍沒有就是 `Nothing`,而且一定終止)**:若從 `d` 正規化後往上逐層檢查,一路到
   `takeDirectory p == p` 的那一層都沒有任何一層的 `.aapms` 是既存目錄,則 `detectVault d ==
   Nothing`;且對任意輸入 `detectVault` 都會終止(往上走的層數有限,終止條件是 `takeDirectory`
   的不動點)。
-- **L3(自身也算、深度不敏感)**:若 `detectVault d == Just p`,則 `detectVault p == Just p`
+- **LAW-3(自身也算、深度不敏感)**:若 `detectVault d == Just p`,則 `detectVault p == Just p`
   (起點那一層自己也算命中);且對 `p` 底下任意深度、中間沒有其他 `.aapms/` 目錄的子目錄 `d'`,
   `detectVault d' == Just p`——**與深度無關**。
-- **L4(`detectVault` 不動檔案系統)**:對任意 `d`,呼叫前後從 `p`(或找不到時從 `d`)往上的
+- **LAW-4(`detectVault` 不動檔案系統)**:對任意 `d`,呼叫前後從 `p`(或找不到時從 `d`)往上的
   整棵目錄樹的檔案清單與內容**逐位元組相同**;特別是**不會建立** `.aapms/`。
-- **L5(`.aapms` 必須是目錄)**:若某一層的 `.aapms` 是普通**檔案**而不是目錄,該層不算命中,
+- **LAW-5(`.aapms` 必須是目錄)**:若某一層的 `.aapms` 是普通**檔案**而不是目錄,該層不算命中,
   探測繼續往上——對任意 `d`,把 `d` 某個祖先的 `.aapms` 目錄換成同名檔案後,`detectVault d`
   的結果等於「那一層不存在時」的結果。
 
 ### selector 解析
 
-- **L6(兩階段,id 絕對優先)**:對任意 `Hub h` 與任意 `s`,令
+- **LAW-6(兩階段,id 絕對優先)**:對任意 `Hub h` 與任意 `s`,令
   `byId = filter ((== VaultId s) . veId) (hubVaults h)`、
   `byName = filter ((== s) . veName) (hubVaults h)`。`byId` 非空時,`lookupSelector h s` 的結果
   **只由 `byId` 決定**——把 `byName` 那些列的 `veName` 任意換掉,結果不變。
-- **L7(命中集合 → 結果,兩階段同一套規則)**:令 `E` 是實際生效的那個命中集合(`byId` 非空時
+- **LAW-7(命中集合 → 結果,兩階段同一套規則)**:令 `E` 是實際生效的那個命中集合(`byId` 非空時
   是它,否則是 `byName`)。`length E == 1` → `Right (head E)`;`length E >= 2` →
   `Left (VaultSelectorAmbiguous s E)`,且第二個欄位**逐列等於 `E`**(含全部撞名的列、順序同
   `hubVaults`);兩個集合都空 → `Left (VaultSelectorNotFound s)`。
-- **L8(逐字精確比對)**:`lookupSelector` 不去前後空白、不忽略大小寫、不做前綴或子字串比對。
+- **LAW-8(逐字精確比對)**:`lookupSelector` 不去前後空白、不忽略大小寫、不做前綴或子字串比對。
   對任意 `e` 與任意 `s`,若 `s` 既不逐字等於 `veId e` 的字串、也不逐字等於 `veName e`,則 `e`
   不出現在結果裡(不論是 `Right` 的那一列還是 `VaultSelectorAmbiguous` 的清單)。
-- **L9(只看 `[[vaults]]`)**:對任意 `h`、`s`,`lookupSelector h s` 的結果只由 `hubVaults h`
+- **LAW-9(只看 `[[vaults]]`)**:對任意 `h`、`s`,`lookupSelector h s` 的結果只由 `hubVaults h`
   決定——用 `mkHub` 把 `hubProjects` / `hubLlm` / `hubTools` / `hubSourceText` 換成任何其他值,
   結果逐欄不變。且 `lookupSelector` 是純函式(不讀檔案、不看當前目錄)。
 
 ### 重讀 marker
 
-- **L10(marker 是真相)**:對任意 `VaultEntry e` 與任意 marker 讀得到且 `vmId` 等於 `veId e`
+- **LAW-10(marker 是真相)**:對任意 `VaultEntry e` 與任意 marker 讀得到且 `vmId` 等於 `veId e`
   的 vault 根 `p`,`readVaultRef e p` 成功,且 `vrMarker` 逐欄等於直接對 `p` 呼叫 `readMarker`
   的結果。把 `e` 的 `veName` / `veKind` 換成與 marker **不同**的任何值後重跑,`vrMarker`
   **逐欄不變**(中樞是快取,不是真相)。
-- **L11(成功時的三個欄位)**:承 L10,成功時 `vrEntry == Just e`、`vrPath == p 的正規化`、
+- **LAW-11(成功時的三個欄位)**:承 LAW-10,成功時 `vrEntry == Just e`、`vrPath == p 的正規化`、
   `vmId (vrMarker r) == veId e`。
-- **L12(三種降級互斥且依序判定)**:對任意 `e` 與任意 `p`——
+- **LAW-12(三種降級互斥且依序判定)**:對任意 `e` 與任意 `p`——
   (a) `p` 不是既存目錄 → `Left (VaultPathMissing e p')`,`p'` 是 `p` 的正規化;
   (b) `p` 是既存目錄但 `readMarker p'` 回 `Left err` → `Left (VaultMarkerBroken e err)`,
   且 `err` 與 `readMarker p'` 回的**逐欄相同**(原件,不轉字串、不翻譯);
   (c) marker 讀得到但 `vmId m /= veId e` → `Left (VaultIdDrift e (vmId m))`——第二個欄位是
   **marker 裡的** id,`e` 自己帶著中樞記的那一個。
   三者不可能同時成立,且判定順序恒為 (a) → (b) → (c)。
-- **L13(`readVaultRef` 不動檔案系統)**:對任意 `e`、`p`,呼叫前後 `p` 底下的整棵目錄樹逐位元組
+- **LAW-13(`readVaultRef` 不動檔案系統)**:對任意 `e`、`p`,呼叫前後 `p` 底下的整棵目錄樹逐位元組
   相同——特別是 marker 讀不到時**不會被建立或修補**。
-- **L14(`readVaultRefAt` 的身分回填)**:對任意 `Hub h` 與 marker 讀得到的 `p`,
+- **LAW-14(`readVaultRefAt` 的身分回填)**:對任意 `Hub h` 與 marker 讀得到的 `p`,
   `readVaultRefAt h p` 回 `Right r`,且 `vrPath r == p 的正規化`、`vrMarker r` 逐欄等於
   `readMarker` 的結果;`vrEntry r == Just e` 當且僅當 `hubVaults h` 裡**第一列**滿足
   `veId e == vmId (vrMarker r)` 的是 `e`,一列都沒有時 `vrEntry r == Nothing`。
   **比對只看 id,不看路徑**(ADR-017:vault 的身分就是 marker 裡的 id)。
-- **L15(`readVaultRefAt` 的失敗一律是 `MarkerUnreadable`)**:對任意 `h` 與任意 `p`,若
+- **LAW-15(`readVaultRefAt` 的失敗一律是 `MarkerUnreadable`)**:對任意 `h` 與任意 `p`,若
   `readMarker (p 的正規化)` 回 `Left err`(路徑不存在與 marker 壞掉都走這一條),則
   `readVaultRefAt h p == Left (MarkerUnreadable (p 的正規化) err)`,`err` 是原件;而且
   `renderWorkspaceError` 對它的輸出含**該路徑**與 `renderStoreError err`。
-- **L16(兩個函式對同一個 vault 一致)**:對任意 `h`、`p`——若 `readVaultRefAt h p == Right r`
+- **LAW-16(兩個函式對同一個 vault 一致)**:對任意 `h`、`p`——若 `readVaultRefAt h p == Right r`
   且 `vrEntry r == Just e`,則 `readVaultRef e p == Right r`(**逐欄相同**);若
   `readVaultRefAt h p == Left (MarkerUnreadable _ err)` 且 `p` 是既存目錄,則對任意 `e`,
   `readVaultRef e p == Left (VaultMarkerBroken e err)`——同一個 `err` 原件。
-- **L17(不展開 `refs`)**:對任意 marker,`vmRefs (vrMarker r)` 逐項等於檔案裡 `refs` 的內容
+- **LAW-17(不展開 `refs`)**:對任意 marker,`vmRefs (vrMarker r)` 逐項等於檔案裡 `refs` 的內容
   (原樣捧著);且不論 `refs` 有幾項、指向誰,`readVaultRef` / `readVaultRefAt` 的回傳都恰好
   描述**一個** vault,`vrEntry` / `vrPath` 完全不受 `refs` 影響,也不產生任何
   `RefVaultNotRegistered`(那是 #3)。
 
 ### 依賴方向與職責界線
 
-- **L18(以 import 行驗證;**比對前先去除行尾 `\r`**)**:專案的 `core.autocrlf = true` 讓 `.hs`
-  在乾淨 checkout 上是 CRLF,逐字比對前必須先把行尾的 `\r` 去掉(W1 的 L17(d) 就是漏了這條,
+- **LAW-18(以 import 行驗證;**比對前先去除行尾 `\r`**)**:專案的 `core.autocrlf = true` 讓 `.hs`
+  在乾淨 checkout 上是 CRLF,逐字比對前必須先把行尾的 `\r` 去掉(WAVE-1 的 LAW-17(d) 就是漏了這條,
   在乾淨 checkout 上紅了一輪)。`Discovery.hs` 的 **import 行**滿足:
   - (a) 沒有任何 `import Aapms.Workspace.Location` / `Aapms.Workspace.Scope` /
     `Aapms.Workspace.Lifecycle` / `Aapms.Workspace.Projects` / `Aapms.Workspace.Tools` 的行——
@@ -381,7 +381,7 @@ refs = []
     (寫成條件式是因為骨架階段的簽名用不到這三個名字,留著會有 `-Wall` 的 redundant import
     警告;impl 填本體時才會出現這一行。`vmId` 必須逐字列出的理由:`Aapms.Store.Marker` 的
     匯出是 `VaultMarker (..)`,但 `Aapms.Workspace.Types:65` 對它的 import 是裸型別
-    `(VaultMarker)`——F001 的 L17(d) 釘死——**轉不出欄位存取子**,而本 spec 的 L12(c) 與 L14
+    `(VaultMarker)`——F001 的 LAW-17(d) 釘死——**轉不出欄位存取子**,而本 spec 的 LAW-12(c) 與 LAW-14
     都要求用 `vmId` 做 id 比對。`vmId` 只能從本模組自己的這一行拿。
     2026-08-29 閘門裁決,修訂本條原文的 `(markerDir, readMarker)`,見「實作備註」。)
   - (c) **完全不得** import `Aapms.Store.Atomic`——本 feature 不寫任何檔案。
@@ -396,7 +396,7 @@ refs = []
 
 > **紅綠預期**(`spec-roles.md`「qa 的交付判準」逐條判定,**不是整批全紅**):
 >
-> - **預期綠**:**L18 的五條子斷言 (a)–(e) 全部**。它們驗的是骨架原文自身就承載的事實
+> - **預期綠**:**LAW-18 的五條子斷言 (a)–(e) 全部**。它們驗的是骨架原文自身就承載的事實
 >   (各檔的 import 行),不經過任何 `undefined`。**從第一天就綠,而且應該綠;不得因為它綠就
 >   退回重寫。** 其中 (b) 是條件式,**兩個階段都預期綠**:骨架階段沒有對
 >   `Aapms.Store.Marker` 的 import 行,條件為假即通過;impl 補上之後,那一行必須**逐字**是
@@ -411,30 +411,30 @@ refs = []
 
 | # | 輸入 | 預期 | 覆蓋的 law |
 |---|---|---|---|
-| X1 | 暫存目錄 `V` 有 `V/.aapms/config.toml`;`detectVault (V </> "a" </> "b" </> "c")` | `Just V'`,`V'` 是 `V` 的正規化 | L1, L3 |
-| X2 | `detectVault V`(起點就是 vault 根) | `Just V'` | L1, L3 |
-| X3 | `detectVault (V </> "a" </> ".." </> "a" </> "b")` | `Just V'`——起點先正規化,`..` 不會多走一層 | L1 |
-| X4 | 一個沒有任何祖先含 `.aapms/` 的暫存目錄 `T`;`detectVault T` | `Nothing` | L2 |
-| X5 | 巢狀:`V/.aapms/` 與 `V/inner/.aapms/` 都在;`detectVault (V </> "inner" </> "x")` | `Just (V/inner 的正規化)`——**最近**的那一層 | L1(d) |
-| X6 | `V/.aapms` 是普通**檔案**(不是目錄),`V` 沒有其他 marker,且 `V` 的祖先也沒有;`detectVault (V </> "a")` | `Nothing` | L5 |
-| X7 | X1 的情境,`detectVault` 呼叫前後對 `V` 遞迴列出全部檔案與內容 | 兩次完全相同(沒有新增任何目錄或檔案) | L4 |
-| X8 | `h` 有 e1(`veId = vlt-7f3b2a91`、`veName = "alchbees-assets"`)與 e2(`veId = vlt-a0c4e1f8`、`veName = "vlt-7f3b2a91"`);`lookupSelector h "vlt-7f3b2a91"` | `Right e1`——id 先於 name | L6, L7 |
-| X9 | `h` 有 e3、e4 兩列 `veName == "lore"`(id 不同);`lookupSelector h "lore"` | `Left (VaultSelectorAmbiguous "lore" [e3, e4])`,清單**兩列都在**且順序同中樞 | L7 |
-| X10 | `lookupSelector h "nope"` | `Left (VaultSelectorNotFound "nope")` | L7 |
-| X11 | `lookupSelector h "ALCHBEES-ASSETS"`(大小寫不同) | `Left (VaultSelectorNotFound "ALCHBEES-ASSETS")` | L8 |
-| X12 | `lookupSelector h " alchbees-assets "`(前後有空白) | `Left (VaultSelectorNotFound " alchbees-assets ")` | L8 |
-| X13 | 同一組 vaults,但 `mkHub` 的 projects / llm / tools / 原始文字換成完全不同的值;`lookupSelector h "alchbees-assets"` | 與換之前逐欄相同 | L9 |
-| X14 | marker 是 `id=vlt-7f3b2a91 / kind=asset / name="real"`;中樞那列是 `veId=vlt-7f3b2a91`、`veName="stale"`、`veKind=StoryVault`;`readVaultRef e V` | `Right r`;`vmName (vrMarker r) == "real"`、`vmKind (vrMarker r) == AssetVault`、`vrEntry r == Just e`、`vrPath r == V 的正規化` | L10, L11 |
-| X15 | 中樞那列指向一個不存在的路徑 `X`;`readVaultRef e X` | `Left (VaultPathMissing e (X 的正規化))` | L12(a) |
-| X16 | `V/.aapms/` 目錄在但沒有 `config.toml`;`readVaultRef e V` | `Left (VaultMarkerBroken e (VaultMarkerMissing (Aapms.Store.Marker.configPath V')))`,`V'` 是 `V` 的正規化 | L12(b) |
-| X17 | `V/.aapms/config.toml` 的 `kind = "media"`;`readVaultRef e V` | `Left (VaultMarkerBroken e err)`,`err` 與直接呼叫 `readMarker V'` 得到的 `VaultMarkerInvalid` **逐欄相同** | L12(b) |
-| X18 | marker 的 id 是 `vlt-aaaa1111`,中樞那列的 `veId` 是 `vlt-bbbb2222`;`readVaultRef e V` | `Left (VaultIdDrift e (VaultId "vlt-aaaa1111"))`——第二個值是 **marker 裡的** id | L12(c) |
-| X19 | 中樞含一列 `veId == vlt-7f3b2a91`,marker 也是它;`readVaultRefAt h V` | `Right r`,`vrEntry r == Just` 那一列、`vrPath r == V 的正規化` | L14 |
-| X20 | 中樞**沒有**任何 `veId == marker 的 id` 的列(向上探測到的未註冊 vault);`readVaultRefAt h V` | `Right r`,`vrEntry r == Nothing`,`vrMarker r` 仍來自檔案 | L14 |
-| X21 | 中樞有一列的 `vePath` 就是 `V` 但 `veId` 不同;`readVaultRefAt h V` | `vrEntry r == Nothing`——比對只看 id,**路徑不參與** | L14 |
-| X22 | `readVaultRefAt h X`(`X` 不存在) | `Left (MarkerUnreadable X' (VaultMarkerMissing (configPath X')))`;`renderWorkspaceError` 的輸出含 `X'` 與 `renderStoreError` 的訊息 | L15 |
-| X23 | X17 的壞 marker;先 `readVaultRefAt h V` 再 `readVaultRef e V`(`e` 是中樞那一列) | 前者 `Left (MarkerUnreadable V' err)`、後者 `Left (VaultMarkerBroken e err)`,兩個 `err` **逐欄相同** | L16 |
-| X24 | marker 的 `refs = ["vlt-11112222", "vlt-33334444"]`;`readVaultRef e V` | `Right r`,`vmRefs (vrMarker r) == [VaultId "vlt-11112222", VaultId "vlt-33334444"]`;`vrEntry` / `vrPath` 與 `refs = []` 時完全相同 | L17 |
+| EX-1 | 暫存目錄 `V` 有 `V/.aapms/config.toml`;`detectVault (V </> "a" </> "b" </> "c")` | `Just V'`,`V'` 是 `V` 的正規化 | LAW-1, LAW-3 |
+| EX-2 | `detectVault V`(起點就是 vault 根) | `Just V'` | LAW-1, LAW-3 |
+| EX-3 | `detectVault (V </> "a" </> ".." </> "a" </> "b")` | `Just V'`——起點先正規化,`..` 不會多走一層 | LAW-1 |
+| EX-4 | 一個沒有任何祖先含 `.aapms/` 的暫存目錄 `T`;`detectVault T` | `Nothing` | LAW-2 |
+| EX-5 | 巢狀:`V/.aapms/` 與 `V/inner/.aapms/` 都在;`detectVault (V </> "inner" </> "x")` | `Just (V/inner 的正規化)`——**最近**的那一層 | LAW-1(d) |
+| EX-6 | `V/.aapms` 是普通**檔案**(不是目錄),`V` 沒有其他 marker,且 `V` 的祖先也沒有;`detectVault (V </> "a")` | `Nothing` | LAW-5 |
+| EX-7 | EX-1 的情境,`detectVault` 呼叫前後對 `V` 遞迴列出全部檔案與內容 | 兩次完全相同(沒有新增任何目錄或檔案) | LAW-4 |
+| EX-8 | `h` 有 e1(`veId = vlt-7f3b2a91`、`veName = "alchbees-assets"`)與 e2(`veId = vlt-a0c4e1f8`、`veName = "vlt-7f3b2a91"`);`lookupSelector h "vlt-7f3b2a91"` | `Right e1`——id 先於 name | LAW-6, LAW-7 |
+| EX-9 | `h` 有 e3、e4 兩列 `veName == "lore"`(id 不同);`lookupSelector h "lore"` | `Left (VaultSelectorAmbiguous "lore" [e3, e4])`,清單**兩列都在**且順序同中樞 | LAW-7 |
+| EX-10 | `lookupSelector h "nope"` | `Left (VaultSelectorNotFound "nope")` | LAW-7 |
+| EX-11 | `lookupSelector h "ALCHBEES-ASSETS"`(大小寫不同) | `Left (VaultSelectorNotFound "ALCHBEES-ASSETS")` | LAW-8 |
+| EX-12 | `lookupSelector h " alchbees-assets "`(前後有空白) | `Left (VaultSelectorNotFound " alchbees-assets ")` | LAW-8 |
+| EX-13 | 同一組 vaults,但 `mkHub` 的 projects / llm / tools / 原始文字換成完全不同的值;`lookupSelector h "alchbees-assets"` | 與換之前逐欄相同 | LAW-9 |
+| EX-14 | marker 是 `id=vlt-7f3b2a91 / kind=asset / name="real"`;中樞那列是 `veId=vlt-7f3b2a91`、`veName="stale"`、`veKind=StoryVault`;`readVaultRef e V` | `Right r`;`vmName (vrMarker r) == "real"`、`vmKind (vrMarker r) == AssetVault`、`vrEntry r == Just e`、`vrPath r == V 的正規化` | LAW-10, LAW-11 |
+| EX-15 | 中樞那列指向一個不存在的路徑 `X`;`readVaultRef e X` | `Left (VaultPathMissing e (X 的正規化))` | LAW-12(a) |
+| EX-16 | `V/.aapms/` 目錄在但沒有 `config.toml`;`readVaultRef e V` | `Left (VaultMarkerBroken e (VaultMarkerMissing (Aapms.Store.Marker.configPath V')))`,`V'` 是 `V` 的正規化 | LAW-12(b) |
+| EX-17 | `V/.aapms/config.toml` 的 `kind = "media"`;`readVaultRef e V` | `Left (VaultMarkerBroken e err)`,`err` 與直接呼叫 `readMarker V'` 得到的 `VaultMarkerInvalid` **逐欄相同** | LAW-12(b) |
+| EX-18 | marker 的 id 是 `vlt-aaaa1111`,中樞那列的 `veId` 是 `vlt-bbbb2222`;`readVaultRef e V` | `Left (VaultIdDrift e (VaultId "vlt-aaaa1111"))`——第二個值是 **marker 裡的** id | LAW-12(c) |
+| EX-19 | 中樞含一列 `veId == vlt-7f3b2a91`,marker 也是它;`readVaultRefAt h V` | `Right r`,`vrEntry r == Just` 那一列、`vrPath r == V 的正規化` | LAW-14 |
+| EX-20 | 中樞**沒有**任何 `veId == marker 的 id` 的列(向上探測到的未註冊 vault);`readVaultRefAt h V` | `Right r`,`vrEntry r == Nothing`,`vrMarker r` 仍來自檔案 | LAW-14 |
+| EX-21 | 中樞有一列的 `vePath` 就是 `V` 但 `veId` 不同;`readVaultRefAt h V` | `vrEntry r == Nothing`——比對只看 id,**路徑不參與** | LAW-14 |
+| EX-22 | `readVaultRefAt h X`(`X` 不存在) | `Left (MarkerUnreadable X' (VaultMarkerMissing (configPath X')))`;`renderWorkspaceError` 的輸出含 `X'` 與 `renderStoreError` 的訊息 | LAW-15 |
+| EX-23 | EX-17 的壞 marker;先 `readVaultRefAt h V` 再 `readVaultRef e V`(`e` 是中樞那一列) | 前者 `Left (MarkerUnreadable V' err)`、後者 `Left (VaultMarkerBroken e err)`,兩個 `err` **逐欄相同** | LAW-16 |
+| EX-24 | marker 的 `refs = ["vlt-11112222", "vlt-33334444"]`;`readVaultRef e V` | `Right r`,`vmRefs (vrMarker r) == [VaultId "vlt-11112222", VaultId "vlt-33334444"]`;`vrEntry` / `vrPath` 與 `refs = []` 時完全相同 | LAW-17 |
 
 ## 依賴方向
 
@@ -460,7 +460,7 @@ refs = []
 
 | 決定 | 被否決的替代方案與否決理由 |
 |---|---|
-| `readVaultRef` 的第一參數收窄成 `VaultEntry`,未註冊路徑另走 `readVaultRefAt`(對外契約 C 與 `Types.hs` 一個字都不動,只動 design.md 模組間介面表的一列) | **(a) 給 `ScopeIssue` 加一個不帶 `VaultEntry` 的建構子**:語意最直白。否決理由是要回頭改已交付驗收(81/0 綠)的 `Types.hs`,而 build-log D2 明訂 Types 一次寫齊、階段二三個 feature 平行寫同一個檔案就是併發互蓋——當下成本是整波停擺,而換得的只是把兩個函式併回一個。**(b) 保留 `Maybe VaultEntry` 的單一函式,`Nothing` 的失敗「由呼叫端保證不會發生」**:當下成本零。否決理由是那讓 `readVaultRef` 在最需要清楚錯誤的路徑(決定寫入目標)上變成 partial function,qa 也寫不出那一格的斷言;三個月後的代價是 `resolveWrite` 在 marker 壞掉的目標上行為未定義,而這正是「寫錯庫」的高風險路徑 |
+| `readVaultRef` 的第一參數收窄成 `VaultEntry`,未註冊路徑另走 `readVaultRefAt`(對外契約 C 與 `Types.hs` 一個字都不動,只動 design.md 模組間介面表的一列) | **(a) 給 `ScopeIssue` 加一個不帶 `VaultEntry` 的建構子**:語意最直白。否決理由是要回頭改已交付驗收(81/0 綠)的 `Types.hs`,而 build-log DEC-2 明訂 Types 一次寫齊、階段二三個 feature 平行寫同一個檔案就是併發互蓋——當下成本是整波停擺,而換得的只是把兩個函式併回一個。**(b) 保留 `Maybe VaultEntry` 的單一函式,`Nothing` 的失敗「由呼叫端保證不會發生」**:當下成本零。否決理由是那讓 `readVaultRef` 在最需要清楚錯誤的路徑(決定寫入目標)上變成 partial function,qa 也寫不出那一格的斷言;三個月後的代價是 `resolveWrite` 在 marker 壞掉的目標上行為未定義,而這正是「寫錯庫」的高風險路徑 |
 | 正規化一律用 `canonicalizePath`,寫進 spec 而不是留給 impl 選 | **用 `makeAbsolute`**:不解 symlink、比較不會出乎意料。否決理由有兩條:它**不解 `..`**,向上探測會多走一層;而且 Windows 暫存目錄的 8.3 短檔名不還原,qa 造的 fixture 路徑與回傳值逐字不等,會出現看起來莫名其妙的紅燈。**留給 impl 自己選**:當下成本零,但「兩邊要逐字相等」的東西沒有寫進 spec,就是把一個 spec-gap 埋到仲裁那一輪才爆。代價:`canonicalizePath` 會解 symlink,日後若要「保留使用者輸入的 symlink 路徑」得回頭改契約 C 的 `vrPath` 值域 |
 | `detectVault` 的命中判準只有「`.aapms` 是既存目錄」,marker 壞不壞不影響 | **要求 `.aapms/config.toml` 解析得開才算命中**:探測結果一定是可用的 vault。否決理由是壞掉的 vault 會讓探測**穿過去**打到父目錄的另一個 vault,寫入靜默落到錯的庫;而現在的做法是命中之後由 `readVaultRefAt` 回一則 `MarkerUnreadable`,使用者看得到「這裡的 marker 壞了」。當下成本是多一次失敗的 `readMarker`,換掉一條沉默的寫錯庫路徑 |
 
@@ -472,7 +472,7 @@ refs = []
 
 **編譯狀態**:`Aapms.Workspace.Discovery` **已列進 `aapms-workspace.cabal`**——library 的
 `exposed-modules` 與 test-suite 的 `other-modules`(連同 `Aapms.Workspace.DiscoverySpec`)都由
-**編排者**在本 feature 交件後補上(D2:`.cabal` 由編排者單線維護,本 feature 不得修改)。
+**編排者**在本 feature 交件後補上(DEC-2:`.cabal` 由編排者單線維護,本 feature 不得修改)。
 `cabal build aapms-workspace` 從此涵蓋本模組,不再需要下面那道單檔檢查。
 
 > **交件當下(骨架階段)的紀錄,保留備查**:那時本模組還沒進 `.cabal`,
@@ -487,32 +487,32 @@ refs = []
 
 ## TodoList
 
-- [ ] T1: `detectVault`:`canonicalizePath` 起點 → 逐層 `doesDirectoryExist (markerDir d)` →
+- [ ] STEP-1: `detectVault`:`canonicalizePath` 起點 → 逐層 `doesDirectoryExist (markerDir d)` →
   命中即回;沒命中就 `takeDirectory`,到不動點回 `Nothing`。不讀 marker、不建任何東西
   `dep: -`
-- [ ] T2: `lookupSelector`:兩階段命中集合(先 `veId` 後 `veName`,逐字精確比對)→ 0 / 1 / 多
+- [ ] STEP-2: `lookupSelector`:兩階段命中集合(先 `veId` 後 `veName`,逐字精確比對)→ 0 / 1 / 多
   三分支,多的那支把**全部**命中列放進 `VaultSelectorAmbiguous` `dep: -`
-- [ ] T3: `readVaultRef`:正規化 → `doesDirectoryExist` → `readMarker` → `vmId` 比對,三種
+- [ ] STEP-3: `readVaultRef`:正規化 → `doesDirectoryExist` → `readMarker` → `vmId` 比對,三種
   `ScopeIssue` 依序判定;`StoreError` 原樣捧著不翻譯 `dep: -`
-- [ ] T4: `readVaultRefAt`:正規化 → `readMarker`(失敗一律 `MarkerUnreadable`)→ 以 `vmId`
+- [ ] STEP-4: `readVaultRefAt`:正規化 → `readMarker`(失敗一律 `MarkerUnreadable`)→ 以 `vmId`
   回 `hubVaults` 反查填 `vrEntry` `dep: T3`
-- [ ] T5: 兩者共用的私有 helper(正規化 + 讀 marker),確保 `readVaultRef` 與 `readVaultRefAt`
+- [ ] STEP-5: 兩者共用的私有 helper(正規化 + 讀 marker),確保 `readVaultRef` 與 `readVaultRefAt`
   對同一個 vault 給出逐欄相同的 `VaultRef` 與同一個 `StoreError` 原件 `dep: T3, T4`
 
 ## 1-to-1 測試對照表
 
 | Todo | Law / Example | 測試 |
 |------|---------------|------|
-| T1 | L1, L2, L3, L4, L5 / X1–X7 | `test_detect_vault_from_nested_child`、`test_detect_vault_at_root_itself`、`test_detect_vault_normalizes_dotdot`、`test_detect_vault_outside_returns_nothing`、`test_detect_vault_picks_nearest`、`test_detect_vault_ignores_marker_file`、`test_detect_vault_creates_nothing` |
-| T2 | L6, L7, L8, L9 / X8–X13 | `test_lookup_selector_id_beats_name`、`test_lookup_selector_ambiguous_lists_all`、`test_lookup_selector_not_found`、`test_lookup_selector_is_case_sensitive`、`test_lookup_selector_does_not_trim`、`test_lookup_selector_ignores_other_sections` |
-| T3 | L10, L11, L12, L13 / X14–X18 | `test_read_vault_ref_marker_is_truth`、`test_read_vault_ref_fields_on_success`、`test_read_vault_ref_path_missing`、`test_read_vault_ref_marker_broken_carries_original`、`test_read_vault_ref_id_drift`、`test_read_vault_ref_creates_nothing` |
-| T4 | L14, L15 / X19–X22 | `test_read_vault_ref_at_fills_entry_by_id`、`test_read_vault_ref_at_unregistered_is_nothing`、`test_read_vault_ref_at_ignores_path_match`、`test_read_vault_ref_at_marker_unreadable` |
-| T5 | L16, L17 / X23, X24 | `test_two_readers_agree`、`test_refs_carried_verbatim_not_expanded` |
-| (全部) | L18 (a)–(e) | `test_discovery_no_downstream_or_location_imports`(a)、`test_discovery_marker_import_is_id_reader_only`(b,條件式逐字比對 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)`——守的是「只讀 id」:`VaultMarker (..)` 與多出來的 `vmKind` / `vmName` / `vmRefs` 都要紅)、`test_discovery_never_imports_atomic`(c)、`test_discovery_never_imports_index_modules`(d)、`test_discovery_no_process_import`(e)。**五條都只掃 import 行,比對前先去除行尾 `\r`** |
+| STEP-1 | LAW-1, LAW-2, LAW-3, LAW-4, LAW-5 / EX-1–EX-7 | `test_detect_vault_from_nested_child`、`test_detect_vault_at_root_itself`、`test_detect_vault_normalizes_dotdot`、`test_detect_vault_outside_returns_nothing`、`test_detect_vault_picks_nearest`、`test_detect_vault_ignores_marker_file`、`test_detect_vault_creates_nothing` |
+| STEP-2 | LAW-6, LAW-7, LAW-8, LAW-9 / EX-8–EX-13 | `test_lookup_selector_id_beats_name`、`test_lookup_selector_ambiguous_lists_all`、`test_lookup_selector_not_found`、`test_lookup_selector_is_case_sensitive`、`test_lookup_selector_does_not_trim`、`test_lookup_selector_ignores_other_sections` |
+| STEP-3 | LAW-10, LAW-11, LAW-12, LAW-13 / EX-14–EX-18 | `test_read_vault_ref_marker_is_truth`、`test_read_vault_ref_fields_on_success`、`test_read_vault_ref_path_missing`、`test_read_vault_ref_marker_broken_carries_original`、`test_read_vault_ref_id_drift`、`test_read_vault_ref_creates_nothing` |
+| STEP-4 | LAW-14, LAW-15 / EX-19–EX-22 | `test_read_vault_ref_at_fills_entry_by_id`、`test_read_vault_ref_at_unregistered_is_nothing`、`test_read_vault_ref_at_ignores_path_match`、`test_read_vault_ref_at_marker_unreadable` |
+| STEP-5 | LAW-16, LAW-17 / EX-23, EX-24 | `test_two_readers_agree`、`test_refs_carried_verbatim_not_expanded` |
+| (全部) | LAW-18 (a)–(e) | `test_discovery_no_downstream_or_location_imports`(a)、`test_discovery_marker_import_is_id_reader_only`(b,條件式逐字比對 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)`——守的是「只讀 id」:`VaultMarker (..)` 與多出來的 `vmKind` / `vmName` / `vmRefs` 都要紅)、`test_discovery_never_imports_atomic`(c)、`test_discovery_never_imports_index_modules`(d)、`test_discovery_no_process_import`(e)。**五條都只掃 import 行,比對前先去除行尾 `\r`** |
 
 ## 待確認假設
 
-- A1: 把 design.md「模組間公開介面」的
+- ASM-1: 把 design.md「模組間公開介面」的
   `readVaultRef :: Maybe VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`
   **拆成兩個函式**(`readVaultRef :: VaultEntry -> …` 與
   `readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`)。契約卡沒有答案,
@@ -528,10 +528,10 @@ refs = []
   - 選項:
     a) **拆成兩個函式(本 spec 採用)**——當下成本:模組間介面表多一列、F003 的 spec 要知道
        「已註冊走哪個、探測到的走哪個」;三個月後代價:兩個函式的行為要一直保持一致(本 spec
-       以 L16 把這條一致性釘成 law,漂移會紅),而且若日後 `ScopeIssue` 真的改成帶
+       以 LAW-16 把這條一致性釘成 law,漂移會紅),而且若日後 `ScopeIssue` 真的改成帶
        `Maybe VaultEntry`,`readVaultRefAt` 會變成一個可以合併掉的舊介面,得走一次契約修訂
     b) **給 `ScopeIssue` 加一個不帶 `VaultEntry` 的建構子(例如 `VaultRefUnreadable FilePath
-       StoreError`)**——當下成本:要改已交付驗收的 `Types.hs`,而 D2 明訂 Types 一次寫齊、
+       StoreError`)**——當下成本:要改已交付驗收的 `Types.hs`,而 DEC-2 明訂 Types 一次寫齊、
        階段二三個 feature 平行寫同一個檔案,回頭改它就是併發寫入的風險,整波要重排;
        三個月後代價:最小——語意最直白,`readVaultRef` 保持單一入口,`Scope` 不必分兩條路
     c) **保留 `Maybe VaultEntry`,`Nothing` 的失敗定義成「呼叫端保證不會發生」**——當下成本:
@@ -541,7 +541,7 @@ refs = []
   - 傾向:a。理由是它在**不動任何已交付程式碼**的前提下讓每個型別都完整(沒有 partial 分支),
     而且順手給契約卡指名的 `MarkerUnreadable` 找到唯一的生產者——沒有 `readVaultRefAt`,本
     feature 的三個錯誤建構子只實作得出兩個。依賴的前提:`ScopeIssue` 的四個建構子在階段二
-    不會再改(D2 已把 Types 凍結,契約 F 也已列全建構子),這個前提成立。b 客觀上是最乾淨的
+    不會再改(DEC-2 已把 Types 凍結,契約 F 也已列全建構子),這個前提成立。b 客觀上是最乾淨的
     終局,但它的成本落在**這一波的排程**而不是設計本身;若編排者願意付停一波的代價,b 值得選。
     可逆性:**有條件可逆**——改成 b 要動 `Types.hs`(加一個建構子)、把 `readVaultRefAt` 併回
     `readVaultRef`,並改 F003 的呼叫端;此刻只有骨架與測試,代價還很小,**等 F003 寫完就會
@@ -549,11 +549,11 @@ refs = []
   - 暫採:a(`readVaultRef :: VaultEntry -> FilePath -> …` + `readVaultRefAt :: Hub ->
     FilePath -> …`)→ 影響:若裁決成 b,`Types.hs` 的 `ScopeIssue` 加一個建構子、
     `renderWorkspaceError` 不動(它不管 `ScopeIssue`)、`readVaultRefAt` 併回
-    `readVaultRef :: Maybe VaultEntry -> …`,Laws 的 L14 / L15 / L16 三條改寫成單一函式的版本,
-    Examples 的 X19–X23 的呼叫形式跟著改;若裁決維持原簽名但不加建構子(選項 c),L15 與
-    X22 要整條刪掉,並在 spec 明寫「`Nothing` + marker 壞」是未定義行為——那會是一條 spec-gap
+    `readVaultRef :: Maybe VaultEntry -> …`,Laws 的 LAW-14 / LAW-15 / LAW-16 三條改寫成單一函式的版本,
+    Examples 的 EX-19–EX-23 的呼叫形式跟著改;若裁決維持原簽名但不加建構子(選項 c),LAW-15 與
+    EX-22 要整條刪掉,並在 spec 明寫「`Nothing` + marker 壞」是未定義行為——那會是一條 spec-gap
 
-- A2: `lookupSelector` 的**命中集合語意**——(i) `veId` 階段命中兩列以上時,與 `veName` 撞名
+- ASM-2: `lookupSelector` 的**命中集合語意**——(i) `veId` 階段命中兩列以上時,與 `veName` 撞名
   **走同一套處置**(回 `VaultSelectorAmbiguous` 帶全部命中列),而不是取第一列;(ii) 兩階段
   都是**逐字精確比對**(不去前後空白、不忽略大小寫)。契約卡只規定了「id 優先」與「同名撞名
   回全部」兩件事,沒有規定 id 撞號怎麼辦(契約 B 說 `veId` 中樞內唯一,但 `Hub` 是不透明型別、
@@ -586,19 +586,19 @@ refs = []
     design.md 對外契約段的「`shell` 不直接 import 本套件,只把 `--vault` 的字串原樣交給
     `service`」佐證。可逆性:**可逆**——放寬(改成 b 或 c)不會讓任何既有的中樞檔變成非法,
     也不會讓原本成功的指令失敗;收緊才會
-  - 暫採:a → 影響:若裁決成 b,L7 拆成兩條(id 階段取 `head`、name 階段回 `Ambiguous`),
-    X8 不變、要新增一個「重複 id」的 example;若裁決成 c,L8 整條改寫,X11 / X12 的預期從
+  - 暫採:a → 影響:若裁決成 b,LAW-7 拆成兩條(id 階段取 `head`、name 階段回 `Ambiguous`),
+    EX-8 不變、要新增一個「重複 id」的 example;若裁決成 c,LAW-8 整條改寫,EX-11 / EX-12 的預期從
     `VaultSelectorNotFound` 改成 `Right e1`
 
 ## 實作備註
 
-### 2026-08-29 閘門裁決:L18(b) 的逐字字串(spec-gaps G2)
+### 2026-08-29 閘門裁決:LAW-18(b) 的逐字字串(spec-gaps GAP-2)
 
-qa 與 impl 各自撞到 **L18(b) 與同一份 spec 的 L12(c) / L14 互相矛盾**:(b) 原文的白名單是
-`import Aapms.Store.Marker (markerDir, readMarker)`,而 L12(c) 與 L14 都要求用 `vmId` 做 id 比對
+qa 與 impl 各自撞到 **LAW-18(b) 與同一份 spec 的 LAW-12(c) / LAW-14 互相矛盾**:(b) 原文的白名單是
+`import Aapms.Store.Marker (markerDir, readMarker)`,而 LAW-12(c) 與 LAW-14 都要求用 `vmId` 做 id 比對
 ——`vmId` 是 record 欄位存取子,只能經 `VaultMarker (..)` 或 `VaultMarker (vmId)` 取得,而
-`Aapms.Workspace.Types:65` 對它的 import 是裸型別 `(VaultMarker)`(F001 的 L17(d) 釘死),
-**轉不出欄位存取子**。原白名單因此讓 L12(c) / L14 沒有任何合法實作滿足得了。
+`Aapms.Workspace.Types:65` 對它的 import 是裸型別 `(VaultMarker)`(F001 的 LAW-17(d) 釘死),
+**轉不出欄位存取子**。原白名單因此讓 LAW-12(c) / LAW-14 沒有任何合法實作滿足得了。
 
 開發者裁決:把 (b) 的逐字字串**收緊**成
 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` ——**只放行 `vmId` 一個
@@ -606,5 +606,5 @@ qa 與 impl 各自撞到 **L18(b) 與同一份 spec 的 L12(c) / L14 互相矛�
 日後有人在本模組碰 `vmRefs`(#3 的 `refs` 展開)或 `vmKind`(#3 的 kind 過濾、#4 的 `syncHub`),
 編譯得過但測試會紅。
 
-本次只改 L18(b) 的條文、「1-to-1 測試對照表」最後一列的措辭與「紅綠預期」對 (b) 的敘述;
+本次只改 LAW-18(b) 的條文、「1-to-1 測試對照表」最後一列的措辭與「紅綠預期」對 (b) 的敘述;
 **其餘 law、example 與四條介面一個字未動**。

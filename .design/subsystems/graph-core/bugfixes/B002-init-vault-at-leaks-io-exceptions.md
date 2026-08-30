@@ -5,7 +5,7 @@ title: init-vault-at-leaks-io-exceptions
 description: initVaultAt 宣告回 Either StoreError 卻讓 IOException 逸出,型別在說謊
 status: open
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 parent: graph-core
 depends-on: []
 ---
@@ -69,3 +69,23 @@ initVaultAt givenRoot kind name = do
 - 修完後 `workspace` 的 spec-gaps **G5** 可結案,F004 的 **L44 / X41** 從 `pendingWith` 轉成
   正式斷言。
 - 順手檢查 `aapms-store` 其他 `IO (Either StoreError a)` 的函式有沒有同一個寫法。
+
+## 執行方式(2026-08-30)
+
+依「連帶」的裁決,本缺陷**不另外跑 `/bugfix`**,併進 **`graph-core/E002`** 的同一份 spec 執行
+(兩者是同一個函式、同一輪)。對應條文:
+
+| 本文檔的主張 | E002 的條文 |
+|---|---|
+| `initVaultAt` 不得讓 `IOException` 逸出 | **L4**(對任意輸入都不拋,失敗一律回 `Left`) |
+| 轉成既有的 `StoreError` 建構子 | **L5**(父層被檔案佔住 → `Left (FileWriteFailed (markerDir root) msg)`) |
+| 重現方式 | **E5 / E6**(`blocker` 是一般檔案,對 `blocker/sub` 呼叫兩個入口各一次) |
+
+E002 的測試全綠後本文檔一併改 `done`,`workspace` 的 spec-gap **G5** 同時結案。
+
+**scope 未擴大**:2026-08-30 的 `/arch-audit subsys graph-core` 發現 `aapms-store` 另有**四處**同類的
+逸出(`ensureDir` @ `Edit.hs:246`、`vaultMarkdownFiles` @ `Walk.hs:40`、`toVaultRelative` @
+`Index.hs:69`、`openVault` @ `Marker.hs:196`),逃進 `commit` / `upsertLicense` / `rebuildIndex` /
+`refreshStale` / `indexFile` / `unindexFile` / `openVault` 這些契約 E 明列、宣告回 `Either StoreError`
+的函式。本文檔原文的修法只寫「把 `initVaultAt` 內所有會拋 `IOException` 的呼叫包起來」,
+**擴大到四處是新的 scope 決定**,待開發者裁決後另開 B003。

@@ -11,6 +11,7 @@ module Aapms.Store.Marker
     -- * 讀寫
   , readMarker
   , initVaultAt
+  , initVaultAtWith
   , openVault
   , closeVault
 
@@ -23,7 +24,7 @@ module Aapms.Store.Marker
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (getCurrentTime)
+import Data.Time (UTCTime, getCurrentTime)
 import Database.SQLite.Simple (Connection)
 import Aapms.Core.Id (IdPrefix (PVlt), VaultId (..), newId, parseId, renderId)
 import Aapms.Core.Registry (TypeRegistry)
@@ -131,6 +132,19 @@ parseMarker fp txt = case TOML.decode txt of
 --
 -- __不建業務子目錄、不寫 @.gitignore@__——那是 @kind@ 專屬的業務知識,屬
 -- @workspace@ 的 @vault init@ 指令組裝本函式之後才做的事。
+-- | 'initVaultAt' 的明碼時間版本(graph-core\/E002)。
+--
+-- __時間是明碼參數__,與 'Aapms.Core.Id.newId' 及 'Aapms.Store.Write.allocateId'
+-- (2026-08-25 G8 裁決)一致:vault 的 id 是 @newId PVlt name t 0@ 的結果,時間
+-- 藏在函式內部取樣時,呼叫端就無法預先造出兩個相同的 id —— 而
+-- @workspace@ 的 @initVault@ 有一整條「新 id 撞到中樞既有 id 就回
+-- @VaultIdCollision@ 並回滾」的分支,它的正確性只能靠造出一次碰撞來驗。
+--
+-- __不逸出 @IOException@__(graph-core\/B002):簽名承諾了
+-- @Either StoreError@,檔案系統的失敗一律轉成 'StoreError' 回傳。
+initVaultAtWith :: FilePath -> VaultKind -> Text -> UTCTime -> IO (Either StoreError VaultMarker)
+initVaultAtWith = undefined
+
 initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)
 initVaultAt givenRoot kind name = do
   root <- makeAbsolute givenRoot

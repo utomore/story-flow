@@ -1,6 +1,6 @@
 {
   "directed": true,
-  "built_at_commit": "b2b8e17840cae07d6045e89cc4c6c782f93379b7",
+  "built_at_commit": "3a5ed949fa45b6b98369b59c7ba77b367a20ceaa",
   "nodes": [
     {"id":"Aapms.Api","label":"Aapms.Api","source_file":"api/src/Aapms/Api.hs"},
     {"id":"Aapms.Api#i:FromJSON BodyReq","label":"FromJSON BodyReq","source_file":"api/src/Aapms/Api.hs","source_location":"L152"},

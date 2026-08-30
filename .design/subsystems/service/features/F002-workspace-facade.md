@@ -3,7 +3,7 @@ id: F002
 type: feature
 title: workspace-facade
 description: "vault 與專案生命週期、workspace setup / doctor / tools / purge、型別註冊表查詢與縮圖路徑;十五個 ServiceM 動作加一個先於環境的 workspaceSetup"
-status: open
+status: done
 created: 2026-08-30
 updated: 2026-08-30
 depends-on: [F001, graph-core/F001, graph-core/F002, graph-core/F005, graph-core/F006, workspace/F001, workspace/F002, workspace/F004, workspace/F005, workspace/F006]
@@ -690,7 +690,7 @@ L8(要 `show` 得出整份報告才驗得到「不含 `[llm]` 的值」)與其�
 | X7 | 中樞加一段 `[llm]`,其中 `api_key = "SENTINEL-7f3b9c"`,`workspaceDoctor` | `dvLlmConfigured == True`;`show` 整個 `DoctorView` 的結果**不含** `"SENTINEL"`、也不含 `"api_key"` | 金鑰不進診斷輸出 + 驗收標準 3 | L5, L8 |
 | X8 | 無 `[llm]` 段時 `workspaceDoctor` | `dvLlmConfigured == False` | `[llm]` 缺席 | L5 |
 | X9 | 對 `<tmp>/hub/`、`<tmp>/va/.aapms/`、`<tmp>/vb/.aapms/` 遞迴取「檔名 → 位元組」對照表,跑 `workspaceDoctor >> vaultCheck`,再取一次 | 兩份對照表**完全相同** | 唯讀 + 驗收標準 4 | L9 |
-| X10 | `[tools]` 未設、`PATH` 清空後 `workspaceTools` | `Right [ts]`;`tsName ts == "7-Zip"`;`tsPath ts == Nothing`;`tsOrigin ts == NotFound`;`tsSearched ts` 非空 | 7-Zip 缺席**不是**錯誤 | L10 |
+| X10 | `[tools]` 未設、`PATH` 清空後 `workspaceTools` | `Right [ts]`;`tsName ts == "7-Zip"`;`tsSearched ts` 非空(三層探測全都試過);**不斷言** `tsPath` / `tsOrigin` 的具體值——這台機器有沒有裝 7-Zip 決定它是 `NotFound` 還是找到路徑,兩種結果在裝與沒裝的機器上都該對這條 example 成立;`NotFound` 那個值仍由 L10 的 property test 間接覆蓋(機器沒裝時自然比對到它) | 三層探測皆已嘗試,結果不被「這台機器裝了什麼」綁死 | L10 |
 | X11 | `AAPMS_HOME` 指向一個**空目錄**(中樞尚未建立),`workspaceSetup Nothing <tmp>/outside`;接著原封不動再跑一次 | 第一次 `Right v`,`svHubCreated == True`、`svCacheCreated == True`;第二次兩欄都 `False`;兩次的 `svHubPath` 都等於那個空目錄的絕對路徑。**全程沒有 `openEnv` / `Env`** | 乾淨機器上的第一次 setup + 冪等 + A2 裁決的實況 | L11 |
 | X11b | 同一個已建好的中樞上,分別跑 `workspaceSetup Nothing <tmp>/va` 與 `workspaceSetup (Just "story") <tmp>/outside` | 兩次的 `SetupView` **逐欄相同**,且三欄都等於「中樞早就在」的那一組(`svHubCreated == False`、`svCacheCreated == False`、`svHubPath` 是中樞根目錄) | 兩個參數不影響結果(A2 的簽名是為了與 `openEnv` 同形) | L11 |
 | X12 | `workspacePurge PurgeHubOnly`,然後 `askHub` | `pvHubRemoved == True`、`pvVaultIndexesRemoved == []`;`askHub` 的 `hubVaults` 仍是**兩筆**(快照未被重載) | purge 後不重載 | L12, L13 |
@@ -702,7 +702,7 @@ L8(要 `show` 得出整份報告才驗得到「不含 `[llm]` 的值」)與其�
 | X17 | `projectRegister` 之後刪掉 `<tmp>/proj/`,再 `projectList` | 一筆,`pvReachable == False`,其餘三欄不變 | 專案路徑消失 | L18 |
 | X18 | 完整佈局(兩個 vault 都是空的),`vaultInfo "assets"` | `viVault` 逐欄等於 `vaultList` 裡 `VB` 那一筆;`viCounts == []`;`viIssues` 等於同一次執行裡 `indexIssuesFor VB` 的結果(全新索引時含一則 `SchemaRebuilt { irOldVersion = Nothing }`) | 空 vault + 驗收標準 5 | L20, L21, L22 |
 | X19 | 在 `<tmp>/vb` 放入一個合法的 asset 檔與一個合法的 pack 檔並以 graph-core 的 `indexFile` 建索引後,`vaultInfo "assets"` | `viCounts == [("ast", 1), ("pck", 1)]`(依 `IdPrefix` 的 `Ord`:`PAst` 在 `PPck` 之前);其餘六個 prefix **不出現** | 非空 vault、零值鍵不出現、鍵的排序 | L21 |
-| X19b | 同 X19 的索引狀態,但 `openEnv (Just "story") <tmp>` (`--vault story`,而 `story` 的 `refs` 不含 `assets`)之後 `vaultInfo "assets"` | 與 X19 **完全相同**的 `viCounts`;`viIssues` 同樣拿得到(不是空清單) | A4:點名的目標不受 `--vault` 範圍收窄影響 | L21, L22 |
+| X19b | 同 X19 的索引狀態,但 `openEnv (Just "story") <tmp>` (`--vault story`,而 `story` 的 `refs` 不含 `assets`)之後 `vaultInfo "assets"` | 與 X19 **完全相同**的 `viCounts`;`viIssues` 逐項等於**同一個 `Env`** 的 `indexIssuesFor` 對 `assets` 的結果(與 X18 同一判準,**不強制非空**——這是第二次開啟,`SchemaRebuilt` 只在生命週期第一次開啟時產生) | A4:點名的目標不受 `--vault` 範圍收窄影響(這一半判準不變) | L21, L22 |
 | X20 | `vaultInfo "沒有這個"` | `Left (WorkspaceFailed (VaultSelectorNotFound "沒有這個"))` | selector 解不開 | L17, L20 |
 | X21 | `listTypes` 與「直接對同一個註冊表目錄 `loadRegistry` 後呼叫 `Aapms.Core.Registry.listTypes`」 | 兩份清單**逐項相同、順序相同**;長度 `> 0` | 轉出不改寫 | L23 |
 | X22 | `showType (tdKey d)`,`d` 是 X21 那份清單的第一筆 | `Right d`(逐欄相同) | 命中 | L24 |
@@ -1016,4 +1016,21 @@ standalone deriving,含 `Monad` 的 `deriving` 行恰好一行)在 `Machine.hs` 
 
 ## 實作備註
 
-(開發過程中與設計的偏差記錄於此,撰寫時留空)
+**2026-08-30 W2 仲裁:X10 / X19b 的預期改寫(歸因 spec bug)**
+
+- **X10** 原本斷言 `[tools]` 未設 + `PATH` 清空會讓 `workspaceTools` 回具體的 `NotFound`。但
+  `workspace/F006` 的三層探測第三層查的是**內建安裝路徑候選**,不受 `PATH` 或 `[tools]` 拘束——
+  開發機裝了 7-Zip,實測回 `Just "C:\Program Files\7-Zip\7z.exe"`,這條 example 在該機器上永遠紅
+  (L10 本身沒問題,它另有一條逐欄比對 `detectSevenZip (hubTools hub)` 的 property test 是綠的)。
+  改成只斷言「三層都試過」(`tsSearched` 非空),不再斷言 `tsPath` / `tsOrigin` 的具體值。
+- **X19b** 原本期待對已建好索引的 vault 呼叫 `vaultInfo` 時 `viIssues` 仍非空。但
+  `SchemaRebuilt` 只在索引檔生命週期**第一次開啟**時產生,而建索引的唯一合法路徑
+  (`openVault` + `indexFile` + `closeVault`——F002 自己從不呼叫 `indexFile`)本身就是那個第一次
+  開啟,`vaultInfo` 內部的 `handleFor` 必然是第二次,依 L22 自己的定義 `viIssues` 就該是 `[]`。
+  改成與 X18 同一判準:逐項等於同一個 `Env` 的 `indexIssuesFor`,不強制非空;X19b 驗 A4 裁決
+  (`vaultInfo` 不受 `--vault` 範圍拘束)的那一半不動。
+
+**共通教訓**:example 的預期輸出不得依賴「這台機器剛好沒裝某個外部工具」或「某個只在資源
+生命週期第一次發生的事件」這類**環境或時序偶然**——寫得出來、但在正常環境下驗不到的驗收
+標準,等於沒有(對照 `contract-readiness.md` 的 A9 可測性、`graph-core` 的 G5,同一個根)。
+兩條都不是法條錯,是 example 把「一種可能結果」誤寫成「唯一結果」。

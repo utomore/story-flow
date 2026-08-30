@@ -65,6 +65,13 @@ test-suite aapms-service-test
         Aapms.Service.MonadSpec
         Aapms.Service.ScopeSpec
         Aapms.Service.NestedRunServiceSpec
+        Aapms.Service.MachineVaultSpec
+        Aapms.Service.MachineDoctorSpec
+        Aapms.Service.MachineSetupPurgeSpec
+        Aapms.Service.MachineWriteOpsSpec
+        Aapms.Service.MachineVaultInfoSpec
+        Aapms.Service.MachineRegistrySpec
+        Aapms.Service.PathLiteralSpec
     build-depends:
         , base
         , containers

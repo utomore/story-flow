@@ -39,13 +39,19 @@ module Aapms.Service.Fixtures
   , serviceSourceFiles
   , readServiceSource
 
+    -- * F002:遞迴快照(L9/X9 用)、顯式 UTF-8 讀寫
+  , snapshotTree
+  , readUtf8NoTranslate
+  , writeUtf8NoTranslate
+
     -- * 雜項
   , orDie
   , toTomlPath
+  , describeServiceResult
   ) where
 
 import Control.Exception (bracket)
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, sortOn)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -70,7 +76,7 @@ import Aapms.Core.Id (VaultId (..))
 import Aapms.Types.Loader (registryEnvVar)
 
 import Aapms.Service.Monad (Env, closeEnv, openEnv)
-import Aapms.Service.Types (renderServiceError)
+import Aapms.Service.Types (ServiceError, renderServiceError)
 
 --------------------------------------------------------------------------------
 -- 顯式 UTF-8、不做換行轉換的讀寫(對照 memory「hedgehog 在 cp950 下會蓋掉真正的失敗」)
@@ -265,9 +271,44 @@ serviceSourceFiles = do
     normSlashes = map (\c -> if c == '\\' then '/' else c)
 
 --------------------------------------------------------------------------------
+-- F002:遞迴快照(L9/X9「唯讀」用)
+
+-- | 一個目錄底下__遞迴__的每一個檔案(相對路徑、顯式 UTF-8\/不轉換換行讀出的
+-- 內容),依相對路徑排序,供前後兩次快照逐一比對。本套件底下要快照的檔案
+-- (@config.toml@)全是我們自己用 'writeUtf8NoTranslate' 寫出來的,這個讀法因此
+-- 忠實反映位元組(不像 'Prelude.readFile' 會依 locale 猜編碼、動換行序列)。
+-- 目錄不存在時回 @[]@(呼叫端若預期它存在,自己斷言)。相對路徑一律用正斜線,
+-- 不受平台影響(對照 'serviceSourceFiles')。
+snapshotTree :: FilePath -> IO [(FilePath, Text)]
+snapshotTree root = do
+  exists <- doesDirectoryExist root
+  if not exists
+    then pure []
+    else do
+      rels <- walk ""
+      sortOn fst <$> mapM (\rel -> (,) (normSlashes rel) <$> readUtf8NoTranslate (root </> rel)) rels
+  where
+    walk rel = do
+      let full = if null rel then root else root </> rel
+      isDir <- doesDirectoryExist full
+      if isDir
+        then do
+          entries <- listDirectory full
+          concat <$> mapM (\e -> walk (if null rel then e else rel </> e)) entries
+        else pure [rel]
+    normSlashes = map (\c -> if c == '\\' then '/' else c)
+
+--------------------------------------------------------------------------------
 -- 雜項
 
 -- | 攤平一個測試前置作業裡「一定得成功」的 'Either'(對照
 -- "Aapms.Workspace.Fixtures.orDie")。
 orDie :: (Show e) => Either e a -> IO a
 orDie = either (\e -> fail ("測試前置作業失敗:" <> show e)) pure
+
+-- | 除錯用:只印 'Left' 那一側——F002 多個操作的成功酬載(例如
+-- 'Aapms.Workspace.Types.Hub'\/'Aapms.Store.Marker.VaultHandle')不透明或沒有
+-- 'Show' 實例,對照 F001 'Aapms.Service.MonadSpec.describeEnvResult' 同一個理由。
+describeServiceResult :: Either ServiceError a -> String
+describeServiceResult (Left e) = "Left (" <> show e <> ")"
+describeServiceResult (Right _) = "Right <..>"

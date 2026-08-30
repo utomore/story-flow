@@ -9,8 +9,15 @@
 -- 請在回報裡列出要加的模組名。
 module Main (main) where
 
+import qualified Aapms.Service.MachineDoctorSpec
+import qualified Aapms.Service.MachineRegistrySpec
+import qualified Aapms.Service.MachineSetupPurgeSpec
+import qualified Aapms.Service.MachineVaultInfoSpec
+import qualified Aapms.Service.MachineVaultSpec
+import qualified Aapms.Service.MachineWriteOpsSpec
 import qualified Aapms.Service.MonadSpec
 import qualified Aapms.Service.NestedRunServiceSpec
+import qualified Aapms.Service.PathLiteralSpec
 import qualified Aapms.Service.ScopeSpec
 import qualified Aapms.Service.TypesSpec
 import System.IO
@@ -26,3 +33,11 @@ main = do
     Aapms.Service.MonadSpec.spec
     Aapms.Service.ScopeSpec.spec
     Aapms.Service.NestedRunServiceSpec.spec
+    -- service/F002
+    Aapms.Service.MachineVaultSpec.spec
+    Aapms.Service.MachineDoctorSpec.spec
+    Aapms.Service.MachineSetupPurgeSpec.spec
+    Aapms.Service.MachineWriteOpsSpec.spec
+    Aapms.Service.MachineVaultInfoSpec.spec
+    Aapms.Service.MachineRegistrySpec.spec
+    Aapms.Service.PathLiteralSpec.spec

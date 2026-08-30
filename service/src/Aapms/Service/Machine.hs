@@ -99,29 +99,77 @@ module Aapms.Service.Machine
   , AdoptNotice (..)
   ) where
 
+import Control.Monad.IO.Class (liftIO)
+import Data.List (find)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 
 import Aapms.Core.Asset (Sha256)
-import Aapms.Core.Meta (TypeKey)
+import Aapms.Core.Id (VaultId, idPrefix, renderIdPrefix)
+import Aapms.Core.Meta (Meta (metaId), TypeKey (..))
 import Aapms.Core.Registry (TypeDecl)
+import qualified Aapms.Core.Registry as Registry
+import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName))
+import Aapms.Store.Query (NodeFilter (..), emptyNodeFilter, listNodes)
 import Aapms.Store.Schema (IndexIssue (..), VaultKind (..))
+import Aapms.Workspace.Discovery
+  ( detectVault
+  , lookupSelector
+  , readVaultRef
+  , readVaultRefAt
+  )
+import Aapms.Workspace.Lifecycle
+  ( addVault
+  , checkVaults
+  , forgetVault
+  , initVault
+  , purge
+  , setupHub
+  )
+import Aapms.Workspace.Location (hubLocation, thumbCachePath)
+import Aapms.Workspace.Projects (forgetProject, registerProject)
+import Aapms.Workspace.Tools (detectSevenZip)
 import Aapms.Workspace.Types
   ( AdoptNotice (..)
   , DeleteIndex (..)
+  , Hub
+  , HubLocation (..)
   , HubSource (..)
   , InitMode (..)
+  , ProjectEntry (..)
+  , PurgeReport (..)
   , PurgeScope (..)
   , ScopeIssue (..)
+  , SetupReport (..)
   , ToolOrigin (..)
   , ToolStatus (..)
+  , VaultEntry (..)
+  , VaultRef (..)
+  , hubLlm
+  , hubProjects
+  , hubTools
+  , hubVaults
   )
+import System.Directory (doesDirectoryExist, doesFileExist)
 
-import Aapms.Service.Monad (ServiceM)
+import Aapms.Service.Monad
+  ( ServiceM
+  , askCwd
+  , askHub
+  , askHubLocation
+  , askRegistry
+  , askRegistrySource
+  , handleFor
+  , indexIssuesFor
+  , liftWorkspace
+  , reloadHub
+  , throwService
+  )
 import Aapms.Service.Types
   ( DoctorView (..)
   , ProjectView (..)
   , PurgeView (..)
-  , ServiceError
+  , ServiceError (..)
   , SetupView (..)
   , VaultInfoView (..)
   , VaultView (..)
@@ -140,25 +188,57 @@ import Aapms.Service.Types
 --
 -- 兩個 @*Created@ 欄讓 @shell@ 分得出「剛裝好」與「早就裝好」。
 workspaceSetup :: Maybe Text -> FilePath -> IO (Either ServiceError SetupView)
-workspaceSetup = undefined
+workspaceSetup _sel _cwd = do
+  loc <- hubLocation
+  result <- setupHub loc
+  pure $ case result of
+    Left e -> Left (WorkspaceFailed e)
+    Right report ->
+      Right (SetupView (spHubPath report) (spHubCreated report) (spCacheCreated report))
 
 -- | 彙總這台機器的狀態:中樞位置與來源、註冊表來源、全部 vault(含向上探測到
 -- 的那個未註冊 vault)、範圍降級紀錄、外部工具、以及中樞有沒有 @[llm]@ 段。
 --
 -- __不寫任何檔案__。
 workspaceDoctor :: ServiceM DoctorView
-workspaceDoctor = undefined
+workspaceDoctor = do
+  loc <- askHubLocation
+  hub <- askHub
+  regSrc <- askRegistrySource
+  issues <- liftIO (checkVaults hub)
+  let registered = map (vaultViewOf issues) (hubVaults hub)
+  cwd <- askCwd
+  extra <- liftIO (unregisteredVaultView hub cwd)
+  tools <- workspaceTools
+  pure
+    DoctorView
+      { dvHubPath = hlPath loc
+      , dvHubSource = hlSource loc
+      , dvRegistry = regSrc
+      , dvVaults = registered ++ maybe [] (: []) extra
+      , dvScopeIssues = issues
+      , dvTools = tools
+      , dvLlmConfigured = maybe False (const True) (hubLlm hub)
+      }
 
 -- | 探測這台機器上的外部工具。7-Zip 缺席__不是錯誤__。
 workspaceTools :: ServiceM [ToolStatus]
-workspaceTools = undefined
+workspaceTools = do
+  hub <- askHub
+  status <- liftIO (detectSevenZip (hubTools hub))
+  pure [status]
 
 -- | 清理中樞與(可選)各 vault 的索引;冪等。
 --
 -- 任何 'Aapms.Workspace.Types.PurgeScope' 下都不刪除任何素材檔與 vault 的
 -- marker——索引是衍生物,重建即可。
 workspacePurge :: PurgeScope -> ServiceM PurgeView
-workspacePurge = undefined
+workspacePurge scope = do
+  loc <- askHubLocation
+  hub <- askHub
+  report <- liftWorkspace (purge loc hub scope)
+  pure
+    (PurgeView (prHubRemoved report) (prThumbsRemoved report) (prVaultIndexesRemoved report))
 
 --------------------------------------------------------------------------------
 -- 契約 C:vault 生命週期
@@ -172,15 +252,28 @@ workspacePurge = undefined
 -- 2026-08-30 W2 閘門 A3):'VaultView' 六欄裝不下它,而丟棄等於 workspace 花力氣
 -- 掃出來的東西在這一層被揉掉。
 vaultInit :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM (VaultView, AdoptNotice)
-vaultInit = undefined
+vaultInit dir kind name mode = do
+  loc <- askHubLocation
+  hub <- askHub
+  (_, entry, notice) <- liftWorkspace (initVault loc hub dir kind name mode)
+  _ <- reloadHub
+  pure (registeredView entry, notice)
 
 -- | 把一個__已經是 vault__ 的目錄納管進中樞。不建立、不修改該目錄下的任何東西。
 vaultAdd :: FilePath -> ServiceM VaultView
-vaultAdd = undefined
+vaultAdd dir = do
+  loc <- askHubLocation
+  hub <- askHub
+  (_, entry) <- liftWorkspace (addVault loc hub dir)
+  _ <- reloadHub
+  pure (registeredView entry)
 
 -- | 中樞裡的每一列各回一筆,順序同中樞。
 vaultList :: ServiceM [VaultView]
-vaultList = undefined
+vaultList = do
+  hub <- askHub
+  issues <- liftIO (checkVaults hub)
+  pure (map (vaultViewOf issues) (hubVaults hub))
 
 -- | 一個 vault 的詳情。參數是 selector(比對規則由 @aapms-workspace@ 決定)。
 --
@@ -188,31 +281,68 @@ vaultList = undefined
 -- __這個參數指到的 vault__,不是 @--vault@ 解出來的讀取範圍(2026-08-30 W2 閘門
 -- A4),所以本操作直接用 'Aapms.Service.Monad.handleFor' 對目標取 handle。
 vaultInfo :: Text -> ServiceM VaultInfoView
-vaultInfo = undefined
+vaultInfo sel = do
+  hub <- askHub
+  entry <- liftWorkspace (pure (lookupSelector hub sel))
+  ref <- liftWorkspace (readVaultRefAt hub (vePath entry))
+  handle <- handleFor ref
+  metas <-
+    liftIO (listNodes handle emptyNodeFilter {nfLimit = maxBound, nfIncludeReference = True})
+  issues <- liftIO (checkVaults hub)
+  issuesOut <- indexIssuesFor (veId entry)
+  pure (VaultInfoView (vaultViewOf issues entry) (countByPrefix metas) issuesOut)
 
 -- | 把一個 vault 從中樞移除。第二參數決定要不要順手刪索引檔;marker 與素材
 -- __任何情況都不碰__。
 vaultForget :: Text -> DeleteIndex -> ServiceM VaultView
-vaultForget = undefined
+vaultForget sel di = do
+  loc <- askHubLocation
+  hub <- askHub
+  (_, entry) <- liftWorkspace (forgetVault loc hub sel di)
+  _ <- reloadHub
+  reachable <- liftIO (reachableSingle entry)
+  pure
+    VaultView
+      { vvId = veId entry
+      , vvName = veName entry
+      , vvKind = veKind entry
+      , vvPath = vePath entry
+      , vvRegistered = False
+      , vvReachable = reachable
+      }
 
 -- | 對中樞每一列重讀 marker 的純體檢。__不寫任何檔案、沒有失敗通道__。
 vaultCheck :: ServiceM [ScopeIssue]
-vaultCheck = undefined
+vaultCheck = do
+  hub <- askHub
+  liftIO (checkVaults hub)
 
 --------------------------------------------------------------------------------
 -- 契約 C:專案登錄
 
 -- | 把一個目錄登錄成專案。參數依序是:專案根目錄、名稱。
 projectRegister :: FilePath -> Text -> ServiceM ProjectView
-projectRegister = undefined
+projectRegister dir name = do
+  loc <- askHubLocation
+  hub <- askHub
+  (_, entry) <- liftWorkspace (registerProject loc hub dir name)
+  _ <- reloadHub
+  liftIO (projectViewOf entry)
 
 -- | 中樞裡的每一列各回一筆,順序同中樞。
 projectList :: ServiceM [ProjectView]
-projectList = undefined
+projectList = do
+  hub <- askHub
+  liftIO (mapM projectViewOf (hubProjects hub))
 
 -- | 把一列從中樞移除。專案目錄本身完全不動。
 projectForget :: Text -> ServiceM ProjectView
-projectForget = undefined
+projectForget sel = do
+  loc <- askHubLocation
+  hub <- askHub
+  (_, entry) <- liftWorkspace (forgetProject loc hub sel)
+  _ <- reloadHub
+  liftIO (projectViewOf entry)
 
 --------------------------------------------------------------------------------
 -- 契約 C:型別註冊表
@@ -222,12 +352,20 @@ projectForget = undefined
 -- __與 'Aapms.Core.Registry.listTypes' 同名__:本層的版本不收參數,註冊表來自
 -- 'Aapms.Service.Monad.askRegistry'。取用下層那一個時必須 qualified。
 listTypes :: ServiceM [TypeDecl]
-listTypes = undefined
+listTypes = do
+  reg <- askRegistry
+  pure (Registry.listTypes reg)
 
 -- | 依鍵查一份型別宣告。註冊表沒有這個鍵時以
 -- 'Aapms.Service.Types.UnknownType' 短路,酬載是__那個鍵的字串本身__。
 showType :: TypeKey -> ServiceM TypeDecl
-showType = undefined
+showType k = do
+  reg <- askRegistry
+  case Registry.lookupType reg k of
+    Just d -> pure d
+    Nothing -> throwService (UnknownType (typeKeyText k))
+  where
+    typeKeyText (TypeKey t) = t
 
 --------------------------------------------------------------------------------
 -- 契約 C:縮圖快取
@@ -239,4 +377,95 @@ showType = undefined
 --
 -- 本操作__不碰位元組、不解碼影像__:@shell@ 拿到路徑後自己回檔案。
 thumbPath :: Sha256 -> ServiceM (Maybe FilePath)
-thumbPath = undefined
+thumbPath h = do
+  loc <- askHubLocation
+  let p = thumbCachePath loc h
+  exists <- liftIO (doesFileExist p)
+  pure (if exists then Just p else Nothing)
+
+--------------------------------------------------------------------------------
+-- 私有 helper
+
+-- | 依同一份 'checkVaults' 結果,判斷某個 vault 現在算不算「可達」(design.md
+-- 不可逆決定第二列:'VaultIdDrift' 仍算可達)。
+reachableFor :: VaultId -> [ScopeIssue] -> Bool
+reachableFor vid issues = maybe True reachableFromIssue (find (relatesTo vid) issues)
+  where
+    relatesTo v (VaultPathMissing e _) = veId e == v
+    relatesTo v (VaultMarkerBroken e _) = veId e == v
+    relatesTo v (VaultIdDrift e _) = veId e == v
+    relatesTo _ (RefVaultNotRegistered _ _) = False
+
+reachableFromIssue :: ScopeIssue -> Bool
+reachableFromIssue (VaultIdDrift _ _) = True
+reachableFromIssue (RefVaultNotRegistered _ _) = True
+reachableFromIssue _ = False
+
+-- | 單一 vault 的可達性,不經整批 'checkVaults':'vaultForget' 移除中樞那一列
+-- 之後,那一列已經不在 'checkVaults' 的掃描範圍裡,只能對它單獨重讀。
+reachableSingle :: VaultEntry -> IO Bool
+reachableSingle e = either reachableFromIssue (const True) <$> readVaultRef e (vePath e)
+
+-- | 中樞一列 + 一份 'checkVaults' 結果 → 對外的 'VaultView'(已註冊)。
+vaultViewOf :: [ScopeIssue] -> VaultEntry -> VaultView
+vaultViewOf issues e =
+  VaultView
+    { vvId = veId e
+    , vvName = veName e
+    , vvKind = veKind e
+    , vvPath = vePath e
+    , vvRegistered = True
+    , vvReachable = reachableFor (veId e) issues
+    }
+
+-- | 剛被寫中樞操作(@init@ \/ @add@)交回來的那一列:一定已註冊、一定可達
+-- (marker 剛被寫出或剛被讀成功)。
+registeredView :: VaultEntry -> VaultView
+registeredView e =
+  VaultView
+    { vvId = veId e
+    , vvName = veName e
+    , vvKind = veKind e
+    , vvPath = vePath e
+    , vvRegistered = True
+    , vvReachable = True
+    }
+
+-- | @doctor@ 向上探測到的那一筆未註冊 vault(L7):探測不到、或 marker 讀不開
+-- 時回 'Nothing';探測到但其實已註冊時也回 'Nothing'。
+unregisteredVaultView :: Hub -> FilePath -> IO (Maybe VaultView)
+unregisteredVaultView hub cwd = do
+  mRoot <- detectVault cwd
+  case mRoot of
+    Nothing -> pure Nothing
+    Just root -> do
+      refR <- readVaultRefAt hub root
+      pure $ case refR of
+        Right ref@VaultRef {vrEntry = Nothing} -> Just (unregisteredView ref)
+        _ -> Nothing
+
+unregisteredView :: VaultRef -> VaultView
+unregisteredView VaultRef {vrPath = p, vrMarker = m} =
+  VaultView
+    { vvId = vmId m
+    , vvName = vmName m
+    , vvKind = vmKind m
+    , vvPath = p
+    , vvRegistered = False
+    , vvReachable = True
+    }
+
+-- | 一個 vault 索引裡每個 'Aapms.Core.Id.IdPrefix' 的節點總數(L21):零值鍵不
+-- 出現,依 'Aapms.Core.Id.IdPrefix' 的 'Ord' 排序('Data.Map.Strict' 的鍵序與
+-- 宣告順序一致)。
+countByPrefix :: [Meta] -> [(Text, Int)]
+countByPrefix metas =
+  [ (renderIdPrefix p, c)
+  | (p, c) <- Map.toAscList (Map.fromListWith (+) [(idPrefix (metaId m), 1) | m <- metas])
+  ]
+
+-- | 一個已登錄專案的目錄還在不在。
+projectViewOf :: ProjectEntry -> IO ProjectView
+projectViewOf e = do
+  reachable <- doesDirectoryExist (pePath e)
+  pure (ProjectView (peId e) (peName e) (pePath e) reachable)

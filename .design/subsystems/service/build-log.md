@@ -19,7 +19,7 @@ parent: service
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
 | 階段一 | W1 | service-env-and-scope | `fd65e0c`(輪 1)、`eb73830`(輪 2) | **OK**(輪 1、輪 2 各對一次,皆無違規) | **done**(2026-08-30,`aapms-service-test` 62/0) |
-| 階段一 | W2 | workspace-facade | | | 未開始 |
+| 階段一 | W2 | workspace-facade | `dfd0b0e` | **OK**(2026-08-30,無違規) | **done**(`aapms-service-test` 120/0) |
 | 階段二 | W3–W6 | node-read / node-write / asset-naming / level-and-node | | | 本次不跑 |
 | 階段三 | W7 | search-facade ∥ index-ops | | | 本次不跑 |
 
@@ -46,7 +46,7 @@ parent: service
 | feature | id | 檔名 | 骨架檔案 | spec 模型 | qa 模型 | impl 模型 | 狀態 |
 |---|---|---|---|---|---|---|---|
 | service-env-and-scope | F001 | F001-service-env-and-scope.md | `service/src/Aapms/Service/Types.hs`、`service/src/Aapms/Service/Monad.hs`、`service/src/Aapms/Service/Scope.hs` | opus | sonnet | sonnet | **impl-done**(62/0 綠) |
-| workspace-facade | F002 | F002-workspace-facade.md | `service/src/Aapms/Service/Machine.hs` | opus | sonnet | sonnet | 未開始 |
+| workspace-facade | F002 | F002-workspace-facade.md | `service/src/Aapms/Service/Machine.hs` | opus | sonnet | sonnet | **impl-done**(120/0 綠) |
 
 **骨架檔案不重疊**:W1 與 W2 各自一波,不平行,但仍逐波指派 —— `Types.hs` 由 F001 建骨架,
 F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該波的白名單裡明確授權,不由 subagent
@@ -93,6 +93,19 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 ## 階段結果
 
 ### 階段一 骨幹
+
+**W2 `workspace-facade`(F002):done**(2026-08-30)
+
+- **介面 23/23 已實作**(6 個 View 型別 + `UnknownType` + 16 個 `Machine.hs` 函式,另有 10 項 re-export);Laws 27 條、Examples 30 個
+- **測試**:`aapms-service-test` **120 examples / 0 failures**(F001 的 62 + F002 的 58)
+- **qa 紅綠基線**(骨架快照 `dfd0b0e`,編排者實跑):120 條 → **54 紅 / 66 綠**。F002 的 58 條裡 54 紅、4 綠;4 綠**逐條驗證過身分**(單獨 `--match L26` 與 `--match L27` 各回 2/0),恰為骨架自身承載的兩組靜態斷言。**該紅卻綠 0、該綠卻紅 0**
+- **白名單對帳**:OK,13 條路徑全部落在 impl 白名單 / qa 測試檔 / 編排者單線寫的檔案
+- **仲裁**:1 輪。歸因分佈 **spec bug 2 / impl 錯 0 / qa 誤讀 0**,兩條都是 example 的預期依賴**環境或時序的偶然**:
+  - **G1 / X10**:假設「`[tools]` 未設 + `PATH` 清空」就會 `NotFound`,但 `detectSevenZip` 第三層查內建安裝路徑候選,裝了 7-Zip 的機器上永遠造不出來 → 裁決改成斷言「三層都試過」(`tsSearched` 非空)
+  - **G2 / X19b**:期待 `viIssues` 非空,但 `SchemaRebuilt` 只在索引檔生命週期第一次開啟時產生,而建索引的唯一合法路徑本身就是那第一次 → 裁決改成與 X18 同一判準、不強制非空
+  - 這與 graph-core 的 **G5**、`contract-readiness.md` 的 **A9(可測性)** 是同一個根:**寫得出來但驗不到的驗收標準等於沒有**。教訓已寫進 F002 的實作備註
+- **契約變更**:`design.md` 動五處 —— 契約 C 的 `workspaceSetup`(移出 `ServiceM`)與 `vaultInit`(加回傳值)、內部模組劃分 Types 列(全部 View 型別住這裡)、模組間公開介面表新增 `Machine → aapms-store` 與 `Machine → Monad`
+- **未結項**:`RegistrySource` 的 `FromEnv` 撞名待上游 enhance(見待確認假設彙總 F002 S1),F002 暫不 re-export 它
 
 **W1 `service-env-and-scope`(F001):done**(2026-08-30)
 

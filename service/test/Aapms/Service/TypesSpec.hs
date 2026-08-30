@@ -118,6 +118,7 @@ ctorTag StoreFailed {} = 0
 ctorTag WorkspaceFailed {} = 1
 ctorTag RegistryUnavailable {} = 2
 ctorTag RegistryLoadFailed {} = 3
+ctorTag UnknownType {} = 4
 
 --------------------------------------------------------------------------------
 

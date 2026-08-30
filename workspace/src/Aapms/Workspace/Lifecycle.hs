@@ -42,9 +42,9 @@ import Control.Monad (filterM)
 import Data.List (find)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (UTCTime)
+import Data.Time (UTCTime, getCurrentTime)
 
-import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, markerDir, readMarker)
+import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
 import Aapms.Store.Schema (VaultKind)
 import Aapms.Workspace.Discovery (lookupSelector, readVaultRef, readVaultRefAt)
 import Aapms.Workspace.Hub (hubVaults, removeVault, saveHub, upsertVault)
@@ -154,49 +154,9 @@ initVault
   -> Text
   -> InitMode
   -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
-initVault loc hub dir kind name mode
-  | T.null (T.strip name) = pure (Left (InvalidName name))
-  | otherwise = do
-      dir' <- canonicalizePath dir
-      occupied <- pathExists (markerDir dir')
-      if occupied
-        then pure (Left (VaultAlreadyInitialized dir'))
-        else do
-          modeCheck <- case mode of
-            FreshVault -> do
-              exists <- doesDirectoryExist dir'
-              if not exists
-                then pure (Right ())
-                else do
-                  contents <- listDirectory dir'
-                  pure $
-                    if null contents
-                      then Right ()
-                      else Left (VaultDirNotEmpty dir')
-            AdoptExisting -> do
-              exists <- doesDirectoryExist dir'
-              pure $ if exists then Right () else Left (VaultDirMissing dir')
-          case modeCheck of
-            Left e -> pure (Left e)
-            Right () -> do
-              initR <- initVaultAt dir' kind (T.strip name)
-              case initR of
-                Left err -> do
-                  removePathForcibly (markerDir dir')
-                  pure (Left (VaultInitFailed dir' err))
-                Right m -> case find ((== vmId m) . veId) (hubVaults hub) of
-                  Just existing -> do
-                    removePathForcibly (markerDir dir')
-                    pure (Left (VaultIdCollision (vmId m) (vePath existing) dir'))
-                  Nothing -> do
-                    let legacyCandidates = [dir' </> n | n <- [".assetdb", ".storyflow"]]
-                    legacyMarkers <- filterM doesDirectoryExist legacyCandidates
-                    let entry = VaultEntry (vmId m) (vmName m) (vmKind m) dir'
-                        hub' = upsertVault entry hub
-                    saveR <- saveHub loc hub'
-                    pure $ case saveR of
-                      Left e -> Left e
-                      Right () -> Right (hub', entry, AdoptNotice legacyMarkers)
+initVault loc hub dir kind name mode = do
+  t <- getCurrentTime
+  initVaultWith loc hub dir kind name mode t
 
 -- | 'initVault' 的__明碼時間版本__(workspace\/E001)。
 --
@@ -222,7 +182,49 @@ initVaultWith
   -> InitMode
   -> UTCTime
   -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
-initVaultWith = undefined
+initVaultWith loc hub dir kind name mode t
+  | T.null (T.strip name) = pure (Left (InvalidName name))
+  | otherwise = do
+      dir' <- canonicalizePath dir
+      occupied <- pathExists (markerDir dir')
+      if occupied
+        then pure (Left (VaultAlreadyInitialized dir'))
+        else do
+          modeCheck <- case mode of
+            FreshVault -> do
+              exists <- doesDirectoryExist dir'
+              if not exists
+                then pure (Right ())
+                else do
+                  contents <- listDirectory dir'
+                  pure $
+                    if null contents
+                      then Right ()
+                      else Left (VaultDirNotEmpty dir')
+            AdoptExisting -> do
+              exists <- doesDirectoryExist dir'
+              pure $ if exists then Right () else Left (VaultDirMissing dir')
+          case modeCheck of
+            Left e -> pure (Left e)
+            Right () -> do
+              initR <- initVaultAtWith dir' kind (T.strip name) t
+              case initR of
+                Left err -> do
+                  removePathForcibly (markerDir dir')
+                  pure (Left (VaultInitFailed dir' err))
+                Right m -> case find ((== vmId m) . veId) (hubVaults hub) of
+                  Just existing -> do
+                    removePathForcibly (markerDir dir')
+                    pure (Left (VaultIdCollision (vmId m) (vePath existing) dir'))
+                  Nothing -> do
+                    let legacyCandidates = [dir' </> n | n <- [".assetdb", ".storyflow"]]
+                    legacyMarkers <- filterM doesDirectoryExist legacyCandidates
+                    let entry = VaultEntry (vmId m) (vmName m) (vmKind m) dir'
+                        hub' = upsertVault entry hub
+                    saveR <- saveHub loc hub'
+                    pure $ case saveR of
+                      Left e -> Left e
+                      Right () -> Right (hub', entry, AdoptNotice legacyMarkers)
 
 -- | 把一個__已經是 vault__ 的目錄納管進中樞(該目錄必須已有 @.aapms\/@)。
 --

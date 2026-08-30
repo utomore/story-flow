@@ -18,7 +18,7 @@ parent: service
 
 | 階段 | 波次 | features | 骨架快照 | 白名單對帳 | 狀態 |
 |---|---|---|---|---|---|
-| 階段一 | W1 | service-env-and-scope | `19eaa88` | | in-progress |
+| 階段一 | W1 | service-env-and-scope | (3d 委派 qa/impl 前填) | | spec 委派中 |
 | 階段一 | W2 | workspace-facade | | | 未開始 |
 | 階段二 | W3–W6 | node-read / node-write / asset-naming / level-and-node | | | 本次不跑 |
 | 階段三 | W7 | search-facade ∥ index-ops | | | 本次不跑 |
@@ -56,13 +56,24 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 
 | 來源 | 類型 | 契約錨點 | 波及 feature | 假設 / 決定 | 可逆性 | 閘門裁決 | 回寫位置 |
 |---|---|---|---|---|---|---|---|
-| (W1 spec 尚未回報) | | | | | | | |
+| F001 不可逆-2 | 不可逆決定 | 契約 A 的 `runService` | F001–F008 | 鎖的臨界區是**整個 `runService`**;否決「鎖在 `handleFor`」(只保護三件事裡的一件)與「各操作各自宣告」(漏包不會有編譯錯誤) | 難逆 | **接受,但要補一條防死鎖的 law** —— 巢狀 `runService` 會死鎖而 spec 原本沒有任何條文擋它,F002–F008 都會在 `ServiceM` 裡組合別的操作 | F001 spec 新增一條 law + example(定向重跑) |
+| F001 不可逆-1 | 不可逆決定 | 契約 A 的 `Env` / `ServiceM` | F001–F008 | 兩者都不透明,建構子與欄位不匯出 | 難逆 | 接受 | 不回寫(spec 原文已載明) |
+| F001 不可逆-3 | 不可逆決定 | 契約 F 的 `errorCode` | F001–F008 + shell | `code` 由建構子名的 snake_case **規則**產生,不是人工對照表 | 難逆 | 接受 | 不回寫 |
+| F001 不可逆-4 | 不可逆決定 | 契約 F 的 `renderServiceError` | F001–F008 + shell | 訊息逐字委派下層 `render*`,本層不加前綴 | 可逆 | 接受(已知代價:A1 裁決後 `RegistryUnavailable` 與 `RegistryLoadFailed` 對同一酬載渲染成相同文字,X23 明文驗) | 不回寫 |
+| F001 不可逆-5 | 不可逆決定 | 模組間公開介面的 `handleFor` | F001–F008 | handle 快取的鍵是 marker 的 `VaultId`,不是路徑 | 難逆 | **未上裁決議程** —— ADR-017 已定「vault 的身分就是 marker 裡的 id」,替代方案沒有選擇餘地,依 `/subsys-build` 3c(2) 的規則不佔議程,只呈報 | 不回寫 |
+| F001 依賴邊-1 | 新增依賴邊 | `aapms-service` → `aapms-types` | F001–F008 | 契約 A 要求 `openEnv` 載入型別註冊表,而 `loadRegistry` 住在 `aapms-types`;`design.md:28` 的相依行漏列 | 可逆 | **納進 `design.md` 的宣告** | `design.md:28`(diff 已呈報) |
+| F001 A1 | 待確認假設 | 契約 F 的 `RegistryUnavailable` / `RegistryLoadFailed` | F001 + shell | 兩個建構子都收 `RegistryError`。**`LoadError` 這個型別在整棵樹上不存在**(編排者掃過 core/types/md/store/workspace 五個套件,零命中),`loadRegistry` 回單一個 `RegistryError` 不是清單 —— 這一格無論如何都得改 | 可逆(shell 接上前) | 接受暫採 a | `design.md` 契約 F(diff 已呈報) |
+| F001 A2 | 待確認假設 | 「模組間公開介面」表(缺 `Machine / Read / Write → Monad` 那一列) | F001–F008 | 一組九個 `ServiceM` 動作(八個 `ask*` + `reloadHub`),`Env` 維持不透明 | 有條件可逆 | 接受暫採 a | `design.md`「模組間公開介面」新增一列(diff 已呈報) |
+| F001 A3 | 待確認假設 | 模組間公開介面的 `handleFor` + 契約 C 的 `viIssues` | F001, F002 | `handleFor` 簽名不動,另加 `indexIssuesFor :: VaultId -> ServiceM [IndexIssue]`;`Env` 多一格存第一次開啟的副產物 | 可逆 | 接受暫採 a | `design.md`「模組間公開介面」的 `Scope → Monad` 列(diff 已呈報) |
 
 ## 自裁清單
 
 | 來源 | 判斷點 | 採取 | 觸及符號 | 出處 | 抽查 |
 |---|---|---|---|---|---|
-| (W1 spec 尚未回報) | | | | | |
+| F001 S1 | `Env` 的鎖與快取用什麼具體 cell 型別 | `envLock :: MVar ()` + 三格 `IORef`;不用 `TVar`(`withMVar` 給例外安全的釋放,而鎖既然全程序列化,快取用 `IORef` 就夠) | `Env`、`envLock`、`envHubRef`、`envHandles`、`envIndexIssues`、`runService`、`closeEnv`、`handleFor`、`reloadHub`、`indexIssuesFor` | 自報 | 2026-08-30 編排者升級篩:**維持自裁**。`Monad.hs` 的匯出清單是 `Env`(不帶 `(..)`),建構子與欄位未外露,cell 型別在任何簽名上都看不到 |
+| F001 S2 | `ServiceM` 的包裝與實例 | `newtype ServiceM a = ServiceM (ReaderT Env (ExceptT ServiceError IO) a)`,`deriving newtype`,**建構子不匯出** | `ServiceM`、`runService`、`throwService`、`liftStore`、`liftWorkspace`、`MonadIO` | 自報 | 2026-08-30 編排者升級篩:**維持自裁**。疊法由 `design.md`「使用的技術」明文指定;匯出清單確認 `ServiceM` 不帶 `(..)`,建構子未外露 |
+| F001 S3 | handle 快取的鍵用 marker 的 `VaultId` 而不是路徑 | 用 `VaultId`(ADR-017 已定 vault 的身分就是 marker 裡的 id) | `envHandles`、`envIndexIssues`、`handleFor`、`VaultId`、`vmId`、`vrMarker` | 自報 | 2026-08-30:**維持自裁**,但同一個判斷在 spec 裡也寫成了「不可逆決定 #5」並經閘門呈報(不佔議程,理由見待確認假設彙總) |
+| F001 S4 | `Env` **不**存註冊表目錄路徑,只存 `RegistrySource` | 只存 `RegistrySource`(`DoctorView` 只有 `dvRegistry :: RegistrySource` 一欄,沒有路徑欄) | `Env`、`envRegistrySource`、`askRegistrySource`、`locateRegistry` | 自報 | 2026-08-30 編排者升級篩:`askRegistrySource` 命中 A2 的存取器組,**已由 A2 上閘門並裁決**,不重複列為升級 |
 
 ## 仲裁紀錄
 

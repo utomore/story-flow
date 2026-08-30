@@ -5,7 +5,7 @@ title: service
 description: 所有業務操作的唯一定義處:ServiceM、錯誤語彙、樂觀鎖與業務驗證的執行點
 status: active
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 parent: system
 related-adr: [ADR-006, ADR-013, ADR-014, ADR-015, ADR-017, ADR-022]
 code-paths: [service/src]
@@ -25,7 +25,9 @@ MCP)看到的行為由型別強制一致——邏輯只有一份,不可能悄悄
 |---|---|---|
 | `aapms-service` | `ServiceM` 與全部業務操作;`ServiceError` / `errorCode` / `renderServiceError`;業務驗證(必填、型別、關聯、樹);樂觀鎖的執行點;`Env` 的 vault handle 快取與互斥 | 委派 graph-core 與 workspace,自己不碰檔案格式 |
 
-相依:`aapms-core` / `aapms-store`(graph-core)、`aapms-workspace`。
+相依:`aapms-core` / `aapms-types` / `aapms-store`(graph-core)、`aapms-workspace`。
+(`aapms-types` 由 2026-08-30 的 W1 閘門補列:契約 A 明文要求 `openEnv` 載入型別註冊表,而
+`loadRegistry` 住在 `aapms-types`——原句漏列,不是新的架構變更。)
 **不 import 任何領域子系統**(`archive` / `ingest` / `reorg` / `conflict` / `llm` / `ai` / `workshop` /
 `project`),也不 import `shell` 的任何套件——契約層單向向下,由 `CabalSpec` 逐字清單釘住
 (system.md 通訊拓撲硬規則 1)。
@@ -317,7 +319,7 @@ data NewLicenseReq  = NewLicenseReq  { nlcKey :: Text, nlcTitle :: Text, nlcComm
 ```haskell
 data ServiceError
   = StoreFailed StoreError | WorkspaceFailed WorkspaceError
-  | RegistryUnavailable Text | RegistryLoadFailed [LoadError]
+  | RegistryUnavailable RegistryError | RegistryLoadFailed RegistryError
   | ValidationFailed (Maybe Id) [MetaWarning]
   | UnknownType Text
   | DanglingLinkTarget Ref | LinkTargetOutOfScope Ref
@@ -409,7 +411,8 @@ openEnv 已載入的中樞快照 + 註冊表來源
 |---|---|
 | 全部模組 → Types | 請求 / View 型別與 `ServiceError`;Types 不回頭 import 任何一個 |
 | Read / Write / Machine → Scope | `withRead :: (VaultSet -> [VaultRef] -> ServiceM a) -> ServiceM a`、`withWrite :: (VaultHandle -> VaultSet -> ServiceM a) -> ServiceM a`、`withPipeline :: VaultKind -> ([VaultHandle] -> ServiceM a) -> ServiceM a`;範圍解析的結果只經這三個口進來 |
-| Scope → Monad | `handleFor :: VaultRef -> ServiceM VaultHandle`(查快取,缺的 `openVault` 後放回)。**唯一開 handle 的地方** |
+| Scope → Monad | `handleFor :: VaultRef -> ServiceM VaultHandle`(查快取,缺的 `openVault` 後放回)。**唯一開 handle 的地方**;`indexIssuesFor :: VaultId -> ServiceM [IndexIssue]` 取第一次開啟時 `openVault` 一併回的問題清單(2026-08-30 W1 閘門 A3:那份清單只在第一次開啟時產生,快取命中的第二次拿不到,所以由 `Env` 存住而不是塞進 `handleFor` 的回傳——後者會讓同一個輸入有兩種輸出) |
+| Machine / Read / Write → Monad | `askHubLocation` / `askHub` / `reloadHub` / `askRegistry` / `askNaming` / `askRegistrySource` / `askSelector` / `askCwd`,全部是 `ServiceM` 動作;加錯誤 helper `throwService` / `liftStore` / `liftWorkspace`。**`Env` 維持不透明**(建構子與欄位不匯出),讀它的內容一律經這一組(2026-08-30 W1 閘門 A2:原表只有 `Scope → Monad` 一列,但 `DoctorView` 的 `dvHubPath` / `dvHubSource` / `dvRegistry` 與 `vaultList` 都要讀中樞快照,`withRead` 自己也要 hub + selector + cwd)。`reloadHub` 是「`Env` 的中樞快照在寫入後必須重新載入」那條規則的執行點 |
 | Scope → `aapms-workspace` | `resolveRead` / `resolveWrite` / `resolvePipeline`;失敗原樣包成 `WorkspaceFailed` |
 | Scope → `aapms-store` | `openVault` / `openVaultSet` / `closeVaultSet`;`VaultSet` 不進快取(ATTACH 便宜,`openVault` 不便宜) |
 | Write → Validate | `validateForWrite :: TypeRegistry -> VaultSet -> AnyNode -> ServiceM ()`;通過才進落地 |
@@ -469,7 +472,7 @@ openEnv 已載入的中樞快照 + 註冊表來源
 
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
-| 1 | service-env-and-scope | `Env`(中樞 + 註冊表 + handle 快取 + 鎖)、`openEnv` / `runService` / `closeEnv`、三個範圍取得、`ServiceError` / `errorCode` 骨架 | Types、Monad、Scope | - | - |
+| 1 | service-env-and-scope | `Env`(中樞 + 註冊表 + handle 快取 + 鎖)、`openEnv` / `runService` / `closeEnv`、三個範圍取得、`ServiceError` / `errorCode` 骨架 | Types、Monad、Scope | - | F001-service-env-and-scope.md |
 | 2 | workspace-facade | vault 與專案生命週期、`workspace setup / doctor / tools / purge`、型別註冊表查詢 | Machine | #1 | - |
 
 ### 階段二:圖譜操作

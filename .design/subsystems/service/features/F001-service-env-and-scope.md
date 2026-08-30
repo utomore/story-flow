@@ -633,7 +633,7 @@ Laws 與 Examples 以這組佈局為基準(qa 自行以 `temporary` 建在暫存
 | X25 | 一份**合成**的模組文字(只存在於測試裡,不寫進 repo):檔名 `Aapms/Service/Scope.hs`,內容取 `Scope.hs` 現況再插入一行 `  _ <- liftIO (runService env inner)`,以及一行 `-- 這裡本來想 runService,別這麼做`,連同一份合法的 `Monad.hs` 文字一起餵給同一個判準 | 違規清單**恰好一條**,指向插入的那一行(帶檔名與行號);那行**註解**不被算成違規 | 判準非空洞(掃描器壞掉時 X24 也會綠)+ 註解豁免的負向確認 | L23 |
 | X26 | `runService env (finallyService (pure (42 :: Int)) (liftIO (modifyIORef' c (+1))))`,`c` 起始為 `0` | `Right 42`,且事後 `readIORef c == 1` | 收尾組合子的成功路徑 | L24 |
 | X27 | `runService env (finallyService (throwService (WorkspaceFailed (NoWriteTarget "/x")) :: ServiceM Int) (liftIO (modifyIORef' c (+1))))`,`c` 起始為 `0` | `Left (WorkspaceFailed (NoWriteTarget "/x"))`(與 X13 逐欄相同),且事後 `readIORef c == 1` | 收尾組合子的短路路徑;短路**不被吞掉** | L24 |
-| X28 | 對 `service/src/` 的**實況**(骨架階段是 `Types.hs` / `Monad.hs` / `Scope.hs` 三個檔)跑 L25 的判準 | 違規清單**為空**;且三個檔的程式碼行中,trim 後以 `instance ` 起頭的**共 0 行**,含 `StandaloneDeriving` 的**共 0 行**,trim 後以 `deriving` 起頭的**恰好 2 行**(`Types.hs` 的 `deriving stock (Show, Eq)` 與 `Monad.hs` 的 `deriving newtype (Functor, Applicative, Monad, MonadIO)`),其中含 `Monad` 的**恰好 1 行**且逐字等於後者。`Monad.hs` \/ `Scope.hs` 的**註解**裡提到 `MonadError` \/ `catchError` 的那些行全部被正規化丟掉,**不計入** | `ServiceM` 不透明的正向路徑;順帶驗「判準不把註解誤判成越界」 | L25 |
+| X28 | 對 `service/src/` 底下遞迴取得的全部 `.hs` 跑 L25 的判準 | 違規清單**為空**;且程式碼行中,trim 後以 `instance ` 起頭的**共 0 行**,含 `StandaloneDeriving` 的**共 0 行**,trim 後以 `deriving` 起頭且含 `Monad` 的行**恰好 1 行**,逐字等於 `deriving newtype (Functor, Applicative, Monad, MonadIO)`(定義在 `Monad.hs`)。各檔案的**註解**裡提到 `MonadError` \/ `catchError` 的那些行全部被正規化丟掉,**不計入** | `ServiceM` 不透明的正向路徑;順帶驗「判準不把註解誤判成越界」 | L25 |
 | X29 | 三份**合成**的模組文字(只存在於測試裡,不寫進 repo),各餵給同一個判準:(a) 檔名 `Aapms/Service/Monad.hs`,內容取現況再插入一行 `deriving newtype instance MonadError ServiceError ServiceM`;(b) 同檔名,把 `deriving newtype (Functor, Applicative, Monad, MonadIO)` 改成 `deriving newtype (Functor, Applicative, Monad, MonadIO, MonadError ServiceError)`;(c) 檔名 `Aapms/Service/Scope.hs`,內容取現況再插入一行 `instance Semigroup (ServiceM ()) where` 與一行 `-- 這裡本來想 deriving newtype instance,別這麼做` | (a) 違規**恰好一條**,指向插入的那一行(判準 2);(b) 違規**恰好一條**,指向被改掉的那一行(判準 4);(c) 違規**恰好一條**,指向 `instance` 那一行(判準 1),**註解那一行不算違規**。三者的訊息都帶檔名與行號 | 判準非空洞(掃描器壞掉時 X28 也會綠)+ 四條判準各自抓得到東西 | L25 |
 
 ## 依賴方向
@@ -948,3 +948,27 @@ L24 是執行期性質,骨架階段 `finallyService = undefined`,預期**紅**;L
 **應該**綠。硬併成一條會讓「1-to-1 測試對照表」的「骨架狀態下預期」欄無法填。另一個理由是
 「不可逆決定」第一列要引用的守衛**只有靜態的那一半**(L25):L24 是那個決定的**替代方案**,
 不是它的守衛。
+
+### 修訂 R3(2026-08-30):X28 把「快照時的檔數」寫成定值,隨波次跑紅
+
+**怎麼被發現的**:W2(F002)交付後,`Machine.hs` 加了六個 View 型別、各帶一行
+`deriving stock (Show, Eq)`,`service/src/` 底下 trim 後以 `deriving` 起頭的行從 2 行變成 8 行,
+X28 原文「trim 後以 `deriving` 起頭的**恰好 2 行**」隨之跑紅。
+
+**L25 本身沒有被違反**:L25 要求的只有三件事——`instance` 宣告 0 行、`StandaloneDeriving` 0 行、
+含 `Monad` 的 deriving 行恰好 1 行且逐字等於 `deriving newtype (Functor, Applicative, Monad, MonadIO)`。
+不含 `Monad` 的 deriving 子句(DTO 的 `Show` \/ `Eq` 這類)是 L25 明文允許的,不受限。
+
+**歸因:spec bug,不是實作或 law 錯。** X28 的「輸入」欄描述的是「對 `service/src/` 的**實況**」——
+這個實況會隨每一波新模組加入而變大;但「預期輸出」欄卻把 W1 那次快照下的 deriving 行數(2)
+寫成一個定值,把「快照當時測出來的數字」誤當成「law 要求的數字」寫進了 example。
+
+**開發者的裁決(2026-08-30)**:拿掉那個定值,只留 L25 真正要求的三件事;「輸入」欄的「三個檔」
+改成不點名檔案數的寫法(`service/src/` 底下遞迴取得的全部 `.hs`),不再隨波次改字。
+
+**這次的教訓**:對「實況」(遞迴掃描一個會持續長大的目錄)做斷言的 example,**不得**把掃描當下
+量到的數字寫成預期輸出裡的定值——那個數字不是被斷言的對象,只是那一刻的副產品,下一波新模組
+一進來就會變,而 law 本身可能完全沒被違反。要斷言的應該只有 law 明文要求的那幾件事(此處是
+instance 0 行、`StandaloneDeriving` 0 行、含 `Monad` 的 deriving 行恰好 1 行且逐字等於 canonical)。
+L23 的 X24 用的是「0 行」「恰好 3 行」這種本來就該是常數的量(`runService` 全域只該出現在
+`Monad.hs` 那三種固定形狀裡),不受此教訓影響,不需要一併修。

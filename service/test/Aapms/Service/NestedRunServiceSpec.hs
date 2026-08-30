@@ -218,11 +218,10 @@ spec25 = describe "F001 L25: service/src/ 不得宣告任何 instance,ServiceM �
     files <- serviceSourceFiles
     instanceDerivingViolations files `shouldBe` []
 
-  it "test_l25_real_source_line_counts (X28): instance 0 行、StandaloneDeriving 0 行、deriving 起頭恰好 2 行,其中含 Monad 的恰好 1 行且逐字等於 canonical" $ do
+  it "test_l25_real_source_line_counts (X28): instance 0 行、StandaloneDeriving 0 行,其中含 Monad 的 deriving 恰好 1 行且逐字等於 canonical" $ do
     files <- serviceSourceFiles
     countCodeLinesWhere isInstanceDeclLine files `shouldBe` 0
     countCodeLinesWhere mentionsStandaloneDerivingPragma files `shouldBe` 0
-    countCodeLinesWhere isDerivingLine files `shouldBe` 2
     let monadCandidates =
           [ (path, l)
           | (path, txt) <- files

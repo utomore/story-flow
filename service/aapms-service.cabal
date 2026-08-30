@@ -38,9 +38,11 @@ library
         Aapms.Service.Types
         Aapms.Service.Monad
         Aapms.Service.Scope
+        Aapms.Service.Machine
     build-depends:
         , base          >=4.14 && <5
         , containers
+        , directory
         , mtl
         , text
         , aapms-core
@@ -57,6 +59,7 @@ test-suite aapms-service-test
         Aapms.Service.Types
         Aapms.Service.Monad
         Aapms.Service.Scope
+        Aapms.Service.Machine
         Aapms.Service.Fixtures
         Aapms.Service.TypesSpec
         Aapms.Service.MonadSpec

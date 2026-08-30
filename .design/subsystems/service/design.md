@@ -134,12 +134,19 @@ data NodeTreeView = NodeTreeView { ntvNode :: NodeView, ntvChildren :: [NodeTree
 ### C. 本機與註冊表(出口:內嵌 + CLI;`vault list` / `type` 另加 REST)
 
 ```haskell
-workspaceSetup  :: ServiceM SetupView                         -- 內嵌 + CLI
+-- workspaceSetup 不在 ServiceM 裡:它要在中樞還不存在時就跑得起來,而 openEnv 對
+-- 「中樞載不起來」一律回 Left(契約 A;主架構全域錯誤策略第 3 條)。留在 ServiceM
+-- 裡等於這個操作永遠跑不到、svHubCreated 恒為 False,而 shell 依 ADR-015 又不能自己
+-- 建中樞——「乾淨機器上的第一次 setup」會沒有任何人做得了(2026-08-30 W2 閘門 A2)。
+workspaceSetup  :: Maybe Text -> FilePath -> IO (Either ServiceError SetupView)  -- 內嵌 + CLI
 workspaceDoctor :: ServiceM DoctorView                        -- 內嵌 + CLI
 workspaceTools  :: ServiceM [ToolStatus]                      -- 內嵌 + CLI
 workspacePurge  :: PurgeScope -> ServiceM PurgeView           -- 內嵌 + CLI
 
-vaultInit   :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM VaultView   -- 內嵌 + CLI
+-- 第二個回傳值是 workspace 掃到的舊 marker(.assetdb/ / .storyflow/),只報告不刪除。
+-- VaultView 六欄裝不下它,而丟棄等於 workspace 花力氣掃出來的東西在這一層被揉掉,
+-- 且沒有任何測試會因此紅(2026-08-30 W2 閘門 A3)。
+vaultInit   :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM (VaultView, AdoptNotice)  -- 內嵌 + CLI
 vaultAdd    :: FilePath -> ServiceM VaultView                 -- 內嵌 + CLI
 vaultList   :: ServiceM [VaultView]                           -- 內嵌 + CLI + REST
 vaultInfo   :: Text -> ServiceM VaultInfoView                 -- 內嵌 + CLI + REST
@@ -348,7 +355,7 @@ code——機器要分得出「落地失敗」與「工作區設定失敗」,而
 
 | 模組 | 單一職責 | 擁有的事實(唯一真相來源) |
 |---|---|---|
-| Types | 請求型別、View 型別、`Page`、`ServiceError` 與兩個 render / code 函式 | **線上格式**與**錯誤語彙**(`code` 與訊息) |
+| Types | 請求型別、View 型別、`Page`、`ServiceError` 與兩個 render / code 函式 | **線上格式**與**錯誤語彙**(`code` 與訊息)。**全部 View 型別住這裡**(2026-08-30 W2 閘門 A1):契約卡的「負責模組」指的是誰實作那些操作,不是型別住哪;View 散進六個模組會讓 `shell` 要 import 六處才拿得齊,而「線上格式」這個事實依知識歸屬只能有一個持有者 |
 | Monad | `Env`、`ServiceM`、`openEnv` / `runService` / `closeEnv`、handle 快取與鎖 | **一次執行期間的資源生命週期** |
 | Scope | `withRead` / `withWrite` / `withPipeline`:把 workspace 的裁決換成開好的 handle 與 `VaultSet` | **範圍與 handle 的對應**(誰要被開、誰要被 ATTACH) |
 | Validate | 四條業務驗證 + 樂觀鎖比對的前置 | **什麼情況擋下寫入**(業務政策) |
@@ -417,6 +424,8 @@ openEnv 已載入的中樞快照 + 註冊表來源
 | Scope → `aapms-store` | `openVault` / `openVaultSet` / `closeVaultSet`;`VaultSet` 不進快取(ATTACH 便宜,`openVault` 不便宜) |
 | Write → Validate | `validateForWrite :: TypeRegistry -> VaultSet -> AnyNode -> ServiceM ()`;通過才進落地 |
 | Read / Write → `aapms-store` | 查詢組與寫入組;樂觀鎖由 graph-core 執行,本層只把 `Revision` 傳下去並把失敗翻成 `RevisionConflict` |
+| Machine → `aapms-store` | **查詢組,只讀**(2026-08-30 W2 閘門補列):契約 C 的 `viCounts` 要「開索引才算得出節點數」,本機管線也寫著「需要節點數時(`vaultInfo`)才 `withRead` 開該 vault 的索引」——這條邊契約與管線都已要求,原表漏列 |
+| Machine → Monad | 除了上面那一組 `ask*` 之外,另外直接用 **`handleFor`**(2026-08-30 W2 閘門 A4):`vaultInfo` 的目標是**它自己的參數**,不是 `--vault` 解出來的讀取範圍。只看範圍會讓 `--vault story vault info assets` **靜默**回 `viCounts == []`,使用者以為那個 vault 是空的 |
 | Machine → `aapms-workspace` | 生命週期那一組;`Env` 的中樞快照在寫入後**必須重新載入**(`Hub` 是不可變值) |
 
 **方向是線性的**:`Types ← Monad ← Scope ← {Validate, Read, Write, Machine}`。沒有回頭邊。
@@ -473,7 +482,7 @@ openEnv 已載入的中樞快照 + 註冊表來源
 | # | feature | 一句話說明 | 模組 | 依賴 | doc |
 |---|---------|-----------|------|------|-----|
 | 1 | service-env-and-scope | `Env`(中樞 + 註冊表 + handle 快取 + 鎖)、`openEnv` / `runService` / `closeEnv`、三個範圍取得、`ServiceError` / `errorCode` 骨架 | Types、Monad、Scope | - | F001-service-env-and-scope.md |
-| 2 | workspace-facade | vault 與專案生命週期、`workspace setup / doctor / tools / purge`、型別註冊表查詢 | Machine | #1 | - |
+| 2 | workspace-facade | vault 與專案生命週期、`workspace setup / doctor / tools / purge`、型別註冊表查詢 | Machine | #1 | F002-workspace-facade.md |
 
 ### 階段二:圖譜操作
 

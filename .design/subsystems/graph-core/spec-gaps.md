@@ -100,7 +100,7 @@ parent: graph-core
 - 狀態:resolved (2026-08-24 開發者裁決 → spec 已修訂):**LAW-4 撤銷**,且 `desegmentCjk` 在失去
   snippet 這個唯一消費者後**整個從介面與骨架移除**(`Tokenize.hs` 的匯出與定義都已刪除,`cjkSegment`
   的 Haddock 加了「這個表示法是單向的,沒有反函式」的說明防止有人再加回去)。qa 要刪掉
-  `TokenizeSpec.hs` 的 `prop_L4` 與對 `desegmentCjk` 的 import
+  `TokenizeSpec.hs` 的 `prop_LAW4` 與對 `desegmentCjk` 的 import
 
 ## GAP-5(F007 / 編排者仲裁)—— 與 GAP-4 同一個根
 
@@ -260,7 +260,7 @@ parent: graph-core
 - **已重現**(impl 這一輪,`Aapms.Store.Create` 呼叫 `appendSection` 走 F004 的既有實作,
   未另寫序列化邏輯):對一份倒數第二節結尾只有單一 `\n`(無空行)的主題檔追加片段,
   `appendSection` 依其文件行為把該節補成 `\n\n`,導致 `CreateSpec.hs` 的 L12a 測試(比對
-  該節 `renderSection` 逐字不變)為紅;`E12/L12b` 系列測試在能夠重現到這一步之前先撞上
+  該節 `renderSection` 逐字不變)為紅;`E12/LAW-12b` 系列測試在能夠重現到這一步之前先撞上
   GAP-15(見下),尚未individually驗證是否也有同一個落差
 - **需要 spec 回答什麼**:L12a / L12b 是否要比照 `insertSection` 自己文件的但書,把「插入點
   前一節的空行補齊」排除在「位元組不變」的斷言之外(即「不變」只保證**除插入點外**的節,
@@ -396,7 +396,7 @@ parent: graph-core
      F-A/F-B 索引,`["琳達"]` 篩不掉 `ent-00000005`/`ent-00000007` 會讓「真的篩掉東西」
      這個非退化條件不成立
   3. **EX-1**(`searchAcross vsAB {sqText = Just "藥水"}` 應該恰兩筆):實測 `srHits` 長度是
-     3 不是 2。**這不是 `searchAcross` 的合併邏輯錯誤**——`L8`(`searchAcross` 與
+     3 不是 2。**這不是 `searchAcross` 的合併邏輯錯誤**——`LAW-8`(`searchAcross` 與
      `concat [search h q' | h <- hs]` 逐欄相同,三次都綠)已經證明 `searchAcross` 逐字反映
      每個 vault 各自呼叫既有的、未改動的 `Aapms.Store.Query.search` 的結果;第三筆命中應
      來自 `pck-00000001`(`metaTitle = "藥水素材包"`)的標題比對——它不是 reference pack,

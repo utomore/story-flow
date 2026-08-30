@@ -1,4 +1,4 @@
--- | graph-core/F002 T1(Segment / NameParts 形狀)與 T9(「由右往左剝、只查
+-- | graph-core/F002 STEP-1(Segment / NameParts 形狀)與 STEP-9(「由右往左剝、只查
 -- nvStates」的 'parseLogicalName' 演算法、'mkLogicalName' 的 'nvKinds' /
 -- 'nvStates' 檢查、'renderParts')的對照測試。
 module Aapms.Core.NamingSpec (spec) where
@@ -30,7 +30,7 @@ vocab =
           )
     }
 
--- | 7 個合法案例,逐字取自 @contract/fixtures/naming-cases.txt@(T10 對同一份
+-- | 7 個合法案例,逐字取自 @contract/fixtures/naming-cases.txt@(STEP-10 對同一份
 -- fixture 做逐行驗證;這裡只是拿它們當 'renderParts' 往返測試的固定樣本)。
 okNames :: [T.Text]
 okNames =
@@ -45,7 +45,7 @@ okNames =
 
 spec :: Spec
 spec = do
-  describe "T1 test_segment_and_nameparts_shape" $ do
+  describe "STEP-1 test_segment_and_nameparts_shape" $ do
     it "mkSegment 接受小寫英數字與連字號連接的分段" $
       mkSegment "travel-book-frame" `shouldSatisfy` isRight
 
@@ -85,7 +85,7 @@ spec = do
       npState parts `shouldBe` Nothing
       npIndex parts `shouldBe` Nothing
 
-  describe "T9 test_parselogicalname_vocab_driven" $ do
+  describe "STEP-9 test_parselogicalname_vocab_driven" $ do
     it "三段(無 variant/state、無序號)正確拆解" $
       case parseLogicalName vocab "tex_ground_tileset-grass" of
         Right p -> do
@@ -130,7 +130,7 @@ spec = do
           npIndex p `shouldBe` Just 0
         Left e -> expectationFailure (show e)
 
-    it "A4 guard:單段 subject 剛好是 state 詞時不誤判成 TooFewSegments" $
+    it "ASM-4 guard:單段 subject 剛好是 state 詞時不誤判成 TooFewSegments" $
       case parseLogicalName vocab "spr_char_up" of
         Right p -> do
           segmentText (npSubject p) `shouldBe` "up"

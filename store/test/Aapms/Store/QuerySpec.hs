@@ -1,4 +1,4 @@
--- | graph-core\/F006 T8('NodeFilter' 各欄位)、T12('linksFrom'\/'linksTo'\/
+-- | graph-core\/F006 STEP-8('NodeFilter' 各欄位)、STEP-12('linksFrom'\/'linksTo'\/
 -- 'loadLinkGraph')。
 module Aapms.Store.QuerySpec (spec) where
 
@@ -12,7 +12,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "graph-core/F006 Query" $ do
-  describe "T8: NodeFilter" $ do
+  describe "STEP-8: NodeFilter" $ do
     it "nfStatus = [] 排除 status = missing 的 asset,[Missing] 才回" $
       withIndexedAssetVault $ \vh -> do
         defaultResult <- listNodes vh emptyNodeFilter
@@ -51,7 +51,7 @@ spec = describe "graph-core/F006 Query" $ do
         both <- listNodes vh emptyNodeFilter {nfPrefixes = [PEnt], nfTags = ["外觀"]}
         map metaId both `shouldBe` [idOf "ent-00000002"]
 
-  describe "T12: linksFrom / linksTo / loadLinkGraph" $ do
+  describe "STEP-12: linksFrom / linksTo / loadLinkGraph" $ do
     it "story vault 兩條關聯:linksFrom 依來源查、linksTo 依目標查(含 Meta 正確)、loadLinkGraph 一致" $
       withIndexedStoryVault $ \vh -> do
         fromLinks <- linksFrom vh (idOf "ent-00000003")

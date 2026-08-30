@@ -1,7 +1,7 @@
 -- | 契約 6:命名文法(ADR-019)——合法 / 非法名稱集。
 --
--- 名稱集放在 @fixtures/naming-cases.txt@,是 P1 F002(registry-family-and-naming)的驗收輸入。
--- 實作還不存在(P0 只有 legacy/assetdb 裡的舊版),所以逐案驗證標成 pending;
+-- 名稱集放在 @fixtures/naming-cases.txt@,是 S1 F002(registry-family-and-naming)的驗收輸入。
+-- 實作還不存在(S0 只有 legacy/assetdb 裡的舊版),所以逐案驗證標成 pending;
 -- 現在就能守的是:名稱集本身格式正確、兩邊都非空。
 module Aapms.Contract.NamingGrammarSpec (spec) where
 
@@ -48,7 +48,7 @@ spec = describe "命名文法名稱集" $ do
     either (const []) id (parseCases src) `shouldSatisfy` (Ok "ui_gui_travel-book-frame_001" `elem`)
 
   it "逐案以 aapms 驗證(等 graph-core F002 落地)" $
-    pendingWith "P1 F002 registry-family-and-naming 實作後,改為逐行呼叫 aapms 驗證"
+    pendingWith "S1 F002 registry-family-and-naming 實作後,改為逐行呼叫 aapms 驗證"
 
 readUtf8 :: FilePath -> IO String
 readUtf8 p = T.unpack . TE.decodeUtf8 <$> BS.readFile p

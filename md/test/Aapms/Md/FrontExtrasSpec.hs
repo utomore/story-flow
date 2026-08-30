@@ -1,14 +1,14 @@
--- | graph-core/F004(2026-08-25 第三輪,spec-gaps G17):檔案層 frontmatter 的
+-- | graph-core/F004(2026-08-25 第三輪,spec-gaps GAP-17):檔案層 frontmatter 的
 -- 兩半機制——`FrontExtras` / `frontExtrasOf` / `mergeFrontExtras` /
 -- `renderFrontmatterWith` / `newDocumentWith` / `updateFrontmatterExtras` /
 -- `packFrontExtras` / `NewPackFront`。
 --
--- 本檔只翻新增的那一組:Laws L40–L49(「檔案層的兩半」)與 Examples E23–E29。
+-- 本檔只翻新增的那一組:Laws LAW-40–LAW-49(「檔案層的兩半」)與 Examples EX-23–EX-29。
 -- 其餘 39 條 law 與 22 條 example 的測試早就存在且全綠,不重寫、不碰。
 --
 -- __A12 裁決帶來的特殊情況__:`updateFrontmatter` 的缺陷本體__留在原地沒有清成
--- `undefined`__(清了會炸掉十幾條與本輪無關的既有測試)。所以 L45 / L46 /
--- E24 / E26 這四條__不像其他未實作標記那樣「一定會紅」__——它們是否紅,完全
+-- `undefined`__(清了會炸掉十幾條與本輪無關的既有測試)。所以 LAW-45 / LAW-46 /
+-- EX-24 / EX-26 這四條__不像其他未實作標記那樣「一定會紅」__——它們是否紅,完全
 -- 取決於 qa 有沒有寫出真正戳到現行缺陷本體的斷言。本檔對這四條刻意__避開呼叫
 -- `frontExtrasOf` / `mergeFrontExtras` / `renderFrontmatterWith` /
 -- `newDocumentWith` / `updateFrontmatterExtras` / `packFrontExtras` 這六個
@@ -17,30 +17,30 @@
 -- `docSections`、`renderSection`、`parseDocument`、`toPack`、
 -- `decodeFrontmatter`)當斷言的觀察點,外加逐字文字比對——這樣紅燈才**只能**
 -- 歸因於 `updateFrontmatter` 現行本體的缺陷,不會被別的 `undefined` 搶著爆炸。
--- L45 另外附一條「特別地」子句的完整翻譯(呼叫 `newDocumentWith` /
+-- LAW-45 另外附一條「特別地」子句的完整翻譯(呼叫 `newDocumentWith` /
 -- `packFrontExtras`),那一條**不在**四條特別關注清單內,紅可能是複合原因。
 --
 -- __spec 對照__:
 --
 -- @
--- L40 frontExtrasOf 的判準(對稱 L7)                        -> "L40" it
--- L41 renderFrontmatterWith 的行序列(對稱 L9)               -> "L41" it
--- L42 renderFrontmatter 是 renderFrontmatterWith 的特化(回歸)-> "L42" it
--- L43 newDocument 是 newDocumentWith 的特化                  -> "L43" it
--- L44 檔案層往返(G17 直接否證;七欄皆非預設值)               -> "L44" it
--- L45 updateFrontmatter 不吃掉專屬條目 【特別關注】          -> "L45(1/2)" / "L45(2/2)" 兩個 it
--- L46 updateFrontmatter 冪等(且冪等點仍保有 extras) 【特別關注】 -> "L46" it
--- L47 updateFrontmatterExtras 的對稱保留                     -> "L47" it
--- L48 packFrontExtras 的鍵集合與順序(對稱 L11)               -> "L48" it
--- L49 mergeFrontExtras 就是 mergeExtras(A11 的機械驗證形式)  -> "L49" it
+-- LAW-40 frontExtrasOf 的判準(對稱 LAW-7)                        -> "LAW-40" it
+-- LAW-41 renderFrontmatterWith 的行序列(對稱 LAW-9)               -> "LAW-41" it
+-- LAW-42 renderFrontmatter 是 renderFrontmatterWith 的特化(回歸)-> "LAW-42" it
+-- LAW-43 newDocument 是 newDocumentWith 的特化                  -> "LAW-43" it
+-- LAW-44 檔案層往返(GAP-17 直接否證;七欄皆非預設值)               -> "LAW-44" it
+-- LAW-45 updateFrontmatter 不吃掉專屬條目 【特別關注】          -> "LAW-45(1/2)" / "LAW-45(2/2)" 兩個 it
+-- LAW-46 updateFrontmatter 冪等(且冪等點仍保有 extras) 【特別關注】 -> "LAW-46" it
+-- LAW-47 updateFrontmatterExtras 的對稱保留                     -> "LAW-47" it
+-- LAW-48 packFrontExtras 的鍵集合與順序(對稱 LAW-11)               -> "LAW-48" it
+-- LAW-49 mergeFrontExtras 就是 mergeExtras(ASM-11 的機械驗證形式)  -> "LAW-49" it
 --
--- E23 npf 七欄逐欄等於給進去的值(含 author 巢狀子欄位)      -> "E23" it
--- E24 檔案層版的 E1(G2 在檔案層的對稱處置) 【特別關注】       -> "E24" it
--- E25 npf 全 Nothing/AiUnknown 時退化成既有路徑              -> "E25" it
--- E26 未知欄位保留 + 冪等(檔案層版的 E6) 【特別關注】         -> "E26" it
--- E27 updateFrontmatterExtras 的編輯路徑(對稱 E7)            -> "E27" it
--- E28 frontmatter YAML 壞掉時的例外路徑(對稱 updateSection)  -> "E28" it
--- E29 mergeFrontExtras 沒有第二份實作(A11 的機械驗證)        -> "E29" it
+-- EX-23 npf 七欄逐欄等於給進去的值(含 author 巢狀子欄位)      -> "EX-23" it
+-- EX-24 檔案層版的 EX-1(GAP-2 在檔案層的對稱處置) 【特別關注】       -> "EX-24" it
+-- EX-25 npf 全 Nothing/AiUnknown 時退化成既有路徑              -> "EX-25" it
+-- EX-26 未知欄位保留 + 冪等(檔案層版的 EX-6) 【特別關注】         -> "EX-26" it
+-- EX-27 updateFrontmatterExtras 的編輯路徑(對稱 EX-7)            -> "EX-27" it
+-- EX-28 frontmatter YAML 壞掉時的例外路徑(對稱 updateSection)  -> "EX-28" it
+-- EX-29 mergeFrontExtras 沒有第二份實作(ASM-11 的機械驗證)        -> "EX-29" it
 -- @
 module Aapms.Md.FrontExtrasSpec (spec) where
 
@@ -86,7 +86,7 @@ genFrontExtrasSubset = do
   shuffled <- Gen.shuffle chosen
   pure (FrontExtras (MetaExtras [k <> ": v_" <> k | k <- shuffled]))
 
--- | L44 / L45(2/2) 的 @m@ 前提:'metaType' 是 @asset-pack@、'metaId' 前綴為 'PPck'。
+-- | LAW-44 / LAW-45(2/2) 的 @m@ 前提:'metaType' 是 @asset-pack@、'metaId' 前綴為 'PPck'。
 genPackMeta :: Gen Meta
 genPackMeta = do
   m <- genMeta
@@ -99,7 +99,7 @@ genAuthor = Author <$> genNonEmptySafeText <*> Gen.maybe genNonEmptySafeText <*>
 genAiDisclosure :: Gen AiDisclosure
 genAiDisclosure = Gen.enumBounded
 
--- | L44 用:排除 'AiUnknown'(它是「不寫這一欄」的預設值,拿它測往返會讓
+-- | LAW-44 用:排除 'AiUnknown'(它是「不寫這一欄」的預設值,拿它測往返會讓
 -- 那一欄的斷言恆真)。
 genAiDisclosureNonDefault :: Gen AiDisclosure
 genAiDisclosureNonDefault = Gen.element [AiNone, AiAssisted, AiGenerated]
@@ -115,7 +115,7 @@ genNewPackFront =
     <*> Gen.maybe genNonEmptySafeText
     <*> genAiDisclosure
 
--- | L44 用:七欄__全部__給非預設值(六個 'Maybe' 欄位皆 'Just',
+-- | LAW-44 用:七欄__全部__給非預設值(六個 'Maybe' 欄位皆 'Just',
 -- 'npfAiDisclosure' 排除 'AiUnknown')——spec 明白警告全 'Nothing' 的輸入
 -- 不足以驗證往返(那樣兩邊都是預設值,斷言會恆真),往返 law 必須用會真正
 -- 寫出東西的輸入才驗證得到什麼。
@@ -130,9 +130,9 @@ genNewPackFrontAllSet =
     <*> (Just <$> genNonEmptySafeText)
     <*> genAiDisclosureNonDefault
 
--- | L41 用:'Meta' 的某個 'frontmatterFieldOrder' 鍵貢獻幾行。'Meta' 沒有
+-- | LAW-41 用:'Meta' 的某個 'frontmatterFieldOrder' 鍵貢獻幾行。'Meta' 沒有
 -- 'Maybe' 包裝(除了個別欄位型別本身是 'Maybe'),每個欄位__一律輸出一行__
--- (L30 已證實、且仍是回歸 law),只有 @links@ 依 spec 原文是
+-- (LAW-30 已證實、且仍是回歸 law),只有 @links@ 依 spec 原文是
 -- @1 + length metaLinks@。
 frontFieldLineCount :: Meta -> Text -> Int
 frontFieldLineCount Meta {..} k = case k of
@@ -144,7 +144,7 @@ frontFieldLineCount Meta {..} k = case k of
 splitOnLE :: LineEnding -> Text -> [Text]
 splitOnLE le = filter (not . T.null) . T.splitOn (renderLineEnding le)
 
--- | L40 用:標記一行是「屬於 'Meta' 的欄位」還是「檔案層專屬條目」,只生成
+-- | LAW-40 用:標記一行是「屬於 'Meta' 的欄位」還是「檔案層專屬條目」,只生成
 -- __單行__條目(與 "Aapms.Md.Gens" 檔頭說明的節層限縮同一個理由)。
 data TaggedLine = MetaLine Text | ExtraLine Text
   deriving stock (Show)
@@ -161,7 +161,7 @@ genFrontTaggedLines = Gen.list (Range.linear 0 6) (Gen.choice [genMetaLine, genE
       v <- genNonEmptySafeText
       pure (ExtraLine (k <> ": " <> v))
 
--- | L40 用:由標記行直接組一個 'Document'(不經過 'parseDocument'——'frontExtrasOf'
+-- | LAW-40 用:由標記行直接組一個 'Document'(不經過 'parseDocument'——'frontExtrasOf'
 -- 是純函式,'docFrontRaw' 是它唯一需要的欄位)。'docFrontRaw' 的定義是「不含
 -- @---@ 界線本身、含其行尾字元」,所以第一個字元是開頭界線的行尾。
 buildFrontDoc :: [TaggedLine] -> Document
@@ -178,15 +178,15 @@ buildFrontDoc tls =
     tlText (MetaLine t) = t
     tlText (ExtraLine t) = t
 
--- E23 / E24 / E25 / E27 共用的一份最小合法 pack.md 'Meta'(asset-pack 型別、
--- PPck 前綴,對稱 L44 的前提)。
+-- EX-23 / EX-24 / EX-25 / EX-27 共用的一份最小合法 pack.md 'Meta'(asset-pack 型別、
+-- PPck 前綴,對稱 LAW-44 的前提)。
 e23Meta :: Meta
 e23Meta =
   Meta
     { metaId = idOf "pck-0000e023"
     , metaVault = vaultOf "liftgame-assets"
     , metaType = typeOf "asset-pack"
-    , metaTitle = "E23 pack"
+    , metaTitle = "EX-23 pack"
     , metaSummary = "測試用"
     , metaTags = []
     , metaStatus = Canon
@@ -210,8 +210,8 @@ e23Npf =
     (Just "https://kenney.nl/assets/ui-pack")
     AiNone
 
--- | E26 用:主題檔 frontmatter 含未知(型別註冊表宣告的自訂)頂層欄位
--- @battle_power: 9000@,與節層 E6 同一個理由(檔案層版)。
+-- | EX-26 用:主題檔 frontmatter 含未知(型別註冊表宣告的自訂)頂層欄位
+-- @battle_power: 9000@,與節層 EX-6 同一個理由(檔案層版)。
 e26TopicMd :: Text
 e26TopicMd =
   T.unlines
@@ -219,7 +219,7 @@ e26TopicMd =
     , "id: ent-0000e026"
     , "vault: liftgame"
     , "type: character"
-    , "title: E26 測試"
+    , "title: EX-26 測試"
     , "summary: 測試用"
     , "status: canon"
     , "source: human"
@@ -234,8 +234,8 @@ e26TopicMd =
 
 spec :: Spec
 spec = do
-  describe "graph-core/F004(2026-08-25 第三輪,G17):檔案層 extras Laws(L40-L49)" $ do
-    it "L40: frontExtrasOf 恰好取出鍵不在 frontmatterFieldOrder 的頂層條目,逐字、順序不變" $
+  describe "graph-core/F004(2026-08-25 第三輪,GAP-17):檔案層 extras Laws(LAW-40-LAW-49)" $ do
+    it "LAW-40: frontExtrasOf 恰好取出鍵不在 frontmatterFieldOrder 的頂層條目,逐字、順序不變" $
       hedgehog $ do
         tls <- forAll genFrontTaggedLines
         let d = buildFrontDoc tls
@@ -247,7 +247,7 @@ spec = do
               [T.takeWhile (/= ':') l | l <- extraLines (unFrontExtras (frontExtrasOf d))]
           )
 
-    it "L41: renderFrontmatterWith 的行序列 = F(依 frontmatterFieldOrder)+ lines fx 尾段" $
+    it "LAW-41: renderFrontmatterWith 的行序列 = F(依 frontmatterFieldOrder)+ lines fx 尾段" $
       hedgehog $ do
         m <- forAll genMeta
         fx <- forAll genFrontExtrasSubset
@@ -259,20 +259,20 @@ spec = do
         tailLines === extraLs
         length fLines === sum [frontFieldLineCount m k | k <- frontmatterFieldOrder]
 
-    it "L42(回歸): renderFrontmatterWith m emptyFront le 與 renderFrontmatter m le 逐位元組相同" $
+    it "LAW-42(回歸): renderFrontmatterWith m emptyFront le 與 renderFrontmatter m le 逐位元組相同" $
       hedgehog $ do
         m <- forAll genMeta
         le <- forAll genLineEnding
         renderFrontmatterWith m emptyFront le === renderFrontmatter m le
 
-    it "L43: newDocumentWith k m emptyFront b == newDocument k m b" $
+    it "LAW-43: newDocumentWith k m emptyFront b == newDocument k m b" $
       hedgehog $ do
         k <- forAll (Gen.element [TopicDoc, LevelDoc, PackDoc, LicenseDoc])
         m <- forAll genMeta
         b <- forAll genSafeText
         newDocumentWith k m emptyFront b === newDocument k m b
 
-    it "L44(G17 直接否證): newDocumentWith 帶 packFrontExtras npf,寫出去再讀回來七欄逐欄相等(npf 七欄皆非預設值)" $
+    it "LAW-44(GAP-17 直接否證): newDocumentWith 帶 packFrontExtras npf,寫出去再讀回來七欄逐欄相等(npf 七欄皆非預設值)" $
       hedgehog $ do
         m <- forAll genPackMeta
         npf <- forAll genNewPackFrontAllSet
@@ -289,12 +289,12 @@ spec = do
             pckSourceUrl pck === npfSourceUrl npf
             pckAiDisclosure pck === npfAiDisclosure npf
 
-    -- 【特別關注】L45(1/2):只用 updateFrontmatter + 純文字/toPack 觀察,
+    -- 【特別關注】LAW-45(1/2):只用 updateFrontmatter + 純文字/toPack 觀察,
     -- 不呼叫本輪任何一個新 undefined 函式——紅只能歸因於 updateFrontmatter
     -- 現行本體。packMd 本來就有 vendor/archive/sha256/license 四個檔案層
     -- extras(既有 fixture,已被 "Aapms.Md.ParsePackSpec" 證實可正確讀回),
     -- 是這條律最直接的證人。
-    it "L45(1/2,對著現行缺陷本體): updateFrontmatter 不吃掉檔案層專屬條目(以 packMd 既有的 4 個 extras 為證人)" $
+    it "LAW-45(1/2,對著現行缺陷本體): updateFrontmatter 不吃掉檔案層專屬條目(以 packMd 既有的 4 個 extras 為證人)" $
       hedgehog $ do
         m' <- forAll genMeta
         let d = docOf packMd
@@ -314,10 +314,10 @@ spec = do
                 pckSha256 pck === Just (Sha256 "3c1f9a2b")
                 pckLicense pck === Just (Ref Nothing (idOf "lic-00000001"))
 
-    -- L45(2/2):spec「特別地」子句的完整翻譯——呼叫 newDocumentWith /
+    -- LAW-45(2/2):spec「特別地」子句的完整翻譯——呼叫 newDocumentWith /
     -- packFrontExtras,不在四條特別關注清單內,紅可能是複合原因(那兩個
     -- 本輪也是 undefined)。
-    it "L45(2/2,特別地子句): 對 L44 的 d0 做 updateFrontmatter 後再 toPack,七欄仍等於 npf" $
+    it "LAW-45(2/2,特別地子句): 對 LAW-44 的 d0 做 updateFrontmatter 後再 toPack,七欄仍等於 npf" $
       hedgehog $ do
         m <- forAll genPackMeta
         npf <- forAll genNewPackFrontAllSet
@@ -339,14 +339,14 @@ spec = do
                 pckSourceUrl pck === npfSourceUrl npf
                 pckAiDisclosure pck === npfAiDisclosure npf
 
-    -- 【特別關注】L46:同樣只用 updateFrontmatter + 純文字觀察。冪等單獨測
+    -- 【特別關注】LAW-46:同樣只用 updateFrontmatter + 純文字觀察。冪等單獨測
     -- (兩次呼叫的 renderDocument 相同)__不足以__戳到這個缺陷——現行本體對
     -- 「第一次已經吃掉 extras 的文件」再呼叫一次一樣是 no-op,兩次呼叫結果會
     -- 剛好相等,冪等律本身反而會在缺陷本體上「意外通過」。所以本測試__額外__
-    -- 斷言冪等點上 extras 仍在,這才是 L46 括號原文
+    -- 斷言冪等點上 extras 仍在,這才是 LAW-46 括號原文
     -- (「既有檔案的 frontmatter 行序只重排一次」)真正要保證的事——重排的前提
     -- 是那些行還在。
-    it "L46(對著現行缺陷本體): updateFrontmatter id 冪等,且冪等點仍保有檔案層專屬條目" $
+    it "LAW-46(對著現行缺陷本體): updateFrontmatter id 冪等,且冪等點仍保有檔案層專屬條目" $
       hedgehog $ do
         let d = docOf packMd
         case (updateFrontmatter id d, updateFrontmatter id d >>= updateFrontmatter id) of
@@ -360,7 +360,7 @@ spec = do
           (Left e, _) -> footnote (T.unpack (renderMdError e)) >> failure
           (_, Left e) -> footnote (T.unpack (renderMdError e)) >> failure
 
-    it "L47: updateFrontmatterExtras 保留 Meta/docPreamble/各節,良型輸出時 frontExtrasOf 符合 g" $
+    it "LAW-47: updateFrontmatterExtras 保留 Meta/docPreamble/各節,良型輸出時 frontExtrasOf 符合 g" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         patch <- forAll genFrontExtrasSubset
@@ -373,7 +373,7 @@ spec = do
             decodeFrontmatter (docFrontRaw d') === decodeFrontmatter (docFrontRaw d)
             frontExtrasOf d' === g (frontExtrasOf d)
 
-    it "L48: packFrontExtras 的鍵依序取自七個欄位、與 frontmatterFieldOrder 不相交,Nothing/AiUnknown 不產生行" $
+    it "LAW-48: packFrontExtras 的鍵依序取自七個欄位、與 frontmatterFieldOrder 不相交,Nothing/AiUnknown 不產生行" $
       hedgehog $ do
         npf <- forAll genNewPackFront
         let FrontExtras (MetaExtras ls) = packFrontExtras npf
@@ -391,14 +391,14 @@ spec = do
         keys === expectedKeys
         assert (all (`notElem` frontmatterFieldOrder) keys)
 
-    it "L49: mergeFrontExtras a b == FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))" $
+    it "LAW-49: mergeFrontExtras a b == FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))" $
       hedgehog $ do
         a <- forAll genFrontExtrasSubset
         b <- forAll genFrontExtrasSubset
         mergeFrontExtras a b === FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))
 
-  describe "graph-core/F004(2026-08-25 第三輪,G17):檔案層 extras Examples(E23-E29)" $ do
-    it "E23: newDocumentWith 帶 packFrontExtras npf,七欄逐欄等於給進去的值(含 author 巢狀子欄位)" $ do
+  describe "graph-core/F004(2026-08-25 第三輪,GAP-17):檔案層 extras Examples(EX-23-EX-29)" $ do
+    it "EX-23: newDocumentWith 帶 packFrontExtras npf,七欄逐欄等於給進去的值(含 author 巢狀子欄位)" $ do
       let d = newDocumentWith PackDoc e23Meta (packFrontExtras e23Npf) "素材包說明"
       case parseDocument (renderDocument d) >>= toPack of
         Left e -> expectationFailure (T.unpack (renderMdError e))
@@ -411,12 +411,12 @@ spec = do
           pckSourceUrl pck `shouldBe` Just "https://kenney.nl/assets/ui-pack"
           pckAiDisclosure pck `shouldBe` AiNone
 
-    -- 【特別關注】E24:手寫一份已經含全部七個 pack 專屬欄位的 pack.md(不經過
+    -- 【特別關注】EX-24:手寫一份已經含全部七個 pack 專屬欄位的 pack.md(不經過
     -- newDocumentWith / packFrontExtras),author 那一行借真正的
     -- ToJSON Author 實例產生(spec「使用到的既有介面」表明講的做法:借 aeson
     -- 編碼器,不在測試裡另猜一套格式),只呼叫 updateFrontmatter + toPack /
     -- 純文字比對——紅只能歸因於 updateFrontmatter 現行本體。
-    it "E24(對著現行缺陷本體): 檔案層版的 E1 — updateFrontmatter 之後七個 pack 專屬欄位逐字保留" $ do
+    it "EX-24(對著現行缺陷本體): 檔案層版的 EX-1 — updateFrontmatter 之後七個 pack 專屬欄位逐字保留" $ do
       let licId = idOf "lic-0000e024"
           authorLine = "author: " <> TL.toStrict (TLE.decodeUtf8 (encode (Author "Kenney" (Just "https://kenney.nl") Nothing)))
           src =
@@ -425,7 +425,7 @@ spec = do
               , "id: pck-0000e024"
               , "vault: liftgame-assets"
               , "type: asset-pack"
-              , "title: E24 pack"
+              , "title: EX-24 pack"
               , "vendor: Kenney"
               , "archive: ui-pack.zip"
               , "sha256: deadbeef1234"
@@ -465,15 +465,15 @@ spec = do
               pckAiDisclosure pck `shouldBe` AiNone
               metaSummary (pckMeta pck) `shouldBe` "after"
 
-    it "E25: npf 七欄全 Nothing/AiUnknown 時,packFrontExtras 是空 extras,newDocumentWith 與 newDocument 逐位元組相同" $ do
+    it "EX-25: npf 七欄全 Nothing/AiUnknown 時,packFrontExtras 是空 extras,newDocumentWith 與 newDocument 逐位元組相同" $ do
       let npf = NewPackFront Nothing Nothing Nothing Nothing Nothing Nothing AiUnknown
       packFrontExtras npf `shouldBe` FrontExtras (MetaExtras [])
       newDocumentWith PackDoc e23Meta (packFrontExtras npf) "body"
         `shouldBe` newDocument PackDoc e23Meta "body"
 
-    -- 【特別關注】E26:手寫主題檔 fixture(含未知欄位 battle_power,定義見檔尾
+    -- 【特別關注】EX-26:手寫主題檔 fixture(含未知欄位 battle_power,定義見檔尾
     -- 'e26TopicMd'),只呼叫 updateFrontmatter + 純文字比對,兩次呼叫確認冪等。
-    it "E26(對著現行缺陷本體): 檔案層版的 E6 — 未知欄位逐字保留,再呼叫一次冪等" $ do
+    it "EX-26(對著現行缺陷本體): 檔案層版的 EX-6 — 未知欄位逐字保留,再呼叫一次冪等" $ do
       let d = docOf e26TopicMd
       case updateFrontmatter (\mm -> mm {metaStatus = Canon}) d of
         Left e -> expectationFailure (T.unpack (renderMdError e))
@@ -484,7 +484,7 @@ spec = do
             Left e -> expectationFailure (T.unpack (renderMdError e))
             Right d2 -> renderDocument d2 `shouldBe` out1
 
-    it "E27: updateFrontmatterExtras (mergeFrontExtras (packFrontExtras npf')) 只換 license,其餘不變" $ do
+    it "EX-27: updateFrontmatterExtras (mergeFrontExtras (packFrontExtras npf')) 只換 license,其餘不變" $ do
       let newLic = idOf "lic-0000000b"
           npf' = e23Npf {npfLicense = Just (Ref Nothing newLic)}
           d0 = newDocumentWith PackDoc e23Meta (packFrontExtras e23Npf) "素材包說明"
@@ -503,7 +503,7 @@ spec = do
             docPreamble d' `shouldBe` docPreamble d
             map renderSection (docSections d') `shouldBe` map renderSection (docSections d)
 
-    it "E28: frontmatter 的 YAML 壞掉時 updateFrontmatterExtras 回 Left(FrontmatterYaml),docFrontRaw 不覆蓋" $ do
+    it "EX-28: frontmatter 的 YAML 壞掉時 updateFrontmatterExtras 回 Left(FrontmatterYaml),docFrontRaw 不覆蓋" $ do
       let d =
             Document
               { docFrontRaw = "\nid: ent-0001\ntitle: [unclosed\n"
@@ -519,7 +519,7 @@ spec = do
           FrontmatterYaml _ -> pure ()
           other -> expectationFailure ("預期 FrontmatterYaml,得到 " <> show other)
 
-    it "E29: mergeFrontExtras 與 mergeExtras 的結果相等(wrapper 沒有第二份實作)" $ do
+    it "EX-29: mergeFrontExtras 與 mergeExtras 的結果相等(wrapper 沒有第二份實作)" $ do
       let a = FrontExtras (MetaExtras ["battle_power: 9000", "custom_a: x"])
           b = FrontExtras (MetaExtras ["custom_a: y", "custom_b: z"])
       mergeFrontExtras a b `shouldBe` FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b))

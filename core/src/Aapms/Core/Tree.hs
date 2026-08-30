@@ -186,7 +186,7 @@ entitiesIn t = nub (concatMap nodEntities (preorder t))
 
 -- | 列出所有 @convergesTo@ 標註,以及它是否指向本 Level 內存在的 Node。
 --
--- ADR-004 明說合流是標註不是結構,因此只能靠檢查發現懸空——這是 P2
+-- ADR-004 明說合流是標註不是結構,因此只能靠檢查發現懸空——這是 S2
 -- @aapms level lint@ 的資料來源。跨 Vault 的 target 一律視為不存在,
 -- 因為它不可能指向本 Level 內的 Node。
 convergenceReport :: NodeTree -> [(Id, Ref, Bool)]

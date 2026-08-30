@@ -3,22 +3,22 @@
 -- "Aapms.Store.CreateSpec" 之外收在這裡)。__命名避開既有的 F006 "Aapms.Store.NodeSpec"__。
 --
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@,
--- 2026-08-25 第二輪裁決後的版本:G13 改寫 L20、fixture 依編排者歸因修正)
+-- 2026-08-25 第二輪裁決後的版本:GAP-13 改寫 LAW-20、fixture 依編排者歸因修正)
 --
 -- @
--- L20  sanitizeFileName 的值域(G13 裁決後改寫)          -> prop_L20 / test_E11 / test_E19 / test_E20 / test_E21
--- L21  headingDepthFor                                   -> prop_L21
--- L22  subtreeIds 與 subtreeAfter 一致                   -> prop_L22
--- L23  validateLevelDoc 等價於兩段驗證                    -> prop_L23
--- L24  isRootNode 的三種結果(2026-08-25 G9 裁決補入)     -> prop_L24 / test_E18
--- E11  sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91"    -> test_E11
--- E12  UnderParent 正常路徑(headingDepthFor 部分)        -> 見 Aapms.Store.CreateSpec E12
--- E13  UnderParent 父節點不存在(headingDepthFor 部分)    -> 見 Aapms.Store.CreateSpec E13(此檔另以 headingDepthFor 直接驗證)
--- E14  UnderParent 父節點已達六級(headingDepthFor 部分)  -> 見 Aapms.Store.CreateSpec E14(此檔另以 headingDepthFor 直接驗證)
--- E18  isRootNode 三分支各一(根/非根/不存在)             -> test_E18
--- E19  sanitizeFileName 全空白\/全句點 → fb              -> test_E19
--- E20  sanitizeFileName 全非法字元 → 對應數量的 "-"       -> test_E20
--- E21  sanitizeFileName 合法字元原樣回傳(含詞中空白)      -> test_E21
+-- LAW-20  sanitizeFileName 的值域(GAP-13 裁決後改寫)          -> prop_LAW20 / test_EX11 / test_EX19 / test_EX20 / test_EX21
+-- LAW-21  headingDepthFor                                   -> prop_LAW21
+-- LAW-22  subtreeIds 與 subtreeAfter 一致                   -> prop_LAW22
+-- LAW-23  validateLevelDoc 等價於兩段驗證                    -> prop_LAW23
+-- LAW-24  isRootNode 的三種結果(2026-08-25 GAP-9 裁決補入)     -> prop_LAW24 / test_EX18
+-- EX-11  sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91"    -> test_EX11
+-- EX-12  UnderParent 正常路徑(headingDepthFor 部分)        -> 見 Aapms.Store.CreateSpec EX-12
+-- EX-13  UnderParent 父節點不存在(headingDepthFor 部分)    -> 見 Aapms.Store.CreateSpec EX-13(此檔另以 headingDepthFor 直接驗證)
+-- EX-14  UnderParent 父節點已達六級(headingDepthFor 部分)  -> 見 Aapms.Store.CreateSpec EX-14(此檔另以 headingDepthFor 直接驗證)
+-- EX-18  isRootNode 三分支各一(根/非根/不存在)             -> test_EX18
+-- EX-19  sanitizeFileName 全空白\/全句點 → fb              -> test_EX19
+-- EX-20  sanitizeFileName 全非法字元 → 對應數量的 "-"       -> test_EX20
+-- EX-21  sanitizeFileName 合法字元原樣回傳(含詞中空白)      -> test_EX21
 -- @
 --
 -- __編排者歸因(第二輪)__:'goodLevelMd' 原本從三級標題直接跳到六級(@HeadingSkip 3 6@),
@@ -26,9 +26,9 @@
 -- 序幕(2)→開場(3)→深一(4)→深二(5)→最深(6)、收束(3,與開場同層的兄弟,在整條深鏈之後)
 -- 逐級鋪下去。
 --
--- 'Aapms.Store.Node.isRootNode' 曾經__沒有獨立的 Law 或 Example__(spec-gaps G9),
--- 2026-08-25 開發者裁決補上 L24 與 E18:id 不在文件裡時回 @Left (SectionMissing path id)@,
--- 與 'headingDepthFor'(L21)對稱——「查無此節」與「這個節不是根」是兩件不同的事。
+-- 'Aapms.Store.Node.isRootNode' 曾經__沒有獨立的 Law 或 Example__(spec-gaps GAP-9),
+-- 2026-08-25 開發者裁決補上 LAW-24 與 EX-18:id 不在文件裡時回 @Left (SectionMissing path id)@,
+-- 與 'headingDepthFor'(LAW-21)對稱——「查無此節」與「這個節不是根」是兩件不同的事。
 module Aapms.Store.NodeSpec2 (spec) where
 
 import Control.Monad (forM_)
@@ -59,7 +59,7 @@ levelFilePath = "levels/node-spec2-fixture.md"
 --   └ 開場(3)
 --       └ 深一(4)
 --           └ 深二(5)
---               └ 最深(6,覆蓋 L21 的深度上限邊界)
+--               └ 最深(6,覆蓋 LAW-21 的深度上限邊界)
 -- 收束(3,與開場同層的兄弟,整條深鏈之後)
 -- @
 goodLevelMd :: Text
@@ -164,7 +164,7 @@ multiRootDoc = case parseDocument multiRootLevelMd of
 
 spec :: Spec
 spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileName" $ do
-  describe "L21: headingDepthFor" $ do
+  describe "LAW-21: headingDepthFor" $ do
     it "對 goodLevelMd 裡每一個實際存在的節點,結果等於 secLevel + 1(或超過六級時回 NodeDepthExceeded)" $
       forM_ (docSections goodDoc) $ \sec -> do
         let expectedLevel = secLevel sec + 1
@@ -177,11 +177,11 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
       let missing = idOf "nod-99999999"
       headingDepthFor levelFilePath goodDoc missing `shouldBe` Left (SectionMissing levelFilePath missing)
 
-    it "E14 對應:六級標題(最深)底下再插入,回 NodeDepthExceeded _ 7" $
+    it "EX-14 對應:六級標題(最深)底下再插入,回 NodeDepthExceeded _ 7" $
       headingDepthFor levelFilePath goodDoc (idOf "nod-90000004")
         `shouldBe` Left (NodeDepthExceeded (idOf "nod-90000004") 7)
 
-  describe "L22: subtreeIds 與 subtreeAfter 一致" $ do
+  describe "LAW-22: subtreeIds 與 subtreeAfter 一致" $ do
     it "對文件裡每一個實際節點與一個不存在的 id 都滿足 subtreeIds == i : map secId (subtreeAfter …),且子樹每節 secLevel 都嚴格大於 i 的 secLevel" $ do
       let ids = map secId (docSections goodDoc) ++ [idOf "nod-99999999"]
       forM_ ids $ \i -> do
@@ -202,7 +202,7 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
     it "收束(3級,檔尾)的子樹為空" $
       subtreeAfter goodDoc (idOf "nod-90000003") `shouldBe` []
 
-  describe "L23: validateLevelDoc 等價於「toLevel 成功且 buildTree 回 Right」" $ do
+  describe "LAW-23: validateLevelDoc 等價於「toLevel 成功且 buildTree 回 Right」" $ do
     it "合法的 Level 檔:validateLevelDoc 回 Right ()" $
       validateLevelDoc levelFilePath goodDoc `shouldBe` Right ()
 
@@ -211,51 +211,51 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
         Left (TreeInvalidOnWrite fp _) -> fp `shouldBe` "levels/node-spec2-multiroot.md"
         other -> expectationFailure ("預期 Left (TreeInvalidOnWrite _ _),得到 " <> show other)
 
-  describe "L24 / E18: isRootNode 的三種結果(2026-08-25 G9 裁決)" $ do
-    it "E18 之一:id 是根(序幕,文件裡第一個節)→ Right True" $
+  describe "LAW-24 / EX-18: isRootNode 的三種結果(2026-08-25 GAP-9 裁決)" $ do
+    it "EX-18 之一:id 是根(序幕,文件裡第一個節)→ Right True" $
       isRootNode levelFilePath goodDoc (idOf "nod-90000001") `shouldBe` Right True
 
-    it "E18 之二:id 存在但不是根(開場)→ Right False" $
+    it "EX-18 之二:id 存在但不是根(開場)→ Right False" $
       isRootNode levelFilePath goodDoc (idOf "nod-90000002") `shouldBe` Right False
 
-    it "E18 之三:id 不在文件裡 → Left (SectionMissing path id),不是 Right False(與 headingDepthFor 對稱)" $ do
+    it "EX-18 之三:id 不在文件裡 → Left (SectionMissing path id),不是 Right False(與 headingDepthFor 對稱)" $ do
       let missing = idOf "nod-99999999"
       isRootNode levelFilePath goodDoc missing `shouldBe` Left (SectionMissing levelFilePath missing)
 
-    it "L24:對文件裡每一個實際節點,isRootNode 恰為 Right (secId == 該檔第一個節的 id)" $
+    it "LAW-24:對文件裡每一個實際節點,isRootNode 恰為 Right (secId == 該檔第一個節的 id)" $
       forM_ (docSections goodDoc) $ \sec -> do
         let firstId = secId (head (docSections goodDoc))
             expected = secId sec == firstId
         isRootNode levelFilePath goodDoc (secId sec) `shouldBe` Right expected
 
-  describe "L20 / E11 / E19 / E20 / E21: sanitizeFileName(2026-08-25 G13 裁決:替換策略,清空定義收窄)" $ do
-    it "E11: sanitizeFileName \"第一章: 序幕 \" \"ent-7f3b2a91\" == \"第一章- 序幕\"" $
+  describe "LAW-20 / EX-11 / EX-19 / EX-20 / EX-21: sanitizeFileName(2026-08-25 GAP-13 裁決:替換策略,清空定義收窄)" $ do
+    it "EX-11: sanitizeFileName \"第一章: 序幕 \" \"ent-7f3b2a91\" == \"第一章- 序幕\"" $
       sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91" `shouldBe` "第一章- 序幕"
 
-    it "E19: 全空白 / 全句點的 t 才算被清空 → 回 fb" $ do
+    it "EX-19: 全空白 / 全句點的 t 才算被清空 → 回 fb" $ do
       sanitizeFileName "   " "ent-7f3b2a91" `shouldBe` "ent-7f3b2a91"
       sanitizeFileName "..." "ent-7f3b2a91" `shouldBe` "ent-7f3b2a91"
 
-    it "E20: 全非法字元 → 對應數量的 \"-\"(不是 fb;G13 裁決的分岔點)" $ do
+    it "EX-20: 全非法字元 → 對應數量的 \"-\"(不是 fb;GAP-13 裁決的分岔點)" $ do
       sanitizeFileName "<" "ent-7f3b2a91" `shouldBe` "-"
       sanitizeFileName "<>?" "ent-7f3b2a91" `shouldBe` "---"
 
-    it "E21: 只含合法字元、無頭尾空白/句點時逐字回傳(含詞中空白)" $
+    it "EX-21: 只含合法字元、無頭尾空白/句點時逐字回傳(含詞中空白)" $
       sanitizeFileName "琳達 的筆記" "ent-7f3b2a91" `shouldBe` "琳達 的筆記"
 
-    it "L20 第 2 條:t 的每個字元都是空白或句點時(機械定義的「被清空」),結果等於 fb" $
+    it "LAW-20 第 2 條:t 的每個字元都是空白或句點時(機械定義的「被清空」),結果等於 fb" $
       hedgehog $ do
         fb <- forAll genFallback
         blanked <- forAll (Gen.text (Range.linear 0 10) genBlankOrDot)
         sanitizeFileName blanked fb === fb
 
-    it "L20 第 4 條:t 只含合法字元且無頭尾空白/句點時結果等於 t" $
+    it "LAW-20 第 4 條:t 只含合法字元且無頭尾空白/句點時結果等於 t" $
       hedgehog $ do
         fb <- forAll genFallback
         t <- forAll genCleanName
         sanitizeFileName t fb === t
 
-    it "L20 第 1 條:對任意 t 與合法 fb,結果不含非法字元/控制字元,且不以空白或句點開頭/結尾" $
+    it "LAW-20 第 1 條:對任意 t 與合法 fb,結果不含非法字元/控制字元,且不以空白或句點開頭/結尾" $
       hedgehog $ do
         fb <- forAll genFallback
         t <- forAll genMixedName
@@ -268,7 +268,7 @@ spec = describe "graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileN
             assert (T.last r /= ' ' && T.last r /= '.')
           else success
 
-    it "L20 第 3 條:t 只由非法字元組成時,r 是對應數量的 \"-\"(不算被清空,不回 fb)" $
+    it "LAW-20 第 3 條:t 只由非法字元組成時,r 是對應數量的 \"-\"(不算被清空,不回 fb)" $
       hedgehog $ do
         fb <- forAll genFallback
         n <- forAll (Gen.int (Range.linear 1 8))
@@ -284,7 +284,7 @@ illegalChars = "<>:\"/\\|?*"
 genFallback :: Gen Text
 genFallback = Gen.text (Range.linear 1 12) (Gen.element (['a' .. 'z'] ++ ['0' .. '9']))
 
--- | L20 第 2 條「被清空」的機械定義:__只__由空白或句點組成(G13 裁決收窄,不再含非法字元)。
+-- | LAW-20 第 2 條「被清空」的機械定義:__只__由空白或句點組成(GAP-13 裁決收窄,不再含非法字元)。
 genBlankOrDot :: Gen Char
 genBlankOrDot = Gen.element (" ." :: String)
 

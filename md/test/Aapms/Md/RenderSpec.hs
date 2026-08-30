@@ -1,6 +1,6 @@
--- | T8(舊編號,沿用):逐字寫回。位元組相等是結構上的保證(ADR-010),這裡拿
--- 風格各異的檔案把它釘死;T2:純量欄位印出的是文字不是 newtype 的 derived
--- 'Show';T7:'newDocument'(取代 @mkDocument@);T15:四種文件的完整 roundtrip
+-- | STEP-8(舊編號,沿用):逐字寫回。位元組相等是結構上的保證(ADR-010),這裡拿
+-- 風格各異的檔案把它釘死;STEP-2:純量欄位印出的是文字不是 newtype 的 derived
+-- 'Show';STEP-7:'newDocument'(取代 @mkDocument@);STEP-15:四種文件的完整 roundtrip
 -- (graph-core/F004)。
 module Aapms.Md.RenderSpec (spec) where
 
@@ -13,7 +13,7 @@ import Aapms.Md
 import Aapms.Md.Fixtures
 import Test.Hspec
 
--- | entity-graph-core/F005 T1 的樣本:每一欄都有值的完整 'Meta'。
+-- | entity-graph-core/F005 STEP-1 的樣本:每一欄都有值的完整 'Meta'。
 fullMeta :: Meta
 fullMeta =
   Meta
@@ -128,7 +128,7 @@ mixedEndingMd =
     <> "\n"
     <> crlf "\n## 一節 {#ent-000a}\n\n```meta\nsummary: 這一段是 CRLF\n```\n\n正文第一段。\n\n正文第二段。\n"
 
--- | T15:四種文件各一份風格各異的樣本 + 兩份原有的邊界情形。
+-- | STEP-15:四種文件各一份風格各異的樣本 + 兩份原有的邊界情形。
 samples :: [(String, Text)]
 samples =
   [ ("琳達範例檔(LF、檔尾有換行,主題檔)", lindaMd)
@@ -149,7 +149,7 @@ samples =
 
 spec :: Spec
 spec = do
-  describe "T15:renderDocument . parseDocument == id(位元組相等,四種文件)" $
+  describe "STEP-15:renderDocument . parseDocument == id(位元組相等,四種文件)" $
     mapM_
       ( \(name, src) ->
           it name $
@@ -182,7 +182,7 @@ spec = do
       renderDocument d `shouldSatisfy` T.isInfixOf "updated: 2026-08-16\n---\n"
       renderDocument d `shouldSatisfy` T.isInfixOf "這一段是 CRLF\r\n"
 
-  -- entity-graph-core/F005 T1:renderFrontmatter 依固定順序輸出且 newDocument 可被 parseDocument 讀回
+  -- entity-graph-core/F005 STEP-1:renderFrontmatter 依固定順序輸出且 newDocument 可被 parseDocument 讀回
   describe "renderFrontmatter" $ do
     it "欄位順序等於 frontmatterFieldOrder" $
       map (T.takeWhile (/= ':')) (T.lines (renderFrontmatter emptyishMeta LF))
@@ -220,7 +220,7 @@ spec = do
       ls `shouldContain` ["timeline: null"]
       length ls `shouldBe` length frontmatterFieldOrder
 
-    -- T2:type / vault / revision 是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
+    -- STEP-2:type / vault / revision 是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
     it "type / vault / revision 是純量文字,不是 newtype 的 derived Show" $ do
       let ls = T.lines (renderFrontmatter fullMeta LF)
       ls `shouldContain` ["type: character"]
@@ -245,7 +245,7 @@ spec = do
     it "不含 --- 界線(那兩行由 renderDocument 重生)" $
       renderFrontmatter fullMeta LF `shouldSatisfy` (not . T.isInfixOf "---")
 
-  -- T7:newDocument(取代 mkDocument)
+  -- STEP-7:newDocument(取代 mkDocument)
   describe "newDocument" $ do
     it "產出的文字經 parseDocument → toTopic 後 Meta 與輸入相等" $ do
       let out = renderDocument (newDocument TopicDoc fullMeta "# 琳達\n\n角色主體的概述。\n")

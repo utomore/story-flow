@@ -198,8 +198,8 @@ LAW-18 / LAW-19 / EX-18 / EX-19 **不受影響**(見 Scope)。
 
 | 測試打到的 | 預期 |
 |---|---|
-| REG-1 / R2a / REG-3 / REG-5(`initVaultAt` 的現有行為) | **綠**(現況就是對的) |
-| R2b(REG-2 打到 `initVaultAtWith` 的那一半) | **紅** —— REG-2 的法條文字涵蓋兩個入口,而 `initVaultAtWith` 是本次新增的介面 |
+| REG-1 / REG-2a / REG-3 / REG-5(`initVaultAt` 的現有行為) | **綠**(現況就是對的) |
+| REG-2b(REG-2 打到 `initVaultAtWith` 的那一半) | **紅** —— REG-2 的法條文字涵蓋兩個入口,而 `initVaultAtWith` 是本次新增的介面 |
 | REG-4(簽名逐字比對) | **綠**(骨架原文自身承載的事實) |
 | LAW-1 / LAW-2 / LAW-3 / EX-2 / EX-3 / EX-6(`initVaultAtWith`) | **紅**(骨架是 `undefined`) |
 | LAW-4 / LAW-5 / EX-5(不逸出) | **紅**(`initVaultAt` 目前會拋) |
@@ -208,7 +208,7 @@ LAW-18 / LAW-19 / EX-18 / EX-19 **不受影響**(見 Scope)。
 
 - **2026-08-30,編排者在骨架快照上驗紅綠時發現「骨架上的紅綠預期」表寫錯一列**:原表把 REG-2 整條
   標成綠,但 REG-2 的法條文字涵蓋 `initVaultAt` 與 `initVaultAtWith` **兩個入口**,後者在骨架上是
-  `undefined`,依 `spec-roles.md` 的 qa 交付判準第一列本來就該紅。qa 把 REG-2 拆成 R2a / R2b 兩條測試
+  `undefined`,依 `spec-roles.md` 的 qa 交付判準第一列本來就該紅。qa 把 REG-2 拆成 REG-2a / REG-2b 兩條測試
   是對的,測試名也標了「預期紅」;只有它回報表格那一欄標成綠(qa 回報內部不一致,測試本身正確)。
   **更正的是預測表,法條 REG-2 一個字沒動。** 快照實跑:15 examples / 10 紅 / 5 綠,**「該紅卻綠」0 條**。
 - **委派時序**:qa 與 impl 平行送出,qa 跑測試時 impl 已經填完本體,所以 qa 自己看到的是 15 條全綠、

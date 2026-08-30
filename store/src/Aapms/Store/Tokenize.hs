@@ -184,11 +184,11 @@ ftsRowOf n =
 -- 端('cjkMatchExpr')對同一段輸入只會產生其中一種,片語比對因此不會跨過
 -- unigram\/bigram 的交界。
 --
--- __這個表示法是單向的,沒有反函式__(graph-core\/F007 D6;spec-gaps G4 \/ G5):
+-- __這個表示法是單向的,沒有反函式__(graph-core\/F007 DEC-6;spec-gaps GAP-4 \/ GAP-5):
 -- 同一個字元的重複剛好落在兩個 'cjkRuns' 段的邊界上時,兩個 'cjkRuns' 不同的
 -- 輸入會給出逐字元相同的輸出,分段資訊已經遺失。所以__不要__再加一個
 -- @desegmentCjk@:需要給人看的連續文字時,一律從 @fts_tri@ 的原文取
--- (@Aapms.Store.Query@ 的 'Aapms.Store.Query.shSnippet',見 D6)。
+-- (@Aapms.Store.Query@ 的 'Aapms.Store.Query.shSnippet',見 DEC-6)。
 cjkSegment :: Text -> Text
 cjkSegment t = T.unwords (unigrams ++ bigrams)
   where

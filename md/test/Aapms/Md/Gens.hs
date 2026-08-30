@@ -121,7 +121,7 @@ genVaultId = VaultId <$> genNonEmptySafeText
 
 -- | 一般型別鍵。__不會__產生三個保留字(@level@ \/ @asset-pack@ \/
 -- @asset-license@)——那三個字面值由 'genReservedTypeKey' 專門覆蓋
--- ('Aapms.Md.DocKindLawSpec' 的 L22 用)。
+-- ('Aapms.Md.DocKindLawSpec' 的 LAW-22 用)。
 genTypeKey :: Gen TypeKey
 genTypeKey = Gen.filter (`notElem` reserved) (TypeKey <$> genNonEmptySafeText)
   where

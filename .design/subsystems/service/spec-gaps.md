@@ -31,13 +31,13 @@ parent: service
 
 ## GAP-2(F002 / qa)
 
-- 模糊點:**X19b 期待的 `viIssues` 非空是不可達的**。它要求對一個已建好索引的 vault 呼叫
+- 模糊點:**EX-19b 期待的 `viIssues` 非空是不可達的**。它要求對一個已建好索引的 vault 呼叫
   `vaultInfo` 時 `viIssues` 仍非空;但 `SchemaRebuilt` 只在該索引**檔案生命週期的第一次開啟**時
   產生,而建索引的唯一合法路徑(`openVault` + `indexFile` + `closeVault` —— F002 自己從不呼叫
   `indexFile`)**本身就是那個第一次開啟**,所以 `vaultInfo` 內部的 `handleFor` 必然是第二次開啟,
   依 LAW-22 自己的定義 `viIssues` 就該是 `[]`。
-- 卡住的項目:X19b 的 `viIssues` 斷言(X19b 的其餘部分 —— 「`vaultInfo` 不受 `--vault` 範圍拘束」
+- 卡住的項目:EX-19b 的 `viIssues` 斷言(EX-19b 的其餘部分 —— 「`vaultInfo` 不受 `--vault` 範圍拘束」
   那一半 —— 是綠的,ASM-4 的裁決有被驗到)。
-- 需要 spec 回答什麼:X19b 對 `viIssues` 的預期是否應改為「與 EX-18 同一判準:逐項等於同一個
+- 需要 spec 回答什麼:EX-19b 對 `viIssues` 的預期是否應改為「與 EX-18 同一判準:逐項等於同一個
   `Env` 的 `indexIssuesFor`,**不強制非空**」?
-- 狀態:resolved(2026-08-30 WAVE-2 仲裁,開發者裁決):**是**,改成與 EX-18 同一判準、不強制非空。LAW-22 的法條文字不動(它是對的);X19b 驗 ASM-4 裁決的那一半原樣保留
+- 狀態:resolved(2026-08-30 WAVE-2 仲裁,開發者裁決):**是**,改成與 EX-18 同一判準、不強制非空。LAW-22 的法條文字不動(它是對的);EX-19b 驗 ASM-4 裁決的那一半原樣保留

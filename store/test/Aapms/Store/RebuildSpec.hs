@@ -1,4 +1,4 @@
--- | graph-core\/F006 T6:'rebuildIndex' 兩次結果相同、內容問題不中斷整批。
+-- | graph-core\/F006 STEP-6:'rebuildIndex' 兩次結果相同、內容問題不中斷整批。
 module Aapms.Store.RebuildSpec (spec) where
 
 import Data.List (sort)
@@ -15,11 +15,11 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "graph-core/F006 rebuildIndex" $ do
-  it "T6: story vault 與 asset vault 各跑兩次 rebuildIndex,listNodes/linksFrom/childrenOf 結果相同" $ do
+  it "STEP-6: story vault 與 asset vault 各跑兩次 rebuildIndex,listNodes/linksFrom/childrenOf 結果相同" $ do
     withStoryVault (assertRebuildIdempotent (idOf "ent-00000001"))
     withAssetVault (assertRebuildIdempotent (idOf "pck-00000001"))
 
-  it "T6: fixture 混入一個解析失敗的檔案,rebuildIndex 仍把其餘檔案正確索引且回傳含該筆 IndexIssue" $
+  it "STEP-6: fixture 混入一個解析失敗的檔案,rebuildIndex 仍把其餘檔案正確索引且回傳含該筆 IndexIssue" $
     withStoryVault $ \vh -> do
       writeFiles (vhRoot vh) [("characters/broken.md", "---\nid: [nope\n---\n")]
       issues <- orDie =<< rebuildIndex vh

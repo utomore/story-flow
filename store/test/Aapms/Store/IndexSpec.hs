@@ -1,6 +1,6 @@
--- | graph-core\/F006:T3(檔案掃描)、T4(單檔索引 indexOne,經 'indexFile' 測試
--- ——兩者對單檔的行為完全一致,見 "Aapms.Store.Index" 的說明)、T5('indexFile'
--- 覆寫、'unindexFile' 級聯與冪等)、T14(fixture 健檢)。
+-- | graph-core\/F006:STEP-3(檔案掃描)、STEP-4(單檔索引 indexOne,經 'indexFile' 測試
+-- ——兩者對單檔的行為完全一致,見 "Aapms.Store.Index" 的說明)、STEP-5('indexFile'
+-- 覆寫、'unindexFile' 級聯與冪等)、STEP-14(fixture 健檢)。
 module Aapms.Store.IndexSpec (spec) where
 
 import Data.Text (Text)
@@ -20,7 +20,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "graph-core/F006 Index" $ do
-  describe "T3: vaultMarkdownFiles" $
+  describe "STEP-3: vaultMarkdownFiles" $
     it "略過 . 開頭目錄與非 .md 檔,只回排序後的 .md 相對路徑" $
       withTempVault $ \dir -> do
         createDirectoryIfMissing True (dir </> ".aapms")
@@ -32,12 +32,12 @@ spec = describe "graph-core/F006 Index" $ do
         files <- vaultMarkdownFiles dir
         files `shouldBe` ["bar.md"]
 
-  describe "T14: fixture 健檢" $
+  describe "STEP-14: fixture 健檢" $
     it "story vault 與 asset vault 的全部檔案能被 parseDocument + 對應 to* 成功解析" $ do
       mapM_ (assertParses . snd) storyVaultFiles
       mapM_ (assertParses . snd) assetVaultFiles
 
-  describe "T4: indexOne(經 indexFile 驗證,兩者對單檔行為一致)" $ do
+  describe "STEP-4: indexOne(經 indexFile 驗證,兩者對單檔行為一致)" $ do
     it "story vault 的主題檔索引後,nodes 有主體(owner NULL)+ 片段(owner = 主體 id)" $
       withStoryVault $ \vh -> do
         issuesR <- indexFile vh "characters/test-character.md"
@@ -156,7 +156,7 @@ spec = describe "graph-core/F006 Index" $ do
             IO [Only Int]
         rows `shouldBe` [Only 0]
 
-  describe "T5: indexFile / unindexFile" $ do
+  describe "STEP-5: indexFile / unindexFile" $ do
     it "對已索引的檔案改內容後重新 indexFile,舊記錄被整檔替換而非疊加" $
       withStoryVault $ \vh -> do
         _ <- orDie =<< indexFile vh "characters/test-character.md"

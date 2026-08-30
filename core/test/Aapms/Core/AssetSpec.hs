@@ -1,4 +1,4 @@
--- | graph-core/F001 T5 的對照測試:Asset 型別與 Sha256 / LogicalName 具名純量。
+-- | graph-core/F001 STEP-5 的對照測試:Asset 型別與 Sha256 / LogicalName 具名純量。
 module Aapms.Core.AssetSpec (spec) where
 
 import Aapms.Core.Asset

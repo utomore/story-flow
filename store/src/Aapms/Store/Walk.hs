@@ -8,7 +8,7 @@
 -- 由它唯一持有,並隨模組一起關進 @other-modules@。
 --
 -- __行為不得改變__:兩個函式是從 "Aapms.Store.Index" 原樣搬過來的,簽名與行為
--- 一個字都不動(E001 的回歸 law R3 \/ R4 就是在釘這件事)。
+-- 一個字都不動(E001 的回歸 law REG-3 \/ REG-4 就是在釘這件事)。
 module Aapms.Store.Walk
   ( -- * 走訪
     vaultMarkdownFiles
@@ -61,7 +61,7 @@ vaultMarkdownFiles root = sort <$> walk ""
 --
 -- __為什麼要把順序寫出來__:兩個分量都是 @Int64@,寫反了型別檢查照樣過,
 -- 呼叫端也照樣編得起來,只是從此比對到錯的東西。E001 的第一版 spec 就是在這裡
--- 把順序寫反成 @(size, mtime)@(見 spec-gaps G20),而簽名比對抓不出來。
+-- 把順序寫反成 @(size, mtime)@(見 spec-gaps GAP-20),而簽名比對抓不出來。
 --
 -- __mtime 取奈秒__:同一秒內改兩次是測試與人手都做得到的事,秒級解析度會漏掉。
 --

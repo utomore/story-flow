@@ -14,7 +14,7 @@
 --
 -- 'SetupView' \/ 'PurgeView' \/ 'VaultView' \/ 'VaultInfoView' \/ 'DoctorView' \/
 -- 'ProjectView' 六個型別__宣告在__ 'Aapms.Service.Types'(design.md「內部模組
--- 劃分」的 Types 列:「全部 View 型別住這裡」;2026-08-30 W2 閘門 A1),本模組在
+-- 劃分」的 Types 列:「全部 View 型別住這裡」;2026-08-30 WAVE-2 閘門 ASM-1),本模組在
 -- 匯出清單裡原地 re-export ——消費端要嘛從 Types 拿型別、要嘛從本模組連同操作
 -- 一起拿,兩條路指向同一個型別。
 --
@@ -35,13 +35,13 @@
 -- 它要在__中樞還不存在__時就跑得起來,而 'Aapms.Service.Monad.openEnv' 對
 -- 「中樞載不起來」一律回 @Left@(契約 A;主架構全域錯誤策略第 3 條)。留在
 -- @ServiceM@ 裡等於這個操作永遠跑不到、@svHubCreated@ 恒為 @False@,而 @shell@
--- 依 ADR-015 又不能自己建中樞(2026-08-30 W2 閘門 A2)。它與
+-- 依 ADR-015 又不能自己建中樞(2026-08-30 WAVE-2 閘門 ASM-2)。它與
 -- 'Aapms.Service.Monad.openEnv' __同層__:兩個參數同形,回一個 @Either@。
 --
 -- == 明確不做(契約卡)
 --
 -- 不重新定義中樞的檔案格式;__不自己拼 @.aapms\/@ 底下的路徑__(一律用
--- @aapms-workspace@ 與 graph-core 的函式,守衛是 L26);不把 7-Zip 缺席當錯誤;
+-- @aapms-workspace@ 與 graph-core 的函式,守衛是 LAW-26);不把 7-Zip 缺席當錯誤;
 -- 不決定 HTTP 狀態碼與終端輸出(@shell@);不做任何圖譜寫入(F004 起)。
 --
 -- == 兩條 F001 的既有 law 對本模組生效
@@ -180,7 +180,7 @@ import Aapms.Service.Types
 
 -- | 建立中樞註冊表檔與縮圖快取目錄;冪等。
 --
--- __不在 'ServiceM' 裡__(2026-08-30 W2 閘門 A2):它是「先於環境」的操作,要在
+-- __不在 'ServiceM' 裡__(2026-08-30 WAVE-2 閘門 ASM-2):它是「先於環境」的操作,要在
 -- 中樞還不存在時就跑得起來。兩個參數與 'Aapms.Service.Monad.openEnv' 同形
 -- (selector 與向上探測的起點),讓 @shell@ 對本機子指令用同一種分派;__本層都不
 -- 解讀__——中樞位置由 @aapms-workspace@ 的 'Aapms.Workspace.Location.hubLocation'
@@ -249,7 +249,7 @@ workspacePurge scope = do
 -- 'Aapms.Workspace.Types.InitMode'。
 --
 -- 第二個回傳值是 @aapms-workspace@ 掃到的舊 marker 清單(__只報告不刪除__;
--- 2026-08-30 W2 閘門 A3):'VaultView' 六欄裝不下它,而丟棄等於 workspace 花力氣
+-- 2026-08-30 WAVE-2 閘門 ASM-3):'VaultView' 六欄裝不下它,而丟棄等於 workspace 花力氣
 -- 掃出來的東西在這一層被揉掉。
 vaultInit :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM (VaultView, AdoptNotice)
 vaultInit dir kind name mode = do
@@ -278,8 +278,8 @@ vaultList = do
 -- | 一個 vault 的詳情。參數是 selector(比對規則由 @aapms-workspace@ 決定)。
 --
 -- 這是本模組唯一__要開索引__的操作:節點數算不出來就沒有這個操作。目標是
--- __這個參數指到的 vault__,不是 @--vault@ 解出來的讀取範圍(2026-08-30 W2 閘門
--- A4),所以本操作直接用 'Aapms.Service.Monad.handleFor' 對目標取 handle。
+-- __這個參數指到的 vault__,不是 @--vault@ 解出來的讀取範圍(2026-08-30 WAVE-2 閘門
+-- ASM-4),所以本操作直接用 'Aapms.Service.Monad.handleFor' 對目標取 handle。
 vaultInfo :: Text -> ServiceM VaultInfoView
 vaultInfo sel = do
   hub <- askHub
@@ -431,7 +431,7 @@ registeredView e =
     , vvReachable = True
     }
 
--- | @doctor@ 向上探測到的那一筆未註冊 vault(L7):探測不到、或 marker 讀不開
+-- | @doctor@ 向上探測到的那一筆未註冊 vault(LAW-7):探測不到、或 marker 讀不開
 -- 時回 'Nothing';探測到但其實已註冊時也回 'Nothing'。
 unregisteredVaultView :: Hub -> FilePath -> IO (Maybe VaultView)
 unregisteredVaultView hub cwd = do
@@ -455,7 +455,7 @@ unregisteredView VaultRef {vrPath = p, vrMarker = m} =
     , vvReachable = True
     }
 
--- | 一個 vault 索引裡每個 'Aapms.Core.Id.IdPrefix' 的節點總數(L21):零值鍵不
+-- | 一個 vault 索引裡每個 'Aapms.Core.Id.IdPrefix' 的節點總數(LAW-21):零值鍵不
 -- 出現,依 'Aapms.Core.Id.IdPrefix' 的 'Ord' 排序('Data.Map.Strict' 的鍵序與
 -- 宣告順序一致)。
 countByPrefix :: [Meta] -> [(Text, Int)]

@@ -1,4 +1,4 @@
--- | T4:HsYAML → aeson 'Value' → core 的 @FromJSON@。
+-- | STEP-4:HsYAML → aeson 'Value' → core 的 @FromJSON@。
 module Aapms.Md.YamlSpec (spec) where
 
 import Data.Text (Text)

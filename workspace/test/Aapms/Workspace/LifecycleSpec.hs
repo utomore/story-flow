@@ -1,96 +1,96 @@
--- | F004:中樞建立('setupHub',L1-L5\/X1-X5)、vault 的建立與納管('initVault'\/'addVault',
--- L6-L24\/X6-X24)、撤除('forgetVault'\/'purge',L25-L30,L37-L41\/X25-X29,X37-X40)、體檢與回寫
--- ('checkVaults'\/'syncHub',L31-L36\/X30-X36)、七個函式合起來的檔案系統足跡(L43)、
--- W4 閘門追加的刪索引身分驗證(L44-L47\/X41-X45)、依賴方向與職責界線
--- (L42(a)-(f),__預期綠__——見 spec「紅綠預期」)。
+-- | F004:中樞建立('setupHub',LAW-1-LAW-5\/EX-1-EX-5)、vault 的建立與納管('initVault'\/'addVault',
+-- LAW-6-LAW-24\/EX-6-EX-24)、撤除('forgetVault'\/'purge',LAW-25-LAW-30,LAW-37-LAW-41\/EX-25-EX-29,EX-37-EX-40)、體檢與回寫
+-- ('checkVaults'\/'syncHub',LAW-31-LAW-36\/EX-30-EX-36)、七個函式合起來的檔案系統足跡(LAW-43)、
+-- WAVE-4 閘門追加的刪索引身分驗證(LAW-44-LAW-47\/EX-41-EX-45)、依賴方向與職責界線
+-- (LAW-42(a)-(f),__預期綠__——見 spec「紅綠預期」)。
 --
 -- __spec 對照__(@.design\/subsystems\/workspace\/features\/F004-vault-lifecycle.md@,
 -- 預期欄依 @spec-roles.md@「qa 的交付判準」逐條標:七個函式的本體全是 @undefined@,
--- 所以除了 L42(a)-(f) 之外__一律預期紅__):
+-- 所以除了 LAW-42(a)-(f) 之外__一律預期紅__):
 --
 -- @
--- T1 setupHub
--- L1  冪等且不改位元組                          -> test_setup_hub_is_idempotent            [紅]
--- L2  setupHub 之後 loadHub 一定成功              -> test_setup_hub_then_load_hub_succeeds   [紅]
--- L3  兩個 Bool 的判準                           -> test_setup_hub_flags_reflect_prior_state [紅]
--- L4  既有檔案完全不碰、不解析                    -> test_setup_hub_never_parses_existing_file[紅]
--- L5  只建這兩個東西                             -> test_setup_hub_creates_only_two_things   [紅]
--- X1-X5                                          -> 對應各 test_setup_hub_*
+-- STEP-1 setupHub
+-- LAW-1  冪等且不改位元組                          -> test_setup_hub_is_idempotent            [紅]
+-- LAW-2  setupHub 之後 loadHub 一定成功              -> test_setup_hub_then_load_hub_succeeds   [紅]
+-- LAW-3  兩個 Bool 的判準                           -> test_setup_hub_flags_reflect_prior_state [紅]
+-- LAW-4  既有檔案完全不碰、不解析                    -> test_setup_hub_never_parses_existing_file[紅]
+-- LAW-5  只建這兩個東西                             -> test_setup_hub_creates_only_two_things   [紅]
+-- EX-1-EX-5                                          -> 對應各 test_setup_hub_*
 --
--- T2 initVault 前置檢查
--- L6  名稱檢查最先,且不碰檔案系統                -> test_init_vault_rejects_blank_name_first [紅]
--- L7  已被佔用一律 VaultAlreadyInitialized        -> test_init_vault_already_initialized_both_modes / test_init_vault_marker_path_taken_by_file [紅]
--- L8  FreshVault 的目錄前置                       -> test_init_vault_fresh_rejects_non_empty  [紅]
--- L9  AdoptExisting 的目錄前置                    -> test_init_vault_adopt_requires_existing_dir [紅]
--- L10 判定順序恆定                               -> test_init_vault_precheck_has_no_side_effects [紅]
--- L11 前置檢查失敗一律零副作用                    -> 分散在 X6-X10 各測試的位元組不變斷言       [紅]
--- X6-X10                                          -> 對應各 test_init_vault_*
+-- STEP-2 initVault 前置檢查
+-- LAW-6  名稱檢查最先,且不碰檔案系統                -> test_init_vault_rejects_blank_name_first [紅]
+-- LAW-7  已被佔用一律 VaultAlreadyInitialized        -> test_init_vault_already_initialized_both_modes / test_init_vault_marker_path_taken_by_file [紅]
+-- LAW-8  FreshVault 的目錄前置                       -> test_init_vault_fresh_rejects_non_empty  [紅]
+-- LAW-9  AdoptExisting 的目錄前置                    -> test_init_vault_adopt_requires_existing_dir [紅]
+-- LAW-10 判定順序恆定                               -> test_init_vault_precheck_has_no_side_effects [紅]
+-- LAW-11 前置檢查失敗一律零副作用                    -> 分散在 EX-6-EX-10 各測試的位元組不變斷言       [紅]
+-- EX-6-EX-10                                          -> 對應各 test_init_vault_*
 --
--- T3 initVault 成功路徑
--- L12 marker 是真相,VaultEntry 是它的投影         -> test_init_vault_entry_mirrors_marker     [紅]
--- L13 中樞只多一列,其餘三段不動                   -> test_init_vault_appends_one_row_only     [紅]
--- L14 真的落地了(loadHub 讀得回來、註解仍在)      -> test_init_vault_persists_and_keeps_comments [紅]
--- L15 AdoptExisting 不動既有內容                  -> test_init_vault_adopt_keeps_existing_files [紅]
--- L17 空索引一定被建出來                          -> test_init_vault_creates_empty_index      [紅]
--- L20 任何 Left 都不動中樞檔案                    -> 分散在各前置檢查\/撞號\/L44 測試            [紅]
--- L44 initVaultAt 失敗 -> VaultInitFailed,不留半成品 -> test_init_vault_init_failure_is_vault_init_failed [紅]
--- X11-X15, X41                                    -> 對應各 test_init_vault_*
+-- STEP-3 initVault 成功路徑
+-- LAW-12 marker 是真相,VaultEntry 是它的投影         -> test_init_vault_entry_mirrors_marker     [紅]
+-- LAW-13 中樞只多一列,其餘三段不動                   -> test_init_vault_appends_one_row_only     [紅]
+-- LAW-14 真的落地了(loadHub 讀得回來、註解仍在)      -> test_init_vault_persists_and_keeps_comments [紅]
+-- LAW-15 AdoptExisting 不動既有內容                  -> test_init_vault_adopt_keeps_existing_files [紅]
+-- LAW-17 空索引一定被建出來                          -> test_init_vault_creates_empty_index      [紅]
+-- LAW-20 任何 Left 都不動中樞檔案                    -> 分散在各前置檢查\/撞號\/LAW-44 測試            [紅]
+-- LAW-44 initVaultAt 失敗 -> VaultInitFailed,不留半成品 -> test_init_vault_init_failure_is_vault_init_failed [紅]
+-- EX-11-EX-15, EX-41                                    -> 對應各 test_init_vault_*
 --
--- T4 initVault 撞號
--- L18 撞號的三個值                               -> test_init_vault_id_collision_carries_both_paths [紅]
--- L19 撞號要回滾                                 -> test_init_vault_id_collision_rolls_back  [紅]
--- X18, X19                                        -> 對應各 test_init_vault_id_collision_*
+-- STEP-4 initVault 撞號
+-- LAW-18 撞號的三個值                               -> test_init_vault_id_collision_carries_both_paths [紅]
+-- LAW-19 撞號要回滾                                 -> test_init_vault_id_collision_rolls_back  [紅]
+-- EX-18, EX-19                                        -> 對應各 test_init_vault_id_collision_*
 --
--- T5 AdoptNotice
--- L16 AdoptNotice 的內容、順序、不遞迴             -> test_adopt_notice_lists_legacy_markers / test_adopt_notice_order_is_fixed / test_adopt_notice_is_not_recursive [紅]
--- X15, X16, X17                                   -> 對應各 test_adopt_notice_*
+-- STEP-5 AdoptNotice
+-- LAW-16 AdoptNotice 的內容、順序、不遞迴             -> test_adopt_notice_lists_legacy_markers / test_adopt_notice_order_is_fixed / test_adopt_notice_is_not_recursive [紅]
+-- EX-15, EX-16, EX-17                                   -> 對應各 test_adopt_notice_*
 --
--- T6 addVault
--- L21 身分一律來自 marker                         -> test_add_vault_identity_from_marker      [紅]
--- L22 讀不到 marker 是硬失敗                      -> test_add_vault_unreadable_marker_is_hard_failure [紅]
--- L23 以 id 為鍵,重複納管不長第二列               -> test_add_vault_is_idempotent / test_add_vault_updates_path_on_move [紅]
--- L24 不動 vault 目錄                            -> test_add_vault_touches_nothing           [紅]
--- X20-X24                                         -> 對應各 test_add_vault_*
+-- STEP-6 addVault
+-- LAW-21 身分一律來自 marker                         -> test_add_vault_identity_from_marker      [紅]
+-- LAW-22 讀不到 marker 是硬失敗                      -> test_add_vault_unreadable_marker_is_hard_failure [紅]
+-- LAW-23 以 id 為鍵,重複納管不長第二列               -> test_add_vault_is_idempotent / test_add_vault_updates_path_on_move [紅]
+-- LAW-24 不動 vault 目錄                            -> test_add_vault_touches_nothing           [紅]
+-- EX-20-EX-24                                         -> 對應各 test_add_vault_*
 --
--- T7 forgetVault
--- L25 selector 規則同 lookupSelector              -> test_forget_vault_selector_rules         [紅]
--- L26 selector 失敗零副作用                       -> test_forget_vault_selector_failure_has_no_side_effects [紅]
--- L27 KeepIndex:只動中樞                         -> test_forget_vault_keep_index             [紅]
--- L28 DeleteIndex:只多刪一個檔                   -> test_forget_vault_delete_index_only_removes_index [紅]
--- L29 刪索引失敗不算失敗                          -> test_forget_vault_missing_index_is_ok    [紅]
--- L30 回傳被移除的那一列                          -> 併入 test_forget_vault_keep_index / test_forget_vault_missing_index_is_ok [紅]
--- X25-X29                                         -> 對應各 test_forget_vault_*
+-- STEP-7 forgetVault
+-- LAW-25 selector 規則同 lookupSelector              -> test_forget_vault_selector_rules         [紅]
+-- LAW-26 selector 失敗零副作用                       -> test_forget_vault_selector_failure_has_no_side_effects [紅]
+-- LAW-27 KeepIndex:只動中樞                         -> test_forget_vault_keep_index             [紅]
+-- LAW-28 DeleteIndex:只多刪一個檔                   -> test_forget_vault_delete_index_only_removes_index [紅]
+-- LAW-29 刪索引失敗不算失敗                          -> test_forget_vault_missing_index_is_ok    [紅]
+-- LAW-30 回傳被移除的那一列                          -> 併入 test_forget_vault_keep_index / test_forget_vault_missing_index_is_ok [紅]
+-- EX-25-EX-29                                         -> 對應各 test_forget_vault_*
 --
--- T8 checkVaults
--- L31 內容與順序                                 -> test_check_vaults_lists_issues_in_order  [紅]
--- L32 不寫任何東西,也沒有失敗通道                 -> test_check_vaults_writes_nothing         [紅]
--- L33 不展開 refs                                -> test_check_vaults_does_not_expand_refs   [紅]
--- X30-X32                                         -> 對應各 test_check_vaults_*
+-- STEP-8 checkVaults
+-- LAW-31 內容與順序                                 -> test_check_vaults_lists_issues_in_order  [紅]
+-- LAW-32 不寫任何東西,也沒有失敗通道                 -> test_check_vaults_writes_nothing         [紅]
+-- LAW-33 不展開 refs                                -> test_check_vaults_does_not_expand_refs   [紅]
+-- EX-30-EX-32                                         -> 對應各 test_check_vaults_*
 --
--- T9 syncHub
--- L34 只修 veName\/veKind                        -> test_sync_hub_fixes_name_and_kind_only   [紅]
--- L35 issue 清單等於 checkVaults                 -> test_sync_hub_issues_match_check_vaults  [紅]
--- L36 方向只有 marker -> 中樞;沒有漂移就不寫      -> test_sync_hub_never_writes_marker / test_sync_hub_no_drift_no_write [紅]
--- X33-X36                                         -> 對應各 test_sync_hub_*
+-- STEP-9 syncHub
+-- LAW-34 只修 veName\/veKind                        -> test_sync_hub_fixes_name_and_kind_only   [紅]
+-- LAW-35 issue 清單等於 checkVaults                 -> test_sync_hub_issues_match_check_vaults  [紅]
+-- LAW-36 方向只有 marker -> 中樞;沒有漂移就不寫      -> test_sync_hub_never_writes_marker / test_sync_hub_no_drift_no_write [紅]
+-- EX-33-EX-36                                         -> 對應各 test_sync_hub_*
 --
--- T10 purge
--- L37 PurgeHubOnly 的範圍                        -> test_purge_hub_only_scope                [紅]
--- L38 PurgeHubOnly 不碰任何 vault                -> test_purge_hub_only_leaves_vaults_alone  [紅]
--- L39 PurgeAllVaults 只多刪 index.db             -> test_purge_all_vaults_removes_indexes_only [紅]
--- L40 任何 PurgeScope 都不刪 library\/ 與 .md     -> test_purge_never_touches_library_or_md   [紅]
--- L41 冪等                                       -> test_purge_is_idempotent                 [紅]
--- X37-X40                                         -> 對應各 test_purge_*
+-- STEP-10 purge
+-- LAW-37 PurgeHubOnly 的範圍                        -> test_purge_hub_only_scope                [紅]
+-- LAW-38 PurgeHubOnly 不碰任何 vault                -> test_purge_hub_only_leaves_vaults_alone  [紅]
+-- LAW-39 PurgeAllVaults 只多刪 index.db             -> test_purge_all_vaults_removes_indexes_only [紅]
+-- LAW-40 任何 PurgeScope 都不刪 library\/ 與 .md     -> test_purge_never_touches_library_or_md   [紅]
+-- LAW-41 冪等                                       -> test_purge_is_idempotent                 [紅]
+-- EX-37-EX-40                                         -> 對應各 test_purge_*
 --
--- T11 七個函式合起來的檔案系統足跡
--- L43                                             -> test_lifecycle_filesystem_footprint      [紅]
+-- STEP-11 七個函式合起來的檔案系統足跡
+-- LAW-43                                             -> test_lifecycle_filesystem_footprint      [紅]
 --
--- T12 W4 裁決 B:刪索引前的身分驗證
--- L45 forgetVault 刪索引前先驗身分                -> test_forget_vault_delete_index_rejects_id_drift / test_forget_vault_keep_index_ignores_drift [紅]
--- L46 purge PurgeAllVaults 是全有或全無            -> test_purge_all_vaults_is_all_or_nothing  [紅]
--- L47 驗身分不改變「讀不到就照刪」                -> test_delete_index_still_proceeds_when_marker_unreadable [紅]
--- X42-X45                                         -> 對應各測試
+-- STEP-12 WAVE-4 裁決 B:刪索引前的身分驗證
+-- LAW-45 forgetVault 刪索引前先驗身分                -> test_forget_vault_delete_index_rejects_id_drift / test_forget_vault_keep_index_ignores_drift [紅]
+-- LAW-46 purge PurgeAllVaults 是全有或全無            -> test_purge_all_vaults_is_all_or_nothing  [紅]
+-- LAW-47 驗身分不改變「讀不到就照刪」                -> test_delete_index_still_proceeds_when_marker_unreadable [紅]
+-- EX-42-EX-45                                         -> 對應各測試
 --
--- L42(預期綠):依賴方向與職責界線(以 import 行驗證)
+-- LAW-42(預期綠):依賴方向與職責界線(以 import 行驗證)
 -- (a) 無 Scope\/Projects\/Tools,只准 Types\/Location\/Hub\/Discovery -> test_lifecycle_no_sibling_imports          [綠]
 -- (b) Aapms.Store.Marker 的 import(若有)逐字比對(含 readMarker)     -> test_lifecycle_marker_import_is_exact      [綠]
 -- (c) Aapms.Store.Schema 只取 VaultKind,非條件式                     -> test_lifecycle_schema_import_is_type_only  [綠]
@@ -99,41 +99,41 @@
 -- (f) 不得 import System.Process                                      -> test_lifecycle_no_process_import           [綠]
 -- @
 --
--- __(以上 X18\/X19\/X41 三條 pending 已由 E001 收掉,見下方 E001 對照;
+-- __(以上 EX-18\/EX-19\/EX-41 三條 pending 已由 E001 收掉,見下方 E001 對照;
 -- 舊版「以固定時間\/名稱造出撞號」的非決定性構造說明已隨之作廢,不再適用。)__
 --
 -- __E001__(@.design\/subsystems\/workspace\/enhancements\/E001-init-vault-explicit-time.md@):
 -- 新增 'initVaultWith'(@initVault@ 的明碼時間版本),收掉上面 F004 的三條
--- @pendingWith@(G4\/G5 尾巴)。骨架只有 'initVaultWith' 是 @undefined@,其餘六個
+-- @pendingWith@(GAP-4\/GAP-5 尾巴)。骨架只有 'initVaultWith' 是 @undefined@,其餘六個
 -- 函式(含 'initVault')本體都已是現況實作,__預期欄不再是一律紅__,逐條見下:
 --
 -- @
 -- E001 回歸 law(現況程式碼,骨架未動)
--- R1  initVault 簽名逐字不變                    -> 由既有呼叫端持續以 6 參數呼叫 initVault 編譯通過保證(T2\/T3\/T4\/T11 各測試) [綠]
--- R2  前置檢查四條不變                          -> 既有 T2 測試 + test_init_vault_rejected_when_already_initialized_by_prior_init (E8) [綠]
--- R3  成功時身分逐欄來自 marker                 -> test_init_vault_entry_mirrors_marker + test_init_vault_happy_path_alchbees_assets (E1) [綠]
--- R4  initVault 仍每次取當下時間                -> test_init_vault_takes_current_time_each_call (E9) [綠]
--- R5  initVault 建檔失敗 -> VaultInitFailed,不留半成品 -> test_init_vault_init_failure_is_vault_init_failed (E7,= F004 X41\/L44,已從 pendingWith 轉正) [綠]
--- R6  L42 其餘五條(a)(c)(d)(e)(f)不放寬          -> 既有 test_lifecycle_* 各測試,未變動 [綠]
+-- REG-1  initVault 簽名逐字不變                    -> 由既有呼叫端持續以 6 參數呼叫 initVault 編譯通過保證(STEP-2\/STEP-3\/STEP-4\/STEP-11 各測試) [綠]
+-- REG-2  前置檢查四條不變                          -> 既有 STEP-2 測試 + test_init_vault_rejected_when_already_initialized_by_prior_init (EX-8) [綠]
+-- REG-3  成功時身分逐欄來自 marker                 -> test_init_vault_entry_mirrors_marker + test_init_vault_happy_path_alchbees_assets (EX-1) [綠]
+-- REG-4  initVault 仍每次取當下時間                -> test_init_vault_takes_current_time_each_call (EX-9) [綠]
+-- REG-5  initVault 建檔失敗 -> VaultInitFailed,不留半成品 -> test_init_vault_init_failure_is_vault_init_failed (EX-7,= F004 EX-41\/LAW-44,已從 pendingWith 轉正) [綠]
+-- REG-6  LAW-42 其餘五條(a)(c)(d)(e)(f)不放寬          -> 既有 test_lifecycle_* 各測試,未變動 [綠]
 --
 -- E001 新 law(全部經 initVaultWith,骨架 undefined)
--- L1  決定性:同名同時間、不同空目錄 veId 相同    -> test_init_vault_with_same_time_same_id (E3) + property [紅]
--- L2  id 的來源逐字可算(newId PVlt …)            -> test_init_vault_with_id_matches_new_id_formula (E4) + property [紅]
--- L3  薄包裝等價(除 veId 外逐欄相同)             -> property「L3(property): …」;另由 E1 與 E3\/E4 對照覆蓋 [紅]
--- L4  撞號的三個值                               -> test_init_vault_id_collision_carries_both_paths (E5,= F004 X18\/L18,已從 pendingWith 轉正) [紅]
--- L5  撞號要回滾                                 -> test_init_vault_id_collision_rolls_back (E6,= F004 X19\/L19,已從 pendingWith 轉正) [紅]
--- L6  Aapms.Store.Marker import 行新逐字字串(取代 F004 L42(b)) -> test_lifecycle_marker_import_is_exact [紅——骨架的 import 行尚未加 initVaultAtWith]
--- L7  initVaultWith 建檔失敗 -> VaultInitFailed,不留半成品      -> test_init_vault_with_init_failure_is_vault_init_failed (E10) [紅]
+-- LAW-1  決定性:同名同時間、不同空目錄 veId 相同    -> test_init_vault_with_same_time_same_id (EX-3) + property [紅]
+-- LAW-2  id 的來源逐字可算(newId PVlt …)            -> test_init_vault_with_id_matches_new_id_formula (EX-4) + property [紅]
+-- LAW-3  薄包裝等價(除 veId 外逐欄相同)             -> property「LAW-3(property): …」;另由 EX-1 與 EX-3\/EX-4 對照覆蓋 [紅]
+-- LAW-4  撞號的三個值                               -> test_init_vault_id_collision_carries_both_paths (EX-5,= F004 EX-18\/LAW-18,已從 pendingWith 轉正) [紅]
+-- LAW-5  撞號要回滾                                 -> test_init_vault_id_collision_rolls_back (EX-6,= F004 EX-19\/LAW-19,已從 pendingWith 轉正) [紅]
+-- LAW-6  Aapms.Store.Marker import 行新逐字字串(取代 F004 LAW-42(b)) -> test_lifecycle_marker_import_is_exact [紅——骨架的 import 行尚未加 initVaultAtWith]
+-- LAW-7  initVaultWith 建檔失敗 -> VaultInitFailed,不留半成品      -> test_init_vault_with_init_failure_is_vault_init_failed (EX-10) [紅]
 -- @
 --
--- __L18\/L19 的舊構造已棄置__:F004 原本嘗試「連續呼叫 initVaultAt 賭時間視窗夠近」
+-- __L18\/LAW-19 的舊構造已棄置__:F004 原本嘗試「連續呼叫 initVaultAt 賭時間視窗夠近」
 -- 撞號,本機實測會產生不同 id、不可確定性重現(即 spec-gap 本次-1,現由 E001 解決)。
 -- E001 用 'initVaultWith' 收同一個明碼 @t@,決定性造出撞號,不再需要賭時間視窗。
 --
--- __above L1-L7 的 [紅]\/[綠] 標記是本檔__骨架階段__(僅 'initVaultWith' 為
+-- __above LAW-1-LAW-7 的 [紅]\/[綠] 標記是本檔__骨架階段__(僅 'initVaultWith' 為
 -- @undefined@)__下的預期__,依 @spec-roles.md@「qa 的交付判準」逐條標。qa 交付時
 -- (2026-08-30)實際跑 @cabal test aapms-workspace-test@ 觀察到__全部 319 examples
--- 0 failures 0 pending__,含上面預期紅的 L1-L5\/L7——即 'initVaultWith' 骨架階段
+-- 0 failures 0 pending__,含上面預期紅的 LAW-1-LAW-5\/LAW-7——即 'initVaultWith' 骨架階段
 -- 已被(併發的)impl 填上本體,不再是 @undefined@。委派模式下 qa 不保證骨架快照
 -- (@spec-roles.md@「骨架快照」);本檔如實記錄兩者,紅綠判定以編排者在骨架快照上
 -- 驗到的結果為準,不是本檔觀察到的這次執行結果。
@@ -189,7 +189,7 @@ moduleNameOf l = takeWhile (\c -> c /= ' ' && c /= '(') (drop (length ("import "
 lifecycleImportLines :: IO [String]
 lifecycleImportLines = importLinesOf "Aapms/Workspace/Lifecycle.hs"
 
--- | 任意的 'UTCTime',給 E001 L1\/L2\/L3 的通用性質測試用(對照
+-- | 任意的 'UTCTime',給 E001 LAW-1\/LAW-2\/LAW-3 的通用性質測試用(對照
 -- "Aapms.Workspace.ProjectsSpec.genUTCTime";@Fixtures.hs@ 不可修改,本檔各自複製一份)。
 genUTCTime :: Gen UTCTime
 genUTCTime = do
@@ -248,8 +248,8 @@ snapshotTreeRaw root = sortOn fst <$> go ""
 spec :: Spec
 spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
   --------------------------------------------------------------------------
-  describe "T1/L1-L5/X1-X5: setupHub 中樞的建立" $ do
-    it "test_setup_hub_is_idempotent (X1, X2, L1, L3)" $
+  describe "STEP-1/LAW-1-LAW-5/EX-1-EX-5: setupHub 中樞的建立" $ do
+    it "test_setup_hub_is_idempotent (EX-1, EX-2, LAW-1, LAW-3)" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
         r1 <- setupHub loc
@@ -271,7 +271,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
                 snap2 <- snapshotTree hubDir
                 snap2 `shouldBe` snap1
 
-    it "test_setup_hub_then_load_hub_succeeds (X3, L2)" $
+    it "test_setup_hub_then_load_hub_succeeds (EX-3, LAW-2)" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
         _ <- setupHub loc
@@ -284,7 +284,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             tcSevenZip (hubTools h) `shouldBe` Nothing
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
-    it "test_setup_hub_flags_reflect_prior_state (L3): 兩個 Bool 分別反映呼叫前的存在性,呼叫後兩者都存在" $
+    it "test_setup_hub_flags_reflect_prior_state (LAW-3): 兩個 Bool 分別反映呼叫前的存在性,呼叫後兩者都存在" $
       forM_ [(False, False), (True, False), (False, True), (True, True)] $ \(cfgExists, cacheExists) ->
         withTempHubDir $ \hubDir -> do
           let loc = locAt hubDir
@@ -301,7 +301,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
               doesDirectoryExist td >>= (`shouldBe` True)
             Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
-    it "test_setup_hub_never_parses_existing_file (X4, L4)" $
+    it "test_setup_hub_never_parses_existing_file (EX-4, LAW-4)" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
         writeHubConfig hubDir "id   = \"vlt-"
@@ -313,7 +313,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right sp -> spHubCreated sp `shouldBe` False
           Left e -> expectationFailure ("預期 Right(不是 HubUnreadable\\/HubMalformed),得到 " <> show e)
 
-    it "test_setup_hub_creates_only_two_things (X5, L5)" $
+    it "test_setup_hub_creates_only_two_things (EX-5, LAW-5)" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             notesFile = hubDir </> "notes.txt"
@@ -329,8 +329,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
   --------------------------------------------------------------------------
-  describe "T2/L6-L11/X6-X10: initVault 前置檢查" $ do
-    it "test_init_vault_rejects_blank_name_first (X6, L6, L11)" $
+  describe "STEP-2/LAW-6-LAW-11/EX-6-EX-10: initVault 前置檢查" $ do
+    it "test_init_vault_rejects_blank_name_first (EX-6, LAW-6, LAW-11)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
@@ -340,7 +340,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
         afterCfg `shouldBe` beforeCfg
 
-    it "L6(property): 對任意 dir\\/kind\\/mode,空白名稱一律 InvalidName 帶原始字串,且不碰檔案系統" $
+    it "LAW-6(property): 對任意 dir\\/kind\\/mode,空白名稱一律 InvalidName 帶原始字串,且不碰檔案系統" $
       hedgehog $ do
         blank <- forAll genBlankEnvValue
         kind <- forAll genVaultKind
@@ -356,7 +356,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r === Left (InvalidName blank)
         dirStill === dirExists
 
-    it "test_init_vault_already_initialized_both_modes (X7, L7, L10)" $
+    it "test_init_vault_already_initialized_both_modes (EX-7, LAW-7, LAW-10)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-11112222" "asset" "x" [])
@@ -368,7 +368,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           snapAfter <- snapshotTree vDir
           snapAfter `shouldBe` snapBefore
 
-    it "test_init_vault_marker_path_taken_by_file (X8, L7)" $
+    it "test_init_vault_marker_path_taken_by_file (EX-8, LAW-7)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True vDir
@@ -377,7 +377,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r <- initVault loc (hubWith []) vDir AssetVault "name" AdoptExisting
         r `shouldBe` Left (VaultAlreadyInitialized canonV)
 
-    it "test_init_vault_fresh_rejects_non_empty (X9, L8, L11)" $
+    it "test_init_vault_fresh_rejects_non_empty (EX-9, LAW-8, LAW-11)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True vDir
@@ -389,7 +389,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         contents `shouldBe` "hello"
         doesDirectoryExist (markerDir vDir) >>= (`shouldBe` False)
 
-    it "test_init_vault_adopt_requires_existing_dir (X10, L9, L11)" $
+    it "test_init_vault_adopt_requires_existing_dir (EX-10, LAW-9, LAW-11)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         canonV <- canonicalizePath vDir
@@ -397,7 +397,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r `shouldBe` Left (VaultDirMissing canonV)
         doesDirectoryExist vDir >>= (`shouldBe` False)
 
-    it "test_init_vault_precheck_has_no_side_effects (L10): 判定順序恆為名稱->\\.aapms->模式,兩條同時成立回前面那個" $ do
+    it "test_init_vault_precheck_has_no_side_effects (LAW-10): 判定順序恆為名稱->\\.aapms->模式,兩條同時成立回前面那個" $ do
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-11112222" "asset" "x" [])
@@ -412,8 +412,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r2 `shouldBe` Left (VaultAlreadyInitialized canonV)
 
   --------------------------------------------------------------------------
-  describe "T3/L12-L15,L17,L20,L44/X11-X15,X41: initVault 成功路徑" $ do
-    it "test_init_vault_entry_mirrors_marker (X11, X12, L12, L17)" $
+  describe "STEP-3/LAW-12-LAW-15,LAW-17,LAW-20,LAW-44/EX-11-EX-15,EX-41: initVault 成功路徑" $ do
+    it "test_init_vault_entry_mirrors_marker (EX-11, EX-12, LAW-12, LAW-17)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         r <- initVault loc (hubWith []) vDir StoryVault "  Lore  " FreshVault
@@ -432,7 +432,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             doesFileExist (indexDbPath canonV) >>= (`shouldBe` True)
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "L13(property): 任意 projects\\/llm\\/tools\\/原始文字,initVault 成功後只有 hubVaults 多一列" $
+    it "LAW-13(property): 任意 projects\\/llm\\/tools\\/原始文字,initVault 成功後只有 hubVaults 多一列" $
       hedgehog $ do
         ps <- forAll (Gen.list (Range.linear 0 3) genProjectEntry)
         llm <- forAll (Gen.maybe genLlmSection)
@@ -451,7 +451,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             hubTools hub' === hubTools hub0
           (Left err, _) -> annotate (show err) >> failure
 
-    it "test_init_vault_appends_one_row_only (X14, L13)" $
+    it "test_init_vault_appends_one_row_only (EX-14, LAW-13)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
             hub0 = mkHub [sampleVault1] [sampleProject1] Nothing (ToolsConfig Nothing) ""
@@ -464,7 +464,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             hubTools hub' `shouldBe` hubTools hub0
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_persists_and_keeps_comments (X13, L14)" $
+    it "test_init_vault_persists_and_keeps_comments (EX-13, LAW-14)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeHubConfig (hlPath loc) sampleHubText
@@ -479,7 +479,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             txt `shouldSatisfy` T.isInfixOf (T.pack "# 故事側")
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_adopt_keeps_existing_files (X15, L15)" $
+    it "test_init_vault_adopt_keeps_existing_files (EX-15, LAW-15)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True (vDir </> "library")
@@ -504,7 +504,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             afterDb `shouldBe` beforeDb
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_creates_empty_index (X11, L17)" $
+    it "test_init_vault_creates_empty_index (EX-11, LAW-17)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         r <- initVault loc (hubWith []) vDir AssetVault "name" FreshVault
@@ -513,13 +513,13 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right _ -> doesFileExist (indexDbPath canonV) >>= (`shouldBe` True)
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_init_failure_is_vault_init_failed (X41, L44, E001 E7/R5): \
+    it "test_init_vault_init_failure_is_vault_init_failed (EX-41, LAW-44, E001 EX-7/REG-5): \
        \V 的父層被一般檔案佔用,initVaultAt 回 Left 時 initVault 轉成 VaultInitFailed 且不留半成品" $
       -- E001 現況分析(2026-08-30 `cabal repl aapms-workspace` 實測)確認:改用「blocker
       -- 是一般檔案,vDir = blocker/sub」這個建構時,initVaultAt 回 Right (Left
       -- (FileWriteFailed …)) 而不是拋未捕捉的 IOException(graph-core B002 隨 E002 修好);
-      -- canonicalizePath 對這個建構也不拋例外。G5 的 workspace 側尾巴,本條從 pendingWith
-      -- 轉正。err 與直接呼叫 initVaultAt 逐欄相同,這是 R5 的字面要求(err 是原件、不轉譯)。
+      -- canonicalizePath 對這個建構也不拋例外。GAP-5 的 workspace 側尾巴,本條從 pendingWith
+      -- 轉正。err 與直接呼叫 initVaultAt 逐欄相同,這是 REG-5 的字面要求(err 是原件、不轉譯)。
       withHubAndRoot $ \loc _ ->
         withTempHubDir $ \blockerRoot -> do
           let blocker = blockerRoot </> "blocker"
@@ -539,12 +539,12 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
-  describe "T4/L18-L20/X18-X19: initVault 撞號(E001 L4/L5 用 initVaultWith 決定性重建)" $ do
-    it "test_init_vault_id_collision_carries_both_paths (X18, L18, E001 E5/L4): \
+  describe "STEP-4/LAW-18-LAW-20/EX-18-EX-19: initVault 撞號(E001 LAW-4/LAW-5 用 initVaultWith 決定性重建)" $ do
+    it "test_init_vault_id_collision_carries_both_paths (EX-18, LAW-18, E001 EX-5/LAW-4): \
        \用同一個明碼 t 決定性造出撞號,回傳的三個值逐欄相符" $
       -- E001 解掉 spec-gap 本次-1(F004 原本靠連續呼叫 initVaultAt 賭時間視窗,
       -- 本機實測會產生不同 id、不可確定性重現)。改用 initVaultWith 收同一個明碼 t:
-      -- 先用 newId PVlt name t 0 算出「這次會產生的 id」(L2 的公式,qa 不必讀
+      -- 先用 newId PVlt name t 0 算出「這次會產生的 id」(LAW-2 的公式,qa 不必讀
       -- graph-core 實作),塞進中樞當既有列,再對一個空目錄以同一個 name/t 呼叫
       -- initVaultWith,保證撞號。
       withHubAndRoot $ \loc root -> do
@@ -561,7 +561,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         msg `shouldSatisfy` T.isInfixOf (T.pack existingPath)
         msg `shouldSatisfy` T.isInfixOf (T.pack canonV)
 
-    it "test_init_vault_id_collision_rolls_back (X19, L19, L20, E001 E6/L5): \
+    it "test_init_vault_id_collision_rolls_back (EX-19, LAW-19, LAW-20, E001 EX-6/LAW-5): \
        \撞號後 .aapms\\/ 不存在、其餘檔案與中樞不變,重跑一次改用 initVault 得到 Right" $
       withHubAndRoot $ \loc root -> do
         t <- getCurrentTime
@@ -587,9 +587,9 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           other -> expectationFailure ("預期 VaultIdCollision,得到 " <> show other)
 
   --------------------------------------------------------------------------
-  describe "E001 R2-R4,L1-L3,L7/E1,E3,E4,E8,E9,E10: initVaultWith 明碼時間版本" $ do
-    it "test_init_vault_happy_path_alchbees_assets (E1, R3): 空目錄、AssetVault、\
-       \\"alchbees-assets\"、FreshVault,initVault 成功,entry 四欄如 R3,中樞多一列" $
+  describe "E001 REG-2-REG-4,LAW-1-LAW-3,LAW-7/EX-1,EX-3,EX-4,EX-8,EX-9,EX-10: initVaultWith 明碼時間版本" $ do
+    it "test_init_vault_happy_path_alchbees_assets (EX-1, REG-3): 空目錄、AssetVault、\
+       \\"alchbees-assets\"、FreshVault,initVault 成功,entry 四欄如 REG-3,中樞多一列" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
             hub0 = hubWith []
@@ -606,7 +606,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             hubVaults hub' `shouldBe` hubVaults hub0 ++ [e]
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_init_vault_rejected_when_already_initialized_by_prior_init (E8, R2): \
+    it "test_init_vault_rejected_when_already_initialized_by_prior_init (EX-8, REG-2): \
        \對 initVault 成功建出的目錄,換個名字、AdoptExisting 再呼叫一次" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
@@ -618,7 +618,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         after <- readFile (vaultMarkerConfigFile canonV)
         after `shouldBe` before
 
-    it "test_init_vault_takes_current_time_each_call (E9, R4): 同一個 name、兩個空目錄,\
+    it "test_init_vault_takes_current_time_each_call (EX-9, REG-4): 同一個 name、兩個空目錄,\
        \連續兩次 initVault 得到不同的 veId" $
       withHubAndRoot $ \loc root -> do
         let d1 = root </> "v1"
@@ -627,7 +627,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         (_, e2, _) <- orDie =<< initVault loc (hubWith []) d2 AssetVault "same-name" FreshVault
         veId e1 `shouldNotBe` veId e2
 
-    it "test_init_vault_with_same_time_same_id (E3, L1): 同一個 t、兩個相異空目錄,\
+    it "test_init_vault_with_same_time_same_id (EX-3, LAW-1): 同一個 t、兩個相異空目錄,\
        \兩次 initVaultWith 的 veId 相同" $
       withHubAndRoot $ \loc root -> do
         t <- getCurrentTime
@@ -637,7 +637,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         (_, e2, _) <- orDie =<< initVaultWith loc (hubWith []) d2 StoryVault "liftgame" FreshVault t
         veId e1 `shouldBe` veId e2
 
-    it "L1(property): 任意 kind\\/name\\/t\\/兩個相異空目錄,initVaultWith 的 veId 相同" $
+    it "LAW-1(property): 任意 kind\\/name\\/t\\/兩個相異空目錄,initVaultWith 的 veId 相同" $
       hedgehog $ do
         kind <- forAll genVaultKind
         name <- forAll genName
@@ -652,14 +652,14 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           (Right (_, e1, _), Right (_, e2, _)) -> veId e1 === veId e2
           other -> annotate (show other) >> failure
 
-    it "test_init_vault_with_id_matches_new_id_formula (E4, L2): veId == VaultId (renderId (newId PVlt \"liftgame\" t 0))" $
+    it "test_init_vault_with_id_matches_new_id_formula (EX-4, LAW-2): veId == VaultId (renderId (newId PVlt \"liftgame\" t 0))" $
       withHubAndRoot $ \loc root -> do
         t <- getCurrentTime
         let vDir = root </> "v"
         (_, e, _) <- orDie =<< initVaultWith loc (hubWith []) vDir StoryVault "liftgame" FreshVault t
         veId e `shouldBe` VaultId (renderId (newId PVlt "liftgame" t 0))
 
-    it "L2(property): 任意 kind\\/name\\/t,veId 逐字等於 newId 公式" $
+    it "LAW-2(property): 任意 kind\\/name\\/t,veId 逐字等於 newId 公式" $
       hedgehog $ do
         kind <- forAll genVaultKind
         name <- forAll genName
@@ -671,7 +671,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right (_, e, _) -> veId e === VaultId (renderId (newId PVlt (T.strip name) t 0))
           other -> annotate (show other) >> failure
 
-    it "L3(property): 任意 kind\\/name\\/t,initVault 與 initVaultWith 除 veId\\/vePath 外逐欄相同(薄包裝等價)" $
+    it "LAW-3(property): 任意 kind\\/name\\/t,initVault 與 initVaultWith 除 veId\\/vePath 外逐欄相同(薄包裝等價)" $
       hedgehog $ do
         kind <- forAll genVaultKind
         name <- forAll genName
@@ -695,7 +695,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right (left', right') -> left' === right'
           Left msg -> annotate msg >> failure
 
-    it "test_init_vault_with_init_failure_is_vault_init_failed (E10, L7): V 的父層被一般檔案佔用,\
+    it "test_init_vault_with_init_failure_is_vault_init_failed (EX-10, LAW-7): V 的父層被一般檔案佔用,\
        \initVaultAtWith 回 Left 時 initVaultWith 轉成 VaultInitFailed 且不留半成品" $
       withHubAndRoot $ \loc _ ->
         withTempHubDir $ \blockerRoot -> do
@@ -717,8 +717,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
-  describe "T5/L16/X15-X17: AdoptNotice" $ do
-    it "test_adopt_notice_lists_legacy_markers (X15, L16)" $
+  describe "STEP-5/LAW-16/EX-15-EX-17: AdoptNotice" $ do
+    it "test_adopt_notice_lists_legacy_markers (EX-15, LAW-16)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True (vDir </> ".assetdb")
@@ -728,7 +728,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right (_, _, notice) -> anLegacyMarkers notice `shouldBe` [canonV </> ".assetdb"]
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_adopt_notice_order_is_fixed (X16, L16)" $
+    it "test_adopt_notice_order_is_fixed (EX-16, LAW-16)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True (vDir </> ".assetdb")
@@ -740,7 +740,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
             anLegacyMarkers notice `shouldBe` [canonV </> ".assetdb", canonV </> ".storyflow"]
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_adopt_notice_is_not_recursive (X17, L16)" $
+    it "test_adopt_notice_is_not_recursive (EX-17, LAW-16)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         createDirectoryIfMissing True (vDir </> "sub" </> ".assetdb")
@@ -750,8 +750,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
   --------------------------------------------------------------------------
-  describe "T6/L21-L24/X20-X24: addVault" $ do
-    it "test_add_vault_identity_from_marker (X20, L21)" $
+  describe "STEP-6/LAW-21-LAW-24/EX-20-EX-24: addVault" $ do
+    it "test_add_vault_identity_from_marker (EX-20, LAW-21)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -761,7 +761,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Right (_, e) -> e `shouldBe` VaultEntry (VaultId "vlt-7f3b2a91") "real" AssetVault canonV
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_add_vault_unreadable_marker_is_hard_failure (X23, L22)" $
+    it "test_add_vault_unreadable_marker_is_hard_failure (EX-23, LAW-22)" $
       withHubAndRoot $ \loc root -> do
         let xDir = root </> "x"
         canonX <- canonicalizePath xDir
@@ -776,7 +776,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
         afterCfg `shouldBe` beforeCfg
 
-    it "test_add_vault_is_idempotent (X21, L23)" $
+    it "test_add_vault_is_idempotent (EX-21, LAW-23)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -785,7 +785,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         hubVaults hub2 `shouldBe` hubVaults hub1
         length (hubVaults hub2) `shouldBe` 1
 
-    it "test_add_vault_updates_path_on_move (X22, L23)" $
+    it "test_add_vault_updates_path_on_move (EX-22, LAW-23)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -795,7 +795,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         (hub1, _) <- orDie =<< addVault loc hub0 vDir
         hubVaults hub1 `shouldBe` [VaultEntry (VaultId "vlt-7f3b2a91") "real" AssetVault canonV]
 
-    it "test_add_vault_touches_nothing (X24, L24)" $
+    it "test_add_vault_touches_nothing (EX-24, LAW-24)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -805,8 +805,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         snapAfter `shouldBe` snapBefore
 
   --------------------------------------------------------------------------
-  describe "T7/L25-L30/X25-X29: forgetVault" $ do
-    it "test_forget_vault_selector_rules (X25, L25)" $
+  describe "STEP-7/LAW-25-LAW-30/EX-25-EX-29: forgetVault" $ do
+    it "test_forget_vault_selector_rules (EX-25, LAW-25)" $
       withHubAndRoot $ \loc root -> do
         e3 <- makeRealVault AssetVault "lore" (root </> "v3")
         e4 <- makeRealVault StoryVault "lore" (root </> "v4")
@@ -814,7 +814,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r <- forgetVault loc hub "lore" KeepIndex
         r `shouldBe` Left (VaultSelectorAmbiguous "lore" [e3, e4])
 
-    it "L25(property): forgetVault 選中的列(或失敗)與 lookupSelector 的結果一致" $
+    it "LAW-25(property): forgetVault 選中的列(或失敗)與 lookupSelector 的結果一致" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 4) genVaultEntry)
         sel <- forAll genName
@@ -827,7 +827,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           (Right (_, e), Right le) -> e === le
           other -> annotate (show other) >> failure
 
-    it "test_forget_vault_selector_failure_has_no_side_effects (X26, L26)" $
+    it "test_forget_vault_selector_failure_has_no_side_effects (EX-26, LAW-26)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "a" (root </> "v1")
         let hub = hubWith [e1]
@@ -838,7 +838,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterCfg `shouldBe` beforeCfg
         doesFileExist (indexDbPath (vePath e1)) >>= (`shouldBe` True)
 
-    it "test_forget_vault_keep_index (X27, L27, L30)" $
+    it "test_forget_vault_keep_index (EX-27, LAW-27, LAW-30)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "a" (root </> "v1")
         e2 <- makeRealVault AssetVault "b" (root </> "v2")
@@ -852,7 +852,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         doesFileExist (vaultMarkerConfigFile (vePath e2)) >>= (`shouldBe` True)
         doesFileExist (indexDbPath (vePath e2)) >>= (`shouldBe` True)
 
-    it "test_forget_vault_delete_index_only_removes_index (X28, L28)" $
+    it "test_forget_vault_delete_index_only_removes_index (EX-28, LAW-28)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "a" (root </> "v1")
         createDirectoryIfMissing True (vePath e1 </> "library")
@@ -869,7 +869,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterPng `shouldBe` beforePng
         afterMd `shouldBe` beforeMd
 
-    it "test_forget_vault_missing_index_is_ok (X29, L29, L30)" $
+    it "test_forget_vault_missing_index_is_ok (EX-29, LAW-29, LAW-30)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "a" (root </> "v1")
         removeFile (indexDbPath (vePath e1))
@@ -882,8 +882,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
   --------------------------------------------------------------------------
-  describe "T8/L31-L33/X30-X32: checkVaults" $ do
-    it "test_check_vaults_lists_issues_in_order (X30, L31)" $
+  describe "STEP-8/LAW-31-LAW-33/EX-30-EX-32: checkVaults" $ do
+    it "test_check_vaults_lists_issues_in_order (EX-30, LAW-31)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "normal" (root </> "v1")
         let goneDir = root </> "gone"
@@ -896,7 +896,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         issues <- checkVaults hub
         issues `shouldBe` [VaultPathMissing e2 canonGone, VaultIdDrift e3 (vmId m3)]
 
-    it "test_check_vaults_writes_nothing (X31, L32)" $
+    it "test_check_vaults_writes_nothing (EX-31, LAW-32)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "normal" (root </> "v1")
         let hub = hubWith [e1]
@@ -910,7 +910,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         snapHub' `shouldBe` snapHub
         snapV' `shouldBe` snapV
 
-    it "test_check_vaults_does_not_expand_refs (X32, L33)" $
+    it "test_check_vaults_does_not_expand_refs (EX-32, LAW-33)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v1"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "a" ["vlt-11112222"])
@@ -921,8 +921,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         issues `shouldSatisfy` all (\i -> case i of RefVaultNotRegistered _ _ -> False; _ -> True)
 
   --------------------------------------------------------------------------
-  describe "T9/L34-L36/X33-X36: syncHub" $ do
-    it "test_sync_hub_fixes_name_and_kind_only (X33, L34)" $
+  describe "STEP-9/LAW-34-LAW-36/EX-33-EX-36: syncHub" $ do
+    it "test_sync_hub_fixes_name_and_kind_only (EX-33, LAW-34)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v1"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -934,7 +934,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         h2 <- orDie =<< loadHub loc
         hubVaults h2 `shouldBe` hubVaults hub'
 
-    it "test_sync_hub_issues_match_check_vaults (X34, L34, L35)" $
+    it "test_sync_hub_issues_match_check_vaults (EX-34, LAW-34, LAW-35)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "normal" (root </> "v1")
         let goneDir = root </> "gone"
@@ -945,7 +945,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         issues `shouldBe` expectedIssues
         hubVaults hub' `shouldSatisfy` elem e2
 
-    it "test_sync_hub_no_drift_no_write (X35, L36)" $
+    it "test_sync_hub_no_drift_no_write (EX-35, LAW-36)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v1"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -960,7 +960,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         after <- readHubConfigText (hlPath loc)
         after `shouldBe` before
 
-    it "test_sync_hub_never_writes_marker (X36, L36)" $
+    it "test_sync_hub_never_writes_marker (EX-36, LAW-36)" $
       withHubAndRoot $ \loc root -> do
         let vDir = root </> "v1"
         writeVaultMarker vDir (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
@@ -973,8 +973,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         snapAfter `shouldBe` snapBefore
 
   --------------------------------------------------------------------------
-  describe "T10/L37-L41/X37-X40: purge" $ do
-    it "test_purge_hub_only_scope (X37, L37)" $
+  describe "STEP-10/LAW-37-LAW-41/EX-37-EX-40: purge" $ do
+    it "test_purge_hub_only_scope (EX-37, LAW-37)" $
       withHubAndRoot $ \loc root -> do
         let hubDir = hlPath loc
             td = thumbCacheDir loc
@@ -996,7 +996,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         doesFileExist (indexDbPath (vePath e1)) >>= (`shouldBe` True)
         doesFileExist (indexDbPath (vePath e2)) >>= (`shouldBe` True)
 
-    it "test_purge_hub_only_leaves_vaults_alone (L38)" $
+    it "test_purge_hub_only_leaves_vaults_alone (LAW-38)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "v1" (root </> "v1")
         let hub = hubWith [e1]
@@ -1007,7 +1007,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         snapAfter <- snapshotTreeRaw (vePath e1)
         snapAfter `shouldBe` snapBefore
 
-    it "test_purge_all_vaults_removes_indexes_only (X38, L39, L40)" $
+    it "test_purge_all_vaults_removes_indexes_only (EX-38, LAW-39, LAW-40)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "v1" (root </> "v1")
         e2 <- makeRealVault AssetVault "v2" (root </> "v2")
@@ -1024,7 +1024,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         doesFileExist (vePath e1 </> "library" </> "a.png") >>= (`shouldBe` True)
         doesFileExist (vePath e1 </> "note.md") >>= (`shouldBe` True)
 
-    it "X39: 其中一個 vault 的 index.db 事先刪掉;purge PurgeAllVaults 只列另一個" $
+    it "EX-39: 其中一個 vault 的 index.db 事先刪掉;purge PurgeAllVaults 只列另一個" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "v1" (root </> "v1")
         e2 <- makeRealVault AssetVault "v2" (root </> "v2")
@@ -1032,7 +1032,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r <- orDie =<< purge loc (hubWith [e1, e2]) PurgeAllVaults
         prVaultIndexesRemoved r `shouldBe` [indexDbPath (vePath e2)]
 
-    it "test_purge_never_touches_library_or_md (L40): 任何 PurgeScope 下 library\\/ 與 .md 都不受影響" $
+    it "test_purge_never_touches_library_or_md (LAW-40): 任何 PurgeScope 下 library\\/ 與 .md 都不受影響" $
       forM_ [PurgeHubOnly, PurgeAllVaults] $ \scope ->
         withHubAndRoot $ \loc root -> do
           e1 <- makeRealVault AssetVault "v1" (root </> "v1")
@@ -1044,7 +1044,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           after <- readFile (vePath e1 </> "library" </> "sub" </> "deep.md")
           after `shouldBe` before
 
-    it "test_purge_is_idempotent (X40, L41)" $
+    it "test_purge_is_idempotent (EX-40, LAW-41)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "v1" (root </> "v1")
         let hub = hubWith [e1]
@@ -1053,8 +1053,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         r2 `shouldBe` Right (PurgeReport False 0 [])
 
   --------------------------------------------------------------------------
-  describe "T11/L43: 七個函式合起來的檔案系統足跡" $
-    it "test_lifecycle_filesystem_footprint (L43): 一組涵蓋七個函式的操作序列,(i)-(iv) 之外的路徑一個都沒動" $
+  describe "STEP-11/LAW-43: 七個函式合起來的檔案系統足跡" $
+    it "test_lifecycle_filesystem_footprint (LAW-43): 一組涵蓋七個函式的操作序列,(i)-(iv) 之外的路徑一個都沒動" $
       withHubAndRoot $ \loc root -> do
         _ <- setupHub loc
         let vDir1 = root </> "v1"
@@ -1076,8 +1076,8 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterMd `shouldBe` beforeMd
 
   --------------------------------------------------------------------------
-  describe "T12/L45-L47/X42-X45: W4 裁決 B——刪索引前的身分驗證" $ do
-    it "test_forget_vault_delete_index_rejects_id_drift (X42, L45b)" $
+  describe "STEP-12/LAW-45-LAW-47/EX-42-EX-45: WAVE-4 裁決 B——刪索引前的身分驗證" $ do
+    it "test_forget_vault_delete_index_rejects_id_drift (EX-42, LAW-45b)" $
       withHubAndRoot $ \loc root -> do
         let pDir = root </> "p"
         m <- orDie =<< initVaultAt pDir AssetVault "real"
@@ -1091,7 +1091,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         afterCfg `shouldBe` beforeCfg
         doesFileExist (indexDbPath canonP) >>= (`shouldBe` True)
 
-    it "test_forget_vault_keep_index_ignores_drift (X43, L45 KeepIndex 分支)" $
+    it "test_forget_vault_keep_index_ignores_drift (EX-43, LAW-45 KeepIndex 分支)" $
       withHubAndRoot $ \loc root -> do
         let pDir = root </> "p"
         _ <- orDie =<< initVaultAt pDir AssetVault "real"
@@ -1104,7 +1104,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         doesFileExist (indexDbPath canonP) >>= (`shouldBe` True)
         doesFileExist (vaultMarkerConfigFile canonP) >>= (`shouldBe` True)
 
-    it "test_purge_all_vaults_is_all_or_nothing (X44, L46)" $
+    it "test_purge_all_vaults_is_all_or_nothing (EX-44, LAW-46)" $
       withHubAndRoot $ \loc root -> do
         e1 <- makeRealVault AssetVault "ok" (root </> "v1")
         let pDir = root </> "p2"
@@ -1122,7 +1122,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         doesFileExist (indexDbPath (vePath e1)) >>= (`shouldBe` True)
         doesFileExist (indexDbPath canonP2) >>= (`shouldBe` True)
 
-    it "test_delete_index_still_proceeds_when_marker_unreadable (X45, L45a, L47)" $
+    it "test_delete_index_still_proceeds_when_marker_unreadable (EX-45, LAW-45a, LAW-47)" $
       withHubAndRoot $ \loc root -> do
         let goneDir = root </> "gone"
             e1 = VaultEntry (VaultId "vlt-99990000") "gone" AssetVault goneDir
@@ -1132,7 +1132,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         hubVaults hub' `shouldBe` []
 
   --------------------------------------------------------------------------
-  describe "L42(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+  describe "LAW-42(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
     it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Discovery" $ do
       importLines <- lifecycleImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
@@ -1143,7 +1143,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         )
         sibling
 
-    it "test_lifecycle_marker_import_is_exact (E001 L6,取代 F004 L42(b)): 若有 import \
+    it "test_lifecycle_marker_import_is_exact (E001 LAW-6,取代 F004 LAW-42(b)): 若有 import \
        \Aapms.Store.Marker,必須逐字是 \"import Aapms.Store.Marker (VaultMarker (vmId, \
        \vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)\"" $ do
       importLines <- lifecycleImportLines

@@ -1,4 +1,4 @@
--- | graph-core/F001 T7 的對照測試:License 型別的 9 個專屬欄位。
+-- | graph-core/F001 STEP-7 的對照測試:License 型別的 9 個專屬欄位。
 module Aapms.Core.LicenseSpec (spec) where
 
 import Aapms.Core.Fixtures

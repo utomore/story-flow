@@ -1,4 +1,4 @@
--- | graph-core/F004(重跑)的__回歸 Laws__:L1、L19、L20、L23–L31。這些函式本次
+-- | graph-core/F004(重跑)的__回歸 Laws__:LAW-1、LAW-19、LAW-20、LAW-23–LAW-31。這些函式本次
 -- 未改動本體(骨架的「未改動、行為與上一輪相同的匯出」清單),預期全部__綠__。
 --
 -- __委派備註__:同 "Aapms.Md.EditLawsSpec",依賴 @hedgehog@ \/
@@ -8,18 +8,18 @@
 -- __spec 對照__:
 --
 -- @
--- L1  renderDocument . parseDocument 位元組往返(ADR-010)   -> prop_L1
--- L19 removeSection 保留其他節、未知 id 回 Left             -> prop_L19 / prop_L19_unknown
--- L20 updateSectionBody 保留標題/meta,其他節不變           -> prop_L20
--- L23 inheritMeta 的節層繼承規則(design.md 表格)           -> prop_L23
--- L24 type 是否繼承依 typeInherits 旗標(pack.md 不繼承)    -> prop_L24
--- L25 newDocument 的 docKind 與可再解析                     -> prop_L25
--- L26 updateFrontmatter 保留 preamble 與各節              -> prop_L26
--- L27 overrideAt 的定義、未知 id 回 Left                    -> prop_L27 / prop_L27_unknown
--- L28 renameSection 只換標題文字,其餘不變                  -> prop_L28
--- L29 replacePreamble 保留各節與 docFrontRaw                -> prop_L29
--- L30 renderFrontmatter 欄位順序與往返不失真                -> prop_L30
--- L31 renderSection 是三段切片的串接                        -> prop_L31
+-- LAW-1  renderDocument . parseDocument 位元組往返(ADR-010)   -> prop_LAW1
+-- LAW-19 removeSection 保留其他節、未知 id 回 Left             -> prop_LAW19 / prop_LAW19_unknown
+-- LAW-20 updateSectionBody 保留標題/meta,其他節不變           -> prop_LAW20
+-- LAW-23 inheritMeta 的節層繼承規則(design.md 表格)           -> prop_LAW23
+-- LAW-24 type 是否繼承依 typeInherits 旗標(pack.md 不繼承)    -> prop_LAW24
+-- LAW-25 newDocument 的 docKind 與可再解析                     -> prop_LAW25
+-- LAW-26 updateFrontmatter 保留 preamble 與各節              -> prop_LAW26
+-- LAW-27 overrideAt 的定義、未知 id 回 Left                    -> prop_LAW27 / prop_LAW27_unknown
+-- LAW-28 renameSection 只換標題文字,其餘不變                  -> prop_LAW28
+-- LAW-29 replacePreamble 保留各節與 docFrontRaw                -> prop_LAW29
+-- LAW-30 renderFrontmatter 欄位順序與往返不失真                -> prop_LAW30
+-- LAW-31 renderSection 是三段切片的串接                        -> prop_LAW31
 -- @
 module Aapms.Md.RegressionLawsSpec (spec) where
 
@@ -41,9 +41,9 @@ import Aapms.Md.Lexer (metaBlockYaml)
 fixtureDocs :: [Document]
 fixtureDocs = [docOf lindaMd, docOf packMd, docOf licensesMd, docOf classroomMd]
 
--- | L1 的定義域:'parseDocument' 能成功解析的文字。生成任意合法 Markdown 文字
+-- | LAW-1 的定義域:'parseDocument' 能成功解析的文字。生成任意合法 Markdown 文字
 -- 超出本次委派可負擔的範圍,改用既有 fixture 的代表性樣本(呼應
--- "Aapms.Md.RenderSpec" T15 的既有 example 覆蓋,這裡翻成可重複抽樣的
+-- "Aapms.Md.RenderSpec" STEP-15 的既有 example 覆蓋,這裡翻成可重複抽樣的
 -- property 版本)。
 roundtripSamples :: [T.Text]
 roundtripSamples =
@@ -77,12 +77,12 @@ genArbitrarySection =
 
 spec :: Spec
 spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $ do
-  it "L1: renderDocument . parseDocument 位元組往返(ADR-010)" $
+  it "LAW-1: renderDocument . parseDocument 位元組往返(ADR-010)" $
     hedgehog $ do
       t <- forAll (Gen.element roundtripSamples)
       (renderDocument <$> parseDocument t) === Right t
 
-  it "L19: removeSection 保留其他節,未知 id 回 Left" $
+  it "LAW-19: removeSection 保留其他節,未知 id 回 Left" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -95,13 +95,13 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
               Just orig -> renderSection s === renderSection orig
               Nothing -> footnote "不該出現新節" >> failure
 
-  it "L19: 未知 id 回 Left (mdError 1 (UnknownSectionId i))" $
+  it "LAW-19: 未知 id 回 Left (mdError 1 (UnknownSectionId i))" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genFreshId PEnt d)
       removeSection i d === Left (mdError 1 (UnknownSectionId i))
 
-  it "L20: updateSectionBody 保留目標節的標題/meta,其他節逐位元組不變" $
+  it "LAW-20: updateSectionBody 保留目標節的標題/meta,其他節逐位元組不變" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -120,7 +120,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
                 Just orig -> renderSection s === renderSection orig
                 Nothing -> footnote "不該出現新節" >> failure
 
-  it "L23: inheritMeta 的節層繼承規則(design.md 表格)" $
+  it "LAW-23: inheritMeta 的節層繼承規則(design.md 表格)" $
     hedgehog $ do
       front <- forAll genMeta
       i <- forAll (genId PEnt)
@@ -143,7 +143,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
           metaId m === i
           metaTitle m === title
 
-  it "L24: type 是否繼承依 typeInherits 旗標(pack.md 節不繼承且缺漏是錯誤)" $
+  it "LAW-24: type 是否繼承依 typeInherits 旗標(pack.md 節不繼承且缺漏是錯誤)" $
     hedgehog $ do
       front <- forAll genMeta
       i <- forAll (genId PAst)
@@ -154,7 +154,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
         Right m -> metaType m === metaType front
         Left e -> footnoteShow e >> failure
 
-  it "L25: newDocument 的 docKind 與 renderDocument 可再解析" $
+  it "LAW-25: newDocument 的 docKind 與 renderDocument 可再解析" $
     hedgehog $ do
       k <- forAll (Gen.element [TopicDoc, LevelDoc, PackDoc, LicenseDoc])
       m <- forAll genMeta
@@ -165,7 +165,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
         Left e -> footnoteShow e >> failure
         Right _ -> success
 
-  it "L26: updateFrontmatter 保留 docPreamble 與每一節" $
+  it "LAW-26: updateFrontmatter 保留 docPreamble 與每一節" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       m' <- forAll genMeta
@@ -175,7 +175,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
           docPreamble d' === docPreamble d
           map renderSection (docSections d') === map renderSection (docSections d)
 
-  it "L27: overrideAt 等於節的 meta 區塊解出的 MetaOverride(無區塊為 emptyOverride)" $
+  it "LAW-27: overrideAt 等於節的 meta 區塊解出的 MetaOverride(無區塊為 emptyOverride)" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -187,13 +187,13 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
             Left _ -> success -- fixture 的區塊保證解得開,理論上不會落入此分支
             Right expected -> overrideAt i d === Right expected
 
-  it "L27: 未知 id 回 Left (mdError 1 (UnknownSectionId i))" $
+  it "LAW-27: 未知 id 回 Left (mdError 1 (UnknownSectionId i))" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genFreshId PEnt d)
       overrideAt i d === Left (mdError 1 (UnknownSectionId i))
 
-  it "L28: renameSection 只換標題文字,secMetaRaw/secBodyRaw/secId/secLevel 與其他節不變" $
+  it "LAW-28: renameSection 只換標題文字,secMetaRaw/secBodyRaw/secId/secLevel 與其他節不變" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -215,7 +215,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
                 Just orig -> renderSection s === renderSection orig
                 Nothing -> footnote "不該出現新節" >> failure
 
-  it "L29: replacePreamble 保留各節與 docFrontRaw,結果仍可再解析" $
+  it "LAW-29: replacePreamble 保留各節與 docFrontRaw,結果仍可再解析" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       body <- forAll genSafeText
@@ -226,7 +226,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
         Left e -> footnoteShow e >> failure
         Right _ -> success
 
-  it "L30: renderFrontmatter 的鍵序等於 frontmatterFieldOrder,且往返不失真" $
+  it "LAW-30: renderFrontmatter 的鍵序等於 frontmatterFieldOrder,且往返不失真" $
     hedgehog $ do
       m <- forAll genMeta
       le <- forAll genLineEnding
@@ -235,7 +235,7 @@ spec = describe "graph-core/F004 重跑:回歸 Laws(本次未改動的函式)" $
       keys === frontmatterFieldOrder
       decodeFrontmatter out === Right m
 
-  it "L31: renderSection 是三段切片的串接" $
+  it "LAW-31: renderSection 是三段切片的串接" $
     hedgehog $ do
       s <- forAll genArbitrarySection
       renderSection s === secHeadingRaw s <> maybe "" id (secMetaRaw s) <> secBodyRaw s

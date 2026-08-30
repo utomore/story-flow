@@ -117,9 +117,9 @@ spec = describe "graph-core/F005 vault marker" $ do
         closeVault handle
         execute_ (vhConn handle) "SELECT 1" `shouldThrow` anyException
 
-    -- D9:註冊表併入 VaultHandle,由呼叫端經 openVault 的第一個參數傳入,
+    -- DEC-9:註冊表併入 VaultHandle,由呼叫端經 openVault 的第一個參數傳入,
     -- 不是 openVault 自己載入的——這裡只驗證「原樣收下、原樣放進 vhRegistry」。
-    it "openVault 把呼叫端給的 TypeRegistry 原樣放進 vhRegistry(D9)" $
+    it "openVault 把呼叫端給的 TypeRegistry 原樣放進 vhRegistry(DEC-9)" $
       withTempVault $ \dir -> do
         _ <- orDie =<< initVaultAt dir StoryVault "liftgame"
         (handle, _issues) <- orDie =<< openVault testRegistry dir
@@ -138,31 +138,31 @@ spec = describe "graph-core/F005 vault marker" $ do
        \fts_map 是最後一張" $ do
       length indexTables `shouldBe` 15
       take 1 indexTables `shouldBe` ["meta_info"]
-      -- D3(resetSchema 以反向順序 DROP,fts_map 要排最後,先砍掉建在它上面的觸發器)
+      -- DEC-3(resetSchema 以反向順序 DROP,fts_map 要排最後,先砍掉建在它上面的觸發器)
       drop 14 indexTables `shouldBe` ["fts_map"]
 
   -- E002 · spec 對照
   -- (.design/subsystems/graph-core/enhancements/E002-init-vault-at-explicit-time.md)
-  -- R1    initVaultAt 成功後四欄符合(id 格式/kind/name/refs)                 -> "R1: ..."   [綠]
-  -- R2a   已有 marker,initVaultAt 回 VaultAlreadyInitialized,檔案逐位元組不變 -> "R2a: ..."  [綠]
-  -- R2b   已有 marker,initVaultAtWith 同樣回 VaultAlreadyInitialized、不變    -> "R2b: ..."  [紅]
-  -- R3    initVaultAt 成功後 index.db 存在且 openVault 開得起來               -> "R3: ..."   [綠]
-  -- R4    initVaultAt 簽名逐字比對(骨架原文自身承載)                         -> "R4: ..."   [綠]
-  -- R5    同名連續兩次 initVaultAt(不同空目錄)vmId 不同                      -> "R5: ..."   [綠]
-  -- L1    initVaultAtWith 決定性:同 (kind,name,t) 兩個空目錄 vmId 相同        -> "L1: ..."   [紅]
-  -- L2    initVaultAtWith 的 vmId == newId 可獨立算出                        -> "L2: ..."   [紅]
-  -- L3    initVaultAt 與 initVaultAtWith 除 vmId 外逐欄相同、檔案集合一致     -> "L3: ..."   [紅]
-  -- L4    initVaultAt 對父層被佔用的路徑不拋 IOException                     -> "L4: ..."   [紅]
-  -- L4b   initVaultAtWith 對父層被佔用的路徑不拋 IOException                 -> "L4b: ..."  [紅]
-  -- L5/E5 父層被一般檔案佔住,initVaultAt 回 Left (FileWriteFailed …),msg 非空 -> "E5: ..."   [紅]
-  -- E1    = 現況,已由上方「initVaultAt」describe 涵蓋(F005 既有測試)         -> 既有測試   [綠]
-  -- E2    initVaultAtWith 撞號可重現(L1 的具名版本)                          -> "E2: ..."   [紅]
-  -- E3    initVaultAtWith 的期望值可獨立算出(L2 的具名版本)                  -> "E3: ..."   [紅]
-  -- E4    = 現況,已由上方「initVaultAt」describe 涵蓋(F005 既有測試)         -> 既有測試   [綠]
-  -- E6    同 E5,改呼叫 initVaultAtWith,回傳與 E5 逐欄相同的 Left            -> "E6: ..."   [紅]
+  -- REG-1    initVaultAt 成功後四欄符合(id 格式/kind/name/refs)                 -> "REG-1: ..."   [綠]
+  -- REG-2a   已有 marker,initVaultAt 回 VaultAlreadyInitialized,檔案逐位元組不變 -> "REG-2a: ..."  [綠]
+  -- REG-2b   已有 marker,initVaultAtWith 同樣回 VaultAlreadyInitialized、不變    -> "REG-2b: ..."  [紅]
+  -- REG-3    initVaultAt 成功後 index.db 存在且 openVault 開得起來               -> "REG-3: ..."   [綠]
+  -- REG-4    initVaultAt 簽名逐字比對(骨架原文自身承載)                         -> "REG-4: ..."   [綠]
+  -- REG-5    同名連續兩次 initVaultAt(不同空目錄)vmId 不同                      -> "REG-5: ..."   [綠]
+  -- LAW-1    initVaultAtWith 決定性:同 (kind,name,t) 兩個空目錄 vmId 相同        -> "LAW-1: ..."   [紅]
+  -- LAW-2    initVaultAtWith 的 vmId == newId 可獨立算出                        -> "LAW-2: ..."   [紅]
+  -- LAW-3    initVaultAt 與 initVaultAtWith 除 vmId 外逐欄相同、檔案集合一致     -> "LAW-3: ..."   [紅]
+  -- LAW-4    initVaultAt 對父層被佔用的路徑不拋 IOException                     -> "LAW-4: ..."   [紅]
+  -- LAW-4b   initVaultAtWith 對父層被佔用的路徑不拋 IOException                 -> "LAW-4b: ..."  [紅]
+  -- LAW-5/EX-5 父層被一般檔案佔住,initVaultAt 回 Left (FileWriteFailed …),msg 非空 -> "EX-5: ..."   [紅]
+  -- EX-1    = 現況,已由上方「initVaultAt」describe 涵蓋(F005 既有測試)         -> 既有測試   [綠]
+  -- EX-2    initVaultAtWith 撞號可重現(LAW-1 的具名版本)                          -> "EX-2: ..."   [紅]
+  -- EX-3    initVaultAtWith 的期望值可獨立算出(LAW-2 的具名版本)                  -> "EX-3: ..."   [紅]
+  -- EX-4    = 現況,已由上方「initVaultAt」describe 涵蓋(F005 既有測試)         -> 既有測試   [綠]
+  -- EX-6    同 EX-5,改呼叫 initVaultAtWith,回傳與 EX-5 逐欄相同的 Left            -> "EX-6: ..."   [紅]
   describe "graph-core/E002 initVaultAtWith" $ do
-    describe "回歸 law(R1-R5:initVaultAt 的現有行為不得變動)" $ do
-      it "R1: 任意空目錄/kind/非空 name,initVaultAt 成功後 config.toml 讀回的四欄符合" $
+    describe "回歸 law(REG-1-REG-5:initVaultAt 的現有行為不得變動)" $ do
+      it "REG-1: 任意空目錄/kind/非空 name,initVaultAt 成功後 config.toml 讀回的四欄符合" $
         hedgehog $ do
           kind <- forAll genKind
           name <- forAll genName
@@ -175,7 +175,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           let VaultId idText = vmId reread
           assert (isVltIdText idText)
 
-      it "R2a: 已有 marker 的目錄再次呼叫 initVaultAt 回 VaultAlreadyInitialized,\
+      it "REG-2a: 已有 marker 的目錄再次呼叫 initVaultAt 回 VaultAlreadyInitialized,\
          \且底下每個檔案逐位元組不變" $
         hedgehog $ do
           kind1 <- forAll genKind
@@ -192,7 +192,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           result === Left (VaultAlreadyInitialized absDir)
           after === before
 
-      it "R2b: 已有 marker 的目錄呼叫 initVaultAtWith 同樣回 VaultAlreadyInitialized,\
+      it "REG-2b: 已有 marker 的目錄呼叫 initVaultAtWith 同樣回 VaultAlreadyInitialized,\
          \且底下每個檔案逐位元組不變(骨架未實作,預期紅)" $
         hedgehog $ do
           kind1 <- forAll genKind
@@ -210,20 +210,20 @@ spec = describe "graph-core/F005 vault marker" $ do
           result === Left (VaultAlreadyInitialized absDir)
           after === before
 
-      it "R3: initVaultAt 成功後 index.db 存在,且 openVault 開得起來" $
+      it "REG-3: initVaultAt 成功後 index.db 存在,且 openVault 開得起來" $
         withTempVault $ \dir -> do
           _ <- orDie =<< initVaultAt dir StoryVault "liftgame"
           doesFileExist (indexDbPath dir) `shouldReturn` True
           (handle, _issues) <- orDie =<< openVault testRegistry dir
           closeVault handle
 
-      it "R4: initVaultAt 的型別簽名逐字等於 \
+      it "REG-4: initVaultAt 的型別簽名逐字等於 \
          \FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)(骨架原文自身承載)" $ do
         let _typeCheck :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)
             _typeCheck = initVaultAt
         True `shouldBe` True
 
-      it "R5: 同一個 name 連續兩次呼叫 initVaultAt(不同空目錄),vmId 不同" $
+      it "REG-5: 同一個 name 連續兩次呼叫 initVaultAt(不同空目錄),vmId 不同" $
         hedgehog $ do
           kind <- forAll genKind
           name <- forAll genName
@@ -235,8 +235,8 @@ spec = describe "graph-core/F005 vault marker" $ do
                 pure (vmId m1, vmId m2)
           id1 /== id2
 
-    describe "新 law(L1-L5:initVaultAtWith,骨架未實作,預期紅)" $ do
-      it "L1: 任意 kind/name/t,兩個不同空目錄各呼叫一次 initVaultAtWith,vmId 相同" $
+    describe "新 law(LAW-1-LAW-5:initVaultAtWith,骨架未實作,預期紅)" $ do
+      it "LAW-1: 任意 kind/name/t,兩個不同空目錄各呼叫一次 initVaultAtWith,vmId 相同" $
         hedgehog $ do
           kind <- forAll genKind
           name <- forAll genName
@@ -249,7 +249,7 @@ spec = describe "graph-core/F005 vault marker" $ do
                 pure (r1, r2)
           vmId m1 === vmId m2
 
-      it "L2: initVaultAtWith 成功時 vmId == VaultId (renderId (newId PVlt name t 0))" $
+      it "LAW-2: initVaultAtWith 成功時 vmId == VaultId (renderId (newId PVlt name t 0))" $
         hedgehog $ do
           kind <- forAll genKind
           name <- forAll genName
@@ -257,7 +257,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           marker <- evalIO $ withTempVault $ \dir -> orDie =<< initVaultAtWith dir kind name t
           vmId marker === VaultId (renderId (newId PVlt name t 0))
 
-      it "L3: initVaultAt 與 initVaultAtWith(任意 t)的結果除 vmId 外逐欄相同,\
+      it "LAW-3: initVaultAt 與 initVaultAtWith(任意 t)的結果除 vmId 外逐欄相同,\
          \落地檔案相對路徑集合一致" $
         hedgehog $ do
           kind <- forAll genKind
@@ -276,7 +276,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           vmRefs mAt === vmRefs mWith
           map fst filesAt === map fst filesWith
 
-      it "L4: initVaultAt 對父層被一般檔案佔住的路徑不拋 IOException" $
+      it "LAW-4: initVaultAt 對父層被一般檔案佔住的路徑不拋 IOException" $
         withTempVault $ \dir -> do
           let blockerPath = dir </> "blocker"
           writeFile blockerPath "not a directory"
@@ -288,7 +288,7 @@ spec = describe "graph-core/F005 vault marker" $ do
             Right (Left _) -> pure ()
             Right (Right v) -> expectationFailure ("預期 Left,得到 Right " <> show v)
 
-      it "L4b: initVaultAtWith 對父層被一般檔案佔住的路徑不拋 IOException" $
+      it "LAW-4b: initVaultAtWith 對父層被一般檔案佔住的路徑不拋 IOException" $
         withTempVault $ \dir -> do
           now <- getCurrentTime
           let blockerPath = dir </> "blocker"
@@ -301,7 +301,7 @@ spec = describe "graph-core/F005 vault marker" $ do
             Right (Left _) -> pure ()
             Right (Right v) -> expectationFailure ("預期 Left,得到 Right " <> show v)
 
-      it "E5/L5: 父層被一般檔案佔住,initVaultAt 回 Left (FileWriteFailed (markerDir root) msg),\
+      it "EX-5/LAW-5: 父層被一般檔案佔住,initVaultAt 回 Left (FileWriteFailed (markerDir root) msg),\
          \msg 非空,不拋例外" $
         withTempVault $ \dir -> do
           let blockerPath = dir </> "blocker"
@@ -319,8 +319,8 @@ spec = describe "graph-core/F005 vault marker" $ do
             Right (Left other) -> expectationFailure ("預期 FileWriteFailed,得到 " <> show other)
             Right (Right v) -> expectationFailure ("預期 Left,得到 Right " <> show v)
 
-    describe "Examples(E2/E3/E6:骨架未實作,預期紅)" $ do
-      it "E2: 兩個不同空目錄、同 StoryVault/\"liftgame\"/同一個 t,各呼叫一次 initVaultAtWith,\
+    describe "Examples(EX-2/EX-3/EX-6:骨架未實作,預期紅)" $ do
+      it "EX-2: 兩個不同空目錄、同 StoryVault/\"liftgame\"/同一個 t,各呼叫一次 initVaultAtWith,\
          \兩次都 Right 且 vmId 相同" $ do
         let t = UTCTime (ModifiedJulianDay 61094) 0
         (r1, r2) <-
@@ -333,7 +333,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           (Right m1, Right m2) -> vmId m1 `shouldBe` vmId m2
           other -> expectationFailure ("預期兩次都 Right,得到 " <> show other)
 
-      it "E3: initVaultAtWith d StoryVault \"liftgame\" t 的\
+      it "EX-3: initVaultAtWith d StoryVault \"liftgame\" t 的\
          \ vmId == VaultId (renderId (newId PVlt \"liftgame\" t 0))" $ do
         let t = UTCTime (ModifiedJulianDay 61094) 0
         r <- withTempVault $ \dir -> initVaultAtWith dir StoryVault "liftgame" t
@@ -341,7 +341,7 @@ spec = describe "graph-core/F005 vault marker" $ do
           Right m -> vmId m `shouldBe` VaultId (renderId (newId PVlt "liftgame" t 0))
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
 
-      it "E6: 同 E5,改呼叫 initVaultAtWith … t,回傳與 initVaultAt 的 Left 逐欄相同" $
+      it "EX-6: 同 EX-5,改呼叫 initVaultAtWith … t,回傳與 initVaultAt 的 Left 逐欄相同" $
         withTempVault $ \dir -> do
           let blockerPath = dir </> "blocker"
               subPath = blockerPath </> "sub"
@@ -376,7 +376,7 @@ readUtf8Source rel = go ["src" </> rel, "store" </> "src" </> rel]
 --------------------------------------------------------------------------------
 -- graph-core/E002 用的產生器與小工具
 
--- | 任意 kind(L1/L2/R1 等的定義域涵蓋兩種 kind)。
+-- | 任意 kind(LAW-1/LAW-2/REG-1 等的定義域涵蓋兩種 kind)。
 genKind :: Gen VaultKind
 genKind = Gen.element [AssetVault, StoryVault]
 
@@ -385,7 +385,7 @@ genKind = Gen.element [AssetVault, StoryVault]
 genName :: Gen Text
 genName = Gen.text (Range.linear 1 20) (Gen.choice [Gen.alpha, Gen.digit, Gen.element ("-_ " :: String)])
 
--- | 任意 'UTCTime',給 L1/L2/L3/R2b 的通用性質測試用(與
+-- | 任意 'UTCTime',給 LAW-1/LAW-2/LAW-3/REG-2b 的通用性質測試用(與
 -- "Aapms.Workspace.ProjectsSpec".genUTCTime 同型)。
 genTime :: Gen UTCTime
 genTime = do
@@ -393,7 +393,7 @@ genTime = do
   s <- Gen.integral (Range.linear 0 86399)
   pure (UTCTime (ModifiedJulianDay d) (secondsToDiffTime s))
 
--- | @vlt-@ + 8 個小寫十六進位字元(R1 的 id 格式判準)。
+-- | @vlt-@ + 8 個小寫十六進位字元(REG-1 的 id 格式判準)。
 isVltIdText :: Text -> Bool
 isVltIdText t = case T.stripPrefix "vlt-" t of
   Just rest -> T.length rest == 8 && T.all isLowerHex rest
@@ -401,7 +401,7 @@ isVltIdText t = case T.stripPrefix "vlt-" t of
   where
     isLowerHex c = c `elem` ("0123456789abcdef" :: String)
 
--- | 遞迴列出 root 底下每一個檔案的相對路徑與內容,供 R2a/R2b「逐位元組不變」的比對。
+-- | 遞迴列出 root 底下每一個檔案的相對路徑與內容,供 REG-2a/REG-2b「逐位元組不變」的比對。
 snapshotDir :: FilePath -> IO [(FilePath, BS.ByteString)]
 snapshotDir root = go ""
   where

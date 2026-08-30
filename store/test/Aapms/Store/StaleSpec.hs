@@ -1,6 +1,6 @@
--- | graph-core\/F006 T7:@rm index.db@ 後 'Aapms.Store.Marker.openVault' +
--- 'rebuildIndex' 與刪除前等價(P0 契約測試精神,套件內版本——見 F006 待確認
--- 假設 A8)、'refreshStale' 只重讀改動過的檔、移除消失的檔案。
+-- | graph-core\/F006 STEP-7:@rm index.db@ 後 'Aapms.Store.Marker.openVault' +
+-- 'rebuildIndex' 與刪除前等價(S0 契約測試精神,套件內版本——見 F006 待確認
+-- 假設 ASM-8)、'refreshStale' 只重讀改動過的檔、移除消失的檔案。
 module Aapms.Store.StaleSpec (spec) where
 
 import Data.List (sort)
@@ -23,7 +23,7 @@ spec = describe "graph-core/F006 過時偵測與 rm index.db 等價" $ do
   -- __不用 withStoryVault__:它收尾會自動 closeVault 一次,這條測試需要自己
   -- 提前 closeVault 才能刪掉 index.db(Windows 上開著的檔案刪不掉),兩者疊加
   -- 會對同一個連線 close 兩次(SQLite「bad parameter or other API misuse」)。
-  it "T7: rm index.db 後 openVault + rebuildIndex 與刪除前的 listNodes/linksFrom 結果相同" $
+  it "STEP-7: rm index.db 後 openVault + rebuildIndex 與刪除前的 listNodes/linksFrom 結果相同" $
     withTempVault $ \dir -> do
       _ <- orDie =<< initVaultAt dir StoryVault "story-fixture"
       writeFiles dir storyVaultFiles
@@ -41,7 +41,7 @@ spec = describe "graph-core/F006 過時偵測與 rm index.db 等價" $ do
       snapAfter `shouldBe` snapBefore
       closeVault vh2
 
-  it "T7: 只改一個檔案的 mtime/size,refreshStale 只重讀那一個,其餘檔案不受影響" $
+  it "STEP-7: 只改一個檔案的 mtime/size,refreshStale 只重讀那一個,其餘檔案不受影響" $
     withStoryVault $ \vh -> do
       _ <- orDie =<< rebuildIndex vh
       beforeLevel <- summaryOf vh "lvl-00000001"
@@ -57,7 +57,7 @@ spec = describe "graph-core/F006 過時偵測與 rm index.db 等價" $ do
       afterLevel <- summaryOf vh "lvl-00000001"
       afterLevel `shouldBe` beforeLevel
 
-  it "T7: 索引後刪除磁碟上一個檔案,refreshStale 把該檔案的記錄移除" $
+  it "STEP-7: 索引後刪除磁碟上一個檔案,refreshStale 把該檔案的記錄移除" $
     withStoryVault $ \vh -> do
       _ <- orDie =<< rebuildIndex vh
       removeFile (vhRoot vh </> "levels" </> "test-classroom.md")

@@ -22,7 +22,7 @@ import qualified Hedgehog.Range as Range
 import Aapms.Store.Tokenize (FtsText (..))
 
 -- | 一般 ASCII 字元:字母、數字,加上常見的英文素材命名符號(@-@\/@_@ 等)與
--- 標點,用來覆蓋「符號不被當運算子」這類情境(E5\/E8)。
+-- 標點,用來覆蓋「符號不被當運算子」這類情境(EX-5\/EX-8)。
 genAsciiChar :: Gen Char
 genAsciiChar = Gen.choice [Gen.alpha, Gen.digit, Gen.element (" -_.,!?()[]{}'" :: String)]
 
@@ -41,7 +41,7 @@ genCjkChar =
 genMixedText :: Gen Text
 genMixedText = Gen.text (Range.linear 0 30) (Gen.choice [genAsciiChar, genCjkChar, pure ' '])
 
--- | 保證不含任何中日韓字元(L5\/L24 用)。
+-- | 保證不含任何中日韓字元(LAW-5\/LAW-24 用)。
 genNonCjkText :: Gen Text
 genNonCjkText = Gen.text (Range.linear 0 30) genAsciiChar
 
@@ -49,7 +49,7 @@ genNonCjkText = Gen.text (Range.linear 0 30) genAsciiChar
 genCjkRunText :: Gen Text
 genCjkRunText = Gen.text (Range.linear 1 8) genCjkChar
 
--- | 多段中日韓,段間以一個空白隔開(L3 的分段不跨界)。
+-- | 多段中日韓,段間以一個空白隔開(LAW-3 的分段不跨界)。
 genCjkRunsText :: Gen Text
 genCjkRunsText = do
   runs <- Gen.list (Range.linear 1 4) genCjkRunText
@@ -70,7 +70,7 @@ genPaddedText = do
   post <- Gen.text (Range.linear 0 3) (pure ' ')
   pure (pre <> body <> post)
 
--- | 任意的 'FtsText'(六欄各自獨立產生,供 L8 的純函式部分用)。
+-- | 任意的 'FtsText'(六欄各自獨立產生,供 LAW-8 的純函式部分用)。
 genFtsText :: Gen FtsText
 genFtsText =
   FtsText

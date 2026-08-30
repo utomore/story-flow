@@ -68,7 +68,7 @@ subtreeIds doc i = i : map secId (subtreeAfter doc i)
 --
 -- 根 Node 刪不得:刪了整份 Level 檔就解析不出 @root@。
 --
--- 三種結果,一個都不能少(2026-08-25 G9 裁決,見 F008 的 L24):
+-- 三種結果,一個都不能少(2026-08-25 GAP-9 裁決,見 F008 的 LAW-24):
 --
 -- * @id@ 在 @doc@ 裡且就是該 Level 檔的根 → @'Right' 'True'@
 -- * @id@ 在 @doc@ 裡但不是根 → @'Right' 'False'@

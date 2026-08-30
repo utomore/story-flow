@@ -1,8 +1,8 @@
--- | graph-core/F002 T2\/T3(重建 'Aapms.Core.Registry':@family@ 與 'TypeDecl'、
--- 'checkMeta' 對 entity 與 asset 兩族)與 T11(保留鍵、錯誤彙整)的對照測試。
+-- | graph-core/F002 STEP-2\/STEP-3(重建 'Aapms.Core.Registry':@family@ 與 'TypeDecl'、
+-- 'checkMeta' 對 entity 與 asset 兩族)與 STEP-11(保留鍵、錯誤彙整)的對照測試。
 --
 -- F001 刪除的舊 @RegistrySpec.hs@(對照舊 @EntityTypeSpec@ \/ @checkEntity@)
--- 整份被本檔取代(D6:舊單元測試隨模組重寫,被取代的舊 Spec 刪掉)。
+-- 整份被本檔取代(DEC-6:舊單元測試隨模組重寫,被取代的舊 Spec 刪掉)。
 module Aapms.Core.RegistrySpec (spec) where
 
 import Aapms.Core.AnyNode
@@ -57,7 +57,7 @@ assetImageDecl =
     }
 
 -- | asset 族但 @tdNameKinds = []@,對照真實的 @asset-archive.toml@(F002
--- 待確認假設 A3 的驗收對象)。
+-- 待確認假設 ASM-3 的驗收對象)。
 assetArchiveDecl :: TypeDecl
 assetArchiveDecl =
   TypeDecl
@@ -74,7 +74,7 @@ assetArchiveDecl =
 
 spec :: Spec
 spec = do
-  describe "T2 test_family_and_typedecl" $ do
+  describe "STEP-2 test_family_and_typedecl" $ do
     it "renderFamily / parseFamily 互為反函式" $ do
       renderFamily FEntity `shouldBe` "entity"
       renderFamily FAsset `shouldBe` "asset"
@@ -137,7 +137,7 @@ spec = do
       renderRegistryError (RegistryErrors [EmptyTypeKey, ReservedTypeKey (typeOf "level")])
         `shouldBe` T.intercalate "\n" [renderRegistryError EmptyTypeKey, renderRegistryError (ReservedTypeKey (typeOf "level"))]
 
-  describe "T3 test_checkmeta_entity_and_asset" $ do
+  describe "STEP-3 test_checkmeta_entity_and_asset" $ do
     it "型別不在註冊表內回 UnknownNodeType" $
       case buildRegistry [] of
         Right reg -> checkMeta reg (NEntity sampleEntity) `shouldBe` [UnknownNodeType (typeOf "character-fragment")]
@@ -210,7 +210,7 @@ spec = do
           [() | NameKindNotAllowed _ _ <- checkMeta reg (NAsset noName)] `shouldBe` []
         Left es -> expectationFailure (show es)
 
-    it "asset:tdNameKinds 空清單視為未宣告限制(asset-archive,待確認假設 A3)" $
+    it "asset:tdNameKinds 空清單視為未宣告限制(asset-archive,待確認假設 ASM-3)" $
       case buildRegistry [assetArchiveDecl] of
         Right reg -> do
           let arc =

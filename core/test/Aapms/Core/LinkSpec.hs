@@ -1,5 +1,5 @@
--- | graph-core/F001 T3 的對照測試:核心關聯詞彙(擴充 Uses/Depicts)與
--- LinkGraph 型別別名(A2:只留型別,不含走訪函式)。
+-- | graph-core/F001 STEP-3 的對照測試:核心關聯詞彙(擴充 Uses/Depicts)與
+-- LinkGraph 型別別名(ASM-2:只留型別,不含走訪函式)。
 module Aapms.Core.LinkSpec (spec) where
 
 import qualified Data.Map.Strict as M
@@ -69,7 +69,7 @@ spec = do
       suggestCoreKind "使用" `shouldBe` Just Uses
       suggestCoreKind "描繪" `shouldBe` Just Depicts
 
-  describe "LinkGraph —— 型別別名,只留資料結構(待確認假設 A2)" $
+  describe "LinkGraph —— 型別別名,只留資料結構(待確認假設 ASM-2)" $
     it "可放入 Map.fromList 並依 Id 查詢" $
       let g :: LinkGraph
           g = M.fromList [(idOf "ent-7f3a", [Link Uses (refOf "ast-1a2b") Nothing])]

@@ -106,7 +106,7 @@ lookupSelector hub s = case byId of
 -- 未註冊的 vault(向上探測到、中樞裡沒有那一列)走 'readVaultRefAt':
 -- 'Aapms.Workspace.Types.ScopeIssue' 的三個建構子都要求一列
 -- 'Aapms.Workspace.Types.VaultEntry',表達不出「沒有那一列」的失敗(見 F002 的
--- 待確認假設 A1)。
+-- 待確認假設 ASM-1)。
 readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)
 readVaultRef e p = do
   p' <- canonicalizePath p

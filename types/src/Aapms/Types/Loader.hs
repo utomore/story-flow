@@ -56,7 +56,7 @@ import Paths_aapms_types (getDataDir)
 -- 常數放在這裡而不是各呼叫端各寫一份字串:錯字不會被編譯器擋下來,而
 -- 「設了環境變數卻沒生效」是最難查的那種設定問題。
 --
--- __不改名__:P0 進度明寫 @STORYFLOW_*@ 環境變數是刻意留到 P3 由 @workspace@
+-- __不改名__:S0 進度明寫 @STORYFLOW_*@ 環境變數是刻意留到 S3 由 @workspace@
 -- 依 ADR-017 改的執行期名稱,graph-core 不碰。
 registryEnvVar :: String
 registryEnvVar = "STORYFLOW_REGISTRY"

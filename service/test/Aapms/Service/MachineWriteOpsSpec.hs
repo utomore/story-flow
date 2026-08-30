@@ -5,11 +5,11 @@
 -- __spec 對照__(「1-to-1 測試對照表」——全部紅:本體皆 @undefined@):
 --
 -- @
--- L14,L15,X13,X13b  vaultInit 寫後可見 + 回傳的那一筆 + AdoptNotice 原樣  -> prop_vault_init_visible_after, prop_vault_init_adopt_notice, test_vault_init_fresh_example, test_vault_init_adopt_with_legacy_example
--- L14,L15           vaultAdd 寫後可見 + 回傳的那一筆                      -> test_vault_add_example
--- L14,L16,X14       vaultForget 寫後可見 + 回傳被移除的那一筆              -> prop_vault_forget_removed_row, test_vault_forget_example
--- L17,X15           失敗即原樣包、什麼都不動                              -> prop_write_ops_failure_passthrough, test_vault_forget_unknown_selector_example
--- L18,L19,X16,X17   projectList 逐列對應 + register/forget 回的那一筆     -> prop_project_list_matches_hub, test_project_round_trip_example, test_project_path_missing_example
+-- LAW-14,LAW-15,EX-13,EX-13b  vaultInit 寫後可見 + 回傳的那一筆 + AdoptNotice 原樣  -> prop_vault_init_visible_after, prop_vault_init_adopt_notice, test_vault_init_fresh_example, test_vault_init_adopt_with_legacy_example
+-- LAW-14,LAW-15           vaultAdd 寫後可見 + 回傳的那一筆                      -> test_vault_add_example
+-- LAW-14,LAW-16,EX-14       vaultForget 寫後可見 + 回傳被移除的那一筆              -> prop_vault_forget_removed_row, test_vault_forget_example
+-- LAW-17,EX-15           失敗即原樣包、什麼都不動                              -> prop_write_ops_failure_passthrough, test_vault_forget_unknown_selector_example
+-- LAW-18,LAW-19,EX-16,EX-17   projectList 逐列對應 + register/forget 回的那一筆     -> prop_project_list_matches_hub, test_project_round_trip_example, test_project_path_missing_example
 -- @
 module Aapms.Service.MachineWriteOpsSpec (spec) where
 
@@ -82,8 +82,8 @@ isRightU (Left _) = False
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList" $ do
   --------------------------------------------------------------------------
-  describe "L14,L15,X13,X13b: vaultInit" $ do
-    it "prop_vault_init_visible_after (L14): 對任意 kind,成功後同一個 Env 的 vaultList 看得到,且與重新 openEnv 的結果逐項相同" $
+  describe "LAW-14,LAW-15,EX-13,EX-13b: vaultInit" $ do
+    it "prop_vault_init_visible_after (LAW-14): 對任意 kind,成功後同一個 Env 的 vaultList 看得到,且與重新 openEnv 的結果逐項相同" $
       hedgehog $ do
         kind <- forAll (Gen.element [AssetVault, StoryVault])
         outcome <- liftIO $ withFreshVaultDirLayout [] $ \fl dir ->
@@ -107,7 +107,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
               )
             failure
 
-    it "prop_vault_init_adopt_notice (L15 第二個分量): AdoptExisting 之下,有 legacy 目錄時 AdoptNotice 非空,沒有時為空;第一個分量的欄位與參數一致" $
+    it "prop_vault_init_adopt_notice (LAW-15 第二個分量): AdoptExisting 之下,有 legacy 目錄時 AdoptNotice 非空,沒有時為空;第一個分量的欄位與參數一致" $
       hedgehog $ do
         hasLegacy <- forAll Gen.bool
         let legacyDirs = if hasLegacy then [".assetdb"] else []
@@ -129,7 +129,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
               else anLegacyMarkers notice === []
           Left e -> annotate (show e) >> failure
 
-    it "test_vault_init_fresh_example (X13): 乾淨目錄,vvKind/vvName/vvPath 相符,vvRegistered/vvReachable 皆 True,notice 為空,vaultList 三筆含它" $
+    it "test_vault_init_fresh_example (EX-13): 乾淨目錄,vvKind/vvName/vvPath 相符,vvRegistered/vvReachable 皆 True,notice 為空,vaultList 三筆含它" $
       withFreshVaultDirLayout [] $ \fl dir -> do
         canon <- canonicalizePath dir
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
@@ -150,7 +150,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
                 Left e -> expectationFailure (show e)
             Left e -> expectationFailure (show e)
 
-    it "test_vault_init_adopt_with_legacy_example (X13b): .assetdb/ legacy marker 存在,notice 含它;legacy 目錄仍在" $
+    it "test_vault_init_adopt_with_legacy_example (EX-13b): .assetdb/ legacy marker 存在,notice 含它;legacy 目錄仍在" $
       withFreshVaultDirLayout [".assetdb"] $ \fl dir ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env (vaultInit dir AssetVault "fourth" AdoptExisting)
@@ -167,7 +167,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L14,L15: vaultAdd" $
+  describe "LAW-14,LAW-15: vaultAdd" $
     it "test_vault_add_example: 已是 vault 但未註冊的目錄,vaultAdd 之後 vaultList 看得到,欄位相符" $
       withUnaddedVaultDirLayout $ \fl vid path ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
@@ -184,8 +184,8 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L14,L16,X14: vaultForget" $ do
-    it "prop_vault_forget_removed_row (L14+L16): 對任意一個 vault 與 DeleteIndex,forget 回被移除的那一筆,vaultList 只剩另一個" $
+  describe "LAW-14,LAW-16,EX-14: vaultForget" $ do
+    it "prop_vault_forget_removed_row (LAW-14+LAW-16): 對任意一個 vault 與 DeleteIndex,forget 回被移除的那一筆,vaultList 只剩另一個" $
       hedgehog $ do
         useVa <- forAll Gen.bool
         delIdx <- forAll (Gen.element [KeepIndex, DeleteIndex])
@@ -204,7 +204,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             map vvId vs === [otherId]
           _ -> annotate (describeServiceResult result <> " / " <> describeServiceResult listR) >> failure
 
-    it "test_vault_forget_example (X14): forget \"story\" KeepIndex,vvId==VA、vvRegistered==False、vvReachable==True;vaultList 只剩 VB;marker 位元組不變" $
+    it "test_vault_forget_example (EX-14): forget \"story\" KeepIndex,vvId==VA、vvRegistered==False、vvReachable==True;vaultList 只剩 VB;marker 位元組不變" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           beforeBytes <- readUtf8NoTranslate (flVaPath fl </> ".aapms" </> "config.toml")
@@ -223,8 +223,8 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L17,X15: 失敗即原樣包、什麼都不動" $ do
-    it "prop_write_ops_failure_passthrough (L17): vaultForget/projectForget 對不存在的 selector,回 Left,askHub 與中樞檔位元組不變" $
+  describe "LAW-17,EX-15: 失敗即原樣包、什麼都不動" $ do
+    it "prop_write_ops_failure_passthrough (LAW-17): vaultForget/projectForget 對不存在的 selector,回 Left,askHub 與中樞檔位元組不變" $
       hedgehog $ do
         useProject <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -245,7 +245,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             beforeBytes === afterBytes
           _ -> annotate (show result) >> failure
 
-    it "test_vault_forget_unknown_selector_example (X15): Left (WorkspaceFailed (VaultSelectorNotFound _)),中樞檔位元組不變" $
+    it "test_vault_forget_unknown_selector_example (EX-15): Left (WorkspaceFailed (VaultSelectorNotFound _)),中樞檔位元組不變" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           beforeBytes <- readUtf8NoTranslate (flHubDir fl </> "config.toml")
@@ -255,8 +255,8 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
           afterBytes `shouldBe` beforeBytes
 
   --------------------------------------------------------------------------
-  describe "L18,L19,X16,X17: projectList / projectRegister / projectForget" $ do
-    it "prop_project_list_matches_hub (L18): 對 0..2 個已登錄的專案(目錄皆存在),projectList 逐項等於 hubProjects,pvReachable 皆 True" $
+  describe "LAW-18,LAW-19,EX-16,EX-17: projectList / projectRegister / projectForget" $ do
+    it "prop_project_list_matches_hub (LAW-18): 對 0..2 個已登錄的專案(目錄皆存在),projectList 逐項等於 hubProjects,pvReachable 皆 True" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 0 2))
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -285,7 +285,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
             all pvReachable vs === True
           _ -> failure
 
-    it "test_project_round_trip_example (X16): register -> list -> forget -> list" $
+    it "test_project_round_trip_example (EX-16): register -> list -> forget -> list" $
       withFixedLayout $ \fl -> do
         let projPath = flRoot fl </> "proj"
         createDirectoryIfMissing True projPath
@@ -307,7 +307,7 @@ spec = describe "F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
               r4 `shouldBe` Right []
             Left e -> expectationFailure (show e)
 
-    it "test_project_path_missing_example (X17): 專案路徑消失後 pvReachable == False,其餘三欄不變" $
+    it "test_project_path_missing_example (EX-17): 專案路徑消失後 pvReachable == False,其餘三欄不變" $
       withFixedLayout $ \fl -> do
         let projPath = flRoot fl </> "proj2"
         createDirectoryIfMissing True projPath

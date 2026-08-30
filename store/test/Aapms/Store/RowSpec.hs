@@ -1,4 +1,4 @@
--- | graph-core\/F006 T2:'Aapms.Store.Row' 的欄位規則本身(不透過 Index\/Query
+-- | graph-core\/F006 STEP-2:'Aapms.Store.Row' 的欄位規則本身(不透過 Index\/Query
 -- 走完整流程,直接對 @nodes@ + 附屬表寫入\/讀出)。
 module Aapms.Store.RowSpec (spec) where
 
@@ -37,7 +37,7 @@ sampleMeta =
 
 spec :: Spec
 spec = describe "graph-core/F006 Row" $ do
-  it "T2: nodeFields 寫入 nodes + 附屬表後,hydrateMeta 讀回的 Meta 與原值相等" $
+  it "STEP-2: nodeFields 寫入 nodes + 附屬表後,hydrateMeta 讀回的 Meta 與原值相等" $
     withTempVault $ \dir -> do
       _ <- orDie =<< initVaultAt dir StoryVault "row-roundtrip"
       (vh, _issues) <- orDie =<< openVault testRegistry dir
@@ -81,7 +81,7 @@ spec = describe "graph-core/F006 Row" $ do
         other -> expectationFailure ("預期恰一筆 NodeRow,得到 " <> show (length other))
       closeVault vh
 
-  it "T2: parseDocKind . renderDocKind 對四種 DocKind 是 identity" $ do
+  it "STEP-2: parseDocKind . renderDocKind 對四種 DocKind 是 identity" $ do
     mapM_
       (\k -> parseDocKind (renderDocKind k) `shouldBe` Just k)
       [TopicDoc, LevelDoc, PackDoc, LicenseDoc]

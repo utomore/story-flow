@@ -1,5 +1,5 @@
--- | graph-core/F004(重跑)Laws:L13–L16(G1:payload 寫得出完整的新節)、
--- L17–L18(appendSection 的保留與撞號)、L21(mkSection 的兩半組裝)。
+-- | graph-core/F004(重跑)Laws:LAW-13–LAW-16(GAP-1:payload 寫得出完整的新節)、
+-- LAW-17–LAW-18(appendSection 的保留與撞號)、LAW-21(mkSection 的兩半組裝)。
 --
 -- __委派備註__:同 "Aapms.Md.EditLawsSpec",本檔依賴 @hedgehog@ \/
 -- @hspec-hedgehog@,@md\/aapms-md.cabal@ 尚未接線,__未列進__ @other-modules@,
@@ -8,13 +8,13 @@
 -- __spec 對照__:
 --
 -- @
--- L13 appendSection(NSAsset)寫得出 toPack 讀回一致的新 Asset   -> prop_L13
--- L14 appendSection(NSLicense)寫得出 toLicenses 讀回一致的新 License -> prop_L14
--- L15 appendSection(NSNode)寫得出 toLevel 讀回 nodKind == 給定 kind -> prop_L15
--- L16 payloadOverride 的 moKind 規則、其餘十二欄不變               -> prop_L16
--- L17 appendSection 保留既有節位元組、新節排最後                   -> prop_L17
--- L18 appendSection 撞號回 DuplicateSectionId                      -> prop_L18
--- L21 mkSection 的 secMetaRaw 由 payloadOverride/payloadExtras 兩半組成 -> prop_L21
+-- LAW-13 appendSection(NSAsset)寫得出 toPack 讀回一致的新 Asset   -> prop_LAW13
+-- LAW-14 appendSection(NSLicense)寫得出 toLicenses 讀回一致的新 License -> prop_LAW14
+-- LAW-15 appendSection(NSNode)寫得出 toLevel 讀回 nodKind == 給定 kind -> prop_LAW15
+-- LAW-16 payloadOverride 的 moKind 規則、其餘十二欄不變               -> prop_LAW16
+-- LAW-17 appendSection 保留既有節位元組、新節排最後                   -> prop_LAW17
+-- LAW-18 appendSection 撞號回 DuplicateSectionId                      -> prop_LAW18
+-- LAW-21 mkSection 的 secMetaRaw 由 payloadOverride/payloadExtras 兩半組成 -> prop_LAW21
 -- @
 module Aapms.Md.NewSectionLawsSpec (spec) where
 
@@ -43,7 +43,7 @@ genFreshId p d = Gen.filter (`notElem` sectionIds d) (genId p)
 
 spec :: Spec
 spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSection Laws" $ do
-  it "L13(G1): appendSection(NSAsset)之後 toPack 讀回的新 Asset 與 na 逐欄相等" $
+  it "LAW-13(GAP-1): appendSection(NSAsset)之後 toPack 讀回的新 Asset 與 na 逐欄相等" $
     hedgehog $ do
       let d = docOf packMd
       i <- forAll (genFreshId PAst d)
@@ -68,7 +68,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
               astAuthor a === naAuthor na
             other -> footnoteShow (length other) >> failure
 
-  it "L14(G1): appendSection(NSLicense)之後 toLicenses 讀回的新 License 與 nl 逐欄相等" $
+  it "LAW-14(GAP-1): appendSection(NSLicense)之後 toLicenses 讀回的新 License 與 nl 逐欄相等" $
     hedgehog $ do
       let d = docOf licensesMd
       i <- forAll (genFreshId PLic d)
@@ -94,7 +94,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
               licSourceUrl l === nlcSourceUrl nl
             other -> footnoteShow (length other) >> failure
 
-  it "L15(G1): appendSection(NSNode)之後 toLevel 讀回的 nodKind == 給定的 kind,不論 moKind ov" $
+  it "LAW-15(GAP-1): appendSection(NSNode)之後 toLevel 讀回的 nodKind == 給定的 kind,不論 moKind ov" $
     hedgehog $ do
       let d = docOf classroomMd
       i <- forAll (genFreshId PNod d)
@@ -111,7 +111,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
             [n] -> nodKind n === nnKind nn
             other -> footnoteShow (length other) >> failure
 
-  it "L16: payloadOverride 的 moKind 規則(NSNode 由 NewNode 覆蓋),其餘十二欄不變" $
+  it "LAW-16: payloadOverride 的 moKind 規則(NSNode 由 NewNode 覆蓋),其餘十二欄不變" $
     hedgehog $ do
       p <- forAll genNewSectionPayload
       let ov = payloadOverride p
@@ -123,7 +123,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
         NSAsset baseOv _ -> ov === baseOv
         NSLicense baseOv _ -> ov === baseOv
 
-  it "L17: appendSection 保留既有節的 secHeadingRaw/secMetaRaw(僅最後節可能補尾),新節排最後" $
+  it "LAW-17: appendSection 保留既有節的 secHeadingRaw/secMetaRaw(僅最後節可能補尾),新節排最後" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genFreshId PEnt d)
@@ -146,7 +146,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
           forM_ (zip [1 :: Int ..] (zip origSecs leading)) $ \(idx, (o, s)) ->
             when (idx /= n) $ secBodyRaw s === secBodyRaw o
 
-  it "L18: appendSection 撞號回 Left (mdError 1 (DuplicateSectionId (nsId ns)))" $
+  it "LAW-18: appendSection 撞號回 Left (mdError 1 (DuplicateSectionId (nsId ns)))" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -158,7 +158,7 @@ spec = describe "graph-core/F004 重跑:NewSectionPayload / appendSection / mkSe
         Left e -> e === mdError 1 (DuplicateSectionId i)
         Right _ -> footnote "nsId 撞號應該回 Left" >> failure
 
-  it "L21: mkSection 的 secMetaRaw 由 payloadOverride/payloadExtras 兩半組成;Nothing 時無 meta 區塊" $
+  it "LAW-21: mkSection 的 secMetaRaw 由 payloadOverride/payloadExtras 兩半組成;Nothing 時無 meta 區塊" $
     hedgehog $ do
       le <- forAll genLineEnding
       level <- forAll (Gen.int (Range.linear 1 6))

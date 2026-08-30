@@ -1,8 +1,8 @@
--- | graph-core/F004(重跑):'docKind' 的判別規則(L22)—— Example 10 逐字翻譯。
+-- | graph-core/F004(重跑):'docKind' 的判別規則(LAW-22)—— Example 10 逐字翻譯。
 --
 -- 'docKind' \/ 'Aapms.Md.Parse.resolveDocKind' 本次未改動('Aapms.Md.Document.DocKind'
 -- 是既有匯出),所以本檔全部應為__綠__。純 hspec,不需要 hedgehog——五種具體
--- frontmatter 是 spec 逐字給定的 Example,不是全稱量詞;L22 的全稱版本另見
+-- frontmatter 是 spec 逐字給定的 Example,不是全稱量詞;LAW-22 的全稱版本另見
 -- "Aapms.Md.DocKindLawSpec"(hedgehog,未接線,見回報)。
 module Aapms.Md.DocKindSpec (spec) where
 

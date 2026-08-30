@@ -1,15 +1,15 @@
--- | T9(舊編號,沿用):單節編輯與 meta 區塊序列化;T2:'renderFrontmatter' /
+-- | STEP-9(舊編號,沿用):單節編輯與 meta 區塊序列化;STEP-2:'renderFrontmatter' /
 -- 'renderMetaBlock' 印出的純量文字不是 newtype 的 derived 'Show'
 -- (graph-core/F004)。
 --
--- graph-core/F004__重跑__(G2):'renderMetaBlock' 從 2 參數(@MetaOverride ->
+-- graph-core/F004__重跑__(GAP-2):'renderMetaBlock' 從 2 參數(@MetaOverride ->
 -- LineEnding -> Text@)改成 3 參數(多吃一個 'MetaExtras')——本檔既有呼叫點
 -- 一律補上 @(MetaExtras [])@(既有測試只關心 'Meta' 那一半,不影響原本的
 -- 斷言)。新增 Example 1\/6\/7\/8(spec 對照見檔尾),都是純 hspec、不需要
 -- hedgehog,因為 Example 是具體輸入輸出,不是全稱量詞。
 --
 -- 這一組測試守住 ADR-010 的第二條保證:__改一個欄位,git diff 只顯示那一行__,
--- 以及 G2 修復後的新保證:__改 Meta 那一半,型別專屬那一半一個位元組都不動__。
+-- 以及 GAP-2 修復後的新保證:__改 Meta 那一半,型別專屬那一半一個位元組都不動__。
 module Aapms.Md.EditSpec (spec) where
 
 import Data.Text (Text)
@@ -53,10 +53,10 @@ fullOverride =
     , moLinks = Just [Link PartOf (refOf "ent-7f3a") (Just "屬於琳達")]
     }
 
--- Example 1(spec-gaps G2 的直接回歸例)---------------------------------------
+-- Example 1(spec-gaps GAP-2 的直接回歸例)---------------------------------------
 --
 -- 逐字取自 F004 spec:pack.md 的 asset 節含 sha256 / entry,只改 summary,
--- 那兩行(與 toPack 讀回的值)必須不變。這是已重現缺陷(G2)的否證。
+-- 那兩行(與 toPack 讀回的值)必須不變。這是已重現缺陷(GAP-2)的否證。
 e1PackMd :: Text
 e1PackMd =
   T.unlines
@@ -64,7 +64,7 @@ e1PackMd =
     , "id: pck-00000001"
     , "vault: liftgame-assets"
     , "type: asset-pack"
-    , "title: E1 pack"
+    , "title: EX-1 pack"
     , "created: 2026-08-16"
     , "updated: 2026-08-16"
     , "---"
@@ -86,7 +86,7 @@ e6Md =
     , "id: ent-0001"
     , "vault: liftgame"
     , "type: character"
-    , "title: E6"
+    , "title: EX-6"
     , "created: 2026-08-16"
     , "updated: 2026-08-16"
     , "---"
@@ -107,7 +107,7 @@ e7PackMd =
     , "id: pck-00000002"
     , "vault: liftgame-assets"
     , "type: asset-pack"
-    , "title: E7 pack"
+    , "title: EX-7 pack"
     , "created: 2026-08-16"
     , "updated: 2026-08-16"
     , "---"
@@ -130,7 +130,7 @@ e8Md =
     , "id: pck-00000003"
     , "vault: liftgame-assets"
     , "type: asset-pack"
-    , "title: E8 pack"
+    , "title: EX-8 pack"
     , "created: 2026-08-16"
     , "updated: 2026-08-16"
     , "---"
@@ -199,7 +199,7 @@ spec = do
           -- 補完之後仍是合法文件
           fmap (length . docSections) (parseDocument out) `shouldBe` Right 1
 
-    -- spec 對照:Example 1(spec-gaps G2 的回歸例,務必逐字翻譯,不弱化)
+    -- spec 對照:Example 1(spec-gaps GAP-2 的回歸例,務必逐字翻譯,不弱化)
     it "Example 1:pack.md asset 節改 summary 後,sha256/entry 兩行逐字保留、toPack 讀回不變" $ do
       let aid = idOf "ast-00000001"
           d = docOf e1PackMd
@@ -293,7 +293,7 @@ spec = do
                    , "```"
                    ]
 
-    -- T2:type / vault / revision 印出的是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
+    -- STEP-2:type / vault / revision 印出的是純量文字,不是 TypeKey / VaultId / Revision 的 derived Show
     it "type / vault / revision 是純量文字,不是 newtype 的 derived Show" $ do
       let ls = T.lines (renderMetaBlock fullOverride (MetaExtras []) LF)
       ls `shouldContain` ["type: character-fragment"]
@@ -328,7 +328,7 @@ spec = do
       decodeMeta (T.unlines (init (drop 1 (T.lines (renderMetaBlock fullOverride (MetaExtras []) LF)))))
         `shouldBe` Right fullOverride
 
-    -- graph-core/F004 重跑,G2:型別專屬條目逐字接在 Meta 欄位之後
+    -- graph-core/F004 重跑,GAP-2:型別專屬條目逐字接在 Meta 欄位之後
     it "MetaExtras 非空時,逐字接在 Meta 欄位之後、fence 之前" $
       T.lines (renderMetaBlock (emptyOverride {moSummary = Just "只有這一欄"}) (MetaExtras ["battle_power: 9000"]) LF)
         `shouldBe` ["```meta", "summary: 只有這一欄", "battle_power: 9000", "```"]
@@ -349,7 +349,7 @@ spec = do
         Left e -> errKind e `shouldBe` UnknownSectionId (idOf "ent-9999")
         Right _ -> expectationFailure "應該回 Left"
 
-  -- entity-graph-core/F005 T2:updateFrontmatter 改標題後節層位元組不變
+  -- entity-graph-core/F005 STEP-2:updateFrontmatter 改標題後節層位元組不變
   describe "updateFrontmatter" $ do
     it "改 metaTitle 後,每一節的三段切片逐字不變" $
       case updateFrontmatter (\m -> m {metaTitle = "琳達(改名)"}) doc of
@@ -401,7 +401,7 @@ spec = do
           out `shouldSatisfy` T.isInfixOf "---\r\nid: ent-7f3a\r\n"
           out `shouldSatisfy` T.isInfixOf "title: 小琳\r\n"
 
-  -- entity-graph-core/F005 T3、graph-core/F004 T13:updateSectionBody(改名自 replaceSectionBody)
+  -- entity-graph-core/F005 STEP-3、graph-core/F004 STEP-13:updateSectionBody(改名自 replaceSectionBody)
   describe "updateSectionBody" $ do
     it "目標節的 secBodyRaw 換掉,secHeadingRaw 與 secMetaRaw 逐字不變" $
       case updateSectionBody (idOf "ent-7f3b") "\n改過的正文。\n" doc of
@@ -469,10 +469,10 @@ slices :: Section -> (Text, Maybe Text, Text)
 slices s = (secHeadingRaw s, secMetaRaw s, secBodyRaw s)
 
 -- spec 對照(F004 重跑)-------------------------------------------------------
--- L2  updateSection 保留未觸及節/其他節的位元組       -> Aapms.Md.EditLawsSpec(hedgehog,未接線)
--- L3  updateSectionExtras 同 L2 的保留條件             -> Aapms.Md.EditLawsSpec
--- L8  updateSection 冪等                               -> Aapms.Md.EditLawsSpec
--- E1  pack.md asset 節改 summary,sha256/entry 不變     -> "Example 1" it
--- E6  未知欄位保留                                      -> "Example 6" it
--- E7  updateSectionExtras 型別專屬半邊編輯路徑          -> "Example 7" it
--- E8  多行頂層條目(meta: 巢狀值)整段保留               -> "Example 8" it
+-- LAW-2  updateSection 保留未觸及節/其他節的位元組       -> Aapms.Md.EditLawsSpec(hedgehog,未接線)
+-- LAW-3  updateSectionExtras 同 LAW-2 的保留條件             -> Aapms.Md.EditLawsSpec
+-- LAW-8  updateSection 冪等                               -> Aapms.Md.EditLawsSpec
+-- EX-1  pack.md asset 節改 summary,sha256/entry 不變     -> "Example 1" it
+-- EX-6  未知欄位保留                                      -> "Example 6" it
+-- EX-7  updateSectionExtras 型別專屬半邊編輯路徑          -> "Example 7" it
+-- EX-8  多行頂層條目(meta: 巢狀值)整段保留               -> "Example 8" it

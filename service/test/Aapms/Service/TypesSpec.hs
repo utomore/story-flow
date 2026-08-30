@@ -6,13 +6,13 @@
 -- @undefined@):
 --
 -- @
--- L19 code 的形狀(非空、只含 [a-z0-9_]、不帶產品前綴)          -> prop_error_code_shape [紅]
--- L20 code 只看建構子、不看酬載,兩兩相異                        -> prop_error_code_by_constructor_only [紅]
--- L21 訊息逐字委派(Store\/Workspace\/RegistryUnavailable\/RegistryLoadFailed) -> prop_render_delegates_store [紅]、prop_render_delegates_workspace [紅]、prop_render_delegates_registry [紅]
--- L22 訊息非空                                                    -> prop_render_service_error_nonempty [紅]
--- X21 四個建構子的 code 表                                        -> test_error_code_table [紅]
--- X22 StoreFailed 訊息委派的具體例子                               -> test_render_store_failed_example [紅]
--- X23 兩個註冊表建構子訊息相同、code 相異                          -> test_registry_constructors_same_message_different_code [紅]
+-- LAW-19 code 的形狀(非空、只含 [a-z0-9_]、不帶產品前綴)          -> prop_error_code_shape [紅]
+-- LAW-20 code 只看建構子、不看酬載,兩兩相異                        -> prop_error_code_by_constructor_only [紅]
+-- LAW-21 訊息逐字委派(Store\/Workspace\/RegistryUnavailable\/RegistryLoadFailed) -> prop_render_delegates_store [紅]、prop_render_delegates_workspace [紅]、prop_render_delegates_registry [紅]
+-- LAW-22 訊息非空                                                    -> prop_render_service_error_nonempty [紅]
+-- EX-21 四個建構子的 code 表                                        -> test_error_code_table [紅]
+-- EX-22 StoreFailed 訊息委派的具體例子                               -> test_render_store_failed_example [紅]
+-- EX-23 兩個註冊表建構子訊息相同、code 相異                          -> test_registry_constructors_same_message_different_code [紅]
 -- @
 module Aapms.Service.TypesSpec (spec) where
 
@@ -46,7 +46,7 @@ import Aapms.Service.Types (ServiceError (..), errorCode, renderServiceError)
 
 --------------------------------------------------------------------------------
 -- 產生器(涵蓋每個下層錯誤型別的代表性子集,不求窮舉全部建構子——
--- L19-L22 驗的是「code/訊息怎麼從 ServiceError 的酬載推導」,不是下層型別本身的
+-- LAW-19-LAW-22 驗的是「code/訊息怎麼從 ServiceError 的酬載推導」,不是下層型別本身的
 -- 性質,下層各自的 law 已在各自子系統驗過)
 
 genText :: Gen Text
@@ -125,7 +125,7 @@ ctorTag UnknownType {} = 4
 spec :: Spec
 spec = describe "F001 Aapms.Service.Types" $ do
   --------------------------------------------------------------------------
-  describe "L19: errorCode 的形狀" $
+  describe "LAW-19: errorCode 的形狀" $
     it "prop_error_code_shape: 對任意 ServiceError,code 非空、只含 [a-z0-9_]、不以 story_flow 或 aapms 開頭" $
       hedgehog $ do
         e <- forAll genServiceError
@@ -137,7 +137,7 @@ spec = describe "F001 Aapms.Service.Types" $ do
         T.isPrefixOf "aapms" code === False
 
   --------------------------------------------------------------------------
-  describe "L20: errorCode 只看建構子,不看酬載" $
+  describe "LAW-20: errorCode 只看建構子,不看酬載" $
     it "prop_error_code_by_constructor_only: 兩個 ServiceError 的 code 相等 <=> 建構子相同" $
       hedgehog $ do
         e1 <- forAll genServiceError
@@ -145,7 +145,7 @@ spec = describe "F001 Aapms.Service.Types" $ do
         (ctorTag e1 == ctorTag e2) === (errorCode e1 == errorCode e2)
 
   --------------------------------------------------------------------------
-  describe "L21: renderServiceError 逐字委派下層的 render*" $ do
+  describe "LAW-21: renderServiceError 逐字委派下層的 render*" $ do
     it "prop_render_delegates_store: renderServiceError (StoreFailed e) == renderStoreError e" $
       hedgehog $ do
         e <- forAll genStoreError
@@ -163,14 +163,14 @@ spec = describe "F001 Aapms.Service.Types" $ do
         renderServiceError (RegistryLoadFailed e) === renderRegistryError e
 
   --------------------------------------------------------------------------
-  describe "L22: renderServiceError 恆非空" $
+  describe "LAW-22: renderServiceError 恆非空" $
     it "prop_render_service_error_nonempty" $
       hedgehog $ do
         e <- forAll genServiceError
         T.null (renderServiceError e) === False
 
   --------------------------------------------------------------------------
-  describe "X21: 四個建構子的 errorCode 表(驗收標準 6)" $
+  describe "EX-21: 四個建構子的 errorCode 表(驗收標準 6)" $
     it "test_error_code_table" $ do
       let e1 = VaultMarkerMissing "/x"
           e2 = HubNotFound "/y"
@@ -181,13 +181,13 @@ spec = describe "F001 Aapms.Service.Types" $ do
         `shouldBe` ["store_failed", "workspace_failed", "registry_unavailable", "registry_load_failed"]
 
   --------------------------------------------------------------------------
-  describe "X22: StoreFailed 的訊息委派(驗收標準 7)" $
+  describe "EX-22: StoreFailed 的訊息委派(驗收標準 7)" $
     it "test_render_store_failed_example" $ do
       let e = VaultMarkerMissing "/x/.aapms/config.toml"
       renderServiceError (StoreFailed e) `shouldBe` renderStoreError e
 
   --------------------------------------------------------------------------
-  describe "X23: 兩個註冊表建構子的訊息相同,code 相異" $
+  describe "EX-23: 兩個註冊表建構子的訊息相同,code 相異" $
     it "test_registry_constructors_same_message_different_code" $ do
       let e = RegistryDirMissing "/r"
       renderServiceError (RegistryUnavailable e) `shouldBe` renderServiceError (RegistryLoadFailed e)

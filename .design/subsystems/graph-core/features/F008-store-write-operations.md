@@ -208,12 +208,12 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
 - **LAW-11(`createLevelFile` 產出可解析的 Level)**:對所有 `NewLevel`,回傳的 `crPath` 以
   `levels/` 為前綴(`nlPath == Nothing` 時),且該檔 `toLevel` 成功、`lvlRoot` 等於唯一那個
   Node 的 `metaId`、`buildTree` 回 `Right`。
-- **L12a(`addSection AtEnd` 追加不動前面)**:對所有含 `n` 節的文件,
+- **LAW-12a(`addSection AtEnd` 追加不動前面)**:對所有含 `n` 節的文件,
   `addSection vh i AtEnd s` 成功之後前 `n` 節的 `renderSection` 位元組不變——**唯一的例外是
   插入點之前那一段的行尾**(見下方「插入點行尾的但書」),即第 `n` 節(文件原本沒有任何節時
   則是 `docPreamble`);新節排在最後;且該檔對應的 `to*`(依 `DocKind`)仍然解析成功,
   多出來的那一筆節點的 `metaId` 等於 `nsId s`。
-- **L12b(`addSection (UnderParent p)` 只在插入點動刀,層級由父節點決定)**:對所有 Level 檔
+- **LAW-12b(`addSection (UnderParent p)` 只在插入點動刀,層級由父節點決定)**:對所有 Level 檔
   與其中的非根節點 `p`,設 `k = length (subtreeAfter doc p)`、`p` 在文件裡是第 `j` 節,則
   `addSection vh i (UnderParent p) s` 成功之後:
   1. 新節排在第 `j + k + 1` 個位置(= `p` 的子樹之後,成為它的最後一個子節點);
@@ -242,7 +242,7 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
   與插入點之後的每一節,一律逐位元組不變。LAW-3 / LAW-6 / LAW-16 講的都是**沒有插入**的路徑
   (`writeMeta` / `writeBody` / `addLink` / `removeLink` 與各條失敗路徑),不走
   `appendSection` / `insertSection`,因此**不適用**這個但書,那裡的「位元組不變」仍是無條件的。
-- **L12c(`UnderParent` 的兩條失敗路徑不寫檔)**:`p` 不在目標檔案裡時
+- **LAW-12c(`UnderParent` 的兩條失敗路徑不寫檔)**:`p` 不在目標檔案裡時
   `addSection vh i (UnderParent p) s` 回 `Left (SectionMissing _ p)`;`p` 的 `secLevel`
   已經是 6 時回 `Left (NodeDepthExceeded p 7)`。兩者的 `bytes(該檔)` 都與呼叫前相同
   (兩條檢查都在 `commit` 之前)。
@@ -260,7 +260,7 @@ impl 不要以為要一路加參數:可控時間源是 `allocateId` 一個人的
   就算 salt 恆為 0 也幾乎必然得到互異的 id——那樣這條 law 測到的是時鐘在走,不是 salt 在遞增。
   固定 `t` 之後 `(prefix, content, t)` 三者相同,唯一能讓 `n` 個結果互異的機制就只剩 salt 遞增,
   這條 law 才真的逼出重試迴圈。
-- **L14b(碰撞查詢失敗即失敗)**:索引查詢無法完成時(例如 `nodes` 表被移除),
+- **LAW-14b(碰撞查詢失敗即失敗)**:索引查詢無法完成時(例如 `nodes` 表被移除),
   `allocateId vh p c t` 回 `Left (SqliteError _)`,**不回 `Right`**。理由見「不可逆決定 6」:
   照發一個未經碰撞檢查的 id 會讓重複的身分落地到檔案(ADR-013 檔案是真相),事後只能靠
   `rebuildIndex` 撞 `nodes.id` 主鍵才發現,修復要人工改檔案裡的 id 與所有指向它的關聯。
@@ -407,7 +407,7 @@ SqliteError msg ->
 | EX-9 | `pack.md` 裡有 `sha256` / `entry` 的 asset 節;`writeBody vh ast-1 r "新的說明"` | `Right`;重讀後該 asset 的 `astBody == "新的說明"`,`astSha256` / `astEntry` 仍在且未變,其他節位元組不變 | 改正文不得吃掉 payload 欄位 |
 | EX-10 | 目標檔是 `pack.md`(`PackDoc`);`addSection vh pck-1 AtEnd s`,其中 `nsPayload = NSFragment ov` | `Left (BadSectionPayload (nsId s) PackDoc)`,檔案不變 | payload 與文件種類不符;`AtEnd` 也擋 |
 | EX-11 | `sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91"` | `"第一章- 序幕"`(冒號換 `-`、去尾端空白) | 檔名淨化;非 ASCII 保留 |
-| EX-12 | Level 檔:`## 序幕`(`nod-root`)、`### 開場`(`nod-a`)、`### 收束`(`nod-b`);`addSection vh lvl-1 (UnderParent nod-a) s`,其中 `nsPayload = NSNode ov (NewNode KScene)`、`nsLevel = 2`(故意給錯) | `Right CreateResult{crId = nsId s}`;重讀後新節的標題是 `#### …`(**4 級,由 `secLevel nod-a + 1` 推導,不是呼叫端給的 2**),文件順序為 `序幕 / 開場 / 新節 / 收束`,`nodParent` 該新節 `== nod-a`,`nod-b` 那一節的位元組未變(它在插入點**之後**,不受 L12b 的行尾但書影響);`nod-a` 的正文若在 fixture 裡**已經**以空行結尾,它也逐位元組不變 | `UnderParent` 正常路徑;`nsLevel` 由 store 推導;插入點之後不動,插入點之前只可能補行尾 |
+| EX-12 | Level 檔:`## 序幕`(`nod-root`)、`### 開場`(`nod-a`)、`### 收束`(`nod-b`);`addSection vh lvl-1 (UnderParent nod-a) s`,其中 `nsPayload = NSNode ov (NewNode KScene)`、`nsLevel = 2`(故意給錯) | `Right CreateResult{crId = nsId s}`;重讀後新節的標題是 `#### …`(**4 級,由 `secLevel nod-a + 1` 推導,不是呼叫端給的 2**),文件順序為 `序幕 / 開場 / 新節 / 收束`,`nodParent` 該新節 `== nod-a`,`nod-b` 那一節的位元組未變(它在插入點**之後**,不受 LAW-12b 的行尾但書影響);`nod-a` 的正文若在 fixture 裡**已經**以空行結尾,它也逐位元組不變 | `UnderParent` 正常路徑;`nsLevel` 由 store 推導;插入點之後不動,插入點之前只可能補行尾 |
 | EX-13 | 同上的 Level 檔;`addSection vh lvl-1 (UnderParent nod-zzz) s`(`nod-zzz` 不在檔案裡) | `Left (SectionMissing "levels/第一章.md" nod-zzz)`,檔案位元組不變 | `UnderParent` 的父節點不存在 |
 | EX-14 | Level 檔裡 `nod-deep` 的標題是 `###### 最深`(6 級);`addSection vh lvl-1 (UnderParent nod-deep) s` | `Left (NodeDepthExceeded nod-deep 7)`,檔案位元組不變 | Markdown 只有六級標題 |
 | EX-15 | 索引的 `nodes` 表被 `DROP` 掉;`allocateId vh PEnt "琳達" t`(`t` 任意固定值) | `Left (SqliteError _)`,**不是 `Right`** | 碰撞查詢失敗即失敗,不靜默照發 |
@@ -627,10 +627,10 @@ GAP-15 / GAP-16(依賴邊漏列)由編排者另行處置,本次只把 impl 實�
 | # | gap | 裁決 | 落點 |
 |---|---|---|---|
 | GAP-13 | LAW-20 的「`t` 被清空時結果等於 `fb`」與 EX-11 的逐字例子(冒號**替換**成 `-`)對「只含非法字元的輸入」給出不同答案 | **保留替換策略與 EX-11 的逐字例子**(逐字例子是最難被誤讀的 spec),**改 LAW-20 的措辭**:「被清空」只指「去掉頭尾空白與 `.` 之後為空」,不含「輸入只由非法字元組成」。`"<"` 的正確結果是 `"-"`,`"   "` 才是 `fb` | **LAW-20 改寫**(四條子句,附機械定義);**新增 EX-19 / EX-20 / EX-21** |
-| GAP-14 | L12a / L12b 的「位元組不變」是無條件全稱,但 `appendSection` / `insertSection` 的 `blankTail` 會補插入點前一段的行尾 | **照 F004 的 ASM-10 收窄措辭改**:唯一的例外是插入點之前那一段的行尾,還沒以空行結尾時會被補齊(`blankTail` 冪等);被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010 | **L12a / L12b 改寫** + 新增「插入點行尾的但書」;EX-12 補註 |
+| GAP-14 | LAW-12a / LAW-12b 的「位元組不變」是無條件全稱,但 `appendSection` / `insertSection` 的 `blankTail` 會補插入點前一段的行尾 | **照 F004 的 ASM-10 收窄措辭改**:唯一的例外是插入點之前那一段的行尾,還沒以空行結尾時會被補齊(`blankTail` 冪等);被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010 | **LAW-12a / LAW-12b 改寫** + 新增「插入點行尾的但書」;EX-12 補註 |
 | GAP-17 | `createPackFile` 把 `NewPack` 的七個 pack 專屬欄位一個都沒寫進檔案,重讀後全解成 `Nothing` / `AiUnknown`,而**測試套件全綠**(沒有任何斷言在看) | **重新打開 F004**,替 `aapms-md` 補檔案層 extras 寫入管道(對稱節層的 `MetaExtras`),F008 的 `createPackFile` 接上它 | **新增 LAW-25**;**新增 EX-22**;「阻塞:LAW-25 依賴 F004 的檔案層 extras」 |
 | GAP-7 | `SqliteError` 的既有訊息不含以「請」起頭的子句,與 LAW-15 字面不符 | **不放寬 LAW-15,改訊息**;由 impl 這一輪改掉,F005 其餘 5 則不得更動 | LAW-15;「`SqliteError` 的訊息要改」;EX-17 |
-| GAP-8 | `allocateId` 沒有時間注入點,EX-6「人為製造碰撞」無法從公開介面重現 | **時間改成明碼參數**(契約 E 已回寫,`design.md:326`);四個 create 函式的對外簽名不變 | 介面表 `allocateId`;LAW-14 收緊;L14b;EX-6;EX-15;`Write.hs:423` |
+| GAP-8 | `allocateId` 沒有時間注入點,EX-6「人為製造碰撞」無法從公開介面重現 | **時間改成明碼參數**(契約 E 已回寫,`design.md:326`);四個 create 函式的對外簽名不變 | 介面表 `allocateId`;LAW-14 收緊;LAW-14b;EX-6;EX-15;`Write.hs:423` |
 | GAP-9 | `isRootNode` 對「id 不在文件裡」沒有任何 law 定義行為 | **回 `Left (SectionMissing path id)`**,與 `headingDepthFor`(LAW-21)對稱 | **新增 LAW-24**;**新增 EX-18**;`Node.hs:81` 的 haddock |
 | GAP-12 | LAW-17 第三個子句(檔案 IO / md 序列化不在 SQLite 呼叫的括號內)不是機械可判定 | **從 law 移除**,降級為 `/arch-audit subsys graph-core` 的人工檢查項 | LAW-17 只剩兩個子句;「實作備註」的 arch-audit 檢查項 |
 

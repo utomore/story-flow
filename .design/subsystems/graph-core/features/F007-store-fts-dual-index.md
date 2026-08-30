@@ -350,13 +350,13 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
   「沒有子字串模糊比對路徑」已由 LAW-9\/LAW-10 的路由 law 涵蓋,不需要再靠文字掃描斷言。spec 的
   Laws 段已刪除線標記 LAW-23 並附撤銷理由;模組 Haddock 現在改成引用 LAW-9\/LAW-10。GAP-3 狀態
   resolved,不再是待辦
-- **GAP-4\/GAP-5(2026-08-24 開發者裁決後已 resolved)**:上一輪 impl 曾發現 `L4`
+- **GAP-4\/GAP-5(2026-08-24 開發者裁決後已 resolved)**:上一輪 impl 曾發現 `LAW-4`
   (`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)` 對所有 `t`)在數學上不可能對所有
   輸入成立(`cjkSegment` 的「先 unigram 再 bigram」表示法本來就不可逆),已實作一個貪婪還原
   演算法當權宜之計並記錄 spec-gaps GAP-4;同時 GAP-5 指出 ASM-3 原本要求的「`fts_cjk` 命中時把
   `snippet()` 經 `desegmentCjk` 還原」在數學上也行不通(`snippet()` 給的是片段視窗,不是完整
   `cjkSegment` 輸出,片段輸入下 `desegmentCjk` 給出 `"魔法藥 水 瓶"` 這種接不回去的結果)。
-  開發者裁決:**`desegmentCjk` 整個撤除**(已從 `Tokenize.hs` 的介面與骨架移除),**`L4` 撤銷**,
+  開發者裁決:**`desegmentCjk` 整個撤除**(已從 `Tokenize.hs` 的介面與骨架移除),**`LAW-4` 撤銷**,
   **ASM-3 改寫**成本文檔目前的版本——`shSnippet` 一律取自 `fts_tri` 的原文,與命中來自哪張表無關。
   本輪 impl(定點重填 `ftsHits`)依新 ASM-3\/DEC-6 落實:`ftsHits` 只負責 `MATCH` 與結構過濾,片段
   由新增的私有 helper `ftsTriSnippets`(批次查 `fts_tri` 六欄原文,避免 N+1)與 `snippetOf`

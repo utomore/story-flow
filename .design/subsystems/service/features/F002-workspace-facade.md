@@ -692,17 +692,17 @@ LAW-8(要 `show` 得出整份報告才驗得到「不含 `[llm]` 的值」)與�
 | EX-9 | 對 `<tmp>/hub/`、`<tmp>/va/.aapms/`、`<tmp>/vb/.aapms/` 遞迴取「檔名 → 位元組」對照表,跑 `workspaceDoctor >> vaultCheck`,再取一次 | 兩份對照表**完全相同** | 唯讀 + 驗收標準 4 | LAW-9 |
 | EX-10 | `[tools]` 未設、`PATH` 清空後 `workspaceTools` | `Right [ts]`;`tsName ts == "7-Zip"`;`tsSearched ts` 非空(三層探測全都試過);**不斷言** `tsPath` / `tsOrigin` 的具體值——這台機器有沒有裝 7-Zip 決定它是 `NotFound` 還是找到路徑,兩種結果在裝與沒裝的機器上都該對這條 example 成立;`NotFound` 那個值仍由 LAW-10 的 property test 間接覆蓋(機器沒裝時自然比對到它) | 三層探測皆已嘗試,結果不被「這台機器裝了什麼」綁死 | LAW-10 |
 | EX-11 | `AAPMS_HOME` 指向一個**空目錄**(中樞尚未建立),`workspaceSetup Nothing <tmp>/outside`;接著原封不動再跑一次 | 第一次 `Right v`,`svHubCreated == True`、`svCacheCreated == True`;第二次兩欄都 `False`;兩次的 `svHubPath` 都等於那個空目錄的絕對路徑。**全程沒有 `openEnv` / `Env`** | 乾淨機器上的第一次 setup + 冪等 + ASM-2 裁決的實況 | LAW-11 |
-| X11b | 同一個已建好的中樞上,分別跑 `workspaceSetup Nothing <tmp>/va` 與 `workspaceSetup (Just "story") <tmp>/outside` | 兩次的 `SetupView` **逐欄相同**,且三欄都等於「中樞早就在」的那一組(`svHubCreated == False`、`svCacheCreated == False`、`svHubPath` 是中樞根目錄) | 兩個參數不影響結果(ASM-2 的簽名是為了與 `openEnv` 同形) | LAW-11 |
+| EX-11b | 同一個已建好的中樞上,分別跑 `workspaceSetup Nothing <tmp>/va` 與 `workspaceSetup (Just "story") <tmp>/outside` | 兩次的 `SetupView` **逐欄相同**,且三欄都等於「中樞早就在」的那一組(`svHubCreated == False`、`svCacheCreated == False`、`svHubPath` 是中樞根目錄) | 兩個參數不影響結果(ASM-2 的簽名是為了與 `openEnv` 同形) | LAW-11 |
 | EX-12 | `workspacePurge PurgeHubOnly`,然後 `askHub` | `pvHubRemoved == True`、`pvVaultIndexesRemoved == []`;`askHub` 的 `hubVaults` 仍是**兩筆**(快照未被重載) | purge 後不重載 | LAW-12, LAW-13 |
 | EX-13 | `vaultInit "<tmp>/vc" AssetVault "third" FreshVault`,接著 `vaultList` | 回 `(v, notice)`:`v` 的 `vvKind == AssetVault`、`vvName == "third"`、`vvPath` 是 `<tmp>/vc` 的正規化路徑、`vvRegistered == True`、`vvReachable == True`;`notice == AdoptNotice []`(乾淨目錄,沒有 legacy marker);`vaultList` 變成三筆且含 `v` | 寫中樞後同一個 `Env` 看得到 + 驗收標準 6 + ASM-3 的第二個回傳值 | LAW-14, LAW-15 |
-| X13b | 在 `<tmp>/vd/.assetdb/` 底下放一個 legacy marker 檔後 `vaultInit "<tmp>/vd" AssetVault "fourth" AdoptExisting` | 第二個分量的 `anLegacyMarkers` 逐項等於 `initVault` 同一次回的那一份(非空,含那個 `.assetdb` 路徑);第一個分量的六欄與 EX-13 同一組判準;**那個 legacy 目錄仍在**(只報告不刪除) | ASM-3:`AdoptNotice` 不被丟掉 | LAW-15 |
+| EX-13b | 在 `<tmp>/vd/.assetdb/` 底下放一個 legacy marker 檔後 `vaultInit "<tmp>/vd" AssetVault "fourth" AdoptExisting` | 第二個分量的 `anLegacyMarkers` 逐項等於 `initVault` 同一次回的那一份(非空,含那個 `.assetdb` 路徑);第一個分量的六欄與 EX-13 同一組判準;**那個 legacy 目錄仍在**(只報告不刪除) | ASM-3:`AdoptNotice` 不被丟掉 | LAW-15 |
 | EX-14 | `vaultForget "story" KeepIndex`,接著 `vaultList` | 回的 `VaultView`:`vvId == VA`、`vvRegistered == **False**`、`vvReachable == True`;`vaultList` 只剩 `VB`;`<tmp>/va/.aapms/config.toml` 位元組不變 | 移除的那一列 + 驗收標準 6 | LAW-14, LAW-16 |
 | EX-15 | `vaultForget "沒有這個" KeepIndex` | `Left (WorkspaceFailed (VaultSelectorNotFound "沒有這個"))`;`askHub` 與 `<tmp>/hub/config.toml` 的位元組都與呼叫前相同 | 下層失敗原樣包、什麼都不動 | LAW-17 |
 | EX-16 | `projectRegister "<tmp>/proj" "demo"` → `projectList` → `projectForget "demo"` → `projectList` | 第一步回的 `ProjectView`:`pvName == "demo"`、`pvPath` 是 `<tmp>/proj` 的正規化路徑、`pvReachable == True`;第二步一筆;第三步回**同一筆**;第四步 `[]` | 專案登錄的往返 + 驗收標準 6 | LAW-14, LAW-18, LAW-19 |
 | EX-17 | `projectRegister` 之後刪掉 `<tmp>/proj/`,再 `projectList` | 一筆,`pvReachable == False`,其餘三欄不變 | 專案路徑消失 | LAW-18 |
 | EX-18 | 完整佈局(兩個 vault 都是空的),`vaultInfo "assets"` | `viVault` 逐欄等於 `vaultList` 裡 `VB` 那一筆;`viCounts == []`;`viIssues` 等於同一次執行裡 `indexIssuesFor VB` 的結果(全新索引時含一則 `SchemaRebuilt { irOldVersion = Nothing }`) | 空 vault + 驗收標準 5 | LAW-20, LAW-21, LAW-22 |
 | EX-19 | 在 `<tmp>/vb` 放入一個合法的 asset 檔與一個合法的 pack 檔並以 graph-core 的 `indexFile` 建索引後,`vaultInfo "assets"` | `viCounts == [("ast", 1), ("pck", 1)]`(依 `IdPrefix` 的 `Ord`:`PAst` 在 `PPck` 之前);其餘六個 prefix **不出現** | 非空 vault、零值鍵不出現、鍵的排序 | LAW-21 |
-| X19b | 同 EX-19 的索引狀態,但 `openEnv (Just "story") <tmp>` (`--vault story`,而 `story` 的 `refs` 不含 `assets`)之後 `vaultInfo "assets"` | 與 EX-19 **完全相同**的 `viCounts`;`viIssues` 逐項等於**同一個 `Env`** 的 `indexIssuesFor` 對 `assets` 的結果(與 EX-18 同一判準,**不強制非空**——這是第二次開啟,`SchemaRebuilt` 只在生命週期第一次開啟時產生) | ASM-4:點名的目標不受 `--vault` 範圍收窄影響(這一半判準不變) | LAW-21, LAW-22 |
+| EX-19b | 同 EX-19 的索引狀態,但 `openEnv (Just "story") <tmp>` (`--vault story`,而 `story` 的 `refs` 不含 `assets`)之後 `vaultInfo "assets"` | 與 EX-19 **完全相同**的 `viCounts`;`viIssues` 逐項等於**同一個 `Env`** 的 `indexIssuesFor` 對 `assets` 的結果(與 EX-18 同一判準,**不強制非空**——這是第二次開啟,`SchemaRebuilt` 只在生命週期第一次開啟時產生) | ASM-4:點名的目標不受 `--vault` 範圍收窄影響(這一半判準不變) | LAW-21, LAW-22 |
 | EX-20 | `vaultInfo "沒有這個"` | `Left (WorkspaceFailed (VaultSelectorNotFound "沒有這個"))` | selector 解不開 | LAW-17, LAW-20 |
 | EX-21 | `listTypes` 與「直接對同一個註冊表目錄 `loadRegistry` 後呼叫 `Aapms.Core.Registry.listTypes`」 | 兩份清單**逐項相同、順序相同**;長度 `> 0` | 轉出不改寫 | LAW-23 |
 | EX-22 | `showType (tdKey d)`,`d` 是 EX-21 那份清單的第一筆 | `Right d`(逐欄相同) | 命中 | LAW-24 |
@@ -871,7 +871,7 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
     `workspaceSetup :: Maybe Text -> FilePath -> IO (Either ServiceError SetupView)`
     (與 `openEnv` 同層、同參數形狀)。本次修訂:改簽名、把它從資料流的 A/B/C 三組裡拉出來
     自成「第 0 組」、LAW-11 重寫(加「兩個參數不影響結果」)、LAW-13 補一句「它連 `Env` 都沒有」、
-    EX-11 改成**在中樞不存在的佈局上**跑並斷言 `svHubCreated == True`,另加 X11b 驗參數無關。
+    EX-11 改成**在中樞不存在的佈局上**跑並斷言 `svHubCreated == True`,另加 EX-11b 驗參數無關。
     骨架另加兩條給 impl 的提醒:不得用執行入口(LAW-23)、未用參數要底線前綴(`-Wunused-matches`)
 
 - **ASM-3**:`vaultInit` 丟掉了 `AdoptNotice`。`initVault` 回三個值,第三個是「掃到的
@@ -902,7 +902,7 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
     `vaultInit :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM (VaultView, AdoptNotice)`。
     本次修訂:改簽名、匯出清單加 `AdoptNotice (..)`(re-export 從九項變十項)、LAW-15 補「第二個
     分量逐欄等於同一次 `initVault` 回的 `AdoptNotice`,本層不過濾不刪除」、EX-13 的預期輸出改成
-    兩個分量,另加 X13b(有 legacy marker 的那條路)
+    兩個分量,另加 EX-13b(有 legacy marker 的那條路)
 
 - **ASM-4**:`vaultInfo` 用的是 `Env` 的 selector 解出的**讀取範圍**,不是它自己那個參數指到的 vault。
   `withRead` 的範圍來自 `askSelector`(`--vault`),`resolveRead hub (Just s)` 的結果是
@@ -940,7 +940,7 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
   - **已裁決(2026-08-30 WAVE-2 閘門):採 b**。design.md「模組間公開介面」已新增
     `Machine → Monad`(`handleFor`)那一列。本次修訂:簽名與匯出如評估**一字未動**,改的是
     `vaultInfo` 的資料流敘述(`lookupSelector` → `readVaultRefAt` → `handleFor` → `listNodes`)、
-    LAW-21 / LAW-22 改寫成「對中樞裡的任一 vault、任一 `--vault` 恒成立」、補 X19b。
+    LAW-21 / LAW-22 改寫成「對中樞裡的任一 vault、任一 `--vault` 恒成立」、補 EX-19b。
     **連帶的兩個後果**:`Machine` 不再 import `Scope`(唯一的 `withRead` 用處消失);
     `viCounts` 的資料來源從 `listAcross`(跨 vault)換成 `listNodes`(單 vault),
     `graph-core/F009` 因此退出 `depends-on`
@@ -974,12 +974,12 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
 | LAW-5–LAW-8, EX-5–EX-8 | `workspaceDoctor` / `DoctorView` | 紅 |
 | LAW-9, EX-9 | `workspaceDoctor` / `vaultCheck`(唯讀) | 紅 |
 | LAW-10, EX-10 | `workspaceTools` | 紅 |
-| LAW-11, EX-11, X11b | `workspaceSetup` / `SetupView`(**頂層 IO,不經 `Env`**) | 紅 |
+| LAW-11, EX-11, EX-11b | `workspaceSetup` / `SetupView`(**頂層 IO,不經 `Env`**) | 紅 |
 | LAW-12, LAW-13, EX-12 | `workspacePurge` / `PurgeView` | 紅 |
-| LAW-14–LAW-16, EX-13, X13b, EX-14 | `vaultInit`(含 `AdoptNotice`)/ `vaultAdd` / `vaultForget` | 紅 |
+| LAW-14–LAW-16, EX-13, EX-13b, EX-14 | `vaultInit`(含 `AdoptNotice`)/ `vaultAdd` / `vaultForget` | 紅 |
 | LAW-17, EX-15 | 五個寫中樞操作的失敗路徑 | 紅 |
 | LAW-18, LAW-19, EX-16, EX-17 | `projectRegister` / `projectList` / `projectForget` / `ProjectView` | 紅 |
-| LAW-20–LAW-22, EX-18–EX-20, X19b | `vaultInfo` / `VaultInfoView`(含跨 `--vault` 的那條) | 紅 |
+| LAW-20–LAW-22, EX-18–EX-20, EX-19b | `vaultInfo` / `VaultInfoView`(含跨 `--vault` 的那條) | 紅 |
 | LAW-23, EX-21 | `listTypes` | 紅 |
 | LAW-24, EX-22 | `showType`(命中) | 紅 |
 | LAW-24, EX-23 | `showType`(未命中,回 `Left (UnknownType …)`) | 紅 |
@@ -1001,7 +1001,7 @@ feature 交付,它紅在 `showType` 的 `undefined` 上)。兩類的理由各自
   非空洞證明:EX-25 綠而 EX-26 不綠(抓不到那條違規)代表判準寫壞了。
 
 **覆蓋率(步驟 7 第 2 條)**:Laws **27 條**(LAW-1–LAW-27)、Examples **30 個**
-(EX-1–EX-27 共 27 個,加 X11b / X13b / X19b 三個);「新增的介面」表共 **23 列**(`Types.hs` 的 6 個 View
+(EX-1–EX-27 共 27 個,加 EX-11b / EX-13b / EX-19b 三個);「新增的介面」表共 **23 列**(`Types.hs` 的 6 個 View
 型別 + 1 個 `ServiceError` 建構子,`Machine.hs` 的 16 個函式),每一列至少被一條 law 或一個
 example 覆蓋。四處值得點名:六個 View 型別各自被投影它們的那個操作的 law 覆蓋
 (`SetupView` → LAW-11、`PurgeView` → LAW-12、`VaultView` → LAW-1–LAW-3、`VaultInfoView` → LAW-20–LAW-22、
@@ -1016,18 +1016,18 @@ standalone deriving,含 `Monad` 的 `deriving` 行恰好一行)在 `Machine.hs` 
 
 ## 實作備註
 
-**2026-08-30 WAVE-2 仲裁:EX-10 / X19b 的預期改寫(歸因 spec bug)**
+**2026-08-30 WAVE-2 仲裁:EX-10 / EX-19b 的預期改寫(歸因 spec bug)**
 
 - **EX-10** 原本斷言 `[tools]` 未設 + `PATH` 清空會讓 `workspaceTools` 回具體的 `NotFound`。但
   `workspace/F006` 的三層探測第三層查的是**內建安裝路徑候選**,不受 `PATH` 或 `[tools]` 拘束——
   開發機裝了 7-Zip,實測回 `Just "C:\Program Files\7-Zip\7z.exe"`,這條 example 在該機器上永遠紅
   (LAW-10 本身沒問題,它另有一條逐欄比對 `detectSevenZip (hubTools hub)` 的 property test 是綠的)。
   改成只斷言「三層都試過」(`tsSearched` 非空),不再斷言 `tsPath` / `tsOrigin` 的具體值。
-- **X19b** 原本期待對已建好索引的 vault 呼叫 `vaultInfo` 時 `viIssues` 仍非空。但
+- **EX-19b** 原本期待對已建好索引的 vault 呼叫 `vaultInfo` 時 `viIssues` 仍非空。但
   `SchemaRebuilt` 只在索引檔生命週期**第一次開啟**時產生,而建索引的唯一合法路徑
   (`openVault` + `indexFile` + `closeVault`——F002 自己從不呼叫 `indexFile`)本身就是那個第一次
   開啟,`vaultInfo` 內部的 `handleFor` 必然是第二次,依 LAW-22 自己的定義 `viIssues` 就該是 `[]`。
-  改成與 EX-18 同一判準:逐項等於同一個 `Env` 的 `indexIssuesFor`,不強制非空;X19b 驗 ASM-4 裁決
+  改成與 EX-18 同一判準:逐項等於同一個 `Env` 的 `indexIssuesFor`,不強制非空;EX-19b 驗 ASM-4 裁決
   (`vaultInfo` 不受 `--vault` 範圍拘束)的那一半不動。
 
 **共通教訓**:example 的預期輸出不得依賴「這台機器剛好沒裝某個外部工具」或「某個只在資源

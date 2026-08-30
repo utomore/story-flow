@@ -14,12 +14,12 @@
 -- 決定走 @fts_tri@(trigram)、@fts_cjk@(unicode61 + 預切)或兩者,兩邊的
 -- 命中以相關度合併去重。兩條路都給得出 bm25 分數,'shScore' 因此是 'Double'
 -- 而不是 @Maybe Double@。__只有這兩條路,沒有第三條__:ADR-016 第二條讓
--- @LIKE@ 子字串掃描退場(它是 trigram 三字元下限的權宜之計),而 L9 \/ L10
+-- @LIKE@ 子字串掃描退場(它是 trigram 三字元下限的權宜之計),而 LAW-9 \/ LAW-10
 -- 把「每個查詢字串走哪一條」完全釘死在 'Aapms.Store.Tokenize.routeOf' 與兩個
 -- @MATCH@ 運算式上,沒有留給第三種比對方式的位置。
 --
 -- 'shSnippet' __一律取自 @fts_tri@ 的原文__,與這一筆命中來自哪張表無關
--- (graph-core\/F007 的不可逆決定 D6):@fts_cjk@ 存的是預切後的 n-gram 串,
+-- (graph-core\/F007 的不可逆決定 DEC-6):@fts_cjk@ 存的是預切後的 n-gram 串,
 -- 它的視窗片段不是原文的子字串,不能給人看。
 module Aapms.Store.Query
   ( -- * 過濾條件
@@ -113,7 +113,7 @@ data NodeFilter = NodeFilter
   }
   deriving stock (Show, Eq)
 
--- | 全部欄位取最寬鬆的預設值(待確認假設 A9:'nfLimit' 給一個大但有限的值,
+-- | 全部欄位取最寬鬆的預設值(待確認假設 ASM-9:'nfLimit' 給一個大但有限的值,
 -- 契約 F 沒有逐字列出這個輔助值,比照 F005 對 'Aapms.Store.Schema.IndexIssue'
 -- 「契約給骨架、由後續 feature 依需要擴充」的精神補上)。
 emptyNodeFilter :: NodeFilter
@@ -205,7 +205,7 @@ whereOfIn schema NodeFilter {..} = (T.concat (map fst parts), concatMap snd part
       | otherwise = ("", [])
 
     -- nfIncludeReference = False(預設)時排除是 reference 的 pack 本身,以及
-    -- owner 指向該 pack 的節點(待確認假設 A3)。p.is_reference 對非 pack 節點
+    -- owner 指向該 pack 的節點(待確認假設 ASM-3)。p.is_reference 對非 pack 節點
     -- 是 NULL(LEFT JOIN),所以用 IS NULL OR = 0 而非 NOT(...) = 1,避免
     -- NULL 在 WHERE 子句被當成 false 誤刪全部非 pack 節點。
     referenceClause =
@@ -499,7 +499,7 @@ linksFrom vh i = do
   pure (map snd (mapMaybe toLink rows))
 
 -- | 契約 E 的簽名回傳 @[(Meta, Link)]@,不是舊版的 @[(Id, Link)]@——每個來源
--- 都要 hydrate 出完整 'Meta'(待確認假設 A7:照契約做,沒有偏離空間)。
+-- 都要 hydrate 出完整 'Meta'(待確認假設 ASM-7:照契約做,沒有偏離空間)。
 linksTo :: VaultHandle -> Ref -> IO [(Meta, Link)]
 linksTo vh (Ref mv i) = do
   rows <- case mv of
@@ -618,7 +618,7 @@ search vh q = do
       }
 
 -- | 一筆內部命中:哪個節點、相關度、片段。沒有文字條件時 'hScore' 恆 @0@、
--- 'hSnippet' 恆 @""@(對照 'listNodes' 語意,見 L12)。
+-- 'hSnippet' 恆 @""@(對照 'listNodes' 語意,見 LAW-12)。
 data Hit = Hit
   { hId :: Id
   , hScore :: Double
@@ -634,7 +634,7 @@ normalizeText mt = case T.strip <$> mt of
 
 -- | 沒有文字條件時退化成 'listNodes' 的結構條件(不套用 'nfLimit'\/'nfOffset',
 -- 分頁在 'search' 統一處理);有文字條件時依 'routeOf' 決定的路由查一張或兩張
--- FTS 表,兩邊的命中以 'shScore' 較大者去重(D2)。
+-- FTS 表,兩邊的命中以 'shScore' 較大者去重(DEC-2)。
 matchHits :: VaultHandle -> Maybe Text -> NodeFilter -> IO [Hit]
 matchHits vh Nothing filt = do
   ids <- structuralIds vh filt
@@ -655,13 +655,13 @@ matchHits vh (Just txt) filt = do
       else pure []
   pure (mergeHits (triHits ++ cjkHits))
 
--- | 兩張表都命中同一個節點時,取分數較大者(D2:不是相加)。
+-- | 兩張表都命中同一個節點時,取分數較大者(DEC-2:不是相加)。
 mergeHits :: [Hit] -> [Hit]
 mergeHits hs = M.elems (M.fromListWith pickBetter [(hId h, h) | h <- hs])
   where
     pickBetter new old = if hScore new >= hScore old then new else old
 
--- | 分數非遞增,分數相同時 id 遞增(L14)。
+-- | 分數非遞增,分數相同時 id 遞增(LAW-14)。
 sortHits :: [Hit] -> [Hit]
 sortHits = sortBy (\a b -> compare (Down (hScore a)) (Down (hScore b)) <> compare (hId a) (hId b))
 
@@ -684,7 +684,7 @@ structuralIds vh filt = do
 -- (已去頭尾空白)、@filt@ 結構條件。
 --
 -- __片段一律取自該節點在 @fts_tri@ 的六欄原文__,與 @table@ 是哪一張無關
--- (不可逆決定 D6 \/ 待確認假設 A3)。@fts_cjk@ 存的是「先所有 unigram、再所有
+-- (不可逆決定 DEC-6 \/ 待確認假設 ASM-3)。@fts_cjk@ 存的是「先所有 unigram、再所有
 -- bigram」的 token 串,@snippet()@ 對它取出的視窗不是原文的子字串,接不回
 -- 連續文字。spec 對片段只要求兩件事:有文字條件且命中時非空;@queryText@ 在
 -- 該節點的 @fts_tri@ 原文裡確實出現時,片段必須包含它。視窗怎麼挑(先找完整
@@ -747,7 +747,7 @@ ftsTriSnippets vh queryText ids = do
       ])
 
 -- | 一列 @fts_tri@ 原文:命中節點的 id 與六欄原文,順序對應 SQL 的
--- @SELECT@(D6:片段一律從這裡取)。
+-- @SELECT@(DEC-6:片段一律從這裡取)。
 data FtsTriRow = FtsTriRow
   { ftrId :: Text
   , ftrTitle :: Text
@@ -772,7 +772,7 @@ instance FromRow FtsTriRow where
 ftsTriColumns :: FtsTriRow -> [Text]
 ftsTriColumns r = [ftrTitle r, ftrSummary r, ftrBody r, ftrAliases r, ftrTags r, ftrName r]
 
--- | 從 @fts_tri@ 六欄原文取一段片段(A3\/D6)。先找 'queryText' 在哪一欄裡以
+-- | 從 @fts_tri@ 六欄原文取一段片段(ASM-3\/DEC-6)。先找 'queryText' 在哪一欄裡以
 -- 連續子字串出現,取到就以那個出現位置為中心裁窗、片段裡必定含
 -- 'queryText'(spec 對片段的第二條要求);沒有任何一欄含 'queryText' 時,
 -- 退而取第一個非空欄位的開頭。裁掉的地方補一個省略號 @…@。視窗長度、挑選
@@ -808,7 +808,7 @@ snippetOf queryText cols = case windowed of
 snippetContext :: Int
 snippetContext = 24
 
--- | 五個分面維度。每個維度各自忽略自己的條件(D5\/L17)但保留其他結構條件與
+-- | 五個分面維度。每個維度各自忽略自己的條件(DEC-5\/LAW-17)但保留其他結構條件與
 -- 文字條件,計算候選集再依維度分組計數。
 computeFacets :: VaultHandle -> Maybe Text -> NodeFilter -> Int -> IO FacetCounts
 computeFacets vh textM filt total = do

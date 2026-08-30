@@ -1,4 +1,4 @@
--- | graph-core/F001 T13+T14 的對照測試:@.cabal@ 檔案文字層級的斷言。
+-- | graph-core/F001 STEP-13+STEP-14 的對照測試:@.cabal@ 檔案文字層級的斷言。
 --
 -- __為什麼讀檔案文字而非套件相依圖__:cabal-install 沒有提供「這個套件的
 -- build-depends 有沒有某個套件」的程式化查詢介面(要嘛跑 @cabal-plan@,要嘛
@@ -46,7 +46,7 @@ spec = describe "aapms-core.cabal —— graph-core/F001 契約卡驗收" $ do
       , "Aapms.Core.Registry"
       ]
 
-  -- graph-core/F003:manifest-schema-v2 的驗收標準(T3)。
+  -- graph-core/F003:manifest-schema-v2 的驗收標準(STEP-3)。
   it "exposed-modules 含 Aapms.Core.Manifest(graph-core/F003)" $ do
     txt <- readCabal
     ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt) `shouldBe` ("Aapms.Core.Manifest", True)

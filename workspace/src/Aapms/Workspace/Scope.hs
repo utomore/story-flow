@@ -102,7 +102,7 @@ resolveRead hub (Just s) = case lookupSelector hub s of
 --   @.aapms\/@ 時回 'Aapms.Workspace.Types.NoWriteTarget',帶__正規化後的起點__。
 -- * @Just s@:@lookupSelector@ 取中樞那一列,起點換成該列的
 --   'Aapms.Workspace.Types.vePath';另加一道 __id 守門__——目標 marker 的 @vmId@
---   與該列的 'Aapms.Workspace.Types.veId' 不符時是硬失敗(F003 的待確認假設 A1),
+--   與該列的 'Aapms.Workspace.Types.veId' 不符時是硬失敗(F003 的待確認假設 ASM-1),
 --   因為註冊表指的位置上已經不是使用者點名的那個 vault,靜默寫下去就是寫錯庫。
 --
 -- 因此寫入目標這一路__完全不走 @readVaultRef@__:它的失敗型別是

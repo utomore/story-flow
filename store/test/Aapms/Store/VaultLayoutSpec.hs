@@ -15,11 +15,11 @@
 --
 -- 對照表:
 --
--- * L1  每個 @licenses.md@ 的路徑恰好是 @library\/licenses.md@   -> test_L1
--- * L2  每個 @pack.md@ 的路徑以 @library\/@ 起頭                  -> test_L2
--- * E1  'assetVaultFiles'(F006 的源頭)零違規                    -> test_E1
--- * E2  'vaultBFiles'(F009 照抄的那份)零違規                    -> test_E2
--- * E3  判準本身:對一份刻意寫錯的檔案組,逐條指出違規路徑        -> test_E3
+-- * LAW-1  每個 @licenses.md@ 的路徑恰好是 @library\/licenses.md@   -> test_LAW1
+-- * LAW-2  每個 @pack.md@ 的路徑以 @library\/@ 起頭                  -> test_LAW2
+-- * EX-1  'assetVaultFiles'(F006 的源頭)零違規                    -> test_EX1
+-- * EX-2  'vaultBFiles'(F009 照抄的那份)零違規                    -> test_EX2
+-- * EX-3  判準本身:對一份刻意寫錯的檔案組,逐條指出違規路徑        -> test_EX3
 module Aapms.Store.VaultLayoutSpec (spec) where
 
 import Data.Text (Text)
@@ -39,7 +39,7 @@ allVaultFixtures =
   , ("SearchSpec.ftsVaultFiles", ftsVaultFiles)
   ]
 
--- | 刻意違規的檔案組,用來證明判準真的會抓(否則 L1\/L2 可能只是恆真)。
+-- | 刻意違規的檔案組,用來證明判準真的會抓(否則 LAW-1\/LAW-2 可能只是恆真)。
 badFixture :: [(FilePath, Text)]
 badFixture =
   [ ("licenses.md", "")
@@ -51,10 +51,10 @@ badFixture =
 
 spec :: Spec
 spec = describe "graph-core/B001 vault 目錄配置(system.md:439)" $ do
-  describe "L1 / L2: 每一份 fixture 的檔案組都符合主架構" $
+  describe "LAW-1 / LAW-2: 每一份 fixture 的檔案組都符合主架構" $
     mapM_ oneFixture allVaultFixtures
 
-  describe "E3: 判準本身抓得到違規" $
+  describe "EX-3: 判準本身抓得到違規" $
     it "對刻意寫錯的檔案組,逐條回出 licenses.md 與 pack.md 的違規路徑" $
       vaultLayoutViolations badFixture
         `shouldBe` ["licenses.md", "packs/some-vendor/pack.md"]

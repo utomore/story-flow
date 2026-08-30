@@ -1,5 +1,5 @@
 -- | graph-core\/F005:PRAGMA 設定、@schema_version@ 重建與 'IndexIssue'、
--- vault 身分寫入。graph-core\/F006(T1)擴充:12 張表全建齊、三個新
+-- vault 身分寫入。graph-core\/F006(STEP-1)擴充:12 張表全建齊、三個新
 -- 'IndexIssue' 建構子的 'renderIndexIssue'。graph-core\/F007 再擴充:
 -- @fts_tri@\/@fts_cjk@\/@fts_map@ 三張表、schemaVersion 2 → 3。
 module Aapms.Store.SchemaSpec (spec) where
@@ -65,7 +65,7 @@ spec = describe "graph-core/F005 schema" $ do
       currentVersion conn `shouldReturn` Just schemaVersion
       closeIndex conn
 
-  it "T1: renderIndexIssue 對三個新建構子輸出非空、含中文、指出檔案路徑" $ do
+  it "STEP-1: renderIndexIssue 對三個新建構子輸出非空、含中文、指出檔案路徑" $ do
     let fp = "story/broken.md"
         parseIssue = renderIndexIssue (ParseFailed fp (MdError 3 NoFrontmatter))
         treeIssue = renderIndexIssue (TreeInvalid fp [])

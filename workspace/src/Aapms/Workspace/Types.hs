@@ -7,7 +7,7 @@
 -- 做法是把全部純型別與錯誤型別收在這裡,它只依賴 @aapms-core@ 與 @aapms-store@
 -- 的型別,其餘六個模組全部往這裡依賴,型別歸屬圖因此是一棵樹。
 --
--- __一次寫齊,不由各 feature 逐波擴充__(build-log D2):契約 A–F 的型別與
+-- __一次寫齊,不由各 feature 逐波擴充__(build-log DEC-2):契約 A–F 的型別與
 -- 'WorkspaceError' 的全部建構子都在 F001 寫完。階段二的三個 feature 平行執行,
 -- 若各自往本檔加建構子,那是同一個檔案的併發寫入——互蓋當下不會有任何錯誤訊息。
 --
@@ -316,7 +316,7 @@ data WorkspaceError
   | -- | 寫入目標已經鎖定到這個 vault(中樞記的 id、它的路徑),但重讀 marker
     -- 發現實際的 id 不是這個——寫入目標決定不了就該硬失敗,不猜(ADR-017)。
     -- 讀取路徑上同一件事是 'ScopeIssue.VaultIdDrift' 的降級,不是這裡
-    -- (2026-08-29 W3 閘門新增)
+    -- (2026-08-29 WAVE-3 閘門新增)
     WriteTargetIdDrift VaultId FilePath VaultId
   | -- | vault 根目錄、graph-core @readMarker@ 回的原件
     MarkerUnreadable FilePath StoreError
@@ -325,20 +325,20 @@ data WorkspaceError
   | -- | 專案名、那個不存在的路徑
     ProjectPathMissing Text FilePath
   | -- | selector 字串、__全部__撞名的 'ProjectEntry'。借用 'ProjectSelectorNotFound'
-    -- 會說「找不到」,但其實找到了兩個以上(2026-08-29 W4 閘門新增)
+    -- 會說「找不到」,但其實找到了兩個以上(2026-08-29 WAVE-4 閘門新增)
     ProjectSelectorAmbiguous Text [ProjectEntry]
   | -- | 既有那一列的 'peId'、它的路徑。同一個路徑註冊兩次時 'pePath' 沒有唯一性
     -- 要求,靜默發第二個 id 是合法的,但中樞會出現兩列指同一個目錄
-    -- (2026-08-29 W4 閘門新增)
+    -- (2026-08-29 WAVE-4 閘門新增)
     ProjectAlreadyRegistered Id FilePath
   | -- | vault 根目錄、graph-core 的 'StoreError' 原件。'initVaultAt' __建__ marker
     -- 失敗,不是讀失敗——借用 'MarkerUnreadable' 會叫使用者去看一個還沒被建出來
-    -- 的檔(2026-08-29 W4 閘門新增)
+    -- 的檔(2026-08-29 WAVE-4 閘門新增)
     VaultInitFailed FilePath StoreError
   | -- | 中樞那一列的 'veId'、該 vault 的 'vePath'、marker 裡實際的 'VaultId'。與
     -- 'WriteTargetIdDrift' 完全對稱,構成「寫入目標漂移 \/ 刪除目標漂移」家族,
     -- 但這條路徑上__沒有__寫入目標,也__不該__建議重新執行 @vault add@ 以外的
-    -- 動作(2026-08-29 W4 閘門新增)
+    -- 動作(2026-08-29 WAVE-4 閘門新增)
     DeleteTargetIdDrift VaultId FilePath VaultId
   | -- | 收到的原始字串(去除前後空白後長度為 0)
     InvalidName Text

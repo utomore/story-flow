@@ -1,4 +1,4 @@
--- | T1:'MetaOverride' 型別修正後往返不失真;T3:'inheritMeta' 的
+-- | STEP-1:'MetaOverride' 型別修正後往返不失真;STEP-3:'inheritMeta' 的
 -- @typeInherits@ 旗標與節層繼承檔案層的欄位規則(graph-core/F004,MdWarning
 -- 通道已移除)。
 module Aapms.Md.InheritSpec (spec) where
@@ -40,7 +40,7 @@ inherited = either (error . show) id (inheritMeta True fileMeta (idOf "ent-7f3b"
 
 spec :: Spec
 spec = do
-  describe "T1:MetaOverride 型別修正後往返不失真" $ do
+  describe "STEP-1:MetaOverride 型別修正後往返不失真" $ do
     it "overrideOf 展開的 moType / moVault / moRevision 型別正確且值相符" $ do
       let ov = overrideOf fileMeta
       moType ov `shouldBe` Just (typeOf "character")
@@ -58,7 +58,7 @@ spec = do
       -- 沒給的欄位維持原值
       metaSummary m `shouldBe` metaSummary fileMeta
 
-  describe "T3:type 是否繼承" $ do
+  describe "STEP-3:type 是否繼承" $ do
     it "typeInherits = True 且節層未寫 type 時繼承檔案層" $
       metaType inherited `shouldBe` typeOf "character"
 

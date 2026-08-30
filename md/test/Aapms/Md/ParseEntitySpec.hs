@@ -1,4 +1,4 @@
--- | T8:'toTopic'(改名自 @parseEntityFile@)的解析,對照 system.md 的琳達範例。
+-- | STEP-8:'toTopic'(改名自 @parseEntityFile@)的解析,對照 system.md 的琳達範例。
 module Aapms.Md.ParseEntitySpec (spec) where
 
 import qualified Data.Text as T

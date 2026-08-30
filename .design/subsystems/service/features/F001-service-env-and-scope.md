@@ -285,7 +285,7 @@ withPipeline kind k
 | `renderRegistryError :: RegistryError -> Text` | `core/src/Aapms/Core/Registry.hs:280` | `graph-core/F002` | `renderServiceError` 委派 |
 | `newtype TypeRegistry = TypeRegistry (Map TypeKey TypeDecl)` | `core/src/Aapms/Core/Registry.hs:110` | `graph-core/F002` | `Env` 欄位、`openVault` 的第一參數 |
 | `data NamingVocab = NamingVocab { nvKinds, nvDomains, nvStates :: [Segment] }` | `core/src/Aapms/Core/Naming.hs:116` | `graph-core/F002` | `Env` 欄位 |
-| `listTypes :: TypeRegistry -> [TypeDecl]` | `core/src/Aapms/Core/Registry.hs:159` | `graph-core/F002` | X5c 的觀察口(`TypeRegistry` 不透明,沒有 `Eq`) |
+| `listTypes :: TypeRegistry -> [TypeDecl]` | `core/src/Aapms/Core/Registry.hs:159` | `graph-core/F002` | EX-5c 的觀察口(`TypeRegistry` 不透明,沒有 `Eq`) |
 | `openVault :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))` | `store/src/Aapms/Store/Marker.hs:207` | `graph-core/F005` | `handleFor` 的未命中路徑 |
 | `closeVault :: VaultHandle -> IO ()` | `store/src/Aapms/Store/Marker.hs:217` | `graph-core/F005` | `closeEnv` |
 | `data VaultHandle = VaultHandle { vhMarker :: VaultMarker, vhRoot :: FilePath, vhConn :: Connection, vhRegistry :: TypeRegistry }` | `store/src/Aapms/Store/Marker.hs:75` | `graph-core/F005` | 快取的值、三個 `with*` 交出去的東西 |
@@ -593,7 +593,7 @@ Laws 與 Examples 以這組佈局為基準(qa 自行以 `temporary` 建在暫存
 兩邊是同一個表達式,斷言恆真。而那一份的**內容**成不成立是下層子系統的 law(`workspace/F001` 的
 `loadHub`、`graph-core/F002` 的 `locateRegistry` / `loadRegistry`),本層重述一次只是把別人的 law
 抄過來。可觀察的部分(值確實被傳到了、而且沒有被本層改寫)逐一寫成 example:`askSelector` → EX-4、
-`askRegistrySource` → EX-5、`askHubLocation` / `askCwd` → X5b、`askRegistry` / `askNaming` → X5c、
+`askRegistrySource` → EX-5、`askHubLocation` / `askCwd` → EX-5b、`askRegistry` / `askNaming` → EX-5c、
 `askHub` → EX-6(與 `reloadHub` 同一個 example 的前後兩次觀察)。
 
 **寫測試時的一個地雷**:`Aapms.Workspace.Types.HubSource` 與 `Aapms.Types.Loader.RegistrySource`
@@ -606,11 +606,11 @@ Laws 與 Examples 以這組佈局為基準(qa 自行以 `temporary` 建在暫存
 | EX-1 | 完整佈局,`openEnv Nothing <tmp>/va` | `Right env`;`<tmp>/va/.aapms/index.db` 與 `<tmp>/vb/.aapms/index.db` **都不存在** | 正常路徑 + 驗收標準 1 | LAW-1 |
 | EX-2 | 刪掉 `<tmp>/hub/config.toml` 後 `openEnv Nothing <tmp>/va` | `Left (WorkspaceFailed (HubNotFound "<tmp>/hub/config.toml"))` | 中樞缺席 | LAW-2 |
 | EX-3 | 註冊表環境變數指向不存在的目錄,`openEnv Nothing <tmp>/va` | `Left (RegistryUnavailable _)` | 註冊表定位失敗 | LAW-3 |
-| X3b | 註冊表目錄存在但沒有 `naming.toml`,`openEnv Nothing <tmp>/va` | `Left (RegistryLoadFailed _)` | 註冊表載入失敗 | LAW-4 |
+| EX-3b | 註冊表目錄存在但沒有 `naming.toml`,`openEnv Nothing <tmp>/va` | `Left (RegistryLoadFailed _)` | 註冊表載入失敗 | LAW-4 |
 | EX-4 | `openEnv (Just "story") <tmp>/outside` 後 `runService env askSelector` | `Right (Just "story")` | selector 原樣捧著、**未被解讀** | LAW-12(短路的對偶:成功路徑) |
 | EX-5 | 同上,`runService env askRegistrySource` | `Right Loader.FromEnv`(環境變數指向專案的 `types/registry/` 時) | 註冊表來源可觀察 | L-(見 Laws 段末) |
-| X5b | 同上,`runService env ((,) <$> askHubLocation <*> askCwd)` | `hlPath` = `<tmp>/hub`、`hlSource == Types.FromEnv`、`askCwd` = `<tmp>/outside` 的絕對路徑 | 中樞位置與起點原樣捧著 | L-(見 Laws 段末) |
-| X5c | 同上,`runService env ((,) <$> (length . listTypes <$> askRegistry) <*> askNaming)` | 型別數 > 0;`NamingVocab` 逐欄等於直接對同一目錄呼叫 `loadRegistry` 得到的第二個回傳值 | 註冊表與詞彙表來自同一次載入 | L-(見 Laws 段末) |
+| EX-5b | 同上,`runService env ((,) <$> askHubLocation <*> askCwd)` | `hlPath` = `<tmp>/hub`、`hlSource == Types.FromEnv`、`askCwd` = `<tmp>/outside` 的絕對路徑 | 中樞位置與起點原樣捧著 | L-(見 Laws 段末) |
+| EX-5c | 同上,`runService env ((,) <$> (length . listTypes <$> askRegistry) <*> askNaming)` | 型別數 > 0;`NamingVocab` 逐欄等於直接對同一目錄呼叫 `loadRegistry` 得到的第二個回傳值 | 註冊表與詞彙表來自同一次載入 | L-(見 Laws 段末) |
 | EX-6 | 手動改寫 `<tmp>/hub/config.toml` 加一列 vault 後 `runService env ((,) <$> askHub <*> reloadHub)` | `askHub` 的 `hubVaults` 長度 = 2(舊快照),`reloadHub` 的 = 3 | 中樞快照可重載;`askHub` 在重載前不變 | L-(見 Laws 段末) |
 | EX-7 | 同一 `env` 上 `handleFor refVA`,刪掉 `<tmp>/va/.aapms/config.toml`,再 `handleFor refVA` | 兩次的 `vhRoot` 相同、`vmId (vhMarker h)` 相同,第二次**成功** | 快取命中 + 驗收標準 3 | LAW-8 |
 | EX-8 | 手工組一個 `VaultRef`(`vrEntry = Nothing`、`vrPath = <tmp>/outside`、`vrMarker` 用任一合法 marker 值),對它 `handleFor` | `Left (StoreFailed (VaultMarkerMissing "<tmp>/outside/.aapms/config.toml"))` | 開啟失敗 | LAW-9 |
@@ -662,8 +662,8 @@ Laws 與 Examples 以這組佈局為基準(qa 自行以 `temporary` 建在暫存
 
 | 決定 | 被否決的替代方案與理由 |
 |---|---|
-| **`Env` 與 `ServiceM` 都不透明**(建構子與欄位不匯出,存取一律經函式) | **露出 `Env` 的欄位**:F002 起的每個模組直接 `envHub e` 就好,少寫八個存取器。否決理由是 `Env` 有兩類不變量會被靜默破壞——四格「同一次 `openEnv` 載入」的一致性(拼得出「中樞是 A、註冊表是 B」的環境),以及三格可變狀態的鎖保護(直接讀 `envHandles` 的 `IORef` 不會有編譯錯誤,但繞過了 `runService` 的臨界區)。代價已知:每加一個 `Env` 欄位就要加一個存取器,而存取器是 API。**露出 `ServiceM` 的建構子**:qa 可以不經 `runService` 直接跑動作,測試好寫。否決理由是那正好繞過唯一拿鎖的地方,而「測試用的那條路不拿鎖」會讓 LAW-11 這條 law 在測試裡永遠是綠的。**WAVE-1 交付後的定向修訂(2026-08-30)裁決:`ServiceM` 不透明照收,但這個決定要有守衛——守衛是 `L25`**(對 `service/src/` 的原始碼文字斷言:不得有任何 `instance` 宣告或 standalone deriving,`ServiceM` 的 deriving 子句逐字釘死為 `Functor` / `Applicative` / `Monad` / `MonadIO`)。理由是**匯出清單守不住實例**:類別方法不進 `module … ( … ) where`,多 derive 一個實例就等於多一組沒登記在介面表上的對外 API,而那件事編得過、review 時也長得像「讓程式碼變好寫」。真正需要攔截短路的那個場景由 `finallyService`(LAW-24)以一個**登記過的名字**滿足,不靠實例。WAVE-1 的 impl 正是在這裡撞牆(見「實作備註」) |
-| **鎖的臨界區是整個 `runService`** | **鎖在 `handleFor`**:粒度最細、並行度最高。否決理由是它只保護三件事裡的一件(快取),`Connection` 的使用與「先寫檔再更新索引」都在臨界區外。**鎖在各操作各自宣告**:粒度合適。否決理由是每個新操作都要記得包一層,漏包不會有編譯錯誤——與 design.md 不可逆決定第三列否決「鎖留在 `AppState`」是同一條理由。已知代價:巢狀 `runService` 死結、單一 `Env` 上無並行。**WAVE-1 閘門(2026-08-30)裁決:整個 `runService` 當臨界區照收,但「巢狀死結」這條代價要有守衛——守衛是 `L23`**(對 `service/src/` 的原始碼文字斷言:`Monad.hs` 以外的模組一個字都不准提到 `runService`;`Monad.hs` 內只允許匯出清單、簽名行、第 0 欄的定義等式三種形狀)。選的是**靜態斷言**而不是執行期偵測(重入計數 / 可重入鎖):後者要為一件契約上根本不該發生的事付每次呼叫的成本,前者在 F002–F008 的模組進來的那一刻就紅。LAW-11 驗的是並發不重疊,擋不到巢狀,兩條不能互相取代 |
+| **`Env` 與 `ServiceM` 都不透明**(建構子與欄位不匯出,存取一律經函式) | **露出 `Env` 的欄位**:F002 起的每個模組直接 `envHub e` 就好,少寫八個存取器。否決理由是 `Env` 有兩類不變量會被靜默破壞——四格「同一次 `openEnv` 載入」的一致性(拼得出「中樞是 A、註冊表是 B」的環境),以及三格可變狀態的鎖保護(直接讀 `envHandles` 的 `IORef` 不會有編譯錯誤,但繞過了 `runService` 的臨界區)。代價已知:每加一個 `Env` 欄位就要加一個存取器,而存取器是 API。**露出 `ServiceM` 的建構子**:qa 可以不經 `runService` 直接跑動作,測試好寫。否決理由是那正好繞過唯一拿鎖的地方,而「測試用的那條路不拿鎖」會讓 LAW-11 這條 law 在測試裡永遠是綠的。**WAVE-1 交付後的定向修訂(2026-08-30)裁決:`ServiceM` 不透明照收,但這個決定要有守衛——守衛是 `LAW-25`**(對 `service/src/` 的原始碼文字斷言:不得有任何 `instance` 宣告或 standalone deriving,`ServiceM` 的 deriving 子句逐字釘死為 `Functor` / `Applicative` / `Monad` / `MonadIO`)。理由是**匯出清單守不住實例**:類別方法不進 `module … ( … ) where`,多 derive 一個實例就等於多一組沒登記在介面表上的對外 API,而那件事編得過、review 時也長得像「讓程式碼變好寫」。真正需要攔截短路的那個場景由 `finallyService`(LAW-24)以一個**登記過的名字**滿足,不靠實例。WAVE-1 的 impl 正是在這裡撞牆(見「實作備註」) |
+| **鎖的臨界區是整個 `runService`** | **鎖在 `handleFor`**:粒度最細、並行度最高。否決理由是它只保護三件事裡的一件(快取),`Connection` 的使用與「先寫檔再更新索引」都在臨界區外。**鎖在各操作各自宣告**:粒度合適。否決理由是每個新操作都要記得包一層,漏包不會有編譯錯誤——與 design.md 不可逆決定第三列否決「鎖留在 `AppState`」是同一條理由。已知代價:巢狀 `runService` 死結、單一 `Env` 上無並行。**WAVE-1 閘門(2026-08-30)裁決:整個 `runService` 當臨界區照收,但「巢狀死結」這條代價要有守衛——守衛是 `LAW-23`**(對 `service/src/` 的原始碼文字斷言:`Monad.hs` 以外的模組一個字都不准提到 `runService`;`Monad.hs` 內只允許匯出清單、簽名行、第 0 欄的定義等式三種形狀)。選的是**靜態斷言**而不是執行期偵測(重入計數 / 可重入鎖):後者要為一件契約上根本不該發生的事付每次呼叫的成本,前者在 F002–F008 的模組進來的那一刻就紅。LAW-11 驗的是並發不重疊,擋不到巢狀,兩條不能互相取代 |
 | **`code` 由「建構子名的 snake_case」規則產生,不是一份對照表** | **逐條指定字串**(如 `StoreFailed` → `storage_error`):可以挑更貼近使用者語彙的字。否決理由是 `code` 是**對外契約**(CLI exit code 對照、OpenAPI 的錯誤列舉),而後面還有九個建構子要加;一份人工對照表意味著每加一個建構子就要問一次「這個叫什麼」,而且問完之後沒有任何機制擋住下一個人取一個不一致的名字。代價:`code` 的字面被建構子名綁住,改建構子名就是改對外契約——這一點反而是想要的,因為它會逼人在改名時看見 |
 | **四個建構子的訊息一律逐字委派下層 `render*`,本層不加前綴** | **加一層前綴**(如「工作區設定失敗 —— …」):訊息更能說出是哪一層出的事。否決理由是下層的訊息已經寫過「下一步」,加前綴會讓同一則訊息在兩層各長一個樣,而 `shell` 的三個殼都直接印這一則;想知道是哪一層的人看 `code`。已知代價:`RegistryUnavailable` 與 `RegistryLoadFailed` 對同一個酬載渲染成相同文字(EX-23 明文驗這件事) |
 | **handle 快取的鍵是 marker 的 `VaultId`,不是路徑** | **用正規化後的路徑當鍵**:不必讀 marker 就查得到。否決理由是 ADR-017 明定 vault 的身分就是 marker 裡的 id;用路徑當鍵時,同一個 vault 經兩條路徑(符號連結、大小寫不同的磁碟機代號)進來會被開兩次,而兩份把手各自持有一條 SQLite 連線 |
@@ -860,7 +860,7 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
 | law / example | 觀察的介面 | 骨架狀態下預期 |
 |---|---|---|
 | LAW-1, EX-1 | `openEnv` | 紅 |
-| LAW-2–LAW-4, EX-2, EX-3, X3b | `openEnv` | 紅 |
+| LAW-2–LAW-4, EX-2, EX-3, EX-3b | `openEnv` | 紅 |
 | LAW-5, LAW-6, EX-9, EX-10 | `closeEnv` | 紅 |
 | LAW-7, EX-11 | `withEnv` | 紅 |
 | LAW-8–LAW-10, EX-7, EX-8 | `handleFor` / `indexIssuesFor` | 紅 |
@@ -869,7 +869,7 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
 | LAW-16, LAW-17, EX-17, EX-18 | `withWrite` | 紅 |
 | LAW-18, EX-19, EX-20 | `withPipeline` | 紅 |
 | LAW-19–LAW-22, EX-21–EX-23 | `errorCode` / `renderServiceError` | 紅 |
-| EX-4, EX-5, X5b, X5c, EX-6 | 八個 `ask*` 存取器與 `reloadHub` | 紅 |
+| EX-4, EX-5, EX-5b, EX-5c, EX-6 | 八個 `ask*` 存取器與 `reloadHub` | 紅 |
 | LAW-24, EX-26, EX-27 | `finallyService` | 紅 |
 | **LAW-23, EX-24, EX-25** | `service/src/` 的**原始碼文字**(`runService` 出現在哪些程式碼行) | **綠** |
 | **LAW-25, EX-28, EX-29** | `service/src/` 的**原始碼文字**(`instance` / `deriving` 出現在哪些程式碼行) | **綠** |
@@ -886,9 +886,9 @@ impl 只准替換 `undefined`,不得改動任何簽名、型別定義或匯出�
   EX-28 綠而 EX-29 不綠,都代表判準寫壞了。
 
 **覆蓋率(步驟 7 第 2 條)**:Laws **25 條**(LAW-1–LAW-25,其中 LAW-23 為 WAVE-1 閘門追加,LAW-24 / LAW-25 為 WAVE-1
-交付後的定向修訂追加)、Examples **32 個**(EX-1–EX-29,含 X3b / X5b / X5c);「新增的介面」表共
+交付後的定向修訂追加)、Examples **32 個**(EX-1–EX-29,含 EX-3b / EX-5b / EX-5c);「新增的介面」表共
 **26 列**(Types 3 + Monad 20 + Scope 3),每一列至少被一條 law 或一個 example 覆蓋。四處值得
-點名:七個 `ask*` 存取器走 `L-` 的理由段 + EX-4 / EX-5 / X5b / X5c / EX-6;`liftStore` / `liftWorkspace`
+點名:七個 `ask*` 存取器走 `L-` 的理由段 + EX-4 / EX-5 / EX-5b / EX-5c / EX-6;`liftStore` / `liftWorkspace`
 收的是 `IO (Either …)`,只在呼叫端可觀察,分別由 LAW-9 / EX-8(`StoreFailed` 短路)與 LAW-16 / EX-17
 (`WorkspaceFailed` 短路)覆蓋;`runService` 由 LAW-11 / LAW-12(執行期)與 LAW-23(原始碼文字)兩個角度
 覆蓋;`finallyService` 由 LAW-24 / EX-26 / EX-27(執行期,兩條路徑)直接覆蓋,而它**存在的理由**——

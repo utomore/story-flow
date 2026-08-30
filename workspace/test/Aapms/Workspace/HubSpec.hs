@@ -1,34 +1,34 @@
--- | F001:'Aapms.Workspace.Hub' 的 'loadHub' \/ 'saveHub'(L4-L10\/X4-X17\/X27)與
+-- | F001:'Aapms.Workspace.Hub' 的 'loadHub' \/ 'saveHub'(LAW-4-LAW-10\/EX-4-EX-17\/EX-27)與
 -- 四個純增刪 'upsertVault' \/ 'removeVault' \/ 'upsertProject' \/ 'removeProject'
--- (L11-L13\/X18)。'mkHub' 與五個 selector 互逆的 L16 在
+-- (LAW-11-LAW-13\/EX-18)。'mkHub' 與五個 selector 互逆的 LAW-16 在
 -- "Aapms.Workspace.TypesSpec" 測(那是 'Aapms.Workspace.Types' 的骨架事實)。
 --
 -- __spec 對照__(@.design\/subsystems\/workspace\/features\/F001-hub-registry.md@):
 --
 -- @
--- L4  中樞檔案不存在即失敗,不退回空中樞                    -> test_load_hub_not_found
--- L5  TOML 壞掉 vs 欄位不合規                                -> test_load_hub_unreadable_on_bad_toml / test_load_hub_malformed_*
--- L6  四段缺席是合法的空中樞                                 -> test_load_hub_all_sections_absent
--- L7  hubLlm 三態可區分                                      -> test_hub_llm_three_states
--- L8  saveHub 對未修改的 Hub 是位元組恆等                     -> test_save_hub_byte_identical_when_unmodified
--- L9  roundtrip 逐欄相等                                     -> test_load_save_load_field_equal
--- L10 改動後仍保留註解與空白行                                -> test_save_hub_preserves_comments_after_upsert
--- L11 upsertVault 的語意                                     -> test_upsert_vault_appends / test_upsert_vault_replaces_in_place
--- L12 removeVault 的語意                                     -> test_remove_vault_preserves_order / test_remove_vault_absent_is_noop
--- L13 upsertProject / removeProject 對稱於 L11 / L12         -> test_project_ops_mirror_vault_ops
--- X4-X10 loadHub 的錯誤分流                                  -> test_load_hub_*
--- X11 完整樣本的載入結果                                     -> test_load_hub_full_sample
--- X12/X13 四段缺席 / [llm] 空段                              -> test_load_hub_all_sections_absent / test_hub_llm_three_states
--- X14/X15 byte-identical + reload                            -> test_save_hub_byte_identical_when_unmodified / test_load_save_load_field_equal
--- X16/X17 upsert/remove 後仍保留其餘內容                      -> test_save_hub_preserves_comments_after_upsert / test_save_hub_preserves_other_sections_after_remove
--- X18 removeVault 對不存在的 id 是 no-op                      -> test_remove_vault_absent_is_noop
--- X27 saveHub 父目錄不存在                                   -> test_save_hub_does_not_create_directory
--- L18 名稱完整定義域往返(含控制字元,回歸 law,預期綠)        -> test_save_load_roundtrip_any_name_incl_control_chars
--- X28 名稱含 \n/\t                                           -> test_save_load_roundtrip_newline_and_tab_name
--- X29 名稱含 U+0001,veName/peName 同時出現互不影響            -> test_save_load_roundtrip_c0_control_name
+-- LAW-4  中樞檔案不存在即失敗,不退回空中樞                    -> test_load_hub_not_found
+-- LAW-5  TOML 壞掉 vs 欄位不合規                                -> test_load_hub_unreadable_on_bad_toml / test_load_hub_malformed_*
+-- LAW-6  四段缺席是合法的空中樞                                 -> test_load_hub_all_sections_absent
+-- LAW-7  hubLlm 三態可區分                                      -> test_hub_llm_three_states
+-- LAW-8  saveHub 對未修改的 Hub 是位元組恆等                     -> test_save_hub_byte_identical_when_unmodified
+-- LAW-9  roundtrip 逐欄相等                                     -> test_load_save_load_field_equal
+-- LAW-10 改動後仍保留註解與空白行                                -> test_save_hub_preserves_comments_after_upsert
+-- LAW-11 upsertVault 的語意                                     -> test_upsert_vault_appends / test_upsert_vault_replaces_in_place
+-- LAW-12 removeVault 的語意                                     -> test_remove_vault_preserves_order / test_remove_vault_absent_is_noop
+-- LAW-13 upsertProject / removeProject 對稱於 LAW-11 / LAW-12         -> test_project_ops_mirror_vault_ops
+-- EX-4-EX-10 loadHub 的錯誤分流                                  -> test_load_hub_*
+-- EX-11 完整樣本的載入結果                                     -> test_load_hub_full_sample
+-- EX-12/EX-13 四段缺席 / [llm] 空段                              -> test_load_hub_all_sections_absent / test_hub_llm_three_states
+-- EX-14/EX-15 byte-identical + reload                            -> test_save_hub_byte_identical_when_unmodified / test_load_save_load_field_equal
+-- EX-16/EX-17 upsert/remove 後仍保留其餘內容                      -> test_save_hub_preserves_comments_after_upsert / test_save_hub_preserves_other_sections_after_remove
+-- EX-18 removeVault 對不存在的 id 是 no-op                      -> test_remove_vault_absent_is_noop
+-- EX-27 saveHub 父目錄不存在                                   -> test_save_hub_does_not_create_directory
+-- LAW-18 名稱完整定義域往返(含控制字元,回歸 law,預期綠)        -> test_save_load_roundtrip_any_name_incl_control_chars
+-- EX-28 名稱含 \n/\t                                           -> test_save_load_roundtrip_newline_and_tab_name
+-- EX-29 名稱含 U+0001,veName/peName 同時出現互不影響            -> test_save_load_roundtrip_c0_control_name
 -- @
 --
--- 2026-08-29 W4 閘門補入 L18/X28/X29:驗的是 'Hub.hs' 的 @quoteText@ 修掉「只逸出
+-- 2026-08-29 WAVE-4 閘門補入 LAW-18/EX-28/EX-29:驗的是 'Hub.hs' 的 @quoteText@ 修掉「只逸出
 -- @\"@ 與 @\\@、不逸出控制字元」缺陷之後既有行為不退化,'loadHub'\/'saveHub' 簽名沒變,
 -- 屬 @spec-roles.md@「qa 的交付判準」第三列(回歸 law → 預期綠)。
 module Aapms.Workspace.HubSpec (spec) where
@@ -81,17 +81,17 @@ expectUnreadable dir content = do
 
 spec :: Spec
 spec = describe "F001 Aapms.Workspace.Hub" $ do
-  describe "L4/X4: loadHub 對不存在的檔案" $
+  describe "LAW-4/EX-4: loadHub 對不存在的檔案" $
     it "test_load_hub_not_found: 回 HubNotFound,不是空 Hub" $
       withTempHubDir $ \dir -> do
         r <- loadHub (locAt dir)
         r `shouldBe` Left (HubNotFound (hubConfigFile dir))
 
-  describe "L5/X5: TOML 語法錯" $
+  describe "LAW-5/EX-5: TOML 語法錯" $
     it "test_load_hub_unreadable_on_bad_toml" $
       withTempHubDir $ \dir -> expectUnreadable dir "[[vaults\n"
 
-  describe "L5/X6-X10: 欄位不合規" $ do
+  describe "LAW-5/EX-6-EX-10: 欄位不合規" $ do
     it "test_load_hub_malformed_missing_id: 缺 id" $
       withTempHubDir $ \dir ->
         expectMalformed
@@ -140,7 +140,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
           )
           ["vlt-7f3b2a91"]
 
-  describe "L6/X12: 四段全部缺席是合法的空中樞" $
+  describe "LAW-6/EX-12: 四段全部缺席是合法的空中樞" $
     it "test_load_hub_all_sections_absent" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir "# 空的中樞\n"
@@ -153,8 +153,8 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             hubTools hub `shouldBe` ToolsConfig Nothing
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
-  describe "L7/X13: hubLlm 三態可區分" $ do
-    it "X13: [llm] 存在但沒有任何鍵時,hubLlm 是 Just 空表,且 /= Nothing" $
+  describe "LAW-7/EX-13: hubLlm 三態可區分" $ do
+    it "EX-13: [llm] 存在但沒有任何鍵時,hubLlm 是 Just 空表,且 /= Nothing" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir "[llm]\n"
         r <- loadHub (locAt dir)
@@ -180,7 +180,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             Nothing -> failure
           Left e -> annotate (show e) >> failure
 
-  describe "X11: 「數據」節樣本檔案的載入結果" $
+  describe "EX-11: 「數據」節樣本檔案的載入結果" $
     it "test_load_hub_full_sample" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir sampleHubText
@@ -195,7 +195,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             hubTools hub `shouldBe` sampleTools
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
-  describe "L8/X14: saveHub 對未修改的 Hub 是位元組恆等" $
+  describe "LAW-8/EX-14: saveHub 對未修改的 Hub 是位元組恆等" $
     it "test_save_hub_byte_identical_when_unmodified" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir sampleHubText
@@ -210,7 +210,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             afterText `shouldBe` beforeText
             afterText `shouldBe` sampleHubText
 
-  describe "L9/X15: loadHub -> saveHub -> loadHub 逐欄相等" $
+  describe "LAW-9/EX-15: loadHub -> saveHub -> loadHub 逐欄相等" $
     it "test_load_save_load_field_equal" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir sampleHubText
@@ -229,7 +229,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
                 hubLlm hub1 `shouldBe` hubLlm hub0
                 hubTools hub1 `shouldBe` hubTools hub0
 
-  describe "L10/X16: 改動後仍保留原有註解與空白行,新列附加在最後" $
+  describe "LAW-10/EX-16: 改動後仍保留原有註解與空白行,新列附加在最後" $
     it "test_save_hub_preserves_comments_after_upsert" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir sampleHubText
@@ -251,7 +251,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
               Left e -> expectationFailure ("重讀失敗:" <> show e)
               Right hub2 -> hubVaults hub2 `shouldBe` hubVaults hub0 ++ [newEntry]
 
-  describe "X17: removeVault 後 saveHub,其餘三段與開頭註解逐字不變" $
+  describe "EX-17: removeVault 後 saveHub,其餘三段與開頭註解逐字不變" $
     it "test_save_hub_preserves_other_sections_after_remove" $
       withTempHubDir $ \dir -> do
         writeHubConfig dir sampleHubText
@@ -275,7 +275,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
                 hubLlm hub2 `shouldBe` hubLlm hub0
                 hubTools hub2 `shouldBe` hubTools hub0
 
-  describe "X27: saveHub 到父目錄不存在的位置" $
+  describe "EX-27: saveHub 到父目錄不存在的位置" $
     it "test_save_hub_does_not_create_directory" $
       withTempHubDir $ \dir -> do
         let missingDir = dir </> "missing-parent"
@@ -287,10 +287,10 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
           other -> expectationFailure ("預期 HubWriteFailed,得到 " <> show other)
         doesDirectoryExist missingDir `shouldReturn` False
 
-  -- 2026-08-29 W4 閘門補入:L18 是回歸 law(spec-roles.md 交付判準第三列)——它驗的是
+  -- 2026-08-29 WAVE-4 閘門補入:LAW-18 是回歸 law(spec-roles.md 交付判準第三列)——它驗的是
   -- `Hub.hs` 的 `quoteText` 修掉「只逸出 \" 與 \\、不逸出控制字元」這個缺陷之後,既有的
   -- saveHub/loadHub 簽名沒有變、行為不再退化。**預期綠**;若紅代表逸出被改窄,改實作不改測試。
-  describe "L18/X28/X29: 名稱的完整定義域往返(含控制字元),回歸 law,預期綠" $ do
+  describe "LAW-18/EX-28/EX-29: 名稱的完整定義域往返(含控制字元),回歸 law,預期綠" $ do
     it
       "test_save_load_roundtrip_any_name_incl_control_chars: 對任意去空白後非空的 \
       \veName/peName(涵蓋 \\n/\\t/其他 C0 控制字元/DEL),saveHub -> loadHub 逐字讀回"
@@ -317,7 +317,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
           Left e -> annotate (show e) >> failure
 
     it
-      "test_save_load_roundtrip_newline_and_tab_name(X28): 空中樞 upsertVault 名稱含 \
+      "test_save_load_roundtrip_newline_and_tab_name(EX-28): 空中樞 upsertVault 名稱含 \
       \實際的換行與 tab,saveHub -> loadHub 逐字讀回;寫出的檔案是逸出後的兩字元序列"
       $ withTempHubDir $ \dir -> do
         let loc = locAt dir
@@ -334,7 +334,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
     it
-      "test_save_load_roundtrip_c0_control_name(X29): 名稱含 U+0001,saveHub -> loadHub \
+      "test_save_load_roundtrip_c0_control_name(EX-29): 名稱含 U+0001,saveHub -> loadHub \
       \逐字讀回;寫出的是 \\u0001(四位大寫十六進位);同一份中樞的 veName 與 peName 互不影響"
       $ withTempHubDir $ \dir -> do
         let loc = locAt dir
@@ -356,7 +356,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             map peName (hubProjects hub2) `shouldBe` [pName]
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
-  describe "L11: upsertVault 的語意(純函式,不碰檔案)" $ do
+  describe "LAW-11: upsertVault 的語意(純函式,不碰檔案)" $ do
     it "test_upsert_vault_appends: id 不在清單中時追加到末尾,其餘三段與 hubSourceText 不變" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 5) genVaultEntry)
@@ -388,7 +388,7 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
         [x | (i, x) <- zip [0 :: Int ..] (hubVaults h'), i /= idx]
           === [x | (i, x) <- zip [0 :: Int ..] vs, i /= idx]
 
-  describe "L12: removeVault 的語意(純函式,不碰檔案)" $ do
+  describe "LAW-12: removeVault 的語意(純函式,不碰檔案)" $ do
     it "test_remove_vault_preserves_order: 移除存在的 id,保序" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 1 5) genVaultEntry)
@@ -398,14 +398,14 @@ spec = describe "F001 Aapms.Workspace.Hub" $ do
             h' = removeVault (veId target) h
         hubVaults h' === filter ((/= veId target) . veId) vs
 
-    it "test_remove_vault_absent_is_noop / X18: 不存在的 id 回傳與輸入相等的 Hub" $
+    it "test_remove_vault_absent_is_noop / EX-18: 不存在的 id 回傳與輸入相等的 Hub" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 5) genVaultEntry)
         v <- forAll (Gen.filter (\vid -> vid `notElem` map veId vs) genVaultId)
         let h = mkHub vs [] Nothing (ToolsConfig Nothing) ""
         removeVault v h === h
 
-  describe "L13: upsertProject / removeProject 對稱於 L11 / L12" $ do
+  describe "LAW-13: upsertProject / removeProject 對稱於 LAW-11 / LAW-12" $ do
     it "test_project_ops_mirror_vault_ops(upsert 追加): id 不在清單中時追加到末尾,hubVaults 不變" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 3) genVaultEntry)

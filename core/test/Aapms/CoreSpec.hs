@@ -1,4 +1,4 @@
--- | entity-graph-core/F001 T6 的對照測試:測試進入點的輸出編碼。
+-- | entity-graph-core/F001 STEP-6 的對照測試:測試進入點的輸出編碼。
 --
 -- 本專案的測試描述一律繁體中文,Windows 終端預設 code page 950 會亂碼,
 -- 因此每個 @test/Spec.hs@ 都在跑 hspec 前設定 handle 編碼。這裡確認它真的執行到。

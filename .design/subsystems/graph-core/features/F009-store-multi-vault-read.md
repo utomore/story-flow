@@ -112,7 +112,7 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 
 **建立、上限與生命週期**
 
-> **`openVaultSet` 的檢查順序**(2026-08-26 ASM-5 裁決,LAW-1 / L1b 依此分工,順序不可顛倒):
+> **`openVaultSet` 的檢查順序**(2026-08-26 ASM-5 裁決,LAW-1 / LAW-1b 依此分工,順序不可顛倒):
 > ① 先查撞號(`vid` 相同但 `vhRoot` 不同)→ ② 再保序去重(`vid` 與 `vhRoot` 都相同)→ ③ 最後查上限。
 > 先講資料問題再講範圍問題:撞號時任何 `Ref` 解析都是不確定的,先叫使用者收窄範圍等於叫他繞過去。
 
@@ -124,7 +124,7 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
   *非退化*:樣本必須同時含 `length ks == maxAttachedVaults` 與 `length ks == maxAttachedVaults + 1`
   兩組;**另外要有一組「同一個 vault(同路徑)重複到清單長度 > 上限、但 `length ks <= 上限`」**
   ——它必須成功,否則證明不了上限是以**去重後**的數量計。
-- **L1b**(撞號):對所有存在兩筆 `h`、`h'` 使 `vid h == vid h'` 且 `vhRoot h /= vhRoot h'` 的 `hs`,
+- **LAW-1b**(撞號):對所有存在兩筆 `h`、`h'` 使 `vid h == vid h'` 且 `vhRoot h /= vhRoot h'` 的 `hs`,
   `openVaultSet hs` 回 `Left (VaultIdCollision v p q)`,其中 `v` 是撞號的 vault id,`p` / `q` 是那
   兩筆的 `vhRoot`(依它們在 `hs` 中出現的先後)。**撞號優先於上限**:即使原始清單長度已經超過
   `maxAttachedVaults`,回的仍是 `VaultIdCollision` 而不是 `TooManyVaults`。
@@ -332,7 +332,7 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 | EX-11 | `openVaultSet [hA]` 之後 `listAcross vs emptyNodeFilter` 與 `searchAcross vs (emptySearchQuery { sqText = Just "藥水", sqFacets = True })` | `map snd` 逐筆等於 `listNodes hA emptyNodeFilter`、每筆 `fst == VaultId "vlt-aaaa0001"`;`searchAcross` 逐欄等於 `search hA` 的同一個查詢(含 `srTotal` 與 `srFacets`) | 單一 vault 退化成 F006 / F007 的行為 |
 | EX-12 | `searchAcross vsAB (emptySearchQuery { sqText = Just "藥水", sqFacets = True })` | `fcVaults == [(VaultId 的文字 "vlt-aaaa0001", 1), ("vlt-bbbb0002", 1)]`(計數相同時以值遞增),和等於 `srTotal == 2`;`closeVaultSet` 之後 `listNodes hA emptyNodeFilter` 與呼叫前逐筆相同,`closeVault hA` 正常完成 | facet 的 vault 維度跨 vault;`VaultSet` 不接管把手的生命週期。兩個計數都是 1,前提與 EX-1 同一條:窄命中約束成立(每個 vault 只有一個節點命中「藥水」) |
 | EX-13 | 把 F-A 的整個目錄**複製**成 `F-A'`(marker 逐位元組相同,所以 `vmId` 也是 `vlt-aaaa0001`),`openVault` 之後 `openVaultSet [hA, hB, hA']` | `Left (VaultIdCollision (VaultId "vlt-aaaa0001") <hA 的 vhRoot> <hA' 的 vhRoot>)`;**不是** `Right`、也**不是**去重後的成功 | **ASM-5 裁決**:兩個不同目錄帶同一個 vault id 是資料問題,靜默去重會讓「搜尋結果少了一個 vault」沒有人發現 |
-| EX-14 | 對 11 個 `vmId` 相異的把手清單,把其中一個換成 F-A 的複製(於是清單長度 > 上限**且**撞號) | `Left (VaultIdCollision …)`,不是 `Left (TooManyVaults …)` | 撞號優先於上限(L1b):先講資料問題,再講範圍問題 |
+| EX-14 | 對 11 個 `vmId` 相異的把手清單,把其中一個換成 F-A 的複製(於是清單長度 > 上限**且**撞號) | `Left (VaultIdCollision …)`,不是 `Left (TooManyVaults …)` | 撞號優先於上限(LAW-1b):先講資料問題,再講範圍問題 |
 | EX-15 | `renderStoreError (TooManyVaults 11 10)` 與 `renderStoreError (VaultIdCollision (VaultId "vlt-aaaa0001") "C:/a" "C:/b")` | 兩則都非空、互不相等;第一則含 `"11"` 與 `"10"`,第二則含 `"vlt-aaaa0001"`、`"C:/a"`、`"C:/b"`;兩則都有以「請」起頭的子句 | 契約 G:兩個數字 / 兩個路徑都要列出來,且每則說出下一步 |
 | EX-16 | 兩個 vault 各自的 `library/reference/` 底下各有一個 pack。`listAcross vsAB emptyNodeFilter`(`nfIncludeReference` 預設 `False`),再與 `nfIncludeReference = True` 比較 | 預設時**兩個 vault 的 reference pack 與它們底下的 asset 都不出現**;改成 `True` 時兩邊的都出現。兩次結果的差集恰好是兩個 vault 的 reference 節點聯集 | WHERE 裡**兩處寫出表名之一**(`packs` 的 reference 子查詢);schema 前綴漏掉時會拿 A 的 reference 清單去篩 B 的節點,而它走的是預設路徑 |
 | EX-17 | 標籤如 fixture 前提(A:`["琳達", "canon"]`,B:`["藥水", "canon"]`,**都是節層標籤**——「琳達」只掛在 `ent-00000001`、「藥水」只掛在 `ast-00000002`,同檔的其他節不得繼承到它們)。依序 `listAcross vsAB emptyNodeFilter { nfTags = ["琳達"] }`、`nfTags = ["藥水"]`、`nfTags = ["canon"]`、`nfTags = ["琳達", "藥水"]` | 第一次**只回** `[(VaultId "vlt-aaaa0001", <ent-00000001 的 Meta>)]`;第二次**只回** `[(VaultId "vlt-bbbb0002", <ast-00000002 的 Meta>)]`;第三次**兩筆都回**(各一);第四次回 `[]`(`nfTags` 的多個標籤是 AND,沒有節點同時帶兩個) | WHERE 裡**兩處寫出表名之二**(`node_tags` 存在性子查詢);schema 前綴漏掉時會拿 B 的標籤表去篩 A 的節點——**兩邊都要有標籤且各有一個只有自己有的標籤,只有一邊有的話對錯實作給出相同答案**;第三次是共同標籤的對照 |
@@ -538,7 +538,7 @@ F007 一致)。
     人工檢查項
 
 - **【裁決:接受(選項 a)】** 三條都補,已回寫契約 E:`closeVaultSet :: VaultSet -> IO ()`、
-  `vaultSetIds :: VaultSet -> [VaultId]`、`maxAttachedVaults :: Int`。落在 LAW-1 / L1b / LAW-2 / LAW-18 與
+  `vaultSetIds :: VaultSet -> [VaultId]`、`maxAttachedVaults :: Int`。落在 LAW-1 / LAW-1b / LAW-2 / LAW-18 與
   EX-6 / EX-7 / EX-10 / EX-12 / EX-13 / EX-14。
 - **ASM-2**:契約 E 只列了 `VaultSet` / `openVaultSet` / `lookupRef` / `listAcross` / `searchAcross` /
   `checkReferences` 六條,沒有 `closeVaultSet`、`vaultSetIds`、`maxAttachedVaults`。但
@@ -619,7 +619,7 @@ F007 一致)。
   → 落地:`StoreError` 新增 `VaultIdCollision VaultId FilePath FilePath`(撞號的 id + 兩個
   `vhRoot`)與 `renderStoreError` 分支;`openVaultSet` 的檢查順序定為
   **撞號 → 去重 → 上限**(撞號優先於上限:先講資料問題,再講範圍問題)。
-  落在 **LAW-1**(去重與上限)/ **L1b**(撞號)/ **LAW-20**(訊息)與 **EX-7**(同路徑重複 → 去重)/
+  落在 **LAW-1**(去重與上限)/ **LAW-1b**(撞號)/ **LAW-20**(訊息)與 **EX-7**(同路徑重複 → 去重)/
   **EX-13**(異路徑撞號 → 錯)/ **EX-14**(撞號優先於上限)/ **EX-15**(訊息)。契約 G 已回寫。
 - **ASM-5**:契約沒說 `openVaultSet` 收到**兩個 `vmId` 相同的把手**(同一個 vault 被 `openVault` 兩次)
   時該怎麼辦。這在 `workspace` 交出「本次生效的 vault」清單時是會發生的(中樞註冊表有別名、

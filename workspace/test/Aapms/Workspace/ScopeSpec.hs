@@ -1,49 +1,49 @@
 -- | F003:'Aapms.Workspace.Scope' 的三個裁決函式(resolveRead / resolveWrite /
 -- resolvePipeline)、@refs@ 遞移展開與擋環、保序去重,以及依賴方向的 import 清單檢查
--- (L25,__預期綠__——見 spec「紅綠預期」)。
+-- (LAW-25,__預期綠__——見 spec「紅綠預期」)。
 --
 -- 素材是 spec「數據」節「測試素材:一組固定的 vault 佈局」,由
 -- 'Aapms.Workspace.Fixtures.withScopeVaults' 建出:A→B→C→A 三節點環、自環(另建)、
 -- 菱形(另建)、未註冊的 E、壞 marker 的 M、路徑不存在的 P、id 漂移的 Z。
 --
 -- __spec 對照__(@.design\/subsystems\/workspace\/features\/F003-scope-resolution.md@,
--- 預期欄依 spec「紅綠預期」:L25 (a)–(f) 六條綠,其餘全紅——三個函式的本體全是
+-- 預期欄依 spec「紅綠預期」:LAW-25 (a)–(f) 六條綠,其餘全紅——三個函式的本體全是
 -- @undefined@):
 --
 -- @
--- T1 walkAll(經 resolveRead)
--- L1,L6  / X1,X2,X14  -> test_resolve_read_all_registered_in_hub_order [紅]、test_resolve_read_independent_of_cwd [紅]、test_scope_dedupes_by_vmid_keeping_first [紅]
+-- STEP-1 walkAll(經 resolveRead)
+-- LAW-1,LAW-6  / EX-1,EX-2,EX-14  -> test_resolve_read_all_registered_in_hub_order [紅]、test_resolve_read_independent_of_cwd [紅]、test_scope_dedupes_by_vmid_keeping_first [紅]
 --
--- T2 expandRefs(經 resolveRead 的 Just 分支)
--- L20,L21,L22 / X8,X12,X34,X35,X36 -> test_refs_expansion_is_transitive_and_cycle_safe [紅]、test_refs_self_loop_terminates [紅]、test_refs_diamond_bfs_order [紅]、test_refs_unregistered_target_degrades [紅]、test_unreachable_node_refs_not_expanded [紅]、test_id_drift_node_refs_not_expanded [紅]
+-- STEP-2 expandRefs(經 resolveRead 的 Just 分支)
+-- LAW-20,LAW-21,LAW-22 / EX-8,EX-12,EX-34,EX-35,EX-36 -> test_refs_expansion_is_transitive_and_cycle_safe [紅]、test_refs_self_loop_terminates [紅]、test_refs_diamond_bfs_order [紅]、test_refs_unregistered_target_degrades [紅]、test_unreachable_node_refs_not_expanded [紅]、test_id_drift_node_refs_not_expanded [紅]
 --
--- T3 resolveRead
--- L2,L3,L5,L7,L8,L9 / X3-X5,X6,X7,X9-X11,X13,X15
+-- STEP-3 resolveRead
+-- LAW-2,LAW-3,LAW-5,LAW-7,LAW-8,LAW-9 / EX-3-EX-5,EX-6,EX-7,EX-9-EX-11,EX-13,EX-15
 --   -> test_resolve_read_selector_is_closure [紅]、test_resolve_read_selector_by_id_equals_by_name [紅]、
 --      test_resolve_read_selector_not_found_passthrough [紅]、test_resolve_read_selector_ambiguous_passthrough [紅]、
 --      test_resolve_read_seed_unreachable_still_right [紅]、test_resolve_read_no_selector_never_expands_refs [紅]、
 --      test_resolve_read_marker_is_truth [紅]
 --
--- T4 resolveWrite(寫入目標)
--- L12,L13(a),L13(b),L14,L15 / X17-X24
+-- STEP-4 resolveWrite(寫入目標)
+-- LAW-12,LAW-13(a),LAW-13(b),LAW-14,LAW-15 / EX-17-EX-24
 --   -> test_resolve_write_no_target_carries_canonical_start [紅]、test_resolve_write_target_marker_unreadable_is_hard_error [紅]、
 --      test_resolve_write_id_drift_is_hard_error [紅]、test_resolve_write_unregistered_target_allowed [紅]、
 --      test_resolve_write_selector_ignores_start [紅]
 --
--- T5 resolveWrite(wsRead / wsIssues)
--- L10,L11,L13(c),L23 / X16,X23,X25
+-- STEP-5 resolveWrite(wsRead / wsIssues)
+-- LAW-10,LAW-11,LAW-13(c),LAW-23 / EX-16,EX-23,EX-25
 --   -> test_resolve_write_target_never_from_refs [紅]、test_resolve_write_read_starts_with_target [紅]、
 --      test_resolve_write_issues_never_describe_target [紅]
 --
--- T6 resolvePipeline
--- L16,L17,L18,L19 / X26-X31
+-- STEP-6 resolvePipeline
+-- LAW-16,LAW-17,LAW-18,LAW-19 / EX-26-EX-31
 --   -> test_resolve_pipeline_filters_by_kind [紅]、test_resolve_pipeline_kind_mismatch_is_silent_without_selector [紅]、
 --      test_resolve_pipeline_selector_is_single_run [紅]、test_resolve_pipeline_kind_mismatch_carries_three_values [紅]、
---      test_resolve_pipeline_unreachable_is_right [紅]、test_resolve_pipeline_selector_not_found_passthrough(X31) [紅]
+--      test_resolve_pipeline_unreachable_is_right [紅]、test_resolve_pipeline_selector_not_found_passthrough(EX-31) [紅]
 --
--- (全部) L4,L24 / X32,X33 -> test_scope_touches_no_files [紅]、test_scope_has_no_attach_limit [紅]
+-- (全部) LAW-4,LAW-24 / EX-32,EX-33 -> test_scope_touches_no_files [紅]、test_scope_has_no_attach_limit [紅]
 --
--- L25(預期綠) 依賴方向與職責界線(以 import 行驗證)
+-- LAW-25(預期綠) 依賴方向與職責界線(以 import 行驗證)
 -- (a) 只准 Types/Hub/Discovery                        -> test_scope_no_downstream_or_location_imports [綠]
 -- (b) Aapms.Store.Marker 的 import(若有)逐字只拿三個欄位 -> test_scope_marker_import_is_three_fields_only [綠]
 -- (c) Aapms.Store.Schema 的 import 逐字只拿 VaultKind  -> test_scope_schema_import_is_type_only [綠]
@@ -77,8 +77,8 @@ import Aapms.Workspace.Types
 -- 本檔專用 helper(不匯出)
 
 -- | 一個骨架檔案裡,去除前導空白、去除行尾 @\\r@(CRLF checkout 的產物)之後、以
--- @import@ 起頭的行。判準只看 import 行,不做全檔字串搜尋(L25 明文;做法對照
--- "Aapms.Workspace.DiscoverySpec.importLinesOf" / F002 L18)。
+-- @import@ 起頭的行。判準只看 import 行,不做全檔字串搜尋(LAW-25 明文;做法對照
+-- "Aapms.Workspace.DiscoverySpec.importLinesOf" / F002 LAW-18)。
 importLinesOf :: FilePath -> IO [String]
 importLinesOf rel = do
   src <- readWorkspaceSource rel
@@ -108,8 +108,8 @@ isRefVaultNotRegistered _ = False
 spec :: Spec
 spec = describe "F003 Aapms.Workspace.Scope" $ do
   --------------------------------------------------------------------------
-  describe "T1/L1,L6/X1,X2,X14: resolveRead 無 selector = 全部已註冊" $ do
-    it "test_resolve_read_all_registered_in_hub_order (X1, L3, L6): rsVaults 依中樞順序,rsIssues 逐一列出不可達的三個" $
+  describe "STEP-1/LAW-1,LAW-6/EX-1,EX-2,EX-14: resolveRead 無 selector = 全部已註冊" $ do
+    it "test_resolve_read_all_registered_in_hub_order (EX-1, LAW-3, LAW-6): rsVaults 依中樞順序,rsIssues 逐一列出不可達的三個" $
       withScopeVaults $ \sv -> do
         canonM <- canonicalizePath (svPathM sv)
         canonGone <- canonicalizePath (svPathGone sv)
@@ -127,7 +127,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
                          ]
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_resolve_read_independent_of_cwd (X2, L6): 在 vault 內外各跑一次,結果逐欄相同" $
+    it "test_resolve_read_independent_of_cwd (EX-2, LAW-6): 在 vault 內外各跑一次,結果逐欄相同" $
       withScopeVaults $ \sv ->
         withTempHubDir $ \outside -> do
           base <- resolveRead (svHub sv) Nothing
@@ -136,7 +136,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           inA `shouldBe` base
           outOfAll `shouldBe` base
 
-    it "test_scope_dedupes_by_vmid_keeping_first (X14, L1): 重複 id 只出現一次,位置是第一次出現的位置" $
+    it "test_scope_dedupes_by_vmid_keeping_first (EX-14, LAW-1): 重複 id 只出現一次,位置是第一次出現的位置" $
       hedgehog $ do
         extraCopies <- forAll (Gen.int (Range.linear 1 3))
         result <- liftIO $ withScopeVaults $ \sv -> do
@@ -152,8 +152,8 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           Left err -> annotate (show err) >> failure
 
   --------------------------------------------------------------------------
-  describe "T2/L20,L21,L22/X8,X12,X34,X35,X36: refs 遞移展開(walkAll/expandRefs)" $ do
-    it "test_refs_expansion_is_transitive_and_cycle_safe (L20, property): 對任意小型 refs 圖,展開結果的 id 集合等於圖上可達集合,且不重複" $
+  describe "STEP-2/LAW-20,LAW-21,LAW-22/EX-8,EX-12,EX-34,EX-35,EX-36: refs 遞移展開(walkAll/expandRefs)" $ do
+    it "test_refs_expansion_is_transitive_and_cycle_safe (LAW-20, property): 對任意小型 refs 圖,展開結果的 id 集合等於圖上可達集合,且不重複" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 2 5))
         let idxs = [0 .. n - 1]
@@ -183,7 +183,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             length got === Set.size (Set.fromList got)
           Left err -> annotate (show err) >> failure
 
-    it "test_refs_self_loop_terminates (X12, L20): 自環 refs = [自己] 仍終止,結果恰好一個" $
+    it "test_refs_self_loop_terminates (EX-12, LAW-20): 自環 refs = [自己] 仍終止,結果恰好一個" $
       withTempHubDir $ \root -> do
         let pathF = root </> "f"
         writeVaultMarker pathF (markerTomlText "vlt-ffff1111" "asset" "f" ["vlt-ffff1111"])
@@ -194,7 +194,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           Right rs -> vmidsOf (rsVaults rs) `shouldBe` [VaultId "vlt-ffff1111"]
           Left err -> expectationFailure (show err)
 
-    it "test_refs_diamond_bfs_order (X34, L1, L7, L20): 菱形 A->[B,C],B->[D],C->[D],D 只出現一次,BFS 順序 [A,B,C,D]" $
+    it "test_refs_diamond_bfs_order (EX-34, LAW-1, LAW-7, LAW-20): 菱形 A->[B,C],B->[D],C->[D],D 只出現一次,BFS 順序 [A,B,C,D]" $
       withTempHubDir $ \root -> do
         let pathA = root </> "a"
             pathB = root </> "b"
@@ -218,7 +218,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
               `shouldBe` map VaultId ["vlt-aaaa1111", "vlt-bbbb2222", "vlt-cccc3333", "vlt-dddd4444"]
           Left err -> expectationFailure (show err)
 
-    it "test_refs_unregistered_target_degrades (X8, L21): refs 指向中樞查不到的 id,產生 RefVaultNotRegistered,其餘照常展開" $
+    it "test_refs_unregistered_target_degrades (EX-8, LAW-21): refs 指向中樞查不到的 id,產生 RefVaultNotRegistered,其餘照常展開" $
       withScopeVaults $ \sv -> do
         writeVaultMarker (svPathA sv) (markerTomlText "vlt-aaaa1111" "asset" "a" ["vlt-bbbb2222", "vlt-ffff0000"])
         result <- resolveRead (svHub sv) (Just "a")
@@ -228,7 +228,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             rsIssues rs `shouldBe` [RefVaultNotRegistered (VaultId "vlt-aaaa1111") (VaultId "vlt-ffff0000")]
           Left err -> expectationFailure (show err)
 
-    it "test_unreachable_node_refs_not_expanded (X35, L22): refs 指向 marker 壞的 M,M 不進結果集,也不展開它自己的 refs" $
+    it "test_unreachable_node_refs_not_expanded (EX-35, LAW-22): refs 指向 marker 壞的 M,M 不進結果集,也不展開它自己的 refs" $
       withTempHubDir $ \root -> do
         let pathA = root </> "a"
             pathM = root </> "m"
@@ -251,7 +251,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             rsIssues rs `shouldBe` [VaultMarkerBroken entryM errM]
           Left err -> expectationFailure (show err)
 
-    it "test_id_drift_node_refs_not_expanded (X36, L22): refs 指向 id 漂移的 Z,Z 與它的 refs 目標(D)都不進結果集" $
+    it "test_id_drift_node_refs_not_expanded (EX-36, LAW-22): refs 指向 id 漂移的 Z,Z 與它的 refs 目標(D)都不進結果集" $
       withTempHubDir $ \root -> do
         let pathA = root </> "a"
             pathZ = root </> "z"
@@ -271,8 +271,8 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           Left err -> expectationFailure (show err)
 
   --------------------------------------------------------------------------
-  describe "T3/L2,L3,L5,L7,L8,L9/X3-X5,X6,X7,X9-X11,X13,X15: resolveRead 有 selector" $ do
-    it "test_resolve_read_selector_is_closure (X3, X5, L7, L20): {X} ∪ refs*(X),環終止不重複;無 refs 時恰好一個" $
+  describe "STEP-3/LAW-2,LAW-3,LAW-5,LAW-7,LAW-8,LAW-9/EX-3-EX-5,EX-6,EX-7,EX-9-EX-11,EX-13,EX-15: resolveRead 有 selector" $ do
+    it "test_resolve_read_selector_is_closure (EX-3, EX-5, LAW-7, LAW-20): {X} ∪ refs*(X),環終止不重複;無 refs 時恰好一個" $
       withScopeVaults $ \sv -> do
         r3 <- resolveRead (svHub sv) (Just "a")
         r5 <- resolveRead (svHub sv) (Just "d")
@@ -284,18 +284,18 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             rsIssues rs5 `shouldBe` []
           other -> expectationFailure (show other)
 
-    it "test_resolve_read_selector_by_id_equals_by_name (X4): 用 id 字串與用 name 字串查同一個 vault,結果逐欄相同" $
+    it "test_resolve_read_selector_by_id_equals_by_name (EX-4): 用 id 字串與用 name 字串查同一個 vault,結果逐欄相同" $
       withScopeVaults $ \sv -> do
         byName <- resolveRead (svHub sv) (Just "a")
         byId <- resolveRead (svHub sv) (Just "vlt-aaaa1111")
         byId `shouldBe` byName
 
-    it "test_resolve_read_selector_not_found_passthrough (X6, L8): 兩階段都沒命中,原樣透傳 VaultSelectorNotFound" $
+    it "test_resolve_read_selector_not_found_passthrough (EX-6, LAW-8): 兩階段都沒命中,原樣透傳 VaultSelectorNotFound" $
       withScopeVaults $ \sv -> do
         result <- resolveRead (svHub sv) (Just "nope")
         result `shouldBe` Left (VaultSelectorNotFound "nope")
 
-    it "test_resolve_read_selector_ambiguous_passthrough (X7, L8): 撞名原樣透傳 VaultSelectorAmbiguous,帶全部候選" $
+    it "test_resolve_read_selector_ambiguous_passthrough (EX-7, LAW-8): 撞名原樣透傳 VaultSelectorAmbiguous,帶全部候選" $
       withScopeVaults $ \sv -> do
         let dup1 = (svEntryA sv) {veName = "dup"}
             dup2 = (svEntryB sv) {veName = "dup"}
@@ -303,7 +303,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
         result <- resolveRead h' (Just "dup")
         result `shouldBe` Left (VaultSelectorAmbiguous "dup" [dup1, dup2])
 
-    it "test_resolve_read_seed_unreachable_still_right (X9, X10, X11, L3, L9): 種子路徑不見/marker壞/id漂移時仍是 Right,空清單、恰一則 issue、不展開" $
+    it "test_resolve_read_seed_unreachable_still_right (EX-9, EX-10, EX-11, LAW-3, LAW-9): 種子路徑不見/marker壞/id漂移時仍是 Right,空清單、恰一則 issue、不展開" $
       withScopeVaults $ \sv -> do
         canonM <- canonicalizePath (svPathM sv)
         expectedM <- readMarker canonM
@@ -321,7 +321,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             rsIssues rs `shouldSatisfy` not . any isRefVaultNotRegistered
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_read_no_selector_never_expands_refs (X13, L5): 無 selector 時即使某 vault 的 refs 指向未註冊 id,也不產生 RefVaultNotRegistered" $
+    it "test_resolve_read_no_selector_never_expands_refs (EX-13, LAW-5): 無 selector 時即使某 vault 的 refs 指向未註冊 id,也不產生 RefVaultNotRegistered" $
       withScopeVaults $ \sv -> do
         writeVaultMarker (svPathA sv) (markerTomlText "vlt-aaaa1111" "asset" "a" ["vlt-bbbb2222", "vlt-ffff0000"])
         result <- resolveRead (svHub sv) Nothing
@@ -329,7 +329,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           Right rs -> rsIssues rs `shouldSatisfy` not . any isRefVaultNotRegistered
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_read_marker_is_truth (X15, L2): 中樞那一列的 veName/veKind 換掉,vrMarker 與 vmId 集合、issues 逐欄不變" $
+    it "test_resolve_read_marker_is_truth (EX-15, LAW-2): 中樞那一列的 veName/veKind 換掉,vrMarker 與 vmId 集合、issues 逐欄不變" $
       withScopeVaults $ \sv -> do
         let staleA = (svEntryA sv) {veName = "stale", veKind = StoryVault}
             hub' =
@@ -349,8 +349,8 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           other -> expectationFailure (show other)
 
   --------------------------------------------------------------------------
-  describe "T4/L12,L13(a),L13(b),L14,L15/X17-X24: resolveWrite 的寫入目標" $ do
-    it "test_resolve_write_no_target_carries_canonical_start (X17, L12): 探測不到 .aapms/ 時回 NoWriteTarget,訊息含正規化後的起點" $
+  describe "STEP-4/LAW-12,LAW-13(a),LAW-13(b),LAW-14,LAW-15/EX-17-EX-24: resolveWrite 的寫入目標" $ do
+    it "test_resolve_write_no_target_carries_canonical_start (EX-17, LAW-12): 探測不到 .aapms/ 時回 NoWriteTarget,訊息含正規化後的起點" $
       withTempHubDir $ \t2 ->
         withScopeVaults $ \sv -> do
           canonT2 <- canonicalizePath t2
@@ -361,7 +361,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
               renderWorkspaceError err `shouldSatisfy` T.isInfixOf (T.pack canonT2)
             other -> expectationFailure (show other)
 
-    it "test_resolve_write_target_marker_unreadable_is_hard_error (X20, X21, X22, L13a): 目標路徑不見/marker壞(含探測命中後才發現壞)都是硬失敗 MarkerUnreadable" $
+    it "test_resolve_write_target_marker_unreadable_is_hard_error (EX-20, EX-21, EX-22, LAW-13a): 目標路徑不見/marker壞(含探測命中後才發現壞)都是硬失敗 MarkerUnreadable" $
       withScopeVaults $ \sv -> do
         canonGone <- canonicalizePath (svPathGone sv)
         expectedGone <- readMarker canonGone
@@ -376,19 +376,19 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           (Left (MarkerUnreadable p err), Left expectedErr) -> do
             p `shouldBe` canonGone
             err `shouldBe` expectedErr
-          other -> expectationFailure ("X20: " <> show other)
+          other -> expectationFailure ("EX-20: " <> show other)
         case (rM, expectedM) of
           (Left (MarkerUnreadable p err), Left expectedErr) -> do
             p `shouldBe` canonM
             err `shouldBe` expectedErr
-          other -> expectationFailure ("X21: " <> show other)
+          other -> expectationFailure ("EX-21: " <> show other)
         case (rDetectM, expectedM) of
           (Left (MarkerUnreadable p err), Left expectedErr) -> do
             p `shouldBe` canonM
             err `shouldBe` expectedErr
-          other -> expectationFailure ("X22: " <> show other)
+          other -> expectationFailure ("EX-22: " <> show other)
 
-    it "test_resolve_write_id_drift_is_hard_error (X19, L13b): selector 指到 id 漂移的 Z,回 WriteTargetIdDrift 三個值,訊息含全部三個" $
+    it "test_resolve_write_id_drift_is_hard_error (EX-19, LAW-13b): selector 指到 id 漂移的 Z,回 WriteTargetIdDrift 三個值,訊息含全部三個" $
       withScopeVaults $ \sv -> do
         canonZ <- canonicalizePath (svPathZ sv)
         result <- resolveWrite (svHub sv) (Just "z") (svPathA sv)
@@ -403,7 +403,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             msg `shouldSatisfy` T.isInfixOf "vlt-99998888"
           other -> expectationFailure (show other)
 
-    it "test_resolve_write_unregistered_target_allowed (X18, L14): 探測命中未註冊的 E 時 vrEntry 是 Nothing,wsRead 恰一個" $
+    it "test_resolve_write_unregistered_target_allowed (EX-18, LAW-14): 探測命中未註冊的 E 時 vrEntry 是 Nothing,wsRead 恰一個" $
       withScopeVaults $ \sv -> do
         let start = svPathE sv </> "x"
         createDirectoryIfMissing True start
@@ -415,7 +415,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             vmidOf (wsTarget ws) `shouldBe` VaultId "vlt-eeee5555"
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_write_selector_ignores_start (X23, X24, L10, L15, L23): selector 指定 B 時,結果與起點無關;A 只以唯讀身分經 refs 進來" $
+    it "test_resolve_write_selector_ignores_start (EX-23, EX-24, LAW-10, LAW-15, LAW-23): selector 指定 B 時,結果與起點無關;A 只以唯讀身分經 refs 進來" $
       withScopeVaults $ \sv ->
         withTempHubDir $ \t2 -> do
           let startInA = svPathA sv </> "deep"
@@ -430,15 +430,15 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             other -> expectationFailure (show other)
 
   --------------------------------------------------------------------------
-  describe "T5/L10,L11,L13(c),L23/X16,X23,X25: resolveWrite 的 wsRead/wsIssues" $ do
-    it "test_resolve_write_target_never_from_refs (X16, X23, L10, L23): wsTarget 恒不來自 refs 展開,把__其他__ vault 的 refs 任意改寫也不換人、目標本身逐欄不變" $
+  describe "STEP-5/LAW-10,LAW-11,LAW-13(c),LAW-23/EX-16,EX-23,EX-25: resolveWrite 的 wsRead/wsIssues" $ do
+    it "test_resolve_write_target_never_from_refs (EX-16, EX-23, LAW-10, LAW-23): wsTarget 恒不來自 refs 展開,把__其他__ vault 的 refs 任意改寫也不換人、目標本身逐欄不變" $
       withScopeVaults $ \sv -> do
         let start = svPathA sv </> "deep" </> "deeper"
         createDirectoryIfMissing True start
         rBefore <- resolveWrite (svHub sv) Nothing start
         -- 目標是 A;改寫的是「其他」vault(B)的 refs,不是目標自己的 marker——
-        -- L10 驗的是「wsTarget 不會因為別的 vault 怎麼引用而換人」,不是「目標自己的
-        -- marker 內容不會變」(那違反 L2「marker 是真相」)。
+        -- LAW-10 驗的是「wsTarget 不會因為別的 vault 怎麼引用而換人」,不是「目標自己的
+        -- marker 內容不會變」(那違反 LAW-2「marker 是真相」)。
         writeVaultMarker (svPathB sv) (markerTomlText "vlt-bbbb2222" "story" "b" [])
         rAfter <- resolveWrite (svHub sv) Nothing start
         case (rBefore, rAfter) of
@@ -447,7 +447,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             wsTarget wsAfter `shouldBe` wsTarget wsBefore
           other -> expectationFailure (show other)
 
-    it "test_resolve_write_read_starts_with_target (X16, X23, L11): wsRead 的第一個元素就是 wsTarget,其餘是 refs* 展開" $
+    it "test_resolve_write_read_starts_with_target (EX-16, EX-23, LAW-11): wsRead 的第一個元素就是 wsTarget,其餘是 refs* 展開" $
       withScopeVaults $ \sv -> do
         let start = svPathA sv </> "deep" </> "deeper"
         createDirectoryIfMissing True start
@@ -457,11 +457,11 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             vmidsOf (wsRead ws) `shouldBe` map VaultId ["vlt-aaaa1111", "vlt-bbbb2222", "vlt-cccc3333"]
             case vmidsOf (wsRead ws) of
               (firstId : _) -> firstId `shouldBe` vmidOf (wsTarget ws)
-              [] -> expectationFailure "wsRead 不應為空(L11)"
+              [] -> expectationFailure "wsRead 不應為空(LAW-11)"
             wsIssues ws `shouldBe` []
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_write_issues_never_describe_target (X25, L13c, L21): wsIssues 只裝 refs 展開的降級,不含描述 wsTarget 的任何一則" $
+    it "test_resolve_write_issues_never_describe_target (EX-25, LAW-13c, LAW-21): wsIssues 只裝 refs 展開的降級,不含描述 wsTarget 的任何一則" $
       withScopeVaults $ \sv -> do
         writeVaultMarker (svPathA sv) (markerTomlText "vlt-aaaa1111" "asset" "a" ["vlt-bbbb2222", "vlt-ffff0000"])
         result <- resolveWrite (svHub sv) (Just "a") (svPathA sv)
@@ -471,8 +471,8 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           Left err -> expectationFailure (show err)
 
   --------------------------------------------------------------------------
-  describe "T6/L16,L17,L18,L19/X26-X31: resolvePipeline" $ do
-    it "test_resolve_pipeline_filters_by_kind (X26, X27, L16): 無 selector 時只跑 vmKind 相符者,psIssues 與 resolveRead 的 rsIssues 逐欄相同" $
+  describe "STEP-6/LAW-16,LAW-17,LAW-18,LAW-19/EX-26-EX-31: resolvePipeline" $ do
+    it "test_resolve_pipeline_filters_by_kind (EX-26, EX-27, LAW-16): 無 selector 時只跑 vmKind 相符者,psIssues 與 resolveRead 的 rsIssues 逐欄相同" $
       withScopeVaults $ \sv -> do
         canonM <- canonicalizePath (svPathM sv)
         expectedM <- readMarker canonM
@@ -491,7 +491,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             vmidsOf (psRuns psStory) `shouldBe` [VaultId "vlt-bbbb2222"]
           other -> expectationFailure (show other)
 
-    it "test_resolve_pipeline_kind_mismatch_is_silent_without_selector (X26 續, L16): kind 不符的 B 被靜默排除,不產生任何 ScopeIssue" $
+    it "test_resolve_pipeline_kind_mismatch_is_silent_without_selector (EX-26 續, LAW-16): kind 不符的 B 被靜默排除,不產生任何 ScopeIssue" $
       withScopeVaults $ \sv -> do
         result <- resolvePipeline (svHub sv) AssetVault Nothing
         case result of
@@ -500,7 +500,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             psIssues ps `shouldSatisfy` all (/= VaultIdDrift (svEntryB sv) (VaultId "vlt-bbbb2222"))
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_pipeline_selector_is_single_run (X28, L17): 有 selector 且 kind 相符時恰好一個,不展開 refs" $
+    it "test_resolve_pipeline_selector_is_single_run (EX-28, LAW-17): 有 selector 且 kind 相符時恰好一個,不展開 refs" $
       withScopeVaults $ \sv -> do
         result <- resolvePipeline (svHub sv) AssetVault (Just "a")
         case result of
@@ -509,7 +509,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             psIssues ps `shouldBe` []
           Left err -> expectationFailure (show err)
 
-    it "test_resolve_pipeline_kind_mismatch_carries_three_values (X29, L18): kind 不符回 VaultKindMismatch,帶 id、要求的 kind、實際的 kind" $
+    it "test_resolve_pipeline_kind_mismatch_carries_three_values (EX-29, LAW-18): kind 不符回 VaultKindMismatch,帶 id、要求的 kind、實際的 kind" $
       withScopeVaults $ \sv -> do
         result <- resolvePipeline (svHub sv) AssetVault (Just "b")
         case result of
@@ -523,7 +523,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
             msg `shouldSatisfy` T.isInfixOf (renderVaultKind StoryVault)
           other -> expectationFailure (show other)
 
-    it "test_resolve_pipeline_unreachable_is_right (X30, L19): 有 selector 但該 vault 不可達時回 Right + issue,不是 VaultKindMismatch" $
+    it "test_resolve_pipeline_unreachable_is_right (EX-30, LAW-19): 有 selector 但該 vault 不可達時回 Right + issue,不是 VaultKindMismatch" $
       withScopeVaults $ \sv -> do
         canonM <- canonicalizePath (svPathM sv)
         expectedM <- readMarker canonM
@@ -531,14 +531,14 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
         result <- resolvePipeline (svHub sv) AssetVault (Just "m")
         result `shouldBe` Right (PipelineScope [] [VaultMarkerBroken (svEntryM sv) errM])
 
-    it "test_resolve_pipeline_selector_not_found_passthrough (X31, L8): selector 解不開時原樣透傳 VaultSelectorNotFound" $
+    it "test_resolve_pipeline_selector_not_found_passthrough (EX-31, LAW-8): selector 解不開時原樣透傳 VaultSelectorNotFound" $
       withScopeVaults $ \sv -> do
         result <- resolvePipeline (svHub sv) AssetVault (Just "nope")
         result `shouldBe` Left (VaultSelectorNotFound "nope")
 
   --------------------------------------------------------------------------
-  describe "(全部)/L4,L24/X32,X33: 不動檔案系統、不判 ATTACH 上限" $ do
-    it "test_scope_touches_no_files (X33, L4): 三個函式呼叫前後,T 底下整棵目錄樹逐位元組相同" $
+  describe "(全部)/LAW-4,LAW-24/EX-32,EX-33: 不動檔案系統、不判 ATTACH 上限" $ do
+    it "test_scope_touches_no_files (EX-33, LAW-4): 三個函式呼叫前後,T 底下整棵目錄樹逐位元組相同" $
       withScopeVaults $ \sv -> do
         let start = svPathA sv </> "deep" </> "deeper"
         createDirectoryIfMissing True start
@@ -549,7 +549,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
         snapAfter <- snapshotTree (svRoot sv)
         snapAfter `shouldBe` snapBefore
 
-    it "test_scope_has_no_attach_limit (X32, L24): 11 個讀得到 marker 的 vault 仍全部回 Right,沒有任何數量上限錯誤" $
+    it "test_scope_has_no_attach_limit (EX-32, LAW-24): 11 個讀得到 marker 的 vault 仍全部回 Right,沒有任何數量上限錯誤" $
       withTempHubDir $ \root -> do
         let n = 11 :: Int
             idOfIdx i = "vlt-" <> T.justifyRight 8 '0' (T.pack (show i))
@@ -568,7 +568,7 @@ spec = describe "F003 Aapms.Workspace.Scope" $ do
           other -> expectationFailure (show other)
 
   --------------------------------------------------------------------------
-  describe "L25(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+  describe "LAW-25(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
     it "test_scope_no_downstream_or_location_imports(a): 本套件內的 import 只能是 \
        \Aapms.Workspace.Types / Aapms.Workspace.Hub / Aapms.Workspace.Discovery" $ do
       importLines <- scopeImportLines

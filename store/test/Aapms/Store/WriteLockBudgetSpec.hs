@@ -1,16 +1,16 @@
--- | graph-core\/F008 L17(ADR-022 寫鎖預算,結構約束)。
+-- | graph-core\/F008 LAW-17(ADR-022 寫鎖預算,結構約束)。
 --
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
 --
 -- @
--- L17(部分) withTransaction 出現 0 次,也不出現字面量 \"BEGIN\" \/ \"COMMIT\"        -> test_no_withTransaction
--- L17(部分) Database.SQLite.Simple 只在 Edit 與 Write 被 import                        -> test_sqlite_import_scope
+-- LAW-17(部分) withTransaction 出現 0 次,也不出現字面量 \"BEGIN\" \/ \"COMMIT\"        -> test_no_withTransaction
+-- LAW-17(部分) Database.SQLite.Simple 只在 Edit 與 Write 被 import                        -> test_sqlite_import_scope
 -- @
 --
--- L17 原本的第三個子句——「所有檔案 IO 與所有 md 序列化都不在任何 SQLite 呼叫的括號內」——
--- __2026-08-25 G12 裁決已經從 law 本身移除__(不是延後,是撤掉):「X 是否巢狀在 Y 的括號內」
+-- LAW-17 原本的第三個子句——「所有檔案 IO 與所有 md 序列化都不在任何 SQLite 呼叫的括號內」——
+-- __2026-08-25 GAP-12 裁決已經從 law 本身移除__(不是延後,是撤掉):「X 是否巢狀在 Y 的括號內」
 -- 是語法樹層級的問題,文字掃描在真實的多行 @do@\/@let@\/縮排排版下會同時製造偽陽性與偽陰性
--- (與 spec-gaps.md 的 G3、F007 同一個根)。降級為 @\/arch-audit subsys graph-core@ 階段閘門的
+-- (與 spec-gaps.md 的 GAP-3、F007 同一個根)。降級為 @\/arch-audit subsys graph-core@ 階段閘門的
 -- 人工檢查項(spec「實作備註」段的清單),不是 qa 的自動化測試範圍。__L17 現在只剩兩個子句,
 -- 本檔對它們的覆蓋就是完整覆蓋__,不再有待補的第三條。
 module Aapms.Store.WriteLockBudgetSpec (spec) where
@@ -20,7 +20,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Test.Hspec
 
--- | L17 涵蓋的四個檔案(相對 @aapms-store@ 套件根目錄——@cabal test@ 的工作目錄)。
+-- | LAW-17 涵蓋的四個檔案(相對 @aapms-store@ 套件根目錄——@cabal test@ 的工作目錄)。
 lockBudgetFiles :: [FilePath]
 lockBudgetFiles =
   [ "src/Aapms/Store/Edit.hs"
@@ -50,7 +50,7 @@ hasSqliteImport :: Text -> Bool
 hasSqliteImport content = any isSqliteImportLine (T.lines content)
 
 spec :: Spec
-spec = describe "graph-core/F008 L17 ADR-022 寫鎖預算(結構約束,可讀原始碼判定)" $ do
+spec = describe "graph-core/F008 LAW-17 ADR-022 寫鎖預算(結構約束,可讀原始碼判定)" $ do
   it "四個檔案的程式碼(排除 -- 註解)withTransaction 出現 0 次,不出現字面量 \"BEGIN\" / \"COMMIT\"" $ do
     contents <- mapM readStripped lockBudgetFiles
     let combined = T.concat contents

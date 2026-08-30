@@ -179,7 +179,7 @@ indexSegment n
 --
 -- 允許呼叫端手工建構 'NameParts'(不必每次都經過 'parseLogicalName'),因此
 -- 'npState' 可能是任意值——「封裝不變量」不能只靠 'parseLogicalName' 那一條
--- 路徑保證(F002 待確認假設 A5)。
+-- 路徑保證(F002 待確認假設 ASM-5)。
 mkLogicalName :: NamingVocab -> NameParts -> Either NameError LogicalName
 mkLogicalName vocab parts
   | npKind parts `notElem` nvKinds vocab =
@@ -196,7 +196,7 @@ mkLogicalName vocab parts
 -- | 方向沿用 legacy 順序:@kind_domain_subject@ 之後依序接 'npVariant'、
 -- 'npState'(各自只在 @Just@ 時附加)、最後 'npIndex'(補零到三位)。
 --
--- 契約只保證 @parse → render@ 方向的 round trip(F002 待確認假設 A5):
+-- 契約只保證 @parse → render@ 方向的 round trip(F002 待確認假設 ASM-5):
 -- render 之後重新 parse,拿回的字串會與原字串相同,但如果 'NameParts' 是
 -- 手工建構、把一個剛好在 'nvStates' 內的詞放進 'npVariant',重新 parse 後
 -- 那段文字會依規則被歸類成 'npState'——值不變,語意標籤變了,這不是本
@@ -227,7 +227,7 @@ renderParts NameParts {..} = do
 -- 5. __guard__:僅當剝掉 index 後剩下的段落數 @>= 2@(剝掉後還留得下至少
 --    一段給 subject)__且__最後一段 @∈ nvStates@ 時,才剝掉當 'npState';
 --    否則 'npState' 為 @Nothing@(這個 guard 沿用 legacy @peel@「不剝到
---    清空」的保護,見 F002 待確認假設 A4——沒有它,單獨一段又剛好撞見
+--    清空」的保護,見 F002 待確認假設 ASM-4——沒有它,單獨一段又剛好撞見
 --    state 詞的主體〔如 @spr_char_up@〕會被誤剝成「沒有 subject」而報錯)
 -- 6. 剩下的段落依長度分派:@[s]@ → 只有 'npSubject';@[s, v]@ → 'npSubject'
 --    加 'npVariant'(__開放,不查表__);@[]@ → 'TooFewSegments';更長 →
@@ -292,7 +292,7 @@ parseLogicalName vocab full
 
 -- | 只檢查形狀合不合法、'npKind' 是否為詞彙表成員,不拆解給呼叫端。
 --
--- 'TypeKey' 參數__不參與判斷邏輯__(F002 待確認假設 A2):型別專屬的
+-- 'TypeKey' 參數__不參與判斷邏輯__(F002 待確認假設 ASM-2):型別專屬的
 -- @name_kinds@ 檢查交給 'Aapms.Core.Registry.checkMeta'(只回警告),
 -- 這裡只做與型別無關的檢查,避免同一件事一邊硬擋一邊只警告。
 validateLogicalName :: NamingVocab -> TypeKey -> LogicalName -> Either NameError ()

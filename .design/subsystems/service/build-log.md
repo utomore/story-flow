@@ -121,7 +121,7 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 | WAVE-2 | `workspaceSetup` 在 `ServiceM` 裡**執行不到**,`svHubCreated` 恒 `False`,「乾淨機器的第一次 setup」沒人做得了 | spec subagent 讀契約 A 時推出來的 |
 | WAVE-2 | `vaultInit` 丟棄 `AdoptNotice`,workspace 掃出來的舊 marker 在這一層被揉掉 | 同上 |
 | WAVE-2 | EX-10 的預期依賴「這台機器剛好沒裝 7-Zip」 | **qa 寫不出斷言而撞牆** |
-| WAVE-2 | X19b 的預期依賴「只在資源生命週期第一次發生的事件」 | 同上 |
+| WAVE-2 | EX-19b 的預期依賴「只在資源生命週期第一次發生的事件」 | 同上 |
 
 前三條是**契約被悄悄擴大或悄悄縮小**,後兩條是**驗收標準寫得出來但驗不到**(`contract-readiness.md`
 的 ASM-9,與 graph-core 的 GAP-5 同一個根)。加上跨波次的那條(F001 的 EX-28 把會隨波次成長的量寫成定值),
@@ -151,7 +151,7 @@ F002 起「各自擴充建構子」的部分屬後續波次,由編排者在該�
 - **白名單對帳**:OK,13 條路徑全部落在 impl 白名單 / qa 測試檔 / 編排者單線寫的檔案
 - **仲裁**:1 輪。歸因分佈 **spec bug 2 / impl 錯 0 / qa 誤讀 0**,兩條都是 example 的預期依賴**環境或時序的偶然**:
   - **GAP-1 / EX-10**:假設「`[tools]` 未設 + `PATH` 清空」就會 `NotFound`,但 `detectSevenZip` 第三層查內建安裝路徑候選,裝了 7-Zip 的機器上永遠造不出來 → 裁決改成斷言「三層都試過」(`tsSearched` 非空)
-  - **GAP-2 / X19b**:期待 `viIssues` 非空,但 `SchemaRebuilt` 只在索引檔生命週期第一次開啟時產生,而建索引的唯一合法路徑本身就是那第一次 → 裁決改成與 EX-18 同一判準、不強制非空
+  - **GAP-2 / EX-19b**:期待 `viIssues` 非空,但 `SchemaRebuilt` 只在索引檔生命週期第一次開啟時產生,而建索引的唯一合法路徑本身就是那第一次 → 裁決改成與 EX-18 同一判準、不強制非空
   - 這與 graph-core 的 **GAP-5**、`contract-readiness.md` 的 **ASM-9(可測性)** 是同一個根:**寫得出來但驗不到的驗收標準等於沒有**。教訓已寫進 F002 的實作備註
 - **契約變更**:`design.md` 動五處 —— 契約 C 的 `workspaceSetup`(移出 `ServiceM`)與 `vaultInit`(加回傳值)、內部模組劃分 Types 列(全部 View 型別住這裡)、模組間公開介面表新增 `Machine → aapms-store` 與 `Machine → Monad`
 - **未結項**:`RegistrySource` 的 `FromEnv` 撞名待上游 enhance(見待確認假設彙總 F002 SELF-1),F002 暫不 re-export 它

@@ -4,12 +4,12 @@
 -- __spec 對照__(「1-to-1 測試對照表」——全部紅:兩者本體皆 @undefined@):
 --
 -- @
--- L5,X5-X8    六欄的來源(逐欄對應 askHubLocation\/askRegistrySource\/vaultCheck\/workspaceTools\/hubLlm) -> prop_doctor_six_fields_match
--- L6,X5,X6    dvVaults 含 vaultList 全部,其後至多一筆                                                  -> prop_doctor_dvVaults_prefix, test_doctor_outside_example
--- L7,X5,X6    未註冊那一筆的存在條件(iff)                                                              -> prop_doctor_unregistered_row_iff, test_doctor_unregistered_va_example
--- L8,X7,X8    [llm] 內容不外洩,只反映存不存在                                                          -> prop_llm_not_leaked, test_llm_configured_sentinel_example, test_llm_absent_example
--- L9,X9       唯讀:doctor/check 前後位元組不變                                                         -> prop_doctor_check_readonly, test_doctor_and_check_readonly_example
--- L10,X10     workspaceTools 單筆、無失敗通道、等於 detectSevenZip (hubTools hub)                       -> prop_workspace_tools_matches_detect, test_workspace_tools_not_found_example
+-- LAW-5,EX-5-EX-8    六欄的來源(逐欄對應 askHubLocation\/askRegistrySource\/vaultCheck\/workspaceTools\/hubLlm) -> prop_doctor_six_fields_match
+-- LAW-6,EX-5,EX-6    dvVaults 含 vaultList 全部,其後至多一筆                                                  -> prop_doctor_dvVaults_prefix, test_doctor_outside_example
+-- LAW-7,EX-5,EX-6    未註冊那一筆的存在條件(iff)                                                              -> prop_doctor_unregistered_row_iff, test_doctor_unregistered_va_example
+-- LAW-8,EX-7,EX-8    [llm] 內容不外洩,只反映存不存在                                                          -> prop_llm_not_leaked, test_llm_configured_sentinel_example, test_llm_absent_example
+-- LAW-9,EX-9       唯讀:doctor/check 前後位元組不變                                                         -> prop_doctor_check_readonly, test_doctor_and_check_readonly_example
+-- LAW-10,EX-10     workspaceTools 單筆、無失敗通道、等於 detectSevenZip (hubTools hub)                       -> prop_workspace_tools_matches_detect, test_workspace_tools_not_found_example
 -- @
 module Aapms.Service.MachineDoctorSpec (spec) where
 
@@ -68,8 +68,8 @@ withLlmLayout apiKey act = withFixedLayout $ \fl -> do
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $ do
   --------------------------------------------------------------------------
-  describe "L5,X5-X8: DoctorView 六欄的來源" $
-    it "prop_doctor_six_fields_match (L5): 對任意起點,doctor 的六欄逐一等於各自的來源" $
+  describe "LAW-5,EX-5-EX-8: DoctorView 六欄的來源" $
+    it "prop_doctor_six_fields_match (LAW-5): 對任意起點,doctor 的六欄逐一等於各自的來源" $
       hedgehog $ do
         cwdRel <- forAll (Gen.element ["va", "vb", "outside"])
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -94,8 +94,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
             annotate (describeServiceResult docR) >> failure
 
   --------------------------------------------------------------------------
-  describe "L6,X5,X6: dvVaults 含 vaultList 全部,其後至多一筆" $ do
-    it "prop_doctor_dvVaults_prefix (L6): 對任意起點,dvVaults 的前 n 筆逐欄等於 vaultList,其後至多一筆" $
+  describe "LAW-6,EX-5,EX-6: dvVaults 含 vaultList 全部,其後至多一筆" $ do
+    it "prop_doctor_dvVaults_prefix (LAW-6): 對任意起點,dvVaults 的前 n 筆逐欄等於 vaultList,其後至多一筆" $
       hedgehog $ do
         cwdRel <- forAll (Gen.element ["va", "vb", "outside"])
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -116,7 +116,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
           (listR, docR) ->
             annotate (describeServiceResult listR <> " / " <> describeServiceResult docR) >> failure
 
-    it "test_doctor_outside_example (X6): 起點在 outside/ 之下,dvVaults 逐欄等於 vaultList,沒有 vvRegistered==False 的項目" $
+    it "test_doctor_outside_example (EX-6): 起點在 outside/ 之下,dvVaults 逐欄等於 vaultList,沒有 vvRegistered==False 的項目" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           listR <- runService env vaultList
@@ -126,8 +126,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
             _ -> expectationFailure (describeServiceResult listR <> " / " <> describeServiceResult docR)
 
   --------------------------------------------------------------------------
-  describe "L7,X5,X6: 未註冊那一筆的存在條件" $ do
-    it "prop_doctor_unregistered_row_iff (L7): 起點在未註冊 vault 根目錄時恰多一筆,起點在 outside 時沒有" $
+  describe "LAW-7,EX-5,EX-6: 未註冊那一筆的存在條件" $ do
+    it "prop_doctor_unregistered_row_iff (LAW-7): 起點在未註冊 vault 根目錄時恰多一筆,起點在 outside 時沒有" $
       hedgehog $ do
         useUnregistered <- forAll Gen.bool
         outcome <-
@@ -153,7 +153,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
             [v | v <- dvVaults doc, not (vvRegistered v)] === []
           (docR, _) -> annotate (describeServiceResult docR) >> failure
 
-    it "test_doctor_unregistered_va_example (X5): 未註冊那一筆是 VA,vvPath 是 <tmp>/va 的正規化路徑" $
+    it "test_doctor_unregistered_va_example (EX-5): 未註冊那一筆是 VA,vvPath 是 <tmp>/va 的正規化路徑" $
       withUnregisteredVaLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           canon <- canonicalizePath (flVaPath fl)
@@ -171,8 +171,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L8,X7,X8: [llm] 內容不外洩" $ do
-    it "prop_llm_not_leaked (L8): 對任意 [llm] 內容,show doctorView 不含它的子字串,dvLlmConfigured==True" $
+  describe "LAW-8,EX-7,EX-8: [llm] 內容不外洩" $ do
+    it "prop_llm_not_leaked (LAW-8): 對任意 [llm] 內容,show doctorView 不含它的子字串,dvLlmConfigured==True" $
       hedgehog $ do
         apiKey <- forAll (Gen.text (Range.linear 5 20) Gen.alphaNum)
         outcome <- liftIO $ withLlmLayout apiKey $ \fl ->
@@ -183,7 +183,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
             dvLlmConfigured doc === True
           Left e -> annotate (show e) >> failure
 
-    it "test_llm_configured_sentinel_example (X7): api_key 是特徵字串,show 整份報告不含它也不含 \"api_key\"" $
+    it "test_llm_configured_sentinel_example (EX-7): api_key 是特徵字串,show 整份報告不含它也不含 \"api_key\"" $
       withLlmLayout "SENTINEL-7f3b9c" $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env workspaceDoctor
@@ -195,15 +195,15 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
               rendered `shouldNotContain` "api_key"
             Left e -> expectationFailure (show e)
 
-    it "test_llm_absent_example (X8): 無 [llm] 段時 dvLlmConfigured == False" $
+    it "test_llm_absent_example (EX-8): 無 [llm] 段時 dvLlmConfigured == False" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env workspaceDoctor
           fmap dvLlmConfigured result `shouldBe` Right False
 
   --------------------------------------------------------------------------
-  describe "L9,X9: 唯讀" $ do
-    it "prop_doctor_check_readonly (L9): 對任意起點,doctor 與 check 執行前後,中樞與各 vault 的 .aapms/ 位元組不變" $
+  describe "LAW-9,EX-9: 唯讀" $ do
+    it "prop_doctor_check_readonly (LAW-9): 對任意起點,doctor 與 check 執行前後,中樞與各 vault 的 .aapms/ 位元組不變" $
       hedgehog $ do
         cwdRel <- forAll (Gen.element ["va", "vb", "outside"])
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -217,7 +217,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
         let (snapBefore, snapAfter) = outcome
         snapAfter === snapBefore
 
-    it "test_doctor_and_check_readonly_example (X9): 對 hub/、va/.aapms/、vb/.aapms/ 取兩次快照,doctor 與 check 之間位元組不變" $
+    it "test_doctor_and_check_readonly_example (EX-9): 對 hub/、va/.aapms/、vb/.aapms/ 取兩次快照,doctor 與 check 之間位元組不變" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           let dirs = [flHubDir fl, flVaPath fl </> ".aapms", flVbPath fl </> ".aapms"]
@@ -228,8 +228,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
           snapAfter `shouldBe` snapBefore
 
   --------------------------------------------------------------------------
-  describe "L10,X10: workspaceTools 單筆、無失敗通道" $ do
-    it "prop_workspace_tools_matches_detect (L10): workspaceTools 恆回長度 1 的清單,該筆等於 detectSevenZip (hubTools hub)" $
+  describe "LAW-10,EX-10: workspaceTools 單筆、無失敗通道" $ do
+    it "prop_workspace_tools_matches_detect (LAW-10): workspaceTools 恆回長度 1 的清單,該筆等於 detectSevenZip (hubTools hub)" $
       hedgehog $ do
         outcome <- liftIO $ withFixedLayout $ \fl ->
           withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
@@ -241,7 +241,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools" $
           (Right [t], Just direct) -> t === direct
           (toolsR, _) -> annotate (describeServiceResult toolsR) >> failure
 
-    it "test_workspace_tools_not_found_example (X10): [tools] 未設、PATH 清空後,回長度 1 的清單,三層(PATH、[tools]、內建安裝路徑)都嘗試過" $
+    it "test_workspace_tools_not_found_example (EX-10): [tools] 未設、PATH 清空後,回長度 1 的清單,三層(PATH、[tools]、內建安裝路徑)都嘗試過" $
       withFixedLayout $ \fl ->
         withEnvVars [("PATH", "")] $
           withOpenEnv Nothing (flOutsidePath fl) $ \env -> do

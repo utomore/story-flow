@@ -1,4 +1,4 @@
--- | T4:'MdError' 拿掉 'errPath',輸出改成「第 N 行:訊息」;T11:
+-- | STEP-4:'MdError' 拿掉 'errPath',輸出改成「第 N 行:訊息」;STEP-11:
 -- 'SectionFieldMissing' 的訊息(graph-core/F004)。
 module Aapms.Md.ErrorSpec (spec) where
 
@@ -9,7 +9,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-  describe "renderMdError 的格式(T4:不含檔名)" $ do
+  describe "renderMdError 的格式(STEP-4:不含檔名)" $ do
     it "輸出「第 N 行:訊息」" $
       renderMdError (mdError 12 (MissingNodeKind (idOf "nod-0001")))
         `shouldSatisfy` T.isPrefixOf "第 12 行:"
@@ -43,7 +43,7 @@ spec = do
       renderMdError (mdError 3 (HeadingSkip 2 4))
         `shouldSatisfy` \t -> T.isInfixOf "##" t && T.isInfixOf "####" t
 
-  -- T11:SectionFieldMissing 的訊息帶節 id 與行號
+  -- STEP-11:SectionFieldMissing 的訊息帶節 id 與行號
   describe "SectionFieldMissing" $ do
     it "renderMdError 印出行號與節 id" $ do
       let msg = renderMdError (mdError 42 (SectionFieldMissing (idOf "lic-0000000a") "commercial"))

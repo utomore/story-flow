@@ -3,27 +3,27 @@
 -- 存取器。
 --
 -- __spec 對照__(@.design\/subsystems\/service\/features\/F001-service-env-and-scope.md@,
--- 「1-to-1 測試對照表」——除 L23 外全部紅):
+-- 「1-to-1 測試對照表」——除 LAW-23 外全部紅):
 --
 -- @
--- L1,X1     openEnv 不開索引                    -> prop_open_env_does_not_open_index, test_open_env_no_index_example
--- L2,X2     中樞載不起來即失敗                    -> prop_open_env_hub_missing_fails, test_open_env_hub_missing_example
--- L3,X3     註冊表定位不到即失敗                  -> prop_open_env_registry_unavailable_fails, test_open_env_registry_unavailable_example
--- L4,X3b    註冊表載入失敗即失敗                  -> prop_open_env_registry_load_failed, test_open_env_registry_load_failed_example
--- L5,X9     closeEnv 釋放乾淨                    -> prop_close_env_releases_cleanly, test_close_env_then_reopen_example
--- L6,X10    closeEnv 冪等                        -> prop_close_env_idempotent, test_close_env_idempotent_example
--- L7,X11    withEnv = openEnv + closeEnv          -> prop_with_env_matches_open_close, test_with_env_failure_path_example
--- L8,X7     handleFor 快取命中不再開檔             -> prop_handle_for_cache_hit, test_handle_for_cache_hit_survives_deleted_marker
--- L9,X8     handleFor 開啟失敗即短路               -> prop_handle_for_open_failure_short_circuits, test_handle_for_manual_ref_example
--- L10       indexIssuesFor 與開啟同步              -> prop_index_issues_for_synced_with_open
--- L11,X12   runService 互斥                       -> prop_run_service_mutual_exclusion, test_run_service_eight_concurrent_example
--- L12,X13   runService 錯誤傳播                    -> prop_run_service_error_propagation, test_throw_service_example
--- X4        askSelector 原樣捧著                  -> test_ask_selector_example
--- X5        askRegistrySource 可觀察               -> test_ask_registry_source_example
--- X5b       askHubLocation/askCwd 原樣捧著         -> test_ask_hub_location_and_cwd_example
--- X5c       askRegistry/askNaming 同一次載入        -> test_ask_registry_and_naming_example
--- X6        askHub/reloadHub                       -> test_ask_hub_and_reload_hub_example
--- L24,X26,X27 finallyService 兩條路徑都收尾恰好一次 -> prop_finally_service_success_runs_cleanup_once, prop_finally_service_short_circuit_runs_cleanup_once, test_finally_service_success_example, test_finally_service_short_circuit_example
+-- LAW-1,EX-1     openEnv 不開索引                    -> prop_open_env_does_not_open_index, test_open_env_no_index_example
+-- LAW-2,EX-2     中樞載不起來即失敗                    -> prop_open_env_hub_missing_fails, test_open_env_hub_missing_example
+-- LAW-3,EX-3     註冊表定位不到即失敗                  -> prop_open_env_registry_unavailable_fails, test_open_env_registry_unavailable_example
+-- LAW-4,EX-3b    註冊表載入失敗即失敗                  -> prop_open_env_registry_load_failed, test_open_env_registry_load_failed_example
+-- LAW-5,EX-9     closeEnv 釋放乾淨                    -> prop_close_env_releases_cleanly, test_close_env_then_reopen_example
+-- LAW-6,EX-10    closeEnv 冪等                        -> prop_close_env_idempotent, test_close_env_idempotent_example
+-- LAW-7,EX-11    withEnv = openEnv + closeEnv          -> prop_with_env_matches_open_close, test_with_env_failure_path_example
+-- LAW-8,EX-7     handleFor 快取命中不再開檔             -> prop_handle_for_cache_hit, test_handle_for_cache_hit_survives_deleted_marker
+-- LAW-9,EX-8     handleFor 開啟失敗即短路               -> prop_handle_for_open_failure_short_circuits, test_handle_for_manual_ref_example
+-- LAW-10       indexIssuesFor 與開啟同步              -> prop_index_issues_for_synced_with_open
+-- LAW-11,EX-12   runService 互斥                       -> prop_run_service_mutual_exclusion, test_run_service_eight_concurrent_example
+-- LAW-12,EX-13   runService 錯誤傳播                    -> prop_run_service_error_propagation, test_throw_service_example
+-- EX-4        askSelector 原樣捧著                  -> test_ask_selector_example
+-- EX-5        askRegistrySource 可觀察               -> test_ask_registry_source_example
+-- EX-5b       askHubLocation/askCwd 原樣捧著         -> test_ask_hub_location_and_cwd_example
+-- EX-5c       askRegistry/askNaming 同一次載入        -> test_ask_registry_and_naming_example
+-- EX-6        askHub/reloadHub                       -> test_ask_hub_and_reload_hub_example
+-- LAW-24,EX-26,EX-27 finallyService 兩條路徑都收尾恰好一次 -> prop_finally_service_success_runs_cleanup_once, prop_finally_service_short_circuit_runs_cleanup_once, test_finally_service_success_example, test_finally_service_short_circuit_example
 -- @
 module Aapms.Service.MonadSpec (spec) where
 
@@ -104,8 +104,8 @@ runOps = mapM_ runOp
 spec :: Spec
 spec = describe "F001 Aapms.Service.Monad" $ do
   --------------------------------------------------------------------------
-  describe "L1/X1: openEnv 不開任何 vault 索引" $ do
-    it "prop_open_env_does_not_open_index (L1): 對任意 sel/cwd,呼叫前後 index.db 存在性不變" $
+  describe "LAW-1/EX-1: openEnv 不開任何 vault 索引" $ do
+    it "prop_open_env_does_not_open_index (LAW-1): 對任意 sel/cwd,呼叫前後 index.db 存在性不變" $
       hedgehog $ do
         sel <- forAll genAnySelector
         cwdRel <- forAll genCwdRel
@@ -121,7 +121,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         before === after
         before === (False, False)
 
-    it "test_open_env_no_index_example (X1): openEnv Nothing <tmp>/va 之後兩個 index.db 都不存在" $
+    it "test_open_env_no_index_example (EX-1): openEnv Nothing <tmp>/va 之後兩個 index.db 都不存在" $
       withFixedLayout $ \fl -> do
         r <- openEnv Nothing (flVaPath fl)
         case r of
@@ -131,8 +131,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left e -> expectationFailure ("預期 Right,得到 " <> show e)
 
   --------------------------------------------------------------------------
-  describe "L2/X2: 中樞載不起來即失敗" $ do
-    it "prop_open_env_hub_missing_fails (L2): 中樞 config.toml 不存在時,對任意 sel/cwd 一律 Left (WorkspaceFailed (HubNotFound _))" $
+  describe "LAW-2/EX-2: 中樞載不起來即失敗" $ do
+    it "prop_open_env_hub_missing_fails (LAW-2): 中樞 config.toml 不存在時,對任意 sel/cwd 一律 Left (WorkspaceFailed (HubNotFound _))" $
       hedgehog $ do
         sel <- forAll genAnySelector
         cwdRel <- forAll genCwdRel
@@ -143,7 +143,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left (WorkspaceFailed (HubNotFound _)) -> pure ()
           other -> annotate (describeEnvResult other) >> failure
 
-    it "test_open_env_hub_missing_example (X2): 精確路徑" $
+    it "test_open_env_hub_missing_example (EX-2): 精確路徑" $
       withFixedLayout $ \fl -> do
         let hubFile = flHubDir fl </> "config.toml"
         removeFile hubFile
@@ -153,8 +153,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Right _ -> expectationFailure "預期 Left (WorkspaceFailed (HubNotFound _)),得到 Right"
 
   --------------------------------------------------------------------------
-  describe "L3/X3: 註冊表定位不到即失敗" $ do
-    it "prop_open_env_registry_unavailable_fails (L3): STORYFLOW_REGISTRY 指向不存在的目錄時,對任意 sel/cwd 一律 Left (RegistryUnavailable _)" $
+  describe "LAW-3/EX-3: 註冊表定位不到即失敗" $ do
+    it "prop_open_env_registry_unavailable_fails (LAW-3): STORYFLOW_REGISTRY 指向不存在的目錄時,對任意 sel/cwd 一律 Left (RegistryUnavailable _)" $
       hedgehog $ do
         sel <- forAll genAnySelector
         cwdRel <- forAll genCwdRel
@@ -165,7 +165,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left (RegistryUnavailable _) -> pure ()
           other -> annotate (describeEnvResult other) >> failure
 
-    it "test_open_env_registry_unavailable_example (X3)" $
+    it "test_open_env_registry_unavailable_example (EX-3)" $
       withFixedLayout $ \fl ->
         withEnvVars [(registryEnvVar, flRoot fl </> "no-such-registry")] $ do
           result <- openEnv Nothing (flVaPath fl)
@@ -174,8 +174,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             other -> expectationFailure ("預期 Left (RegistryUnavailable _),得到 " <> describeEnvResult other)
 
   --------------------------------------------------------------------------
-  describe "L4/X3b: 註冊表載入失敗即失敗" $ do
-    it "prop_open_env_registry_load_failed (L4): 註冊表目錄存在但缺 naming.toml 時,對任意 sel/cwd 一律 Left (RegistryLoadFailed _)" $
+  describe "LAW-4/EX-3b: 註冊表載入失敗即失敗" $ do
+    it "prop_open_env_registry_load_failed (LAW-4): 註冊表目錄存在但缺 naming.toml 時,對任意 sel/cwd 一律 Left (RegistryLoadFailed _)" $
       hedgehog $ do
         sel <- forAll genAnySelector
         cwdRel <- forAll genCwdRel
@@ -188,7 +188,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left (RegistryLoadFailed _) -> pure ()
           other -> annotate (describeEnvResult other) >> failure
 
-    it "test_open_env_registry_load_failed_example (X3b)" $
+    it "test_open_env_registry_load_failed_example (EX-3b)" $
       withFixedLayout $ \fl -> do
         let badReg = flRoot fl </> "bad-registry"
         createDirectoryIfMissingIO badReg
@@ -199,8 +199,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             other -> expectationFailure ("預期 Left (RegistryLoadFailed _),得到 " <> describeEnvResult other)
 
   --------------------------------------------------------------------------
-  describe "L5/X9: closeEnv 釋放乾淨" $ do
-    it "prop_close_env_releases_cleanly (L5): 對任意一串 withRead/withWrite,closeEnv 後新 env' 重跑仍成功,暫存目錄可刪除" $
+  describe "LAW-5/EX-9: closeEnv 釋放乾淨" $ do
+    it "prop_close_env_releases_cleanly (LAW-5): 對任意一串 withRead/withWrite,closeEnv 後新 env' 重跑仍成功,暫存目錄可刪除" $
       hedgehog $ do
         ops <- forAll genOps
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -218,7 +218,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         isRightU r2 === True
         deletable === True
 
-    it "test_close_env_then_reopen_example (X9): withRead 一串操作後 closeEnv,刪除整個暫存目錄,新 env' 重跑仍成功" $
+    it "test_close_env_then_reopen_example (EX-9): withRead 一串操作後 closeEnv,刪除整個暫存目錄,新 env' 重跑仍成功" $
       withFixedLayout $ \fl -> do
         env1 <- openEnvOrDie Nothing (flVaPath fl)
         r1 <- runService env1 (withRead (\_ _ -> pure ()))
@@ -231,8 +231,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L6/X10: closeEnv 冪等" $ do
-    it "prop_close_env_idempotent (L6): 對任意成功開出的 env,closeEnv 兩次與一次不可區分(不丟例外)" $
+  describe "LAW-6/EX-10: closeEnv 冪等" $ do
+    it "prop_close_env_idempotent (LAW-6): 對任意成功開出的 env,closeEnv 兩次與一次不可區分(不丟例外)" $
       hedgehog $ do
         sel <- forAll genAnySelector
         result <- liftIO $ withFixedLayout $ \fl -> try $ do
@@ -243,14 +243,14 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Right () -> pure ()
           Left (e :: SomeException) -> annotate (show e) >> failure
 
-    it "test_close_env_idempotent_example (X10)" $
+    it "test_close_env_idempotent_example (EX-10)" $
       withFixedLayout $ \fl -> do
         env <- openEnvOrDie Nothing (flVaPath fl)
         (closeEnv env >> closeEnv env) `shouldReturn` ()
 
   --------------------------------------------------------------------------
-  describe "L7/X11: withEnv = openEnv + closeEnv" $ do
-    it "prop_with_env_matches_open_close (L7): openEnv 成功時 f 恰呼叫一次且回 Right;openEnv 失敗時 f 不被呼叫,回相同的 Left" $
+  describe "LAW-7/EX-11: withEnv = openEnv + closeEnv" $ do
+    it "prop_with_env_matches_open_close (LAW-7): openEnv 成功時 f 恰呼叫一次且回 Right;openEnv 失敗時 f 不被呼叫,回相同的 Left" $
       hedgehog $ do
         hubMissing <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -273,7 +273,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             n === 1
             isRightU withResult === True
 
-    it "test_with_env_failure_path_example (X11): openEnv 會失敗時 withEnv 回相同的 Left 且 f 一次都沒被呼叫" $
+    it "test_with_env_failure_path_example (EX-11): openEnv 會失敗時 withEnv 回相同的 Left 且 f 一次都沒被呼叫" $
       withFixedLayout $ \fl -> do
         removeFile (flHubDir fl </> "config.toml")
         flag <- newIORef False
@@ -284,8 +284,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         readIORef flag `shouldReturn` False
 
   --------------------------------------------------------------------------
-  describe "L8/X7: handleFor 快取命中不再開檔" $ do
-    it "prop_handle_for_cache_hit (L8): 對任意一個 vault,同一個 env 上第二次 handleFor 回相同的 vhRoot/vmId,即使中間把 marker 刪掉" $
+  describe "LAW-8/EX-7: handleFor 快取命中不再開檔" $ do
+    it "prop_handle_for_cache_hit (LAW-8): 對任意一個 vault,同一個 env 上第二次 handleFor 回相同的 vhRoot/vmId,即使中間把 marker 刪掉" $
       hedgehog $ do
         useVa <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -301,7 +301,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           (Right h1, Right h2) -> vhRootOf h1 === vhRootOf h2
           other -> annotate (show (fmap (const ()) (fst other), fmap (const ()) (snd other))) >> failure
 
-    it "test_handle_for_cache_hit_survives_deleted_marker (X7)" $
+    it "test_handle_for_cache_hit_survives_deleted_marker (EX-7)" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           let ref = mkVaultRef (flVaId fl) (flVaPath fl)
@@ -315,8 +315,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             other -> expectationFailure ("預期兩次都成功," <> show (isRightU (fst other), isRightU (snd other)))
 
   --------------------------------------------------------------------------
-  describe "L9/X8: handleFor 開啟失敗即短路" $ do
-    it "prop_handle_for_open_failure_short_circuits (L9): 對任意指向非 vault 目錄的 ref,handleFor 以 StoreFailed 短路,後續動作不被執行" $
+  describe "LAW-9/EX-8: handleFor 開啟失敗即短路" $ do
+    it "prop_handle_for_open_failure_short_circuits (LAW-9): 對任意指向非 vault 目錄的 ref,handleFor 以 StoreFailed 短路,後續動作不被執行" $
       hedgehog $ do
         sub <- forAll (Gen.element ["", "deep", "deeper/x"])
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -331,7 +331,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           (Left (StoreFailed _), False) -> pure ()
           other -> annotate (show (fst other)) >> failure
 
-    it "test_handle_for_manual_ref_example (X8)" $
+    it "test_handle_for_manual_ref_example (EX-8)" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           let ref = mkVaultRef (VaultId "vlt-deadbeef") (flOutsidePath fl)
@@ -342,8 +342,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             Right _ -> expectationFailure "預期 Left (StoreFailed _),得到 Right"
 
   --------------------------------------------------------------------------
-  describe "L10: indexIssuesFor 與開啟同步" $
-    it "prop_index_issues_for_synced_with_open (L10): 開啟前回 []、開啟後回這個全新 vault 首次開啟必有的 SchemaRebuilt" $
+  describe "LAW-10: indexIssuesFor 與開啟同步" $
+    it "prop_index_issues_for_synced_with_open (LAW-10): 開啟前回 []、開啟後回這個全新 vault 首次開啟必有的 SchemaRebuilt" $
       hedgehog $ do
         useVa <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -363,8 +363,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           Left e -> annotate (show e) >> failure
 
   --------------------------------------------------------------------------
-  describe "L11/X12: runService 互斥" $ do
-    it "prop_run_service_mutual_exclusion (L11): 對任意 n,並發 n 次 runService 做讀-改-寫,最終值恒為 n,臨界區不重疊" $
+  describe "LAW-11/EX-12: runService 互斥" $ do
+    it "prop_run_service_mutual_exclusion (LAW-11): 對任意 n,並發 n 次 runService 做讀-改-寫,最終值恒為 n,臨界區不重疊" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 2 6))
         (noOverlap, final, allOk) <- liftIO $ withFixedLayout $ \fl ->
@@ -374,7 +374,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         final === n
         allOk === True
 
-    it "test_run_service_eight_concurrent_example (X12): n = 8" $
+    it "test_run_service_eight_concurrent_example (EX-12): n = 8" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           (_, final, allOk) <- runConcurrentIncrements env 8
@@ -382,8 +382,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           allOk `shouldBe` True
 
   --------------------------------------------------------------------------
-  describe "L12/X13: runService 錯誤傳播" $ do
-    it "prop_run_service_error_propagation (L12): 對任意 ServiceError e,runService env (throwService e) 回 Left e,逐欄相等" $
+  describe "LAW-12/EX-13: runService 錯誤傳播" $ do
+    it "prop_run_service_error_propagation (LAW-12): 對任意 ServiceError e,runService env (throwService e) 回 Left e,逐欄相等" $
       hedgehog $ do
         path <- forAll (Gen.text (Range.linear 1 8) Gen.alpha)
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -394,7 +394,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         let (r, e) = outcome
         r === Left e
 
-    it "test_throw_service_example (X13)" $
+    it "test_throw_service_example (EX-13)" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           let e = WorkspaceFailed (NoWriteTarget "/x")
@@ -402,20 +402,20 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           result `shouldBe` Left e
 
   --------------------------------------------------------------------------
-  describe "X4/X5/X5b/X5c/X6: 八個 ask* 存取器與 reloadHub(L-,見 spec Laws 段末)" $ do
-    it "test_ask_selector_example (X4): askSelector 原樣捧著 selector" $
+  describe "EX-4/EX-5/EX-5b/EX-5c/EX-6: 八個 ask* 存取器與 reloadHub(L-,見 spec Laws 段末)" $ do
+    it "test_ask_selector_example (EX-4): askSelector 原樣捧著 selector" $
       withFixedLayout $ \fl ->
         withOpenEnv (Just "story") (flOutsidePath fl) $ \env -> do
           result <- runService env askSelector
           result `shouldBe` Right (Just "story")
 
-    it "test_ask_registry_source_example (X5): askRegistrySource 回 Loader.FromEnv(STORYFLOW_REGISTRY 指到專案 types/registry/)" $
+    it "test_ask_registry_source_example (EX-5): askRegistrySource 回 Loader.FromEnv(STORYFLOW_REGISTRY 指到專案 types/registry/)" $
       withFixedLayout $ \fl ->
         withOpenEnv (Just "story") (flOutsidePath fl) $ \env -> do
           result <- runService env askRegistrySource
           result `shouldBe` Right Loader.FromEnv
 
-    it "test_ask_hub_location_and_cwd_example (X5b): askHubLocation/askCwd 原樣捧著中樞位置與起點" $
+    it "test_ask_hub_location_and_cwd_example (EX-5b): askHubLocation/askCwd 原樣捧著中樞位置與起點" $
       withFixedLayout $ \fl ->
         withOpenEnv (Just "story") (flOutsidePath fl) $ \env -> do
           result <- runService env ((,) <$> askHubLocation <*> askCwd)
@@ -426,7 +426,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
               cwd `shouldBe` flOutsidePath fl
             Left e -> expectationFailure (show e)
 
-    it "test_ask_registry_and_naming_example (X5c): askRegistry/askNaming 來自同一次 loadRegistry" $
+    it "test_ask_registry_and_naming_example (EX-5c): askRegistry/askNaming 來自同一次 loadRegistry" $
       withFixedLayout $ \fl -> do
         reg <- registryDir
         direct <- loadRegistry reg
@@ -438,7 +438,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
               naming `shouldBe` expectedNaming
             (r, d) -> expectationFailure ("askRegistry/askNaming 或 loadRegistry 失敗:" <> show (isRightU r, either (const False) (const True) d))
 
-    it "test_ask_hub_and_reload_hub_example (X6): askHub 是舊快照,reloadHub 換成新的" $
+    it "test_ask_hub_and_reload_hub_example (EX-6): askHub 是舊快照,reloadHub 換成新的" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           let extraId = VaultId "vlt-cccc3333"
@@ -460,8 +460,8 @@ spec = describe "F001 Aapms.Service.Monad" $ do
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L24/X26/X27: finallyService 兩條路徑都收尾恰好一次" $ do
-    it "prop_finally_service_success_runs_cleanup_once (L24 成功路徑): 對任意 v,finallyService (pure v) fin 回 Right v、fin 恰好執行一次,且收尾發生在動作之後" $
+  describe "LAW-24/EX-26/EX-27: finallyService 兩條路徑都收尾恰好一次" $ do
+    it "prop_finally_service_success_runs_cleanup_once (LAW-24 成功路徑): 對任意 v,finallyService (pure v) fin 回 Right v、fin 恰好執行一次,且收尾發生在動作之後" $
       hedgehog $ do
         v <- forAll (Gen.int (Range.linear (-1000) 1000))
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -479,7 +479,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         n === 1
         seen === [1, 2]
 
-    it "prop_finally_service_short_circuit_runs_cleanup_once (L24 短路路徑): 對任意 ServiceError e,finallyService (throwService e) fin 回 Left e(短路不被吞掉)、fin 恰好執行一次,且收尾發生在動作之後" $
+    it "prop_finally_service_short_circuit_runs_cleanup_once (LAW-24 短路路徑): 對任意 ServiceError e,finallyService (throwService e) fin 回 Left e(短路不被吞掉)、fin 恰好執行一次,且收尾發生在動作之後" $
       hedgehog $ do
         path <- forAll (Gen.text (Range.linear 1 8) Gen.alpha)
         let e = WorkspaceFailed (NoWriteTarget ("/" <> T.unpack path))
@@ -498,7 +498,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
         n === 1
         seen === [1, 2]
 
-    it "test_finally_service_success_example (X26): runService env (finallyService (pure 42) fin),c 起始為 0" $
+    it "test_finally_service_success_example (EX-26): runService env (finallyService (pure 42) fin),c 起始為 0" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           c <- newIORef (0 :: Int)
@@ -506,7 +506,7 @@ spec = describe "F001 Aapms.Service.Monad" $ do
           r `shouldBe` Right 42
           readIORef c `shouldReturn` 1
 
-    it "test_finally_service_short_circuit_example (X27): 短路不被吞掉(與 X13 逐欄相同),c 起始為 0" $
+    it "test_finally_service_short_circuit_example (EX-27): 短路不被吞掉(與 EX-13 逐欄相同),c 起始為 0" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flVaPath fl) $ \env -> do
           c <- newIORef (0 :: Int)
@@ -564,7 +564,7 @@ writeVaultMarkerViaFixture :: FilePath -> VaultId -> IO ()
 writeVaultMarkerViaFixture path vid = writeVaultMarkerAt path (markerTomlText vid "asset" "extra" [])
 
 -- | 並發跑 n 次 runService,各自對一個共用 IORef 做讀-改-寫,並用一個共用旗標偵測
--- 臨界區是否重疊(L11)。回傳(未偵測到重疊、最終計數、n 次全部成功)。
+-- 臨界區是否重疊(LAW-11)。回傳(未偵測到重疊、最終計數、n 次全部成功)。
 --
 -- __每個分支的 'runService' 都用 'try' 包住__:骨架階段 'runService' 是
 -- @undefined@,若不接住例外,拋例外的分支就永遠不會 'putMVar',主執行緒的

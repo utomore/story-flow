@@ -1,4 +1,4 @@
--- | graph-core/F003 T1~T8 的對照測試:兩份 manifest 型別、JSON 編碼、
+-- | graph-core/F003 STEP-1~STEP-8 的對照測試:兩份 manifest 型別、JSON 編碼、
 -- 'manifestIndex'、'imageMeta' \/ 'audioMeta'。golden file 讀檔屬 test-suite 的
 -- 相依,不是 library(F003 委派指示)。
 module Aapms.Core.ManifestSpec (spec) where
@@ -127,14 +127,14 @@ readGolden name = go ["core/test/golden/" <> name, "test/golden/" <> name]
       ok <- doesFileExist p
       if ok then BS.readFile p else go rest
 
--- | 把一份 JSON 物件的 @schemaVersion@ 換成指定值,供 T6 製造非法版本輸入。
+-- | 把一份 JSON 物件的 @schemaVersion@ 換成指定值,供 STEP-6 製造非法版本輸入。
 withSchemaVersion :: Int -> Value -> Value
 withSchemaVersion n (Object o) = Object (KM.insert "schemaVersion" (Number (fromIntegral n)) o)
 withSchemaVersion _ v = v
 
 spec :: Spec
 spec = do
-  describe "T1 型別建構" $ do
+  describe "STEP-1 型別建構" $ do
     it "ManifestAsset / Manifest / ManifestPack / ManifestLicense 全部欄位可存取" $ do
       maId sampleManifestAsset `shouldBe` idOf "ast-3f9c1d20"
       maKey sampleManifestAsset `shouldBe` AssetKey "ui_gui_travel-book-frame_001"
@@ -164,7 +164,7 @@ spec = do
       sort [AssetKey "b", AssetKey "a"] `shouldBe` [AssetKey "a", AssetKey "b"]
       (AssetKey "a" == AssetKey "a") `shouldBe` True
 
-  describe "T2 JSON 欄位名" $ do
+  describe "STEP-2 JSON 欄位名" $ do
     it "toJSON ManifestAsset 恰好九個鍵(id/key/path/type/sha256/vault/pack/license/meta)" $ do
       keysOf sampleManifestAsset
         `shouldMatchList` ["id", "key", "path", "type", "sha256", "vault", "pack", "license", "meta"]
@@ -179,7 +179,7 @@ spec = do
       decode (encode sampleManifest) `shouldBe` Just sampleManifest
       decode (encode sampleStoryManifest) `shouldBe` Just sampleStoryManifest
 
-  describe "ManifestAsset pack / license 為 Ref(F003 階段一閘門 A2)" $ do
+  describe "ManifestAsset pack / license 為 Ref(F003 階段一閘門 ASM-2)" $ do
     it "toJSON 編碼為 \"<vault>:<id>\"" $ do
       keysOf sampleManifestAsset `shouldMatchList` ["id", "key", "path", "type", "sha256", "vault", "pack", "license", "meta"]
       case toJSON sampleManifestAsset of
@@ -226,7 +226,7 @@ spec = do
       [p | p <- packs, mpId p == refOf "vlt-bbbbbbbb:pck-11223344"] `shouldBe` [packB]
       length packs `shouldBe` 2
 
-  describe "T4 golden files 是合法 JSON 且 schemaVersion = 2" $ do
+  describe "STEP-4 golden files 是合法 JSON 且 schemaVersion = 2" $ do
     it "manifest.golden.json" $ do
       bs <- readGolden "manifest.golden.json"
       case eitherDecodeStrict bs :: Either String Value of
@@ -239,7 +239,7 @@ spec = do
         Right (Object o) -> KM.lookup "schemaVersion" o `shouldBe` Just (Number 2)
         other -> expectationFailure ("預期合法 JSON 物件,得到:" <> show other)
 
-  describe "T5 golden roundtrip" $ do
+  describe "STEP-5 golden roundtrip" $ do
     it "manifest.golden.json decode -> encode 與原始檔語意相同" $ do
       bs <- readGolden "manifest.golden.json"
       origVal <- either fail pure (eitherDecodeStrict bs :: Either String Value)
@@ -254,7 +254,7 @@ spec = do
       toJSON sm `shouldBe` origVal
       (decode (encode sm) :: Maybe StoryManifest) `shouldBe` Just sm
 
-  describe "T6 schemaVersion 錯誤路徑" $ do
+  describe "STEP-6 schemaVersion 錯誤路徑" $ do
     it "Manifest 對 schemaVersion = 1 / 3 回 Left,訊息含「請重新產生」" $ do
       bs <- readGolden "manifest.golden.json"
       origVal <- either fail pure (eitherDecodeStrict bs :: Either String Value)
@@ -275,14 +275,14 @@ spec = do
         )
         [1, 3 :: Int]
 
-  describe "T7 manifestIndex" $ do
+  describe "STEP-7 manifestIndex" $ do
     it "以 AssetKey 建表,查得到已知 key、查不到不存在的 key" $ do
       let idx = manifestIndex sampleManifest
       M.lookup (AssetKey "ui_gui_travel-book-frame_001") idx `shouldBe` Just sampleManifestAsset
       M.lookup (AssetKey "sfx_ui_button-click_001") idx `shouldBe` Just sampleManifestAsset2
       M.lookup (AssetKey "does-not-exist") idx `shouldBe` Nothing
 
-  describe "T8 imageMeta / audioMeta 型別化讀取" $ do
+  describe "STEP-8 imageMeta / audioMeta 型別化讀取" $ do
     it "合法 image Value 回 Just 且四欄正確" $
       imageMeta
         (object ["width" .= (512 :: Int), "height" .= (512 :: Int), "hasAlpha" .= True, "colorCount" .= (128 :: Int)])

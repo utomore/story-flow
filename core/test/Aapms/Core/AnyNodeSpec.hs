@@ -1,4 +1,4 @@
--- | graph-core/F001 T9 的對照測試:AnyNode 的 anyMeta 與 prefixOf。
+-- | graph-core/F001 STEP-9 的對照測試:AnyNode 的 anyMeta 與 prefixOf。
 module Aapms.Core.AnyNodeSpec (spec) where
 
 import Aapms.Core.AnyNode

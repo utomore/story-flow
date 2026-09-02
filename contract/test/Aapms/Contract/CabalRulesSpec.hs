@@ -1,7 +1,7 @@
 -- | 契約 4:相依方向(system.md「通訊拓撲與原則」的四條硬規則)。
 --
 -- 逐字清單,不是黑名單推理:每條規則寫死「誰不准出現在誰的 build-depends」。
--- 套件還沒建的(P3 之後才有的 workspace / archive / …)自動略過;建了就自動受檢。
+-- 套件還沒建的(S3 之後才有的 workspace / archive / …)自動略過;建了就自動受檢。
 --
 -- 只讀 @.cabal@ 檔的文字,不依賴 Cabal library——這個測試本身也要守「不依賴內部型別」。
 module Aapms.Contract.CabalRulesSpec (spec) where

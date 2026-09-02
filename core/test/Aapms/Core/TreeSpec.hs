@@ -1,5 +1,5 @@
--- | graph-core/F001 T10 的對照測試:buildTree 的建構、五條不變量與走訪
--- (邏輯沿用舊 entity-graph-core/F002 T5+T6,只換型別)。
+-- | graph-core/F001 STEP-10 的對照測試:buildTree 的建構、五條不變量與走訪
+-- (邏輯沿用舊 entity-graph-core/F002 STEP-5+STEP-6,只換型別)。
 module Aapms.Core.TreeSpec (spec) where
 
 import Data.Either (isRight)

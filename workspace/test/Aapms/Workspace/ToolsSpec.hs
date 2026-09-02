@@ -1,49 +1,49 @@
 -- | F006:'Aapms.Workspace.Tools' 的三層探測('detectSevenZipIn' 是主要受測對象——
 -- 'detectSevenZip' 用內建常數,而這台機器上 @C:\\Program Files\\7-Zip\\7z.exe@ 實際
--- 存在,直接測它驗不到 'NotFound' 與 'FromCandidate')與依賴方向的 import 檢查(L15)。
+-- 存在,直接測它驗不到 'NotFound' 與 'FromCandidate')與依賴方向的 import 檢查(LAW-15)。
 --
 -- __spec 對照__(@.design\/subsystems\/workspace\/features\/F006-machine-tools.md@,
 -- 預期依 spec-roles.md「qa 的交付判準」逐條標;骨架裡沒有任何不是 @undefined@ 的函數
--- 本體,所以除 L15(a)-(f) 與 'ToolSearchPlan' 型別本身的形狀外,__全部預期紅__):
+-- 本體,所以除 LAW-15(a)-(f) 與 'ToolSearchPlan' 型別本身的形狀外,__全部預期紅__):
 --
 -- @
--- L1  probe 前綴 \/ 命中在最後               -> prop_matches_spec_model                              [紅]
--- L2  覆寫合格時後兩層不參與                  -> test_x1_override_hit_short_circuits                  [紅]
---                                              -> test_x2_override_hit_ignores_plan                    [紅]
---                                              -> prop_l2_override_hit_ignores_arbitrary_plan           [紅]
--- L3  覆寫不合格時不中止                      -> test_x3_override_miss_continues_to_path              [紅]
---                                              -> prop_l3_override_miss_diffs_only_in_searched_prefix   [紅]
--- L4  三層都不合格 <=> NotFound                -> test_x7_not_found_when_all_layers_miss               [紅]
+-- LAW-1  probe 前綴 \/ 命中在最後               -> prop_matches_spec_model                              [紅]
+-- LAW-2  覆寫合格時後兩層不參與                  -> test_ex1_override_hit_short_circuits                  [紅]
+--                                              -> test_ex2_override_hit_ignores_plan                    [紅]
+--                                              -> prop_law2_override_hit_ignores_arbitrary_plan           [紅]
+-- LAW-3  覆寫不合格時不中止                      -> test_ex3_override_miss_continues_to_path              [紅]
+--                                              -> prop_law3_override_miss_diffs_only_in_searched_prefix   [紅]
+-- LAW-4  三層都不合格 <=> NotFound                -> test_ex7_not_found_when_all_layers_miss               [紅]
 --                                              -> prop_matches_spec_model                               [紅]
--- L5  tsPath\/tsOrigin 不可能不一致            -> prop_l5_path_and_origin_consistent                    [紅]
+-- LAW-5  tsPath\/tsOrigin 不可能不一致            -> prop_law5_path_and_origin_consistent                    [紅]
 --                                              -> prop_matches_spec_model                               [紅]
--- L6  tsOrigin 指得出哪一層(a\/b\/c)          -> test_x1.. (a) / test_x3,x4,x5 (b) / test_x6 (c)      [紅]
+-- LAW-6  tsOrigin 指得出哪一層(a\/b\/c)          -> test_ex1.. (a) / test_ex3,x4,x5 (b) / test_ex6 (c)      [紅]
 --                                              -> prop_matches_spec_model                               [紅]
--- L7  合格 = 存在且可執行,依此順序             -> test_x8_directory_never_qualifies (c)                [紅]
---                                              -> test_x9_non_executable_file_never_qualifies (b)       [紅]
---                                              -> test_x11_missing_path_dirs_do_not_throw_or_get_created (d) [紅]
---                                              -> prop_l7_non_executable_and_missing_never_qualify      [紅]
--- L8  逐字,不正規化                           -> test_x13_paths_are_verbatim_relative                  [紅]
---                                              -> test_x14_paths_are_verbatim_windows_absolute          [紅]
---                                              -> prop_l8_candidate_paths_are_verbatim                  [紅]
--- L9  依序、去重,跨層生效                      -> test_x10_same_path_across_layers_dedupes             [紅]
+-- LAW-7  合格 = 存在且可執行,依此順序             -> test_ex8_directory_never_qualifies (c)                [紅]
+--                                              -> test_ex9_non_executable_file_never_qualifies (b)       [紅]
+--                                              -> test_ex11_missing_path_dirs_do_not_throw_or_get_created (d) [紅]
+--                                              -> prop_law7_non_executable_and_missing_never_qualify      [紅]
+-- LAW-8  逐字,不正規化                           -> test_ex13_paths_are_verbatim_relative                  [紅]
+--                                              -> test_ex14_paths_are_verbatim_windows_absolute          [紅]
+--                                              -> prop_law8_candidate_paths_are_verbatim                  [紅]
+-- LAW-9  依序、去重,跨層生效                      -> test_ex10_same_path_across_layers_dedupes             [紅]
 --                                              -> prop_matches_spec_model                               [紅]
--- L10 第二層展開式(名稱外層、目錄內層)        -> test_x4,x5,x6                                        [紅]
+-- LAW-10 第二層展開式(名稱外層、目錄內層)        -> test_ex4,x5,x6                                        [紅]
 --                                              -> prop_matches_spec_model                               [紅]
--- L11 不執行、不動檔案系統                     -> test_x11,x12                                          [紅]
---                                              -> prop_l11_filesystem_untouched                         [紅]
--- L12 沒有失敗通道                             -> test_x7,x11                                           [紅]
---                                              -> prop_l12_missing_dirs_and_empty_string_do_not_throw   [紅]
--- L13 tsName 恒為 "7-Zip"                     -> test_x7 等多條 / prop_l13_tsname_constant             [紅]
--- L14 兩個入口一致                             -> test_x15,x16                                         [紅]
---                                              -> prop_l14_real_entry_matches_injected_plan_for_arbitrary_override [紅]
--- L15(預期綠) import 行(a)-(f)               -> test_tools_no_sibling_module_imports(a)               [綠]
+-- LAW-11 不執行、不動檔案系統                     -> test_ex11,x12                                          [紅]
+--                                              -> prop_law11_filesystem_untouched                         [紅]
+-- LAW-12 沒有失敗通道                             -> test_ex7,x11                                           [紅]
+--                                              -> prop_law12_missing_dirs_and_empty_string_do_not_throw   [紅]
+-- LAW-13 tsName 恒為 "7-Zip"                     -> test_ex7 等多條 / prop_law13_tsname_constant             [紅]
+-- LAW-14 兩個入口一致                             -> test_ex15,x16                                         [紅]
+--                                              -> prop_law14_real_entry_matches_injected_plan_for_arbitrary_override [紅]
+-- LAW-15(預期綠) import 行(a)-(f)               -> test_tools_no_sibling_module_imports(a)               [綠]
 --                                              -> test_tools_never_imports_process(b)                   [綠]
 --                                              -> test_tools_never_imports_store_or_core(c)             [綠]
 --                                              -> test_tools_directory_import_is_read_only(d)           [綠]
 --                                              -> test_tools_environment_import_is_lookup_only(e)       [綠]
 --                                              -> test_tools_filepath_import_is_whitelisted(f)          [綠]
--- X17 import 行滿足 L15(a)-(f)                -> 由上列六條 L15 測試涵蓋,不另立測試
+-- EX-17 import 行滿足 LAW-15(a)-(f)                -> 由上列六條 LAW-15 測試涵蓋,不另立測試
 --
 -- ToolSearchPlan(預期綠) 骨架原文自身承載的型別事實
 --                                              -> test_tool_search_plan_fields                          [綠]
@@ -112,7 +112,7 @@ mkQualifying dir name = do
 mkNonExecutable :: FilePath -> IO FilePath
 mkNonExecutable p = writeFile p "not executable" >> pure p
 
--- | 遞迴列出一個目錄底下所有檔案的相對路徑與內容(不含權限),按路徑排序——L11
+-- | 遞迴列出一個目錄底下所有檔案的相對路徑與內容(不含權限),按路徑排序——LAW-11
 -- 「呼叫前後檔案清單與內容相同」斷言的基礎。本檔的 fixture 一律是純文字,足夠使用。
 snapshotFiles :: FilePath -> IO [(FilePath, String)]
 snapshotFiles root = go ""
@@ -131,7 +131,7 @@ snapshotFiles root = go ""
 --------------------------------------------------------------------------------
 -- 「數據」節的字面常數(逐字抄自 spec,獨立於任何實作)
 
--- | spec「數據 › 內建候選清單」的七條,逐字抄錄(L14\/X15 的比對基準;本檔__不__從
+-- | spec「數據 › 內建候選清單」的七條,逐字抄錄(LAW-14\/EX-15 的比對基準;本檔__不__從
 -- production 碼匯出這份清單來比,那會讓「impl 改了清單」變成恆真斷言)。
 builtinCandidates :: [FilePath]
 builtinCandidates =
@@ -149,13 +149,13 @@ builtinCandidates =
 -- __不是__從 Tools.hs 讀來的——qa 不得讀那個檔案的本體,這裡只是把已經讀過的
 -- spec 文字轉成可執行的判準,用來當 property test 的獨立 oracle。
 
--- | L7:「存在且可執行」判準,依此順序;對不存在的路徑不呼叫 'getPermissions'。
+-- | LAW-7:「存在且可執行」判準,依此順序;對不存在的路徑不呼叫 'getPermissions'。
 modelQualifies :: FilePath -> IO Bool
 modelQualifies p = do
   exists <- doesFileExist p
   if exists then executable <$> getPermissions p else pure False
 
--- | L1\/L9\/L10:三層依序串起來、保序去重(跨層)。
+-- | LAW-1\/LAW-9\/LAW-10:三層依序串起來、保序去重(跨層)。
 modelProbes :: ToolSearchPlan -> ToolsConfig -> [FilePath]
 modelProbes plan (ToolsConfig mOverride) = nub (l1 ++ l2 ++ l3)
   where
@@ -163,7 +163,7 @@ modelProbes plan (ToolsConfig mOverride) = nub (l1 ++ l2 ++ l3)
     l2 = [d </> (n <.> exeExtension) | n <- ["7z", "7zz"], d <- tspPathDirs plan]
     l3 = tspCandidates plan
 
--- | L6:命中的路徑屬於哪一層,判定順序恒為覆寫 -> PATH -> 候選清單。
+-- | LAW-6:命中的路徑屬於哪一層,判定順序恒為覆寫 -> PATH -> 候選清單。
 modelOrigin :: ToolSearchPlan -> ToolsConfig -> FilePath -> ToolOrigin
 modelOrigin plan (ToolsConfig mOverride) p
   | mOverride == Just p = FromToolsConfig
@@ -181,7 +181,7 @@ modelFirstQualifying = go []
       if ok then pure (Just p, reverse acc') else go acc' ps
 
 -- | 把 'modelProbes' \/ 'modelFirstQualifying' \/ 'modelOrigin' 組成完整的期望
--- 'ToolStatus'——這是 spec 全部 Laws(除 L2\/L3\/L7\/L8\/L11\/L12\/L14\/L15 的邊界情況外)
+-- 'ToolStatus'——這是 spec 全部 Laws(除 LAW-2\/LAW-3\/LAW-7\/LAW-8\/LAW-11\/LAW-12\/LAW-14\/LAW-15 的邊界情況外)
 -- 的唯一真相翻譯。
 modelDetect :: ToolSearchPlan -> ToolsConfig -> IO ToolStatus
 modelDetect plan cfg = do
@@ -200,7 +200,7 @@ genSegment = T.unpack <$> Gen.text (Range.linear 1 6) (Gen.choice [Gen.alpha, Ge
 
 -- | 一個隨機的探測「世界」:0-3 個 PATH 目錄(各自可能放合格的 7z\/7zz)、0-3 個候選檔
 -- (各自可能合格)、可能有一個覆寫(可能合格)。合格與否只有兩種狀態:「合格」或「完全
--- 不存在」——「存在但不可執行」的情形由專門的 L7 property 覆蓋,不必混進通用模型。
+-- 不存在」——「存在但不可執行」的情形由專門的 LAW-7 property 覆蓋,不必混進通用模型。
 data World = World
   { wDirs :: [(String, Bool, Bool)]
   , wCands :: [(String, Bool)]
@@ -238,7 +238,7 @@ buildWorld t (World dirs cands mOverride) = do
   pure (ToolSearchPlan dirPaths candPaths, ToolsConfig overridePath)
 
 --------------------------------------------------------------------------------
--- L15:import 行(判準只看 import 行,不做全檔字串搜尋;比對前先去除行尾 \r)
+-- LAW-15:import 行(判準只看 import 行,不做全檔字串搜尋;比對前先去除行尾 \r)
 
 -- | 一個骨架檔案裡,去除前導空白、去除行尾 @\\r@(CRLF checkout 的產物)之後、以
 -- @import@ 起頭的行(做法對照 "Aapms.Workspace.DiscoverySpec.importLinesOf")。
@@ -280,8 +280,8 @@ toolsImportLines = importLinesOf "Aapms/Workspace/Tools.hs"
 spec :: Spec
 spec = describe "F006 Aapms.Workspace.Tools" $ do
   --------------------------------------------------------------------------
-  describe "Examples (X1-X16): detectSevenZipIn / detectSevenZip" $ do
-    it "test_x1_override_hit_short_circuits (X1; L1,L2,L5,L6a,L13)" $
+  describe "Examples (EX-1-EX-16): detectSevenZipIn / detectSevenZip" $ do
+    it "test_ex1_override_hit_short_circuits (EX-1; LAW-1,LAW-2,LAW-5,LAW-6a,LAW-13)" $
       withTempDir $ \t -> do
         e1 <- mkQualifying t "seven"
         let d = t </> "d"
@@ -291,13 +291,13 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         result <- detectSevenZipIn (ToolSearchPlan [d] [c]) (ToolsConfig (Just e1))
         result `shouldBe` ToolStatus "7-Zip" (Just e1) FromToolsConfig [e1]
 
-    it "test_x2_override_hit_ignores_plan (X2; L2)" $
+    it "test_ex2_override_hit_ignores_plan (EX-2; LAW-2)" $
       withTempDir $ \t -> do
         e1 <- mkQualifying t "seven"
         result <- detectSevenZipIn (ToolSearchPlan [] []) (ToolsConfig (Just e1))
         result `shouldBe` ToolStatus "7-Zip" (Just e1) FromToolsConfig [e1]
 
-    it "test_x3_override_miss_continues_to_path (X3; L1,L3,L6b,L7a)" $
+    it "test_ex3_override_miss_continues_to_path (EX-3; LAW-1,LAW-3,LAW-6b,LAW-7a)" $
       withTempDir $ \t -> do
         let d = t </> "d"
         createDirectory d
@@ -306,7 +306,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         result <- detectSevenZipIn (ToolSearchPlan [d] []) (ToolsConfig (Just p))
         result `shouldBe` ToolStatus "7-Zip" (Just s) FromPath [p, s]
 
-    it "test_x4_path_layer_hit_second_dir (X4; L1,L6b,L10)" $
+    it "test_ex4_path_layer_hit_second_dir (EX-4; LAW-1,LAW-6b,LAW-10)" $
       withTempDir $ \t -> do
         let d1 = t </> "d1"
             d2 = t </> "d2"
@@ -318,7 +318,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         tsOrigin result `shouldBe` FromPath
         tsSearched result `shouldBe` [d1 </> ("7z" <.> exeExtension), s2]
 
-    it "test_x5_probe_order_name_outer_dir_inner (X5; L1,L10)" $
+    it "test_ex5_probe_order_name_outer_dir_inner (EX-5; LAW-1,LAW-10)" $
       withTempDir $ \t -> do
         let d1 = t </> "d1"
             d2 = t </> "d2"
@@ -331,7 +331,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         tsOrigin result `shouldBe` FromPath
         tsSearched result `shouldBe` [d1 </> ("7z" <.> exeExtension), s2]
 
-    it "test_x6_candidate_layer_hit (X6; L1,L6c,L10)" $
+    it "test_ex6_candidate_layer_hit (EX-6; LAW-1,LAW-6c,LAW-10)" $
       withTempDir $ \t -> do
         let d = t </> "d"
         createDirectory d
@@ -347,7 +347,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
                      , c2
                      ]
 
-    it "test_x7_not_found_when_all_layers_miss (X7; L4,L5,L12,L13)" $
+    it "test_ex7_not_found_when_all_layers_miss (EX-7; LAW-4,LAW-5,LAW-12,LAW-13)" $
       withTempDir $ \t -> do
         let d = t </> "d"
         createDirectory d
@@ -363,27 +363,27 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
             , c1
             ]
 
-    it "test_x8_directory_never_qualifies (X8; L7c,L9)" $
+    it "test_ex8_directory_never_qualifies (EX-8; LAW-7c,LAW-9)" $
       withTempDir $ \t -> do
         let b = t </> ("bogus" <.> exeExtension)
         createDirectory b
         result <- detectSevenZipIn (ToolSearchPlan [] [b]) (ToolsConfig (Just b))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [b]
 
-    it "test_x9_non_executable_file_never_qualifies (X9; L7b,L9)" $
+    it "test_ex9_non_executable_file_never_qualifies (EX-9; LAW-7b,LAW-9)" $
       withTempDir $ \t -> do
         let n = t </> "seven.txt"
         _ <- mkNonExecutable n
         result <- detectSevenZipIn (ToolSearchPlan [] [n]) (ToolsConfig (Just n))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [n]
 
-    it "test_x10_same_path_across_layers_dedupes (X10; L9)" $
+    it "test_ex10_same_path_across_layers_dedupes (EX-10; LAW-9)" $
       withTempDir $ \t -> do
         let c1 = t </> "c1-missing"
         result <- detectSevenZipIn (ToolSearchPlan [] [c1, c1]) (ToolsConfig (Just c1))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [c1]
 
-    it "test_x11_missing_path_dirs_do_not_throw_or_get_created (X11; L11a,L12)" $
+    it "test_ex11_missing_path_dirs_do_not_throw_or_get_created (EX-11; LAW-11a,LAW-12)" $
       withTempDir $ \t -> do
         let x = t </> "gone"
             alsoGone = t </> "also-gone.exe"
@@ -400,7 +400,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         existsAfter <- doesDirectoryExist x
         existsAfter `shouldBe` False
 
-    it "test_x12_never_executes_the_found_file (X12; L11)" $
+    it "test_ex12_never_executes_the_found_file (EX-12; LAW-11)" $
       withTempDir $ \t -> do
         let d = t </> "d"
         createDirectory d
@@ -416,15 +416,15 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         ranExists `shouldBe` False
         after `shouldBe` before
 
-    it "test_x13_paths_are_verbatim_relative (X13; L8)" $ do
+    it "test_ex13_paths_are_verbatim_relative (EX-13; LAW-8)" $ do
       result <- detectSevenZipIn (ToolSearchPlan [] ["relative/7z.exe"]) (ToolsConfig (Just "sub dir/7z.exe"))
       tsSearched result `shouldBe` ["sub dir/7z.exe", "relative/7z.exe"]
 
-    it "test_x14_paths_are_verbatim_windows_absolute (X14; L8)" $ do
+    it "test_ex14_paths_are_verbatim_windows_absolute (EX-14; LAW-8)" $ do
       result <- detectSevenZipIn (ToolSearchPlan [] ["C:\\Program Files\\7-Zip\\7z.exe"]) (ToolsConfig Nothing)
       tsSearched result `shouldBe` ["C:\\Program Files\\7-Zip\\7z.exe"]
 
-    it "test_x15_real_entry_matches_injected_plan (X15; L14)" $ do
+    it "test_ex15_real_entry_matches_injected_plan (EX-15; LAW-14)" $ do
       let cfg = ToolsConfig Nothing
       pathEnv <- lookupEnv "PATH"
       let dirs = maybe [] splitSearchPath pathEnv
@@ -432,7 +432,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
       injected <- detectSevenZipIn (ToolSearchPlan dirs builtinCandidates) cfg
       real `shouldBe` injected
 
-    it "test_x16_real_entry_config_override_short_circuits (X16; L2,L14)" $
+    it "test_ex16_real_entry_config_override_short_circuits (EX-16; LAW-2,LAW-14)" $
       withTempDir $ \t -> do
         e <- mkQualifying t "seven"
         result <- detectSevenZip (ToolsConfig (Just e))
@@ -440,7 +440,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
 
   --------------------------------------------------------------------------
   describe "Laws (property tests)" $ do
-    it "prop_matches_spec_model(L1,L4,L5,L6,L9,L10,L13): 任意 world,detectSevenZipIn 與\
+    it "prop_matches_spec_model(LAW-1,LAW-4,LAW-5,LAW-6,LAW-9,LAW-10,LAW-13): 任意 world,detectSevenZipIn 與\
        \獨立翻譯 spec 的模型逐欄相同" $
       hedgehog $ do
         world <- forAll genWorld
@@ -451,7 +451,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           pure (actual, expected)
         actual === expected
 
-    it "prop_l2_override_hit_ignores_arbitrary_plan(L2): 覆寫合格時,任意 plan(含另一個\
+    it "prop_law2_override_hit_ignores_arbitrary_plan(LAW-2): 覆寫合格時,任意 plan(含另一個\
        \合格的競爭者)都不影響結果" $
       hedgehog $ do
         dirNames <- forAll (Gen.list (Range.linear 0 3) genSegment)
@@ -469,7 +469,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           pure (r1, r2)
         withPlan === withoutPlan
 
-    it "prop_l3_override_miss_diffs_only_in_searched_prefix(L3): 覆寫不合格時不中止,\
+    it "prop_law3_override_miss_diffs_only_in_searched_prefix(LAW-3): 覆寫不合格時不中止,\
        \結果除了 tsSearched 多了開頭的覆寫路徑外,其餘與沒有覆寫時逐欄相同" $
       hedgehog $ do
         world <- forAll genWorld
@@ -485,7 +485,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         tsName withOverride === tsName without
         tsSearched withOverride === overridePath : tsSearched without
 
-    it "prop_l5_path_and_origin_consistent(L5): 任意 world,tsPath == Nothing 恰好\
+    it "prop_law5_path_and_origin_consistent(LAW-5): 任意 world,tsPath == Nothing 恰好\
        \對應 tsOrigin == NotFound" $
       hedgehog $ do
         world <- forAll genWorld
@@ -494,7 +494,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           detectSevenZipIn plan cfg
         (tsPath result == Nothing) === (tsOrigin result == NotFound)
 
-    it "prop_l7_non_executable_and_missing_never_qualify(L7b,L7d): 任意存在但不可執行的\
+    it "prop_law7_non_executable_and_missing_never_qualify(LAW-7b,LAW-7d): 任意存在但不可執行的\
        \檔案、任意不存在的路徑,一律不合格且不拋例外" $
       hedgehog $ do
         nameA <- forAll genSegment
@@ -509,7 +509,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         tsOrigin nonExecResult === NotFound
         tsOrigin missingResult === NotFound
 
-    it "prop_l8_candidate_paths_are_verbatim(L8): 任意字串當候選路徑,tsSearched 對應項\
+    it "prop_law8_candidate_paths_are_verbatim(LAW-8): 任意字串當候選路徑,tsSearched 對應項\
        \逐字不變(不正規化)" $
       hedgehog $ do
         raw <- forAll (Gen.text (Range.linear 1 20) (Gen.choice [Gen.alpha, Gen.digit, Gen.element (" /\\.:-_" :: String)]))
@@ -517,7 +517,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         result <- liftIO $ detectSevenZipIn (ToolSearchPlan [] [p]) (ToolsConfig Nothing)
         tsSearched result === [p]
 
-    it "prop_l11_filesystem_untouched(L11): 任意 world,呼叫前後暫存目錄的檔案清單與\
+    it "prop_law11_filesystem_untouched(LAW-11): 任意 world,呼叫前後暫存目錄的檔案清單與\
        \內容逐位元組相同" $
       hedgehog $ do
         world <- forAll genWorld
@@ -529,7 +529,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           pure (before, after)
         before === after
 
-    it "prop_l12_missing_dirs_and_empty_string_do_not_throw(L12): 任意由亂數片段組成的\
+    it "prop_law12_missing_dirs_and_empty_string_do_not_throw(LAW-12): 任意由亂數片段組成的\
        \路徑(含空字串目錄),即使都不存在,也不拋例外、回 NotFound" $
       hedgehog $ do
         segs <- forAll (Gen.list (Range.linear 0 3) genSegment)
@@ -541,7 +541,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         tsOrigin result === NotFound
         tsPath result === Nothing
 
-    it "prop_l13_tsname_constant(L13): 任意 world,tsName 恒為 \"7-Zip\"" $
+    it "prop_law13_tsname_constant(LAW-13): 任意 world,tsName 恒為 \"7-Zip\"" $
       hedgehog $ do
         world <- forAll genWorld
         result <- liftIO $ withTempDir $ \t -> do
@@ -549,7 +549,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           detectSevenZipIn plan cfg
         tsName result === "7-Zip"
 
-    it "prop_l14_real_entry_matches_injected_plan_for_arbitrary_override(L14): 任意\
+    it "prop_law14_real_entry_matches_injected_plan_for_arbitrary_override(LAW-14): 任意\
        \(必不合格的)覆寫路徑,detectSevenZip 與注入相同 plan 的 detectSevenZipIn 逐欄相同" $
       hedgehog $ do
         name <- forAll genSegment
@@ -563,7 +563,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         real === injected
 
   --------------------------------------------------------------------------
-  describe "L15(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+  describe "LAW-15(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
     it "test_tools_no_sibling_module_imports(a): 本套件內的 import 只能是 \
        \Aapms.Workspace.Types 或 Aapms.Workspace.Hub;若有 Hub,匯入清單必須是 \
        \{hubTools} 的子集合" $ do

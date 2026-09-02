@@ -1,55 +1,55 @@
--- | F005:'Aapms.Workspace.Projects' 的配號('allocateProjectId',L1-L3/X1-X5)、
--- 註冊('registerProject',L4-L10/X6-X18,X28-X30)、撤除('forgetProject',
--- L11-L14/X19-X27,X31)與依賴方向的 import 清單檢查(L17,__預期綠__——見 spec
+-- | F005:'Aapms.Workspace.Projects' 的配號('allocateProjectId',LAW-1-LAW-3/EX-1-EX-5)、
+-- 註冊('registerProject',LAW-4-LAW-10/EX-6-EX-18,EX-28-EX-30)、撤除('forgetProject',
+-- LAW-11-LAW-14/EX-19-EX-27,EX-31)與依賴方向的 import 清單檢查(LAW-17,__預期綠__——見 spec
 -- 「紅綠預期」)。
 --
 -- __spec 對照__(@.design/subsystems/workspace/features/F005-project-registry.md@):
 --
 -- @
--- T1 allocateProjectId(純函式配號)
--- L1  形狀恒為 prj- + 8 位小寫十六進位          -> test_allocate_project_id_shape_is_prj_plus_8_hex
--- L2  不撞既有,撞號時 salt 遞增重試             -> test_allocate_project_id_no_collision_uses_salt_zero / _retries_on_collision / _retries_twice
--- L3  純函式,只看 peId                          -> test_allocate_project_id_ignores_other_fields
--- X1-X5                                          -> 對應各 test_allocate_project_id_*
+-- STEP-1 allocateProjectId(純函式配號)
+-- LAW-1  形狀恒為 prj- + 8 位小寫十六進位          -> test_allocate_project_id_shape_is_prj_plus_8_hex
+-- LAW-2  不撞既有,撞號時 salt 遞增重試             -> test_allocate_project_id_no_collision_uses_salt_zero / _retries_on_collision / _retries_twice
+-- LAW-3  純函式,只看 peId                          -> test_allocate_project_id_ignores_other_fields
+-- EX-1-EX-5                                          -> 對應各 test_allocate_project_id_*
 --
--- T2 registerProject 前置檢查
--- L6  空名 -> InvalidName,什麼都不做            -> test_register_project_blank_name_is_invalid_name / _empty_name_is_invalid_name
--- L7  路徑不是既存目錄 -> ProjectPathMissing     -> test_register_project_missing_path / _file_path_is_missing
--- L9  同一個路徑不得註冊兩次                     -> test_register_project_same_path_twice_is_already_registered / _detects_other_spelling / _does_not_renormalize_existing_rows / test_render_already_registered_has_id_and_path
--- L15 專案目錄完全未動(失敗路徑)                -> test_register_project_failure_writes_nothing 等
--- L16 中樞只在成功路徑改變                       -> test_register_project_failure_writes_nothing 等
--- X9-X13, X17, X28-X30                           -> 對應各 test_register_project_*
+-- STEP-2 registerProject 前置檢查
+-- LAW-6  空名 -> InvalidName,什麼都不做            -> test_register_project_blank_name_is_invalid_name / _empty_name_is_invalid_name
+-- LAW-7  路徑不是既存目錄 -> ProjectPathMissing     -> test_register_project_missing_path / _file_path_is_missing
+-- LAW-9  同一個路徑不得註冊兩次                     -> test_register_project_same_path_twice_is_already_registered / _detects_other_spelling / _does_not_renormalize_existing_rows / test_render_already_registered_has_id_and_path
+-- LAW-15 專案目錄完全未動(失敗路徑)                -> test_register_project_failure_writes_nothing 等
+-- LAW-16 中樞只在成功路徑改變                       -> test_register_project_failure_writes_nothing 等
+-- EX-9-EX-13, EX-17, EX-28-EX-30                           -> 對應各 test_register_project_*
 --
--- T3 registerProject 主線
--- L4  成功時四個事實                             -> test_register_project_success_fields / _appends_at_end / _stores_trimmed_name / _normalizes_path
--- L5  只動 [[projects]]                          -> test_register_project_success_fields
--- L8  寫出去的中樞讀得回來(完整定義域)          -> test_register_project_roundtrips_through_load_hub / _preserves_comments_and_vaults / _roundtrips_with_control_char_names
--- L10 saveHub 失敗即失敗                         -> test_register_project_save_failure_is_forwarded
--- X6-X8, X14-X16, X18                            -> 對應各 test_register_project_*
+-- STEP-3 registerProject 主線
+-- LAW-4  成功時四個事實                             -> test_register_project_success_fields / _appends_at_end / _stores_trimmed_name / _normalizes_path
+-- LAW-5  只動 [[projects]]                          -> test_register_project_success_fields
+-- LAW-8  寫出去的中樞讀得回來(完整定義域)          -> test_register_project_roundtrips_through_load_hub / _preserves_comments_and_vaults / _roundtrips_with_control_char_names
+-- LAW-10 saveHub 失敗即失敗                         -> test_register_project_save_failure_is_forwarded
+-- EX-6-EX-8, EX-14-EX-16, EX-18                            -> 對應各 test_register_project_*
 --
--- T4 forgetProject selector
--- L11 兩階段,id 絕對優先                         -> test_forget_project_id_beats_name
--- L12(b)(c) 命中集合 -> 結果                     -> test_forget_project_ambiguous_name_lists_all / _ambiguous_id_lists_all / _ambiguous_removes_nothing / _not_found
--- L13 逐字精確比對                                -> test_forget_project_is_case_sensitive / _does_not_trim / _never_matches_without_exact_equality
--- L14 只看 [[projects]]                           -> test_forget_project_ignores_other_sections
--- X19, X21-X25, X31                               -> 對應各 test_forget_project_*
+-- STEP-4 forgetProject selector
+-- LAW-11 兩階段,id 絕對優先                         -> test_forget_project_id_beats_name
+-- LAW-12(b)(c) 命中集合 -> 結果                     -> test_forget_project_ambiguous_name_lists_all / _ambiguous_id_lists_all / _ambiguous_removes_nothing / _not_found
+-- LAW-13 逐字精確比對                                -> test_forget_project_is_case_sensitive / _does_not_trim / _never_matches_without_exact_equality
+-- LAW-14 只看 [[projects]]                           -> test_forget_project_ignores_other_sections
+-- EX-19, EX-21-EX-25, EX-31                               -> 對應各 test_forget_project_*
 --
--- T5 forgetProject 主線
--- L12(a) 命中恰好一列 -> 結果                     -> test_forget_project_removes_only_that_row
--- L15 專案目錄完全未動                            -> test_forget_project_leaves_project_dir_untouched
--- L16 中樞只在成功路徑改變(承 L10)               -> test_forget_project_save_failure_is_forwarded
--- X20, X26, X27                                   -> 對應各 test_forget_project_*
+-- STEP-5 forgetProject 主線
+-- LAW-12(a) 命中恰好一列 -> 結果                     -> test_forget_project_removes_only_that_row
+-- LAW-15 專案目錄完全未動                            -> test_forget_project_leaves_project_dir_untouched
+-- LAW-16 中樞只在成功路徑改變(承 LAW-10)               -> test_forget_project_save_failure_is_forwarded
+-- EX-20, EX-26, EX-27                                   -> 對應各 test_forget_project_*
 --
--- L17(預期綠) 依賴方向與職責界線(以 import 行驗證)
+-- LAW-17(預期綠) 依賴方向與職責界線(以 import 行驗證)
 -- (a) 本套件內只准 Types/Hub                      -> test_projects_no_sibling_or_vault_imports
 -- (b) 完全不得 import Aapms.Store 開頭的行         -> test_projects_never_imports_store
 -- (c) Aapms.Core.Id 匯入清單只能是配號四項的子集   -> test_projects_core_id_import_is_allocation_only
 -- (d) 不得 import System.Process                   -> test_projects_no_process_import
 -- (e) 除 Aapms.Core.Id 外不得 import Aapms.Core.*、不得 import Data.Aeson -> test_projects_never_reads_manifests
 --
--- __紅綠預期__(spec「紅綠預期」段):L17 五條子斷言 (a)-(e) 全部預期__綠__(骨架
+-- __紅綠預期__(spec「紅綠預期」段):LAW-17 五條子斷言 (a)-(e) 全部預期__綠__(骨架
 -- 自身的 import 行,不經過 undefined);其餘每一條 law 與 example 預期__紅__(三個
--- 函式的本體全是 undefined)。L8 的完整定義域(含控制字元)__依賴 F001 的
+-- 函式的本體全是 undefined)。LAW-8 的完整定義域(含控制字元)__依賴 F001 的
 -- @quoteText@ 修好__——在那之前,'test_register_project_roundtrips_with_control_char_names'
 -- 紅的歸因是 "Aapms.Workspace.Hub" 的序列化器,不是本模組(spec「兩個先決條件」第 2 點)。
 -- 兩個新建構子('ProjectAlreadyRegistered'、'ProjectSelectorAmbiguous')不存在時本檔
@@ -80,7 +80,7 @@ import System.FilePath ((</>))
 -- 本檔專用 helper(不匯出)
 
 -- | 一個骨架檔案裡,去除前導空白、去除行尾 @\\r@(CRLF checkout 的產物)之後、以
--- @import@ 起頭的行(L17 明文;做法對照 "Aapms.Workspace.DiscoverySpec.importLinesOf")。
+-- @import@ 起頭的行(LAW-17 明文;做法對照 "Aapms.Workspace.DiscoverySpec.importLinesOf")。
 importLinesOf :: FilePath -> IO [String]
 importLinesOf rel = do
   src <- readWorkspaceSource rel
@@ -115,7 +115,7 @@ projectsImportLines = importLinesOf "Aapms/Workspace/Projects.hs"
 t0 :: UTCTime
 t0 = UTCTime (ModifiedJulianDay 61094) 0
 
--- | 任意的 'UTCTime',給 L1/L3 的通用性質測試用。
+-- | 任意的 'UTCTime',給 LAW-1/LAW-3 的通用性質測試用。
 genUTCTime :: Gen UTCTime
 genUTCTime = do
   d <- Gen.integral (Range.linear 60000 62000)
@@ -123,7 +123,7 @@ genUTCTime = do
   pure (UTCTime (ModifiedJulianDay d) (secondsToDiffTime s))
 
 -- | 用一個已知合法的 id 字面值造 'ProjectEntry'(不必經過 'allocateProjectId'/'newId',
--- 用來擺出「中樞既有列」的固定劇本,例如 X19/X21/X31)。
+-- 用來擺出「中樞既有列」的固定劇本,例如 EX-19/EX-21/EX-31)。
 mkProjEntry :: Text -> Text -> FilePath -> ProjectEntry
 mkProjEntry idText nm p = ProjectEntry {peId = idOf idText, peName = nm, pePath = p}
 
@@ -141,7 +141,7 @@ withRegistryEnv :: (HubLocation -> FilePath -> IO a) -> IO a
 withRegistryEnv act = withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> act (locAt hubDir) projDir
 
 -- | spec「數據」節「測試素材」的手寫底稿:一段註解 + 一列 @[[vaults]]@,
--- 沒有 @[[projects]]@/@[llm]@/@[tools]@(X16 用)。
+-- 沒有 @[[projects]]@/@[llm]@/@[tools]@(EX-16 用)。
 commentedHubText :: Text
 commentedHubText =
   T.unlines
@@ -159,12 +159,12 @@ commentedHubText =
 spec :: Spec
 spec = describe "F005 Aapms.Workspace.Projects" $ do
   --------------------------------------------------------------------------
-  describe "T1/L1-L3/X1-X5: allocateProjectId 純函式配號" $ do
-    it "test_allocate_project_id_no_collision_uses_salt_zero (X1, L1, L2): 沒撞就是 salt 0" $ do
+  describe "STEP-1/LAW-1-LAW-3/EX-1-EX-5: allocateProjectId 純函式配號" $ do
+    it "test_allocate_project_id_no_collision_uses_salt_zero (EX-1, LAW-1, LAW-2): 沒撞就是 salt 0" $ do
       let result = allocateProjectId [] "Circle" t0
       result `shouldBe` newId PPrj "Circle" t0 0
 
-    it "test_allocate_project_id_retries_on_collision (X2, L2): 撞號跳到 salt 1,不是照發 salt 0" $
+    it "test_allocate_project_id_retries_on_collision (EX-2, LAW-2): 撞號跳到 salt 1,不是照發 salt 0" $
       hedgehog $ do
         nm <- forAll genName
         t <- forAll genUTCTime
@@ -172,7 +172,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
             existing = [mkProjEntry' salt0 "x" "C:/x"]
         allocateProjectId existing nm t === newId PPrj nm t 1
 
-    it "test_allocate_project_id_retries_twice (X3, L2): salt 0/1 都撞了,得到 salt 2" $
+    it "test_allocate_project_id_retries_twice (EX-3, LAW-2): salt 0/1 都撞了,得到 salt 2" $
       hedgehog $ do
         nm <- forAll genName
         t <- forAll genUTCTime
@@ -181,7 +181,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
             existing = [mkProjEntry' salt0 "x" "C:/x", mkProjEntry' salt1 "y" "C:/y"]
         allocateProjectId existing nm t === newId PPrj nm t 2
 
-    it "test_allocate_project_id_ignores_other_fields (X4, L3): peName/pePath 換成任何值,結果不變" $
+    it "test_allocate_project_id_ignores_other_fields (EX-4, LAW-3): peName/pePath 換成任何值,結果不變" $
       hedgehog $ do
         nm <- forAll genName
         t <- forAll genUTCTime
@@ -194,7 +194,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
             existing2 = [mkProjEntry' salt0 otherName2 otherPath2]
         allocateProjectId existing1 nm t === allocateProjectId existing2 nm t
 
-    it "test_allocate_project_id_shape_is_prj_plus_8_hex (X5, L1): 對任意 existing/nm/t 恒成立" $
+    it "test_allocate_project_id_shape_is_prj_plus_8_hex (EX-5, LAW-1): 對任意 existing/nm/t 恒成立" $
       hedgehog $ do
         nm <- forAll genName
         t <- forAll genUTCTime
@@ -212,8 +212,8 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
             annotate "parseId 應該能剖析 allocateProjectId 自己產生的字串"
             failure
   --------------------------------------------------------------------------
-  describe "T2/L6,L7,L9,L15,L16/X9-X13,X17,X28-X30: registerProject 前置檢查" $ do
-    it "test_register_project_blank_name_is_invalid_name (X9, L6, L15, L16): 全空白名稱" $
+  describe "STEP-2/LAW-6,LAW-7,LAW-9,LAW-15,LAW-16/EX-9-EX-13,EX-17,EX-28-EX-30: registerProject 前置檢查" $ do
+    it "test_register_project_blank_name_is_invalid_name (EX-9, LAW-6, LAW-15, LAW-16): 全空白名稱" $
       withRegistryEnv $ \loc projDir -> do
         snapBefore <- snapshotTree projDir
         result <- registerProject loc emptyHub projDir "   "
@@ -223,12 +223,12 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         hubExists <- doesFileExist (hubConfigFile (hlPath loc))
         hubExists `shouldBe` False
 
-    it "test_register_project_empty_name_is_invalid_name (X10, L6): 空字串" $
+    it "test_register_project_empty_name_is_invalid_name (EX-10, LAW-6): 空字串" $
       withRegistryEnv $ \loc projDir -> do
         result <- registerProject loc emptyHub projDir ""
         result `shouldBe` Left (InvalidName "")
 
-    it "test_register_project_missing_path (X11, L7): 路徑不存在" $
+    it "test_register_project_missing_path (EX-11, LAW-7): 路徑不存在" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             missingDir = hubDir </> "no-such-dir"
@@ -239,7 +239,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         msg `shouldSatisfy` T.isInfixOf "Circle"
         msg `shouldSatisfy` T.isInfixOf (T.pack canon)
 
-    it "test_register_project_file_path_is_missing (X12, L7): 路徑是普通檔案,不是目錄" $
+    it "test_register_project_file_path_is_missing (EX-12, LAW-7): 路徑是普通檔案,不是目錄" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \parent -> do
         let loc = locAt hubDir
             filePath = parent </> "just-a-file.txt"
@@ -248,14 +248,14 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         result <- registerProject loc emptyHub filePath "Circle"
         result `shouldBe` Left (ProjectPathMissing "Circle" canon)
 
-    it "test_register_project_name_checked_before_path (X13, L6): 名稱與路徑都錯,回 InvalidName" $
+    it "test_register_project_name_checked_before_path (EX-13, LAW-6): 名稱與路徑都錯,回 InvalidName" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             missingDir = hubDir </> "nope"
         result <- registerProject loc emptyHub missingDir "  "
         result `shouldBe` Left (InvalidName "  ")
 
-    it "test_register_project_failure_writes_nothing (L15, L16): 三種前置檢查失敗都不寫任何檔案" $ do
+    it "test_register_project_failure_writes_nothing (LAW-15, LAW-16): 三種前置檢查失敗都不寫任何檔案" $ do
       withRegistryEnv $ \loc projDir -> do
         snapBefore <- snapshotTree projDir
         _ <- registerProject loc emptyHub projDir "   "
@@ -279,7 +279,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         afterCfg <- readHubConfigText hubDir
         afterCfg `shouldBe` beforeCfg
 
-    it "test_register_project_same_path_twice_is_already_registered (X17, L9, L16)" $
+    it "test_register_project_same_path_twice_is_already_registered (EX-17, LAW-9, LAW-16)" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         (hub1, e1) <- orDie =<< registerProject loc emptyHub projDir "Circle"
@@ -290,14 +290,14 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         cfgAfterSecond <- readHubConfigText hubDir
         cfgAfterSecond `shouldBe` cfgAfterFirst
 
-    it "test_register_project_already_registered_detects_other_spelling (X28, L9): 兩種寫法正規化成同一個字串" $
+    it "test_register_project_already_registered_detects_other_spelling (EX-28, LAW-9): 兩種寫法正規化成同一個字串" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         (hub1, e1) <- orDie =<< registerProject loc emptyHub projDir "Circle"
         result2 <- registerProject loc hub1 (projDir </> "a" </> "..") "Circle2"
         result2 `shouldBe` Left (ProjectAlreadyRegistered (peId e1) (pePath e1))
 
-    it "test_register_project_does_not_renormalize_existing_rows (X29, L9): 手寫未正規化路徑擋不住重複" $
+    it "test_register_project_does_not_renormalize_existing_rows (EX-29, LAW-9): 手寫未正規化路徑擋不住重複" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
             handwrittenPath = projDir </> "sub" </> ".." -- 語意上與 projDir 相同,但字串未正規化
@@ -308,7 +308,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
           Right (hub', e) -> hubProjects hub' `shouldBe` [e0, e]
           Left _ -> expectationFailure "expected Right(擋不住,中樞出現第二列)"
 
-    it "test_render_already_registered_has_id_and_path (X30, L9): 訊息同時含 id 與路徑" $
+    it "test_render_already_registered_has_id_and_path (EX-30, LAW-9): 訊息同時含 id 與路徑" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         (_, e1) <- orDie =<< registerProject loc emptyHub projDir "Circle"
@@ -317,8 +317,8 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         msg `shouldSatisfy` T.isInfixOf (renderId (peId e1))
         msg `shouldSatisfy` T.isInfixOf (T.pack (pePath e1))
   --------------------------------------------------------------------------
-  describe "T3/L4,L5,L8,L10/X6-X8,X14-X16,X18: registerProject 主線" $ do
-    it "test_register_project_success_fields (X6, L4, L5): 成功時四個欄位與其餘三段不變" $
+  describe "STEP-3/LAW-4,LAW-5,LAW-8,LAW-10/EX-6-EX-8,EX-14-EX-16,EX-18: registerProject 主線" $ do
+    it "test_register_project_success_fields (EX-6, LAW-4, LAW-5): 成功時四個欄位與其餘三段不變" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         canon <- canonicalizePath projDir
@@ -335,7 +335,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
             i' `shouldBe` peId e
           Left _ -> expectationFailure "renderId (peId e) 應該能被 parseId 剖析回來"
 
-    it "test_register_project_appends_at_end (X7, L4d): 追加到既有列的末尾,既有列原樣" $
+    it "test_register_project_appends_at_end (EX-7, LAW-4d): 追加到既有列的末尾,既有列原樣" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> withTempHubDir $ \otherDir -> do
         let loc = locAt hubDir
         otherDir' <- canonicalizePath otherDir
@@ -344,13 +344,13 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         (hub', e) <- orDie =<< registerProject loc hub projDir "Circle"
         hubProjects hub' `shouldBe` [e0, e]
 
-    it "test_register_project_stores_trimmed_name (X8, L4b): 存進去的是去空白後的名稱" $
+    it "test_register_project_stores_trimmed_name (EX-8, LAW-4b): 存進去的是去空白後的名稱" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         (_, e) <- orDie =<< registerProject loc emptyHub projDir "  Circle  "
         peName e `shouldBe` "Circle"
 
-    it "test_register_project_normalizes_path (X14, L4c): . / .. 被正規化,存進去的是絕對路徑" $
+    it "test_register_project_normalizes_path (EX-14, LAW-4c): . / .. 被正規化,存進去的是絕對路徑" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
             weirdPath = projDir </> "a" </> ".." </> "."
@@ -358,14 +358,14 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         (_, e) <- orDie =<< registerProject loc emptyHub weirdPath "Circle"
         pePath e `shouldBe` canon
 
-    it "test_register_project_roundtrips_through_load_hub (X15, L8): 成功後 loadHub 讀得回同一份 projects" $
+    it "test_register_project_roundtrips_through_load_hub (EX-15, LAW-8): 成功後 loadHub 讀得回同一份 projects" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         let loc = locAt hubDir
         (hub', _) <- orDie =<< registerProject loc emptyHub projDir "Circle"
         hub'' <- orDie =<< loadHub loc
         hubProjects hub'' `shouldBe` hubProjects hub'
 
-    it "test_register_project_roundtrips_with_control_char_names (L8): 完整定義域,含換行/tab/其他控制字元" $
+    it "test_register_project_roundtrips_with_control_char_names (LAW-8): 完整定義域,含換行/tab/其他控制字元" $
       hedgehog $ do
         nm <- forAll genNameWithControlChars
         outcome <- liftIO $ withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
@@ -380,11 +380,11 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
                 Right hub'' -> Right (hubProjects hub' == hubProjects hub'')
         case outcome of
           Left _ -> do
-            annotate "L8 紅綠預期:F001 quoteText 修正前,控制字元段落預期紅,歸因是 Hub 的序列化器,不是本模組"
+            annotate "LAW-8 紅綠預期:F001 quoteText 修正前,控制字元段落預期紅,歸因是 Hub 的序列化器,不是本模組"
             failure
           Right same -> same === True
 
-    it "test_register_project_preserves_comments_and_vaults (X16, L5, L8): 手寫的註解與 [[vaults]] 逐字保留" $
+    it "test_register_project_preserves_comments_and_vaults (EX-16, LAW-5, LAW-8): 手寫的註解與 [[vaults]] 逐字保留" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         writeHubConfig hubDir commentedHubText
         let loc = locAt hubDir
@@ -395,7 +395,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         finalText `shouldSatisfy` T.isInfixOf "[[vaults]]"
         finalText `shouldSatisfy` T.isInfixOf "[[projects]]"
 
-    it "test_register_project_save_failure_is_forwarded (X18, L10, L16): 中樞目錄不存在,原樣轉發 HubWriteFailed" $
+    it "test_register_project_save_failure_is_forwarded (EX-18, LAW-10, LAW-16): 中樞目錄不存在,原樣轉發 HubWriteFailed" $
       withTempHubDir $ \parent -> withTempHubDir $ \projDir -> do
         let missingHubDir = parent </> "missing-hub"
             loc = locAt missingHubDir
@@ -410,8 +410,8 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         dirCreated <- doesDirectoryExist missingHubDir
         dirCreated `shouldBe` False
   --------------------------------------------------------------------------
-  describe "T4/L11,L12(b)(c),L13,L14/X19,X21-X25,X31: forgetProject selector" $ do
-    it "test_forget_project_id_beats_name (X19, L11): id 命中時 name 完全不參與" $
+  describe "STEP-4/LAW-11,LAW-12(b)(c),LAW-13,LAW-14/EX-19,EX-21-EX-25,EX-31: forgetProject selector" $ do
+    it "test_forget_project_id_beats_name (EX-19, LAW-11): id 命中時 name 完全不參與" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e1 = mkProjEntry "prj-91c0aa12" "Circle" "C:/a"
@@ -421,7 +421,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         hit `shouldBe` e1
         hubProjects hub' `shouldBe` [e2]
 
-    it "test_forget_project_ambiguous_name_lists_all (X21, L12b): 撞名回 Ambiguous,列出全部" $
+    it "test_forget_project_ambiguous_name_lists_all (EX-21, LAW-12b): 撞名回 Ambiguous,列出全部" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e3 = mkProjEntry "prj-11111111" "Circle" "C:/c3"
@@ -434,7 +434,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         cfgAfter <- readHubConfigText hubDir
         cfgAfter `shouldBe` cfgBefore
 
-    it "test_forget_project_ambiguous_id_lists_all (X31, L12b): mkHub 造出的重複 peId,兩階段同一套規則" $
+    it "test_forget_project_ambiguous_id_lists_all (EX-31, LAW-12b): mkHub 造出的重複 peId,兩階段同一套規則" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e1 = mkProjEntry "prj-91c0aa12" "Circle" "C:/c1"
@@ -443,7 +443,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         result <- forgetProject loc hub "prj-91c0aa12"
         result `shouldBe` Left (ProjectSelectorAmbiguous "prj-91c0aa12" [e1, e2])
 
-    it "test_forget_project_ambiguous_removes_nothing (X21, L12b): 撞名時中樞一列都沒少" $
+    it "test_forget_project_ambiguous_removes_nothing (EX-21, LAW-12b): 撞名時中樞一列都沒少" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e3 = mkProjEntry "prj-11111111" "Circle" "C:/c3"
@@ -457,13 +457,13 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         hub'' <- orDie =<< loadHub loc
         hubProjects hub'' `shouldBe` [e3, e4]
 
-    it "test_forget_project_not_found (X22, L12c): 兩階段都沒命中" $
+    it "test_forget_project_not_found (EX-22, LAW-12c): 兩階段都沒命中" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
         result <- forgetProject loc emptyHub "nope"
         result `shouldBe` Left (ProjectSelectorNotFound "nope")
 
-    it "test_forget_project_is_case_sensitive (X23, L13): 大小寫不同視為不命中" $
+    it "test_forget_project_is_case_sensitive (EX-23, LAW-13): 大小寫不同視為不命中" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e = mkProjEntry "prj-91c0aa12" "Circle" "C:/c"
@@ -471,7 +471,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         result <- forgetProject loc hub "CIRCLE"
         result `shouldBe` Left (ProjectSelectorNotFound "CIRCLE")
 
-    it "test_forget_project_does_not_trim (X24, L13): 前後空白視為不命中" $
+    it "test_forget_project_does_not_trim (EX-24, LAW-13): 前後空白視為不命中" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e = mkProjEntry "prj-91c0aa12" "Circle" "C:/c"
@@ -479,7 +479,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         result <- forgetProject loc hub " Circle "
         result `shouldBe` Left (ProjectSelectorNotFound " Circle ")
 
-    it "test_forget_project_never_matches_without_exact_equality (L13): 任意不逐字相等的 selector 都不命中" $
+    it "test_forget_project_never_matches_without_exact_equality (LAW-13): 任意不逐字相等的 selector 都不命中" $
       hedgehog $ do
         e <- forAll genProjectEntry
         suffix <- forAll (Gen.element ("!?_" :: String))
@@ -493,7 +493,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
               forgetProject loc hub s
             result === Left (ProjectSelectorNotFound s)
 
-    it "test_forget_project_ignores_other_sections (X25, L14): 回傳的 ProjectEntry 只由 [[projects]] 與 selector 決定" $
+    it "test_forget_project_ignores_other_sections (EX-25, LAW-14): 回傳的 ProjectEntry 只由 [[projects]] 與 selector 決定" $
       hedgehog $ do
         v <- forAll genVaultEntry
         llm <- forAll (Gen.maybe genLlmSection)
@@ -512,8 +512,8 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
           pure (hitA, hitB)
         hitA === hitB
   --------------------------------------------------------------------------
-  describe "T5/L12(a),L15,L16/X20,X26,X27: forgetProject 主線" $ do
-    it "test_forget_project_removes_only_that_row (X20, L12a): 只刪那一列,其餘三段不變" $
+  describe "STEP-5/LAW-12(a),LAW-15,LAW-16/EX-20,EX-26,EX-27: forgetProject 主線" $ do
+    it "test_forget_project_removes_only_that_row (EX-20, LAW-12a): 只刪那一列,其餘三段不變" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e1 = mkProjEntry "prj-91c0aa12" "Circle" "C:/c1"
@@ -526,7 +526,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         hubLlm hub' `shouldBe` hubLlm hub
         hubTools hub' `shouldBe` hubTools hub
 
-    it "test_forget_project_leaves_project_dir_untouched (X20, L15): 專案目錄完全未動" $
+    it "test_forget_project_leaves_project_dir_untouched (EX-20, LAW-15): 專案目錄完全未動" $
       withTempHubDir $ \hubDir -> withTempHubDir $ \projDir -> do
         writeFile (projDir </> "keep.txt") "hello"
         canonP <- canonicalizePath projDir
@@ -538,7 +538,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         snapAfter <- snapshotTree projDir
         snapAfter `shouldBe` snapBefore
 
-    it "test_forget_project_roundtrips_through_load_hub (X26, L12a, L8): 成功後 loadHub 讀得回剩下那一列" $
+    it "test_forget_project_roundtrips_through_load_hub (EX-26, LAW-12a, LAW-8): 成功後 loadHub 讀得回剩下那一列" $
       withTempHubDir $ \hubDir -> do
         let loc = locAt hubDir
             e1 = mkProjEntry "prj-91c0aa12" "Circle" "C:/c1"
@@ -548,7 +548,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         hub'' <- orDie =<< loadHub loc
         hubProjects hub'' `shouldBe` [e2]
 
-    it "test_forget_project_save_failure_is_forwarded (X27, L10): 中樞目錄不存在,原樣轉發且沒有落地" $
+    it "test_forget_project_save_failure_is_forwarded (EX-27, LAW-10): 中樞目錄不存在,原樣轉發且沒有落地" $
       withTempHubDir $ \parent -> do
         let missingHubDir = parent </> "missing-hub"
             loc = locAt missingHubDir
@@ -562,7 +562,7 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         stillMissing <- doesDirectoryExist missingHubDir
         stillMissing `shouldBe` False
   --------------------------------------------------------------------------
-  describe "L17(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+  describe "LAW-17(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
     it "test_projects_no_sibling_or_vault_imports(a): 本套件內的 import 只能是 \
        \Aapms.Workspace.Types 或 Aapms.Workspace.Hub" $ do
       importLines <- projectsImportLines

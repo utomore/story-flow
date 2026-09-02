@@ -5,10 +5,10 @@
 -- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
 --
 -- @
--- L16 sqFacets 控制 srFacets 的 Just/Nothing;fcVaults 恰一筆      -> test_L16
--- L17 facet 計數不受該 facet 自己的過濾條件影響                  -> test_L17
--- L18 facet 每筆計數等於疊加該值的 listNodes 筆數                -> test_L18
--- E11 有資料的 vault 開 facet,五個維度皆非空                    -> test_E11
+-- LAW-16 sqFacets 控制 srFacets 的 Just/Nothing;fcVaults 恰一筆      -> test_LAW16
+-- LAW-17 facet 計數不受該 facet 自己的過濾條件影響                  -> test_LAW17
+-- LAW-18 facet 每筆計數等於疊加該值的 listNodes 筆數                -> test_LAW18
+-- EX-11 有資料的 vault 開 facet,五個維度皆非空                    -> test_EX11
 -- @
 module Aapms.Store.FacetSpec (spec) where
 
@@ -33,7 +33,7 @@ spec = describe "graph-core/F007 facet" $ do
   -- (那要的是 IO a)。改用 'around' 讓 hspec 接管 fixture 的取得/收尾,
   -- 'it' 直接吃 'VaultHandle -> PropertyT IO ()'。
   around withIndexedAssetVault $ do
-    it "L16: sqFacets 控制 srFacets 的 Just/Nothing;True 時 fcVaults 恰一筆,\
+    it "LAW-16: sqFacets 控制 srFacets 的 Just/Nothing;True 時 fcVaults 恰一筆,\
        \等於本 vault 的 vmId、計數等於 srTotal" $
       \vh -> hedgehog $ do
         facetsOn <- forAll Gen.bool
@@ -47,7 +47,7 @@ spec = describe "graph-core/F007 facet" $ do
           (False, Nothing) -> pure ()
           _ -> assert False
 
-    it "L17: facet 計數不受該 facet 自己的過濾條件影響(nfTypes/nfTags/nfOwner/nfLicense)" $
+    it "LAW-17: facet 計數不受該 facet 自己的過濾條件影響(nfTypes/nfTags/nfOwner/nfLicense)" $
       \vh -> hedgehog $ do
         baseR <- evalIO (search vh (emptySearchQuery {sqFacets = True}))
         fcBase <- case srFacets baseR of
@@ -79,7 +79,7 @@ spec = describe "graph-core/F007 facet" $ do
             (search vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfLicense = licCand}}))
         fmap fcLicenses (srFacets rLic) === Just (fcLicenses fcBase)
 
-  it "L18: fcTags/fcTypes/fcOwners/fcLicenses 每一筆的計數,等於疊加該值後的 listNodes 筆數\
+  it "LAW-18: fcTags/fcTypes/fcOwners/fcLicenses 每一筆的計數,等於疊加該值後的 listNodes 筆數\
      \(facet 受其他條件影響,不受自己影響)" $
     withIndexedAssetVault $ \vh -> do
       let filt = emptyNodeFilter {nfIncludeReference = True}
@@ -100,7 +100,7 @@ spec = describe "graph-core/F007 facet" $ do
             hits <- listNodes vh filt {nfLicense = Just (refOf licText)}
             length hits `shouldBe` n
 
-  it "E11: 有資料的 vault 開 facet,五個維度皆非空,fcVaults 恰一筆" $
+  it "EX-11: 有資料的 vault 開 facet,五個維度皆非空,fcVaults 恰一筆" $
     withIndexedAssetVault $ \vh -> do
       r <- search vh (emptySearchQuery {sqFacets = True})
       case srFacets r of
@@ -115,11 +115,11 @@ spec = describe "graph-core/F007 facet" $ do
 --------------------------------------------------------------------------------
 -- 產生器
 
--- | L16 用:文字條件的代表性樣本(有\/無皆有)。
+-- | LAW-16 用:文字條件的代表性樣本(有\/無皆有)。
 genSqTextCandidate :: Gen (Maybe Text)
 genSqTextCandidate = Gen.choice [pure Nothing, Just <$> Gen.element ["ui", "asset", "pack"]]
 
--- | L17 用:混合「vault 裡真的存在」與「不存在」的型別\/標籤\/owner\/license 值,
+-- | LAW-17 用:混合「vault 裡真的存在」與「不存在」的型別\/標籤\/owner\/license 值,
 -- 驗證 facet 對自己的過濾條件完全免疫,不論該值是否命中任何節點。
 genTypeCandidate :: Gen TypeKey
 genTypeCandidate = Gen.element [typeOf "asset-image", typeOf "asset-pack", typeOf "不存在的型別"]

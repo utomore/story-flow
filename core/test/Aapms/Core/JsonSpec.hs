@@ -1,4 +1,4 @@
--- | graph-core/F001 T12 的對照測試:全部核心型別(含六種節點與 AnyNode)的
+-- | graph-core/F001 STEP-12 的對照測試:全部核心型別(含六種節點與 AnyNode)的
 -- aeson 編解碼,decode . encode 與 eitherDecodeStrictText 都要相等。
 module Aapms.Core.JsonSpec (spec) where
 
@@ -59,7 +59,7 @@ fullNode =
     }
 
 -- | @decode . encode == Just x@,並與 'eitherDecodeStrictText' 對照同一份
--- encode 出來的文字(graph-core/F001 T12 逐字要求)。
+-- encode 出來的文字(graph-core/F001 STEP-12 逐字要求)。
 roundTrip :: (ToJSON a, FromJSON a, Eq a, Show a) => a -> Expectation
 roundTrip x = do
   decode (encode x) `shouldBe` Just x

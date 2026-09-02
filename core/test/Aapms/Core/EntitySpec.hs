@@ -1,4 +1,4 @@
--- | graph-core/F001 T4+T8 的對照測試:Entity / Level / Node(改吃新 Meta/Id)
+-- | graph-core/F001 STEP-4+STEP-8 的對照測試:Entity / Level / Node(改吃新 Meta/Id)
 -- 與 NodeKind。
 module Aapms.Core.EntitySpec (spec) where
 
@@ -33,7 +33,7 @@ linda =
 
 spec :: Spec
 spec = do
-  describe "Entity —— 以新 Meta 建構(T4)" $ do
+  describe "Entity —— 以新 Meta 建構(STEP-4)" $ do
     it "由 Meta 加 body 組成,兩者都取得回來" $ do
       metaTitle (entMeta linda) `shouldBe` "琳達"
       entBody linda `shouldBe` "銀灰短髮剪到耳際……"
@@ -55,12 +55,12 @@ spec = do
       metaCreated m `shouldBe` day0
       metaUpdated m `shouldBe` day0
 
-  describe "Level —— 以新 Meta/Id 建構(T8)" $
+  describe "Level —— 以新 Meta/Id 建構(STEP-8)" $
     it "有 Meta 與 root 兩部分" $ do
       lvlRoot classroomLevel `shouldBe` idOf "nod-0001"
       metaTitle (lvlMeta classroomLevel) `shouldBe` "教室"
 
-  describe "Node —— 以新 Meta/Id 建構(T8)" $ do
+  describe "Node —— 以新 Meta/Id 建構(STEP-8)" $ do
     it "有 level / parent / order / kind / entities 五個專屬欄位" $ do
       let n = nodeById "nod-0002"
       nodLevel n `shouldBe` idOf "lvl-3a01"

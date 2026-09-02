@@ -24,19 +24,19 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
-    describe "T1 Aapms.Core.Id" Aapms.Core.IdSpec.spec
-    describe "T2 Aapms.Core.Meta" Aapms.Core.MetaSpec.spec
-    describe "T3 Aapms.Core.Link" Aapms.Core.LinkSpec.spec
-    describe "T4+T8 Aapms.Core.Entity / .Level / .Node" Aapms.Core.EntitySpec.spec
-    describe "T5 Aapms.Core.Asset" Aapms.Core.AssetSpec.spec
-    describe "T6 Aapms.Core.Pack" Aapms.Core.PackSpec.spec
-    describe "T7 Aapms.Core.License" Aapms.Core.LicenseSpec.spec
-    describe "T9 Aapms.Core.AnyNode" Aapms.Core.AnyNodeSpec.spec
-    describe "T10 Aapms.Core.Tree" Aapms.Core.TreeSpec.spec
-    describe "T12 Aapms.Core.Json" Aapms.Core.JsonSpec.spec
-    describe "T13+T14 aapms-core.cabal" Aapms.Core.CabalSpec.spec
-    describe "graph-core/F001 T6 輸出編碼" Aapms.CoreSpec.spec
-    describe "graph-core/F002 T1+T9 Aapms.Core.Naming" Aapms.Core.NamingSpec.spec
-    describe "graph-core/F002 T10 naming-cases.txt fixture" Aapms.Core.NamingCasesSpec.spec
-    describe "graph-core/F002 T2+T3+T11 Aapms.Core.Registry" Aapms.Core.RegistrySpec.spec
-    describe "graph-core/F003 T1~T8 Aapms.Core.Manifest" Aapms.Core.ManifestSpec.spec
+    describe "STEP-1 Aapms.Core.Id" Aapms.Core.IdSpec.spec
+    describe "STEP-2 Aapms.Core.Meta" Aapms.Core.MetaSpec.spec
+    describe "STEP-3 Aapms.Core.Link" Aapms.Core.LinkSpec.spec
+    describe "STEP-4+STEP-8 Aapms.Core.Entity / .Level / .Node" Aapms.Core.EntitySpec.spec
+    describe "STEP-5 Aapms.Core.Asset" Aapms.Core.AssetSpec.spec
+    describe "STEP-6 Aapms.Core.Pack" Aapms.Core.PackSpec.spec
+    describe "STEP-7 Aapms.Core.License" Aapms.Core.LicenseSpec.spec
+    describe "STEP-9 Aapms.Core.AnyNode" Aapms.Core.AnyNodeSpec.spec
+    describe "STEP-10 Aapms.Core.Tree" Aapms.Core.TreeSpec.spec
+    describe "STEP-12 Aapms.Core.Json" Aapms.Core.JsonSpec.spec
+    describe "STEP-13+STEP-14 aapms-core.cabal" Aapms.Core.CabalSpec.spec
+    describe "graph-core/F001 STEP-6 輸出編碼" Aapms.CoreSpec.spec
+    describe "graph-core/F002 STEP-1+STEP-9 Aapms.Core.Naming" Aapms.Core.NamingSpec.spec
+    describe "graph-core/F002 STEP-10 naming-cases.txt fixture" Aapms.Core.NamingCasesSpec.spec
+    describe "graph-core/F002 STEP-2+STEP-3+STEP-11 Aapms.Core.Registry" Aapms.Core.RegistrySpec.spec
+    describe "graph-core/F003 STEP-1~STEP-8 Aapms.Core.Manifest" Aapms.Core.ManifestSpec.spec

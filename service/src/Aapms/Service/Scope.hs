@@ -112,6 +112,6 @@ withPipeline kind k = do
 --
 -- 走 'Aapms.Service.Monad.finallyService' ——本模組__不__自己攔截短路:
 -- 'ServiceM' 只有 @Functor@ \/ @Applicative@ \/ @Monad@ \/ @MonadIO@ 四個實例
--- (L25),攔截的能力收斂在 'Aapms.Service.Monad' 匯出的那一個組合子裡。
+-- (LAW-25),攔截的能力收斂在 'Aapms.Service.Monad' 匯出的那一個組合子裡。
 finallyCloseVaultSet :: VaultSet -> ServiceM a -> ServiceM a
 finallyCloseVaultSet vs action = finallyService action (liftIO (closeVaultSet vs))

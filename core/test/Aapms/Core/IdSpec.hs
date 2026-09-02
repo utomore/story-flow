@@ -1,4 +1,4 @@
--- | graph-core/F001 T1 的對照測試:ID 生成、解析、渲染與跨 Vault 定址
+-- | graph-core/F001 STEP-1 的對照測試:ID 生成、解析、渲染與跨 Vault 定址
 -- (ADR-014:八種前綴、vault 段落本身是短 id)。
 module Aapms.Core.IdSpec (spec) where
 

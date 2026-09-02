@@ -1,4 +1,4 @@
--- | graph-core/F001 T6 的對照測試:Pack 型別、AiDisclosure 與 Author。
+-- | graph-core/F001 STEP-6 的對照測試:Pack 型別、AiDisclosure 與 Author。
 module Aapms.Core.PackSpec (spec) where
 
 import Aapms.Core.Fixtures

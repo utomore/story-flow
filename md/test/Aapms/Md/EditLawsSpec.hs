@@ -1,5 +1,5 @@
--- | graph-core/F004(重跑)Laws:L2、L3(ADR-010 位元組保留)、L4–L8(G2 的
--- 直接否證形式)、L9–L12(meta 區塊兩半的序列化 / 合併)。
+-- | graph-core/F004(重跑)Laws:LAW-2、LAW-3(ADR-010 位元組保留)、LAW-4–LAW-8(GAP-2 的
+-- 直接否證形式)、LAW-9–LAW-12(meta 區塊兩半的序列化 / 合併)。
 --
 -- __委派備註__:本檔依賴 @hedgehog@ \/ @hspec-hedgehog@,而
 -- @md\/aapms-md.cabal@ 的 @test-suite@ 目前沒有這項相依,qa 依委派規則不得
@@ -12,17 +12,17 @@
 -- __spec 對照__:
 --
 -- @
--- L2  updateSection 保留未觸及節\/該節標題與正文的位元組  -> prop_L2
--- L3  updateSectionExtras 同 L2 的保留條件                -> prop_L3
--- L4  updateSection 之後 extrasAt 不變(G2 否證核心)      -> prop_L4
--- L5  updateSection 之後 toPack 讀回的 asset 專屬欄位不變 -> prop_L5
--- L6  updateSection 之後 toLicenses 讀回的八維度不變      -> prop_L6
--- L7  extrasOf 的定義(鍵不在 metaFieldOrder 的頂層條目)  -> prop_L7 / prop_L7_noMetaBlock
--- L8  updateSection 冪等                                  -> prop_L8
--- L9  renderMetaBlock 的行序列結構(M ++ extras ++ fence) -> prop_L9
--- L10 MetaExtras [] 時不引入額外行(回歸)                 -> prop_L10
--- L11 payloadExtras 的鍵與 metaFieldOrder 不相交          -> prop_L11
--- L12 mergeExtras 的鍵聯集/優先權/順序                    -> prop_L12
+-- LAW-2  updateSection 保留未觸及節\/該節標題與正文的位元組  -> prop_LAW2
+-- LAW-3  updateSectionExtras 同 LAW-2 的保留條件                -> prop_LAW3
+-- LAW-4  updateSection 之後 extrasAt 不變(GAP-2 否證核心)      -> prop_LAW4
+-- LAW-5  updateSection 之後 toPack 讀回的 asset 專屬欄位不變 -> prop_LAW5
+-- LAW-6  updateSection 之後 toLicenses 讀回的八維度不變      -> prop_LAW6
+-- LAW-7  extrasOf 的定義(鍵不在 metaFieldOrder 的頂層條目)  -> prop_LAW7 / prop_LAW7_noMetaBlock
+-- LAW-8  updateSection 冪等                                  -> prop_LAW8
+-- LAW-9  renderMetaBlock 的行序列結構(M ++ extras ++ fence) -> prop_LAW9
+-- LAW-10 MetaExtras [] 時不引入額外行(回歸)                 -> prop_LAW10
+-- LAW-11 payloadExtras 的鍵與 metaFieldOrder 不相交          -> prop_LAW11
+-- LAW-12 mergeExtras 的鍵聯集/優先權/順序                    -> prop_LAW12
 -- @
 module Aapms.Md.EditLawsSpec (spec) where
 
@@ -42,13 +42,13 @@ import Aapms.Md
 import Aapms.Md.Fixtures
 import Aapms.Md.Gens
 
--- | 代表性的四份既有文件(L2/L3/L4/L8 的 @d@ 定義域)。
+-- | 代表性的四份既有文件(LAW-2/LAW-3/LAW-4/LAW-8 的 @d@ 定義域)。
 fixtureDocs :: [Document]
 fixtureDocs = [docOf lindaMd, docOf packMd, docOf licensesMd, docOf classroomMd]
 
 spec :: Spec
 spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Laws" $ do
-  it "L2: updateSection 保留其他節、以及該節標題/正文的位元組" $
+  it "LAW-2: updateSection 保留其他節、以及該節標題/正文的位元組" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -68,7 +68,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
               secBodyRaw new === secBodyRaw orig
             _ -> footnote "i 是 genSectionIdOf d 取的,兩邊都該找得到" >> failure
 
-  it "L3: updateSectionExtras 與 L2 相同的保留條件" $
+  it "LAW-3: updateSectionExtras 與 LAW-2 相同的保留條件" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -88,7 +88,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
               secBodyRaw new === secBodyRaw orig
             _ -> footnote "i 是 genSectionIdOf d 取的,兩邊都該找得到" >> failure
 
-  it "L4(G2 核心否證): updateSection 之後 extrasAt 不變" $
+  it "LAW-4(GAP-2 核心否證): updateSection 之後 extrasAt 不變" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -98,7 +98,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
         Left _ -> success
         Right d' -> extrasAt i d' === extrasAt i d
 
-  it "L5(G2 核心否證): updateSection 之後 toPack 讀回的 asset 專屬欄位不變" $
+  it "LAW-5(GAP-2 核心否證): updateSection 之後 toPack 讀回的 asset 專屬欄位不變" $
     hedgehog $ do
       let d = docOf packMd
       i <- forAll (genSectionIdOf d)
@@ -120,7 +120,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
                 astAuthor a === astAuthor a'
             other -> footnoteShow other >> failure
 
-  it "L6(G2 核心否證): updateSection 之後 toLicenses 讀回的八維度不變" $
+  it "LAW-6(GAP-2 核心否證): updateSection 之後 toLicenses 讀回的八維度不變" $
     hedgehog $ do
       let d = docOf licensesMd
       i <- forAll (genSectionIdOf d)
@@ -143,7 +143,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
                 licSourceUrl l === licSourceUrl l'
             other -> footnoteShow other >> failure
 
-  describe "L7: extrasOf 的定義" $ do
+  describe "LAW-7: extrasOf 的定義" $ do
     it "鍵不在 metaFieldOrder 的頂層條目,逐字、順序不變地被取出(單行條目定義域)" $
       hedgehog $ do
         tls <- forAll genTaggedLines
@@ -157,7 +157,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
         let s = (buildSection []) {secMetaRaw = Nothing}
         extrasOf s === MetaExtras []
 
-  it "L8: updateSection i id 冪等" $
+  it "LAW-8: updateSection i id 冪等" $
     hedgehog $ do
       d <- forAll (Gen.element fixtureDocs)
       i <- forAll (genSectionIdOf d)
@@ -165,7 +165,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
         (Right d1, Right d2) -> renderDocument d1 === renderDocument d2
         other -> footnoteShow other >> failure
 
-  it "L9: renderMetaBlock 的行序列 = fence + M(依 metaFieldOrder)+ extras 尾段 + fence" $
+  it "LAW-9: renderMetaBlock 的行序列 = fence + M(依 metaFieldOrder)+ extras 尾段 + fence" $
     hedgehog $ do
       ov <- forAll genMetaOverride
       ex <- forAll genMetaExtrasSubset
@@ -180,7 +180,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
               (mLines, tailLines) = splitAt (length body - length (extraLines ex)) body
           tailLines === extraLines ex
           -- M 的總行數:每個有值欄位依 fieldLineCount 貢獻的行數總和(links 是
-          -- 唯一可能 > 1 的欄位:L9 原文「moLinks = Just (_:_) 產生 links: 加
+          -- 唯一可能 > 1 的欄位:LAW-9 原文「moLinks = Just (_:_) 產生 links: 加
           -- 每個關聯一行」)
           length mLines === sum [fieldLineCount ov k | k <- metaFieldOrder]
           -- M 的欄位鍵序:只看每一組的「起始行」(links 的續行以 spec 附的
@@ -189,7 +189,7 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
           mapMaybe startKeyOf mLines === [k | k <- metaFieldOrder, fieldLineCount ov k > 0]
         _ -> footnote "renderMetaBlock 應該至少有 ```meta 與 ``` 兩行" >> failure
 
-  it "L10(回歸): MetaExtras [] 時,fence 之間只有 M 這一段" $
+  it "LAW-10(回歸): MetaExtras [] 時,fence 之間只有 M 這一段" $
     hedgehog $ do
       ov <- forAll genMetaOverride
       le <- forAll genLineEnding
@@ -197,13 +197,13 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
           ls = splitOnLE le out
       length ls === sum [fieldLineCount ov k | k <- metaFieldOrder] + 2
 
-  it "L11: payloadExtras 的鍵與 metaFieldOrder 不相交" $
+  it "LAW-11: payloadExtras 的鍵與 metaFieldOrder 不相交" $
     hedgehog $ do
       p <- forAll genNewSectionPayload
       let MetaExtras ls = payloadExtras p
       assert (all (`notElem` metaFieldOrder) (map (T.takeWhile (/= ':')) ls))
 
-  it "L12: mergeExtras 的鍵聯集、同鍵 a 贏、順序 a 在前 b 剩下在後" $
+  it "LAW-12: mergeExtras 的鍵聯集、同鍵 a 贏、順序 a 在前 b 剩下在後" $
     hedgehog $ do
       MetaExtras a <- forAll genMetaExtrasSubset
       MetaExtras b <- forAll genMetaExtrasSubset
@@ -222,13 +222,13 @@ spec = describe "graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Law
 splitOnLE :: LineEnding -> Text -> [Text]
 splitOnLE le = filter (not . T.null) . T.splitOn (renderLineEnding le)
 
--- | L9/L10 用:'MetaOverride' 的某個 'metaFieldOrder' 鍵貢獻幾行。逐欄對應
+-- | LAW-9/LAW-10 用:'MetaOverride' 的某個 'metaFieldOrder' 鍵貢獻幾行。逐欄對應
 -- spec「介面」段 'renderMetaBlock' 的 haddock,只算「幾行」,不重算逐行的
 -- 確切文字——格式的位元組級規格由既有 pinned example("Aapms.Md.EditSpec" 的
 -- @renderMetaBlock@ describe)守住,避免這裡重新發明一份可能出錯的格式規則。
 --
 -- 除了 @links@,其餘欄位有值(@Just@)時固定 1 行、未寫時 0 行。@links@ 是
--- L9 原文明講的例外:「@moLinks = Just (_:_)@ 產生 @links:@ 加每個關聯一
+-- LAW-9 原文明講的例外:「@moLinks = Just (_:_)@ 產生 @links:@ 加每個關聯一
 -- 行」——@Just ls@ 貢獻 @1 + length ls@ 行(這條公式在 @ls = []@ 時退化成
 -- 剛好 1 行,與其他欄位「有值就 1 行」一致,不是額外假設)。
 fieldLineCount :: MetaOverride -> Text -> Int
@@ -250,7 +250,7 @@ fieldLineCount MetaOverride {..} k = case k of
   where
     boolCount b = if b then 1 else 0
 
--- | L9 用:一行是不是某個欄位的「起始行」(而不是 @links@ 的續行)。續行的
+-- | LAW-9 用:一行是不是某個欄位的「起始行」(而不是 @links@ 的續行)。續行的
 -- 格式(以 @"  - "@ 開頭)逐字取自 'Aapms.Md.Fixtures.lindaMd'(該 fixture
 -- 本身「逐字取自 system.md 的『Markdown 分節格式』節」,是 spec 層級的事實,
 -- 不是讀實作猜的)。
@@ -259,7 +259,7 @@ startKeyOf l
   | "  - " `T.isPrefixOf` l = Nothing
   | otherwise = Just (T.takeWhile (/= ':') l)
 
--- | L7 用:標記一行是「屬於 Meta 的欄位」還是「型別專屬條目」,產生器只生成
+-- | LAW-7 用:標記一行是「屬於 Meta 的欄位」還是「型別專屬條目」,產生器只生成
 -- __單行__條目(見 "Aapms.Md.Gens" 檔頭說明的定義域限縮)。
 data TaggedLine = MetaLine Text | ExtraLine Text
   deriving stock (Show)

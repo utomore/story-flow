@@ -23,7 +23,7 @@
 -- == 配號與時間
 --
 -- 'createTopicFile' \/ 'createLevelFile' \/ 'createPackFile' \/ 'addSection' 內部都會
--- 呼叫 'Aapms.Store.Write.allocateId',而它自 2026-08-25(G8 裁決)起__把時間收成
+-- 呼叫 'Aapms.Store.Write.allocateId',而它自 2026-08-25(GAP-8 裁決)起__把時間收成
 -- 明碼參數__。這四個函式的__對外簽名不變__:它們自己呼叫
 -- 'Data.Time.getCurrentTime' 取當下時間再傳進去,不把 'Data.Time.UTCTime' 一路往上
 -- 加到契約 E 的簽名裡。可控時間源是 'Aapms.Store.Write.allocateId' 一個人的事,
@@ -184,7 +184,7 @@ data NewPack = NewPack
 
 -- NewSection / NewSectionPayload / NewAsset / NewLicense / NewNode 定義在
 -- Aapms.Md.Render(design.md 契約 D 就把它們寫在 md 那一節;graph-core/F004 的
--- G2 重跑已經落地)。本模組只 re-export,呼叫端因此不必知道一個新節的形狀是誰
+-- GAP-2 重跑已經落地)。本模組只 re-export,呼叫端因此不必知道一個新節的形狀是誰
 -- 定的 —— 它是 md 的序列化輸入,store 只是把它轉交出去。
 --
 -- nsId 由呼叫端先以 allocateId 配好再傳進來:md 那一層不知道怎麼配 id,而配號
@@ -363,7 +363,7 @@ createLevelFile vh _reg NewLevel {..} = do
 -- | 在 'npDir' 寫出一份 @pack.md@,節的順序與給定順序__相同__。
 --
 -- 第三個參數是 @[NewSection]@ 而不是 @[NewAsset]@(2026-08-25 已回寫契約 E):
--- G1 之後 'NewAsset' 只剩 asset 專屬七欄,組不出節的標題與節層 meta。
+-- GAP-1 之後 'NewAsset' 只剩 asset 專屬七欄,組不出節的標題與節層 meta。
 -- 每一節的 'nsPayload' 必須是 'NSAsset',否則回
 -- 'Aapms.Store.Error.BadSectionPayload' ——@pack.md@ 的節只能是 asset。
 --

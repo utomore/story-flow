@@ -4,9 +4,9 @@
 -- __spec 對照__(「1-to-1 測試對照表」——全部紅:兩者本體皆 @undefined@):
 --
 -- @
--- L11,X11,X11b workspaceSetup 是逐欄投影,兩個參數不影響結果,不開 Env  -> prop_setup_matches_setupHub_report, test_workspace_setup_first_time_then_idempotent_example, test_workspace_setup_params_do_not_matter_example
--- L12,X12      workspacePurge 是逐欄投影                              -> prop_purge_matches_purge_report, test_purge_hub_only_example
--- L13,X12      purge 不重載中樞快照                                    -> prop_purge_does_not_reload_snapshot
+-- LAW-11,EX-11,EX-11b workspaceSetup 是逐欄投影,兩個參數不影響結果,不開 Env  -> prop_setup_matches_setupHub_report, test_workspace_setup_first_time_then_idempotent_example, test_workspace_setup_params_do_not_matter_example
+-- LAW-12,EX-12      workspacePurge 是逐欄投影                              -> prop_purge_matches_purge_report, test_purge_hub_only_example
+-- LAW-13,EX-12      purge 不重載中樞快照                                    -> prop_purge_does_not_reload_snapshot
 -- @
 module Aapms.Service.MachineSetupPurgeSpec (spec) where
 
@@ -66,8 +66,8 @@ prewarm alreadySetUp home
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ do
   --------------------------------------------------------------------------
-  describe "L11,X11,X11b: workspaceSetup 是逐欄投影,兩個參數不影響結果" $ do
-    it "prop_setup_matches_setupHub_report (L11): 對兩個結構相同的獨立中樞位置(皆全新或皆已存在),workspaceSetup 與直接呼叫 setupHub 的兩個 *Created 欄一致" $
+  describe "LAW-11,EX-11,EX-11b: workspaceSetup 是逐欄投影,兩個參數不影響結果" $ do
+    it "prop_setup_matches_setupHub_report (LAW-11): 對兩個結構相同的獨立中樞位置(皆全新或皆已存在),workspaceSetup 與直接呼叫 setupHub 的兩個 *Created 欄一致" $
       hedgehog $ do
         alreadySetUp <- forAll Gen.bool
         outcome <- liftIO $ withTwoFreshHomes $ \home1 home2 -> do
@@ -83,7 +83,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ 
             svCacheCreated v === spCacheCreated report
           (v, report) -> annotate (describeServiceResult v <> " / " <> show report) >> failure
 
-    it "test_workspace_setup_first_time_then_idempotent_example (X11): 乾淨機器第一次 True/True,原封不動再跑一次 False/False,svHubPath 兩次相同" $
+    it "test_workspace_setup_first_time_then_idempotent_example (EX-11): 乾淨機器第一次 True/True,原封不動再跑一次 False/False,svHubPath 兩次相同" $
       withEmptyHomeDir $ \_home -> do
         r1 <- workspaceSetup Nothing "/unused-cwd"
         case r1 of
@@ -99,7 +99,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ 
               Left e -> expectationFailure (show e)
           Left e -> expectationFailure (show e)
 
-    it "test_workspace_setup_params_do_not_matter_example (X11b): 中樞早就在時,不同的 sel/cwd 得到逐欄相同的結果" $
+    it "test_workspace_setup_params_do_not_matter_example (EX-11b): 中樞早就在時,不同的 sel/cwd 得到逐欄相同的結果" $
       withEmptyHomeDir $ \home -> do
         _ <- workspaceSetup Nothing "/warm-up"
         r1 <- workspaceSetup Nothing (home </> "va")
@@ -112,8 +112,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ 
           Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L12,X12: workspacePurge 是逐欄投影" $ do
-    it "prop_purge_matches_purge_report (L12): 對兩個結構相同的獨立佈局,workspacePurge 與直接呼叫 purge 的三欄一致;PurgeHubOnly 時 pvVaultIndexesRemoved == []" $
+  describe "LAW-12,EX-12: workspacePurge 是逐欄投影" $ do
+    it "prop_purge_matches_purge_report (LAW-12): 對兩個結構相同的獨立佈局,workspacePurge 與直接呼叫 purge 的三欄一致;PurgeHubOnly 時 pvVaultIndexesRemoved == []" $
       hedgehog $ do
         useAllVaults <- forAll Gen.bool
         let scope = if useAllVaults then PurgeAllVaults else PurgeHubOnly
@@ -139,7 +139,7 @@ spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ 
               else pure ()
           (v, _) -> annotate (describeServiceResult v) >> failure
 
-    it "test_purge_hub_only_example (X12): pvHubRemoved==True、pvVaultIndexesRemoved==[];askHub 的 hubVaults 仍是兩筆(快照未被重載)" $
+    it "test_purge_hub_only_example (EX-12): pvHubRemoved==True、pvVaultIndexesRemoved==[];askHub 的 hubVaults 仍是兩筆(快照未被重載)" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           beforeR <- runService env askHub
@@ -155,8 +155,8 @@ spec = describe "F002 Aapms.Service.Machine: workspaceSetup / workspacePurge" $ 
                 (describeServiceResult purgeR <> " / " <> describeServiceResult beforeR <> " / " <> describeServiceResult afterR)
 
   --------------------------------------------------------------------------
-  describe "L13: purge 不重載中樞快照" $
-    it "prop_purge_does_not_reload_snapshot (L13): 對任意 scope,workspacePurge 成功後同一個 Env 的 askHub 與呼叫前逐欄相同" $
+  describe "LAW-13: purge 不重載中樞快照" $
+    it "prop_purge_does_not_reload_snapshot (LAW-13): 對任意 scope,workspacePurge 成功後同一個 Env 的 askHub 與呼叫前逐欄相同" $
       hedgehog $ do
         useAllVaults <- forAll Gen.bool
         let scope = if useAllVaults then PurgeAllVaults else PurgeHubOnly

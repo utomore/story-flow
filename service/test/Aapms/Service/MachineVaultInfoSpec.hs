@@ -3,9 +3,9 @@
 -- __spec 對照__(「1-to-1 測試對照表」——全部紅:'vaultInfo' 本體是 @undefined@):
 --
 -- @
--- L20,X20      viVault 與 selector;selector 解不開時原樣包            -> prop_vault_info_vault_matches_selector, test_vault_info_unknown_selector_example
--- L21,X18,X19  viCounts:鍵\/排序\/零值不出現;不受 --vault 範圍影響    -> prop_vault_info_counts_independent_of_scope, test_vault_info_empty_example, test_vault_info_indexed_example
--- L22,X18,X19b viIssues 等於該 vault 第一次開啟時的 indexIssuesFor    -> prop_vault_info_issues_matches_index_issues_for, test_vault_info_ignores_vault_scope_example
+-- LAW-20,EX-20      viVault 與 selector;selector 解不開時原樣包            -> prop_vault_info_vault_matches_selector, test_vault_info_unknown_selector_example
+-- LAW-21,EX-18,EX-19  viCounts:鍵\/排序\/零值不出現;不受 --vault 範圍影響    -> prop_vault_info_counts_independent_of_scope, test_vault_info_empty_example, test_vault_info_indexed_example
+-- LAW-22,EX-18,EX-19b viIssues 等於該 vault 第一次開啟時的 indexIssuesFor    -> prop_vault_info_issues_matches_index_issues_for, test_vault_info_ignores_vault_scope_example
 -- @
 module Aapms.Service.MachineVaultInfoSpec (spec) where
 
@@ -93,8 +93,8 @@ indexOneAssetPack fl = do
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
   --------------------------------------------------------------------------
-  describe "L20,X20: viVault 與 selector" $ do
-    it "prop_vault_info_vault_matches_selector (L20): 對 VA/VB 任一,viVault 逐欄等於 vaultList 裡對應的那一筆" $
+  describe "LAW-20,EX-20: viVault 與 selector" $ do
+    it "prop_vault_info_vault_matches_selector (LAW-20): 對 VA/VB 任一,viVault 逐欄等於 vaultList 裡對應的那一筆" $
       hedgehog $ do
         useVa <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -111,15 +111,15 @@ spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
             _ -> failure
           _ -> annotate (describeServiceResult infoR <> " / " <> describeServiceResult listR) >> failure
 
-    it "test_vault_info_unknown_selector_example (X20): Left (WorkspaceFailed (VaultSelectorNotFound _))" $
+    it "test_vault_info_unknown_selector_example (EX-20): Left (WorkspaceFailed (VaultSelectorNotFound _))" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env (vaultInfo "沒有這個")
           result `shouldBe` Left (WorkspaceFailed (VaultSelectorNotFound "沒有這個"))
 
   --------------------------------------------------------------------------
-  describe "L21,X18,X19: viCounts" $ do
-    it "prop_vault_info_counts_independent_of_scope (L21/A4): 對任一 --vault selector(含 Nothing),已索引 vault 的 viCounts 都相同" $
+  describe "LAW-21,EX-18,EX-19: viCounts" $ do
+    it "prop_vault_info_counts_independent_of_scope (LAW-21/ASM-4): 對任一 --vault selector(含 Nothing),已索引 vault 的 viCounts 都相同" $
       hedgehog $ do
         envSel <- forAll (Gen.element [Nothing, Just "story", Just "assets"])
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -129,7 +129,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
           Right info -> viCounts info === [("ast", 1), ("pck", 1)]
           Left e -> annotate (show e) >> failure
 
-    it "test_vault_info_empty_example (X18): 空 vault,viCounts == []" $
+    it "test_vault_info_empty_example (EX-18): 空 vault,viCounts == []" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env (vaultInfo "assets")
@@ -137,7 +137,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
             Right info -> viCounts info `shouldBe` []
             Left e -> expectationFailure (show e)
 
-    it "test_vault_info_indexed_example (X19): 已索引一個 pck + 一個 ast,viCounts == [(\"ast\",1),(\"pck\",1)]" $
+    it "test_vault_info_indexed_example (EX-19): 已索引一個 pck + 一個 ast,viCounts == [(\"ast\",1),(\"pck\",1)]" $
       withFixedLayout $ \fl -> do
         indexOneAssetPack fl
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
@@ -147,8 +147,8 @@ spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L22,X18,X19b: viIssues" $ do
-    it "prop_vault_info_issues_matches_index_issues_for (L22): 對 VA/VB 任一,viIssues 逐項等於同一個 env 的 indexIssuesFor" $
+  describe "LAW-22,EX-18,EX-19b: viIssues" $ do
+    it "prop_vault_info_issues_matches_index_issues_for (LAW-22): 對 VA/VB 任一,viIssues 逐項等於同一個 env 的 indexIssuesFor" $
       hedgehog $ do
         useVa <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl -> do
@@ -162,7 +162,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultInfo" $ do
           (Right info, Right issues) -> viIssues info === issues
           _ -> annotate (describeServiceResult infoR <> " / " <> describeServiceResult issuesR) >> failure
 
-    it "test_vault_info_ignores_vault_scope_example (X19b): --vault story 之下 vaultInfo \"assets\" 仍算得出節點數,viIssues 與同一 env 的 indexIssuesFor 逐項相等" $
+    it "test_vault_info_ignores_vault_scope_example (EX-19b): --vault story 之下 vaultInfo \"assets\" 仍算得出節點數,viIssues 與同一 env 的 indexIssuesFor 逐項相等" $
       withFixedLayout $ \fl -> do
         indexOneAssetPack fl
         withOpenEnv (Just "story") (flRoot fl) $ \env -> do

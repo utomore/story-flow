@@ -1,4 +1,4 @@
--- | T2:逐行切塊;T5:'parseDocument' 只回報第一個錯誤(graph-core/F004)。
+-- | STEP-2:逐行切塊;STEP-5:'parseDocument' 只回報第一個錯誤(graph-core/F004)。
 module Aapms.Md.LexerSpec (spec) where
 
 import Data.Text (Text)
@@ -128,7 +128,7 @@ spec = do
               ]
       map secMetaRaw (docSections (docOf src)) `shouldBe` [Nothing]
 
-  -- T5:兩個獨立的結構錯誤時,parseDocument 只回報行號最小的一個
+  -- STEP-5:兩個獨立的結構錯誤時,parseDocument 只回報行號最小的一個
   describe "單一錯誤契約" $ do
     it "標題缺 {#id}(第 5 行)與重複 id(第 10 行)同時存在時,回報第 5 行的那個" $ do
       let src =

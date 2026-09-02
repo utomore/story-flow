@@ -1,4 +1,4 @@
--- | T9:'toPack' —— pack.md 的檔案層直接解成 'Pack'、每節解成 'Asset',節層
+-- | STEP-9:'toPack' —— pack.md 的檔案層直接解成 'Pack'、每節解成 'Asset',節層
 -- @type@ 不繼承且缺漏是錯誤(graph-core/F004,design.md「節層繼承規則」表格)。
 module Aapms.Md.ParsePackSpec (spec) where
 

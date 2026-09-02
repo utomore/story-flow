@@ -1,7 +1,7 @@
--- | T12:'appendSection'(取代 @insertSection@)—— 插在最後一節之後,沒有節時
--- 插在最前面;1,693 節文件末尾追加一節時前面位元組不變(D4:測試內產生器合成)。
+-- | STEP-12:'appendSection'(取代 @insertSection@)—— 插在最後一節之後,沒有節時
+-- 插在最前面;1,693 節文件末尾追加一節時前面位元組不變(DEC-4:測試內產生器合成)。
 --
--- graph-core/F004__重跑__(G1):'NewSection' 的 @nsMeta :: MetaOverride@ 改成
+-- graph-core/F004__重跑__(GAP-1):'NewSection' 的 @nsMeta :: MetaOverride@ 改成
 -- @nsPayload :: NewSectionPayload@(對節點種類做 sum,'NSFragment' \/ 'NSAsset'
 -- \/ 'NSLicense' \/ 'NSNode'),欄位順序也變成
 -- @nsId nsLevel nsTitle nsBody nsPayload@——本檔既有的建構呼叫點一律改寫,
@@ -35,7 +35,7 @@ e2PackMd =
     , "id: pck-0000000e"
     , "vault: liftgame-assets"
     , "type: asset-pack"
-    , "title: E2 pack"
+    , "title: EX-2 pack"
     , "created: 2026-08-16"
     , "updated: 2026-08-16"
     , "---"
@@ -127,7 +127,7 @@ spec = do
             Left e -> expectationFailure (T.unpack (renderMdError e))
             Right (_, assets) -> length assets `shouldBe` 1
 
-  -- D4:1,693 節文件末尾追加一節,前面 1,693 節位元組不變(測試內產生器合成)
+  -- DEC-4:1,693 節文件末尾追加一節,前面 1,693 節位元組不變(測試內產生器合成)
   describe "appendSection 對 1,693 節文件" $ do
     let src = synthPackMd 1693
         d = docOf src
@@ -172,8 +172,8 @@ spec = do
             length (docSections d'') `shouldBe` 1694
 
 -- spec 對照(F004 重跑)-------------------------------------------------------
--- L17 appendSection 保留既有節位元組、新節排最後      -> Aapms.Md.NewSectionLawsSpec(hedgehog,未接線)
--- L18 appendSection 撞號回 DuplicateSectionId         -> "重複 id 回 DuplicateSectionId" it(既有,已涵蓋)
--- E2  空 pack.md 追加 asset 節                        -> "Example 2" it
--- E5  1,693 節文件追加第 1,694 節                     -> "appendSection 對 1,693 節文件" describe(既有)
--- E9  nsId 撞號                                       -> "重複 id 回 DuplicateSectionId" it(既有)
+-- LAW-17 appendSection 保留既有節位元組、新節排最後      -> Aapms.Md.NewSectionLawsSpec(hedgehog,未接線)
+-- LAW-18 appendSection 撞號回 DuplicateSectionId         -> "重複 id 回 DuplicateSectionId" it(既有,已涵蓋)
+-- EX-2  空 pack.md 追加 asset 節                        -> "Example 2" it
+-- EX-5  1,693 節文件追加第 1,694 節                     -> "appendSection 對 1,693 節文件" describe(既有)
+-- EX-9  nsId 撞號                                       -> "重複 id 回 DuplicateSectionId" it(既有)

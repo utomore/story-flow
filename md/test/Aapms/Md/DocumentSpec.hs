@@ -1,4 +1,4 @@
--- | T1:'Document' / 'Section' 型別與 'sectionById'、行尾判定。
+-- | STEP-1:'Document' / 'Section' 型別與 'sectionById'、行尾判定。
 module Aapms.Md.DocumentSpec (spec) where
 
 import Aapms.Md

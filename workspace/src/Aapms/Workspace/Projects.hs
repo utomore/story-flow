@@ -21,7 +21,7 @@
 -- __專案目錄本身任何情況都不碰__(ADR-017 決策五的分層界線:中樞是註冊表,
 -- 目錄是真相;@forgetProject@ 只動註冊表,搬到另一台機器重新註冊就能繼續用)。
 --
--- 型別一律去 'Aapms.Workspace.Types' 取,本模組__不轉出__任何型別(W1 \/ W2 \/ W3
+-- 型別一律去 'Aapms.Workspace.Types' 取,本模組__不轉出__任何型別(WAVE-1 \/ WAVE-2 \/ WAVE-3
 -- 立下的慣例)。
 module Aapms.Workspace.Projects
   ( -- * 註冊
@@ -61,7 +61,7 @@ import Aapms.Workspace.Types
 --
 -- 1. 名稱去前後空白後長度為 0 → @Left ('Aapms.Workspace.Types.InvalidName' 原字串)@,
 --    __不寫任何檔案__
--- 2. 路徑正規化(@canonicalizePath@,同 W2 對 @vrPath@ 的裁定)後不是既存目錄 →
+-- 2. 路徑正規化(@canonicalizePath@,同 WAVE-2 對 @vrPath@ 的裁定)後不是既存目錄 →
 --    @Left ('Aapms.Workspace.Types.ProjectPathMissing' 名稱 正規化後的路徑)@
 -- 3. 配號:@newId PPrj 名稱 現在時刻 salt@,自 @salt = 0@ 起,候選與中樞既有的
 --    'Aapms.Workspace.Types.peId' __撞號就 salt + 1 重算__,不靜默照發
@@ -75,11 +75,11 @@ import Aapms.Workspace.Types
 -- 'Aapms.Workspace.Hub.loadHub' 的合規判準要求的形狀(空名與非絕對路徑都會讓
 -- 下一次載入回 @HubMalformed@)。
 --
--- __同一個路徑不得註冊兩次__(2026-08-29 W4 閘門裁決,見 spec 的待確認假設 A1):
+-- __同一個路徑不得註冊兩次__(2026-08-29 WAVE-4 閘門裁決,見 spec 的待確認假設 ASM-1):
 -- 前置檢查在配號之前多一步——這次正規化後的路徑逐字等於中樞既有某一列的
 -- 'Aapms.Workspace.Types.pePath' 時,回
 -- @Left ('Aapms.Workspace.Types.ProjectAlreadyRegistered' 既有那一列的 id 既有那一列的路徑)@,
--- __不對既有列重新正規化__(A6)。
+-- __不對既有列重新正規化__(ASM-6)。
 registerProject
   :: HubLocation
   -> Hub
@@ -112,14 +112,14 @@ registerProject loc hub dir name =
 -- 參數:中樞位置、__已載入__的中樞快照、selector(非空)。
 --
 -- selector 的比對規則與 'Aapms.Workspace.Discovery.lookupSelector' __同一套__
--- (W2 閘門對 vault 那一組的裁定):兩階段,先比
+-- (WAVE-2 閘門對 vault 那一組的裁定):兩階段,先比
 -- 'Aapms.Workspace.Types.peId' 的完整字串、再比 'Aapms.Workspace.Types.peName',
 -- 兩階段都__逐字精確比對__(不去前後空白、不忽略大小寫、不做前綴或子字串比對);
 -- id 階段有命中時 name 階段完全不參與。
 --
--- 命中兩列以上時(2026-08-29 W4 閘門新增)回
+-- 命中兩列以上時(2026-08-29 WAVE-4 閘門新增)回
 -- @Left ('Aapms.Workspace.Types.ProjectSelectorAmbiguous' selector 全部撞到的列)@,
--- 並__不刪任何一列__——寧可不動,也不靜默挑一列刪掉(見 spec 的待確認假設 A2)。
+-- 並__不刪任何一列__——寧可不動,也不靜默挑一列刪掉(見 spec 的待確認假設 ASM-2)。
 -- 兩階段都沒命中回 @ProjectSelectorNotFound@。
 --
 -- 命中恰好一列時:'Aapms.Workspace.Hub.removeProject' 刪整列 →
@@ -157,11 +157,11 @@ forgetProject loc hub s =
 -- 'Aapms.Workspace.Types.peId' 相同就 @salt + 1@ 重算,回__第一個不撞的__候選;
 -- __不靜默照發__。
 --
--- __為什麼它是公開的而不是藏在 'registerProject' 裡__(見 spec 的待確認假設 A5):
+-- __為什麼它是公開的而不是藏在 'registerProject' 裡__(見 spec 的待確認假設 ASM-5):
 -- 契約 D 的 'registerProject' 簽名沒有時間參數,時間只能在函式內部取樣;而藏起來
 -- 取樣的話,呼叫端就無法預先造出碰撞,salt 重試迴圈__永遠測不到__——碰撞在正常
 -- 情況下幾乎不發生,那段程式碼可能永遠是錯的而沒人知道。graph-core 的
--- 'Aapms.Store.Write.allocateId' 為同一個理由把時間放到呼叫端(2026-08-25 G8 裁決)。
+-- 'Aapms.Store.Write.allocateId' 為同一個理由把時間放到呼叫端(2026-08-25 GAP-8 裁決)。
 -- 把配號抽成這個純函式,契約 D 的簽名一個字不動,而「撞號時以 salt 遞增重試」
 -- 這條驗收標準變成可以直接斷言的。
 allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id

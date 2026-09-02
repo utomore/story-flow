@@ -1,4 +1,4 @@
--- | graph-core/F001 T2 的對照測試:統一 Meta 與其列舉的擴充版
+-- | graph-core/F001 STEP-2 的對照測試:統一 Meta 與其列舉的擴充版
 -- (Status 加 Missing、Source 加 Scan/Ai、Timeline 改由 Meta 的 Maybe 承載)。
 module Aapms.Core.MetaSpec (spec) where
 

@@ -95,7 +95,7 @@ data TypeDecl = TypeDecl
   -- ^ entity 族專用:這個片段型別所屬的主體型別鍵。
   , tdAllowedLinks :: [LinkKind]
   , tdStages :: [Text]
-  -- ^ P5 工作坊用;P1 只存不用
+  -- ^ S5 工作坊用;S1 只存不用
   , tdFields :: [FieldDecl]
   , tdNameKinds :: [Segment]
   -- ^ asset 族專用:命名文法第一段(@kind@)的合法值。entity 族一律 @[]@,
@@ -202,11 +202,11 @@ checkMeta reg node =
           ]
 
     -- 只對「有命名」的 asset 檢查;tdNameKinds 空清單比照 allowed_links 的
-    -- 慣例視為「未宣告限制」(F002 待確認假設 A3)。
+    -- 慣例視為「未宣告限制」(F002 待確認假設 ASM-3)。
     --
     -- 不呼叫完整 'parseLogicalName'(2026-08-23 階段一閘門後它需要
     -- 'NamingVocab' 參數,而 'checkMeta' 的契約簽名沒有這個參數,見 F002
-    -- 待確認假設 A6)——直接切 'LogicalName' 文字第一個 @_@ 之前的片段當
+    -- 待確認假設 ASM-6)——直接切 'LogicalName' 文字第一個 @_@ 之前的片段當
     -- kind 文字用;'astName' 的建構子只經 'mkLogicalName' 取得,第一段合法性
     -- ('nvKinds' 成員)已在寫入時保證過,這裡只需要文字本身,不需要重新驗證。
     badNameKind decl = case node of

@@ -252,7 +252,7 @@ licensesMd =
     , "```"
     ]
 
--- | 合成 n 節的 pack.md(D4:'appendSection' 對 1,693 節文件的驗收用測試內
+-- | 合成 n 節的 pack.md(DEC-4:'appendSection' 對 1,693 節文件的驗收用測試內
 -- 產生器合成,不需要真實大檔)。每節 id 各自不同、欄位齊全,整份文件本身
 -- 合法可解析。每節之後隔__兩個__空行(而不是一個)——讓最後一節的
 -- @secBodyRaw@ 已經是 @"\\n\\n"@,'Aapms.Md.Render.appendSection' 的

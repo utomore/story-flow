@@ -1,16 +1,16 @@
--- | graph-core\/F008 L15\/E16\/E17:'Aapms.Store.Error.renderStoreError' 涵蓋
+-- | graph-core\/F008 LAW-15\/EX-16\/EX-17:'Aapms.Store.Error.renderStoreError' 涵蓋
 -- 'Aapms.Store.Error.StoreError' 全部 21 個建構子。
 --
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@,
--- 2026-08-25 G7 裁決後的版本)
+-- 2026-08-25 GAP-7 裁決後的版本)
 --
 -- @
--- L15  renderStoreError 對全部 21 個建構子非空、含以「請」起頭的子句(不放寬,無例外) -> prop_L15_nonEmpty / prop_L15_qing
--- E16  renderStoreError (VaultMarkerMissing \"\/tmp\/v\")                              -> test_E16
--- E17  renderStoreError (SqliteError \"no such table: nodes\")(G7 裁決要改的既有訊息)  -> test_E17
+-- LAW-15  renderStoreError 對全部 21 個建構子非空、含以「請」起頭的子句(不放寬,無例外) -> prop_LAW15_nonEmpty / prop_LAW15_qing
+-- EX-16  renderStoreError (VaultMarkerMissing \"\/tmp\/v\")                              -> test_EX16
+-- EX-17  renderStoreError (SqliteError \"no such table: nodes\")(GAP-7 裁決要改的既有訊息)  -> test_EX17
 -- @
 --
--- __G7 已裁決__:L15 不放寬,`SqliteError` 的既有訊息改由 impl 這一輪換成
+-- __G7 已裁決__:LAW-15 不放寬,`SqliteError` 的既有訊息改由 impl 這一輪換成
 -- @\"索引操作失敗 —— \" <> msg <> \";請嘗試重新開啟 vault\"@(見 spec「@SqliteError@ 的訊息
 -- 要改」)。因此本檔__不再對 @SqliteError@ 特殊處理__:它與其餘 20 個建構子一起套同一組斷言
 -- (非空 + 含以「請」起頭的子句)。改之前這一筆會紅(舊訊息用「可以嘗試」收尾),這是
@@ -30,8 +30,8 @@ import Aapms.Store.Error
 import Aapms.Store.Fixtures (idOf, refOf)
 import Test.Hspec
 
--- | F005 既有 6 個建構子(骨架已實作)。除 'SqliteError'(G7 這一輪要改的既有訊息,見模組
--- 說明)外,其餘 5 個在 L15 的兩個判準下都應為綠。
+-- | F005 既有 6 個建構子(骨架已實作)。除 'SqliteError'(GAP-7 這一輪要改的既有訊息,見模組
+-- 說明)外,其餘 5 個在 LAW-15 的兩個判準下都應為綠。
 existingSix :: [(String, StoreError)]
 existingSix =
   [ ("VaultMarkerMissing", VaultMarkerMissing "/tmp/v")
@@ -69,26 +69,26 @@ allTwentyOne :: [(String, StoreError)]
 allTwentyOne = existingSix ++ newFifteen
 
 spec :: Spec
-spec = describe "graph-core/F008 L15 renderStoreError 涵蓋 StoreError 全部 21 個建構子" $ do
-  describe "L15(非空):既有 6 個(F005,骨架已實作,應為綠)" $
+spec = describe "graph-core/F008 LAW-15 renderStoreError 涵蓋 StoreError 全部 21 個建構子" $ do
+  describe "LAW-15(非空):既有 6 個(F005,骨架已實作,應為綠)" $
     mapM_ (\(name, e) -> it (name <> " 的 renderStoreError 非空") $ nonEmptyCheck e) existingSix
 
-  describe "L15(非空):新增 15 個(F008,骨架 undefined,應為紅)" $
+  describe "LAW-15(非空):新增 15 個(F008,骨架 undefined,應為紅)" $
     mapM_ (\(name, e) -> it (name <> " 的 renderStoreError 非空") $ nonEmptyCheck e) newFifteen
 
-  describe "L15(含以「請」起頭的子句,全部 21 個建構子一視同仁,無例外——2026-08-25 G7 裁決)" $
+  describe "LAW-15(含以「請」起頭的子句,全部 21 個建構子一視同仁,無例外——2026-08-25 GAP-7 裁決)" $
     mapM_ (\(name, e) -> it (name <> " 含以「請」起頭的子句") $ qingCheck e) allTwentyOne
 
-  it "E16: renderStoreError (VaultMarkerMissing \"/tmp/v\") 非空,且含以「請」起頭的子句" $ do
+  it "EX-16: renderStoreError (VaultMarkerMissing \"/tmp/v\") 非空,且含以「請」起頭的子句" $ do
     let msg = renderStoreError (VaultMarkerMissing "/tmp/v")
     msg `shouldNotBe` ""
     msg `shouldSatisfy` hasQingClause
 
-  it "E17: renderStoreError (SqliteError \"no such table: nodes\") 逐字等於新原文(G7 裁決要改的既有訊息;改之前為紅,改完轉綠)" $
+  it "EX-17: renderStoreError (SqliteError \"no such table: nodes\") 逐字等於新原文(GAP-7 裁決要改的既有訊息;改之前為紅,改完轉綠)" $
     renderStoreError (SqliteError "no such table: nodes")
       `shouldBe` "索引操作失敗 —— no such table: nodes;請嘗試重新開啟 vault"
 
-  it "L15 涵蓋的範圍是 StoreError 全部 21 個建構子(對帳用計數)" $
+  it "LAW-15 涵蓋的範圍是 StoreError 全部 21 個建構子(對帳用計數)" $
     length allTwentyOne `shouldBe` 21
 
 nonEmptyCheck :: StoreError -> Expectation

@@ -1,4 +1,4 @@
--- | T8:'toLevel'(改名自 @parseLevelFile@)的解析,標題階層即樹(ADR-009)。
+-- | STEP-8:'toLevel'(改名自 @parseLevelFile@)的解析,標題階層即樹(ADR-009)。
 module Aapms.Md.ParseLevelSpec (spec) where
 
 import Data.Text (Text)

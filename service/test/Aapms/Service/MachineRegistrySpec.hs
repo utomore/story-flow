@@ -3,13 +3,13 @@
 -- 'Aapms.Service.Types.renderServiceError' 兩個分支。
 --
 -- __spec 對照__(「1-to-1 測試對照表」——'listTypes'\/'showType'\/'thumbPath' 全紅;
--- __L27\/X27 是骨架承載,預期綠__,不得因為綠就退回或改寫):
+-- __L27\/EX-27 是骨架承載,預期綠__,不得因為綠就退回或改寫):
 --
 -- @
--- L23,X21     listTypes 逐項轉出                                    -> prop_list_types_matches_registry, test_list_types_matches_registry_example
--- L24,X22,X23 showType 的兩條路(命中\/未命中)                        -> prop_show_type_two_paths, test_show_type_hit_example, test_show_type_miss_example
--- L25,X24     thumbPath 位置由 workspace 算,本層只判存在                -> prop_thumb_path_existence_and_content, test_thumb_path_miss_then_hit_example
--- L27,X27     UnknownType 的 errorCode\/renderServiceError(__骨架承載,預期綠__) -> prop_unknown_type_error_code_and_message, test_unknown_type_error_code_and_message_example
+-- LAW-23,EX-21     listTypes 逐項轉出                                    -> prop_list_types_matches_registry, test_list_types_matches_registry_example
+-- LAW-24,EX-22,EX-23 showType 的兩條路(命中\/未命中)                        -> prop_show_type_two_paths, test_show_type_hit_example, test_show_type_miss_example
+-- LAW-25,EX-24     thumbPath 位置由 workspace 算,本層只判存在                -> prop_thumb_path_existence_and_content, test_thumb_path_miss_then_hit_example
+-- LAW-27,EX-27     UnknownType 的 errorCode\/renderServiceError(__骨架承載,預期綠__) -> prop_unknown_type_error_code_and_message, test_unknown_type_error_code_and_message_example
 -- @
 module Aapms.Service.MachineRegistrySpec (spec) where
 
@@ -40,8 +40,8 @@ import Aapms.Service.Types (ServiceError (UnknownType), errorCode, renderService
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $ do
   --------------------------------------------------------------------------
-  describe "L23,X21: listTypes 逐項轉出" $ do
-    it "prop_list_types_matches_registry (L23): listTypes 與 Aapms.Core.Registry.listTypes(同一份 askRegistry)逐項相同" $
+  describe "LAW-23,EX-21: listTypes 逐項轉出" $ do
+    it "prop_list_types_matches_registry (LAW-23): listTypes 與 Aapms.Core.Registry.listTypes(同一份 askRegistry)逐項相同" $
       hedgehog $ do
         outcome <- liftIO $ withFixedLayout $ \fl -> do
           reg <- registryDir
@@ -56,7 +56,7 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
           Right (ds, expected) -> ds === expected
           Left _ -> annotate "測試前置作業失敗(loadRegistry 或 listTypes)" >> failure
 
-    it "test_list_types_matches_registry_example (X21): 兩份清單逐項相同、順序相同,長度 > 0" $
+    it "test_list_types_matches_registry_example (EX-21): 兩份清單逐項相同、順序相同,長度 > 0" $
       withFixedLayout $ \fl -> do
         reg <- registryDir
         direct <- loadRegistry reg
@@ -72,8 +72,8 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
           Left e -> expectationFailure ("loadRegistry 失敗:" <> show e)
 
   --------------------------------------------------------------------------
-  describe "L24,X22,X23: showType 的兩條路" $ do
-    it "prop_show_type_two_paths (L24): 命中回 Right d(逐欄相同);未命中回 Left (UnknownType t),t 就是那個鍵" $
+  describe "LAW-24,EX-22,EX-23: showType 的兩條路" $ do
+    it "prop_show_type_two_paths (LAW-24): 命中回 Right d(逐欄相同);未命中回 Left (UnknownType t),t 就是那個鍵" $
       hedgehog $ do
         useKnown <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -90,7 +90,7 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
           Just (Left (UnknownType t), Nothing, TypeKey k) -> t === k
           _ -> annotate "測試前置作業失敗(listTypes 沒有任何型別,或 showType 結果與預期分支不符)" >> failure
 
-    it "test_show_type_hit_example (X22): showType (tdKey d) 回 Right d" $
+    it "test_show_type_hit_example (EX-22): showType (tdKey d) 回 Right d" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           listR <- runService env listTypes
@@ -100,15 +100,15 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
               result `shouldBe` Right d
             _ -> expectationFailure "註冊表沒有任何型別"
 
-    it "test_show_type_miss_example (X23): showType (TypeKey \"no-such-type-xyz\") 回 Left (UnknownType \"no-such-type-xyz\")" $
+    it "test_show_type_miss_example (EX-23): showType (TypeKey \"no-such-type-xyz\") 回 Left (UnknownType \"no-such-type-xyz\")" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env (showType (TypeKey "no-such-type-xyz"))
           result `shouldBe` Left (UnknownType "no-such-type-xyz")
 
   --------------------------------------------------------------------------
-  describe "L25,X24: thumbPath 位置由 workspace 算,本層只判存在" $ do
-    it "prop_thumb_path_existence_and_content (L25): 快取檔存在時回 Just p 且 p 逐字等於 thumbCachePath loc h,不存在時回 Nothing" $
+  describe "LAW-25,EX-24: thumbPath 位置由 workspace 算,本層只判存在" $ do
+    it "prop_thumb_path_existence_and_content (LAW-25): 快取檔存在時回 Just p 且 p 逐字等於 thumbCachePath loc h,不存在時回 Nothing" $
       hedgehog $ do
         shouldCreate <- forAll Gen.bool
         outcome <- liftIO $ withFixedLayout $ \fl ->
@@ -133,7 +133,7 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
             p' === p
           _ -> annotate "測試前置作業失敗(askHubLocation)" >> failure
 
-    it "test_thumb_path_miss_then_hit_example (X24): 第一次 Right Nothing;手動建出快取檔後第二次 Right (Just p),p 讀得到剛寫入的位元組" $
+    it "test_thumb_path_miss_then_hit_example (EX-24): 第一次 Right Nothing;手動建出快取檔後第二次 Right (Just p),p 讀得到剛寫入的位元組" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           locR <- runService env askHubLocation
@@ -155,8 +155,8 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
             Left e -> expectationFailure (show e)
 
   --------------------------------------------------------------------------
-  describe "L27,X27: UnknownType 的 errorCode/renderServiceError(骨架承載,預期綠)" $ do
-    it "prop_unknown_type_error_code_and_message (L27): 對任意 t,code 逐字 unknown_type;訊息非空、含 t、含 \"type list\"" $
+  describe "LAW-27,EX-27: UnknownType 的 errorCode/renderServiceError(骨架承載,預期綠)" $ do
+    it "prop_unknown_type_error_code_and_message (LAW-27): 對任意 t,code 逐字 unknown_type;訊息非空、含 t、含 \"type list\"" $
       hedgehog $ do
         t <- forAll (Gen.text (Range.linear 1 20) Gen.alphaNum)
         errorCode (UnknownType t) === "unknown_type"
@@ -165,7 +165,7 @@ spec = describe "F002 Aapms.Service.Machine: listTypes / showType / thumbPath" $
         T.isInfixOf t msg === True
         T.isInfixOf "type list" msg === True
 
-    it "test_unknown_type_error_code_and_message_example (X27)" $ do
+    it "test_unknown_type_error_code_and_message_example (EX-27)" $ do
       errorCode (UnknownType "no-such-type-xyz") `shouldBe` "unknown_type"
       let msg = renderServiceError (UnknownType "no-such-type-xyz")
       msg `shouldSatisfy` (not . T.null)

@@ -1,4 +1,4 @@
--- | T3:節標題 @{#id}@ 屬性語法。
+-- | STEP-3:節標題 @{#id}@ 屬性語法。
 module Aapms.Md.HeadingSpec (spec) where
 
 import Data.Text (Text)

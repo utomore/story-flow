@@ -162,13 +162,13 @@ initVault loc hub dir kind name mode = do
 --
 -- 參數與 'initVault' __完全相同__,尾端多一個 @UTCTime@;新 vault 的 id 由這個
 -- 時間決定,而不是由函式內部取樣。時間放最後,與
--- 'Aapms.Workspace.Projects.allocateProjectId'(2026-08-29 W4)及 graph-core 的
+-- 'Aapms.Workspace.Projects.allocateProjectId'(2026-08-29 WAVE-4)及 graph-core 的
 -- @Aapms.Store.Marker.initVaultAtWith@(E002)一致。
 --
 -- __為什麼它是公開的__:'initVault' 有一整條「新 id 撞到中樞既有 @veId@ 就回
 -- 'Aapms.Workspace.Types.VaultIdCollision' 並回滾剛寫出的 @.aapms\/@」的分支,
 -- 它的正確性只能靠__造出一次碰撞__來驗;時間藏在函式內部取樣時,呼叫端無法
--- 預先造出兩個相同的 id,那條分支就永遠沒有人驗得了(spec-gap G4)。理由與
+-- 預先造出兩個相同的 id,那條分支就永遠沒有人驗得了(spec-gap GAP-4)。理由與
 -- 'Aapms.Workspace.Projects.allocateProjectId' 的 salt 重試迴圈完全相同。
 --
 -- 前置檢查、撞號處置、回滾與 'Aapms.Workspace.Types.AdoptNotice' 的語意
@@ -397,7 +397,7 @@ pathExists fp = do
   isFile <- doesFileExist fp
   if isFile then pure True else doesDirectoryExist fp
 
--- | 把可能拋出 'IOException' 的動作包成 'HubWriteFailed'(T11:讓七個函式對同一種
+-- | 把可能拋出 'IOException' 的動作包成 'HubWriteFailed'(STEP-11:讓七個函式對同一種
 -- 落地失敗給出同一個建構子)。
 tryIO :: FilePath -> IO a -> IO (Either WorkspaceError a)
 tryIO fp act = do
@@ -442,7 +442,7 @@ countFiles dir = do
       isDir <- doesDirectoryExist p
       if isDir then countFiles p else pure 1
 
--- | 刪索引前的身分驗證(W4 裁決 B):讀不到就通過(照刪);讀得到但 id 與中樞
+-- | 刪索引前的身分驗證(WAVE-4 裁決 B):讀不到就通過(照刪);讀得到但 id 與中樞
 -- 那一列不符就拒絕。
 verifyDeleteTarget :: VaultEntry -> IO (Either WorkspaceError ())
 verifyDeleteTarget e = do

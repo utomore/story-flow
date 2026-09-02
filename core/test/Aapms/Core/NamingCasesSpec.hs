@@ -1,4 +1,4 @@
--- | graph-core/F002 T10:讀 @contract/fixtures/naming-cases.txt@(契約卡的驗收
+-- | graph-core/F002 STEP-10:讀 @contract/fixtures/naming-cases.txt@(契約卡的驗收
 -- 輸入),逐行以新 'parseLogicalName' + 'mkLogicalName' 驗證。
 --
 -- @contract@ 套件本身凍結(D:「contract 套件本身已凍結,不要改它」),
@@ -60,7 +60,7 @@ readUtf8 :: FilePath -> IO T.Text
 readUtf8 p = TE.decodeUtf8 <$> BS.readFile p
 
 spec :: Spec
-spec = describe "T10 test_naming_cases_fixture" $ do
+spec = describe "STEP-10 test_naming_cases_fixture" $ do
   it "naming-cases.txt 全部 ok 案例以 naming.toml 詞彙(含 states)驗證通過" $ do
     src <- readUtf8 casesPath
     case parseCases src of

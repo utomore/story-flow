@@ -1,5 +1,5 @@
--- | graph-core\/F006 T9('lookupNode' 七種 prefix 分支)、T10('lookupByName')、
--- T11('childrenOf')。
+-- | graph-core\/F006 STEP-9('lookupNode' 七種 prefix 分支)、STEP-10('lookupByName')、
+-- STEP-11('childrenOf')。
 module Aapms.Store.NodeSpec (spec) where
 
 import Aapms.Core.AnyNode (AnyNode (..))
@@ -16,7 +16,7 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "graph-core/F006 lookupNode / lookupByName / childrenOf" $ do
-  describe "T9: lookupNode 七種 prefix" $ do
+  describe "STEP-9: lookupNode 七種 prefix" $ do
     it "PEnt(主體):回 NEntity,body 來自檔案的 docPreamble" $
       withIndexedStoryVault $ \vh -> do
         r <- lookupNode vh (idOf "ent-00000001")
@@ -85,7 +85,7 @@ spec = describe "graph-core/F006 lookupNode / lookupByName / childrenOf" $ do
         lookupNode vh (idOf "vlt-00000001") `shouldReturn` Nothing
         lookupNode vh (idOf "prj-00000001") `shouldReturn` Nothing
 
-  describe "T10: lookupByName" $
+  describe "STEP-10: lookupByName" $
     it "已命名的 asset 查得到,未命名或不存在的名稱回 Nothing" $
       withIndexedAssetVault $ \vh -> do
         found <- lookupByName vh (LogicalName "ui_gui_panel_001")
@@ -93,7 +93,7 @@ spec = describe "graph-core/F006 lookupNode / lookupByName / childrenOf" $ do
         notFound <- lookupByName vh (LogicalName "not_a_real_name_999")
         notFound `shouldBe` Nothing
 
-  describe "T11: childrenOf" $
+  describe "STEP-11: childrenOf" $
     it "對 pack id 回全部 asset、對主體 entity id 回全部片段,對沒有子節點的 id 回 []" $ do
       withIndexedAssetVault $ \vh -> do
         kids <- childrenOf vh (idOf "pck-00000001")

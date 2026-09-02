@@ -9,7 +9,7 @@ module Aapms.Workspace.Fixtures
   , locAt
   , withEnv
 
-    -- * 讀骨架原始碼(L17\/F002 L18 用)
+    -- * 讀骨架原始碼(LAW-17\/F002 LAW-18 用)
   , readWorkspaceSource
 
     -- * 中樞檔案的讀寫(「數據」節「中樞路徑常數」表:@<hlPath>/config.toml@)
@@ -32,7 +32,7 @@ module Aapms.Workspace.Fixtures
   , vaultIdText
   , orDie
 
-    -- * 「數據」節的範例中樞檔案(X11–X17 用)
+    -- * 「數據」節的範例中樞檔案(EX-11–EX-17 用)
   , sampleHubText
   , sampleVault1
   , sampleVault2
@@ -110,7 +110,7 @@ readUtf8NoTranslate fp = withFile fp ReadMode $ \h -> do
   T.length txt `seq` pure txt
 
 -- | 以顯式 UTF-8、__不加 BOM、不做任何換行轉換__寫一個文字檔;逐位元組對應
--- 'Text' 的內容,是 L8「位元組恆等」測試的基礎。
+-- 'Text' 的內容,是 LAW-8「位元組恆等」測試的基礎。
 writeUtf8NoTranslate :: FilePath -> Text -> IO ()
 writeUtf8NoTranslate fp content = withFile fp WriteMode $ \h -> do
   hSetEncoding h utf8
@@ -151,12 +151,12 @@ hubConfigFile dir = dir </> "config.toml"
 writeHubConfig :: FilePath -> Text -> IO ()
 writeHubConfig dir = writeUtf8NoTranslate (hubConfigFile dir)
 
--- | 逐字元讀回該目錄的 @config.toml@(顯式 UTF-8、不做換行轉換,L8「位元組恆等」
+-- | 逐字元讀回該目錄的 @config.toml@(顯式 UTF-8、不做換行轉換,LAW-8「位元組恆等」
 -- 測試的基礎——'Text' 相等蘊含檔案內容逐字元相等)。
 readHubConfigText :: FilePath -> IO Text
 readHubConfigText dir = readUtf8NoTranslate (hubConfigFile dir)
 
--- | 讀本套件 @src\/@ 底下的骨架原始碼檔(L17 用:判準只看 import 行)。兩個候選
+-- | 讀本套件 @src\/@ 底下的骨架原始碼檔(LAW-17 用:判準只看 import 行)。兩個候選
 -- 路徑因為 @cabal test@ 的工作目錄在套件目錄或專案根不一定相同
 -- (對照 "Aapms.Store.MarkerSpec" 的手法)。
 readWorkspaceSource :: FilePath -> IO Text
@@ -194,10 +194,10 @@ markerTomlText idText kindText nameText refs =
     , "refs = [" <> T.intercalate ", " (map (\r -> "\"" <> r <> "\"") refs) <> "]"
     ]
 
--- | 遞迴列出一個目錄底下所有檔案的相對路徑與內容,按路徑排序——F002 L4\/L13
+-- | 遞迴列出一個目錄底下所有檔案的相對路徑與內容,按路徑排序——F002 LAW-4\/LAW-13
 -- 「呼叫前後整棵目錄樹逐位元組相同」斷言的基礎。本套件底下的檔案一律是顯式 UTF-8
 -- 文字(marker \/ 中樞都是),用 'readUtf8NoTranslate' 讀回,'Text' 相等蘊含逐位元組
--- 相等(對照 'readHubConfigText' 對 L8 的同一個論證);沒有二進位檔要顧慮,不需要
+-- 相等(對照 'readHubConfigText' 對 LAW-8 的同一個論證);沒有二進位檔要顧慮,不需要
 -- 'Data.ByteString'(本測試套件的 build-depends 沒有它)。
 snapshotTree :: FilePath -> IO [(FilePath, Text)]
 snapshotTree root = sortOn fst <$> go ""
@@ -350,7 +350,7 @@ sampleHubText =
     , "seven_zip = \"C:/Program Files/7-Zip/7z.exe\""
     ]
 
--- | X11 期望的第一列 @[[vaults]]@。
+-- | EX-11 期望的第一列 @[[vaults]]@。
 sampleVault1 :: VaultEntry
 sampleVault1 =
   VaultEntry
@@ -360,7 +360,7 @@ sampleVault1 =
     , vePath = "C:/Users/User/Documents/alchbees-assets"
     }
 
--- | X11 期望的第二列 @[[vaults]]@。
+-- | EX-11 期望的第二列 @[[vaults]]@。
 sampleVault2 :: VaultEntry
 sampleVault2 =
   VaultEntry
@@ -370,7 +370,7 @@ sampleVault2 =
     , vePath = "D:/story-vaults/liftgame"
     }
 
--- | X11 期望的 @[[projects]]@ 唯一一列。
+-- | EX-11 期望的 @[[projects]]@ 唯一一列。
 sampleProject1 :: ProjectEntry
 sampleProject1 =
   ProjectEntry
@@ -379,11 +379,11 @@ sampleProject1 =
     , pePath = "D:/games/Circle"
     }
 
--- | X11 期望 @[llm]@ 段的鍵集合。
+-- | EX-11 期望 @[llm]@ 段的鍵集合。
 sampleLlmKeys :: [Text]
 sampleLlmKeys = ["base_url", "model"]
 
--- | X11 期望的 @[tools]@ 段。
+-- | EX-11 期望的 @[tools]@ 段。
 sampleTools :: ToolsConfig
 sampleTools = ToolsConfig (Just "C:/Program Files/7-Zip/7z.exe")
 
@@ -406,13 +406,13 @@ genName :: Gen Text
 genName = Gen.text (Range.linear 1 10) (Gen.choice [Gen.alpha, Gen.digit])
 
 -- | 任意 C0 控制字元(U+0000–U+001F)或 DEL(U+007F)——__真的涵蓋__ @\\n@ \/ @\\t@,
--- 不是只挑「安全」的子集(F001 L18 明文要求定義域包含控制字元;同一波另一份 spec
+-- 不是只挑「安全」的子集(F001 LAW-18 明文要求定義域包含控制字元;同一波另一份 spec
 -- 曾為了迴避序列化器缺陷把定義域縮小到「不含控制字元」,那正是要避免的錯誤)。
 genC0OrDelChar :: Gen Char
 genC0OrDelChar = Gen.element (['\x00' .. '\x1F'] ++ ['\x7F'])
 
 -- | 去前後空白後非空、且__真的可能含控制字元__(含 @\\n@ \/ @\\t@ \/ 其他 U+0000–U+001F \/
--- U+007F)的名稱:給 'veName' \/ 'peName' 的 L18(完整定義域往返)用。頭尾各釘一個
+-- U+007F)的名稱:給 'veName' \/ 'peName' 的 LAW-18(完整定義域往返)用。頭尾各釘一個
 -- ASCII 字母當「錨點」,保證 'Data.Text.strip' 之後一定非空(錨點本身不是空白字元),
 -- 中段可以是任意控制字元或一般字元的混合,涵蓋整個定義域而不排除任何一種控制字元。
 genNameWithControlChars :: Gen Text
@@ -454,7 +454,7 @@ genProjectEntry :: Gen ProjectEntry
 genProjectEntry = ProjectEntry <$> genProjectId <*> genName <*> genAbsPath
 
 -- | 任意 'TOML.Value'(只取三種簡單建構子,'LlmSection' 不解讀內容,值的形狀
--- 對 L16\/L7 的斷言不重要,重要的是「捧著什麼就是什麼」)。
+-- 對 LAW-16\/LAW-7 的斷言不重要,重要的是「捧著什麼就是什麼」)。
 genTomlValue :: Gen TOML.Value
 genTomlValue =
   Gen.choice
@@ -475,18 +475,18 @@ genHubSourceText :: Gen Text
 genHubSourceText =
   Gen.text (Range.linear 0 20) (Gen.choice [Gen.alpha, Gen.digit, Gen.element (" \n#[]=.,-_/" :: String)])
 
--- | 去前後空白後非空、且本身不帶前後空白的字串,當 @AAPMS_HOME@ 的值(L1)。
+-- | 去前後空白後非空、且本身不帶前後空白的字串,當 @AAPMS_HOME@ 的值(LAW-1)。
 genNonBlankEnvValue :: Gen Text
 genNonBlankEnvValue = do
   drive <- Gen.element ['C', 'D', 'E']
   segs <- Gen.list (Range.linear 1 3) genPathSegment
   pure (T.pack (drive : ":/" <> intercalate "/" segs))
 
--- | 全空白(含空字串)的字串,當 @AAPMS_HOME@ 的值視同未設(L1)。
+-- | 全空白(含空字串)的字串,當 @AAPMS_HOME@ 的值視同未設(LAW-1)。
 genBlankEnvValue :: Gen Text
 genBlankEnvValue = Gen.text (Range.linear 0 4) (Gen.element (" \t" :: String))
 
--- | 前後帶空白、但去除空白後非空的字串——驗證 L1「@hlPath == s 的 makeAbsolute@」
+-- | 前後帶空白、但去除空白後非空的字串——驗證 LAW-1「@hlPath == s 的 makeAbsolute@」
 -- 是對__原始__ @s@ 生效,不是先去空白再取絕對路徑。
 genPaddedNonBlank :: Gen Text
 genPaddedNonBlank = do
@@ -495,7 +495,7 @@ genPaddedNonBlank = do
   post <- Gen.text (Range.linear 0 2) (pure ' ')
   pure (pre <> core <> post)
 
--- | F002 L17:任意長度的 @vlt-@ id 字串清單,給 marker 的 @refs@ 欄位用(本 feature
+-- | F002 LAW-17:任意長度的 @vlt-@ id 字串清單,給 marker 的 @refs@ 欄位用(本 feature
 -- 不展開、不驗證 refs 指向誰,所以生成器不必保證這些 id 真的存在)。
 genRefIds :: Gen [Text]
 genRefIds = Gen.list (Range.linear 0 4) (("vlt-" <>) <$> genHex8)

@@ -283,7 +283,7 @@ applyLinks vh loc doc curMeta i newLinks = do
             ( updateSection
                 secId
                 -- 清空之後不留 `links: []` 這一行——沒有連結就是沒有這個鍵,
-                -- 與「原本就沒寫過」不可區分,L6 要求的往返恆等才成立。
+                -- 與「原本就沒寫過」不可區分,LAW-6 要求的往返恆等才成立。
                 ( \ov ->
                     ov
                       { moRevision = Just newRev
@@ -407,7 +407,7 @@ appendLicense vh path doc lic = do
 -- 'Aapms.Core.Id.newId' 是純函式,唯一性只有持有索引的這一層做得到:撞了就
 -- @salt + 1@ 重算,直到不撞。候選 id 恆為 @newId p c t salt@,@salt@ 從 @0@ 起遞增。
 --
--- __時間是明碼參數__(第四個參數,2026-08-25 G8 裁決,契約 E):與
+-- __時間是明碼參數__(第四個參數,2026-08-25 GAP-8 裁決,契約 E):與
 -- 'Aapms.Core.Id.newId' 一致。藏在函式內部取樣的話,呼叫端就無法預先造出碰撞,
 -- salt 重試迴圈也就永遠測不到 ——而碰撞在正常情況下幾乎不發生,那段程式碼可能永遠
 -- 是錯的而沒人知道。取當下時間的責任因此落在呼叫端:

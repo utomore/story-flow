@@ -12,7 +12,7 @@
 -- * 失敗時清掉暫存檔,不在作者的 Vault 裡留垃圾
 --
 -- 殘留競態:重讀檔案(樂觀鎖比對)與 rename 之間有極短窗口,兩個行程剛好在此
--- 交錯仍可能互相覆蓋。這是 entity-graph-core/F004 明確接受的殘留風險(P1 不做作業系統層
+-- 交錯仍可能互相覆蓋。這是 entity-graph-core/F004 明確接受的殘留風險(S1 不做作業系統層
 -- 檔案鎖):單機、單人 + AI Agent,窗口是毫秒級,損失可由 git 復原。
 module Aapms.Store.Atomic
   ( atomicWriteText

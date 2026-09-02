@@ -123,7 +123,7 @@ storyLindaMd =
     ]
 
 -- | Level 檔:根 'nod-00000001' 底下一個子節點 'nod-00000002'(至少兩個
--- Node,滿足 T14 的要求),子節點關聯回主題檔的主體。
+-- Node,滿足 STEP-14 的要求),子節點關聯回主題檔的主體。
 storyClassroomMd :: Text
 storyClassroomMd =
   T.unlines
@@ -193,7 +193,7 @@ assetLicensesMd =
     , "```"
     ]
 
--- | 主要 pack.md:兩個 asset,其一 @status: missing@(T14 要求)。
+-- | 主要 pack.md:兩個 asset,其一 @status: missing@(STEP-14 要求)。
 assetPackMd :: Text
 assetPackMd =
   T.unlines
@@ -283,7 +283,7 @@ assetVaultFiles =
 -- 2. 檔名是 @pack.md@ 的路徑,必須以 @library\/@ 起頭(不約束層數)
 --
 -- 比對的是 fixture 的__資料結構__(路徑字串本身),不是原始碼文字——所以沒有
--- graph-core\/G3 與 G12 那種「分不出註解與程式碼」的偽陽性問題。
+-- graph-core\/GAP-3 與 GAP-12 那種「分不出註解與程式碼」的偽陽性問題。
 --
 -- 回傳空清單 = 這份檔案組符合主架構。
 vaultLayoutViolations :: [(FilePath, Text)] -> [FilePath]

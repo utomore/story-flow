@@ -35,11 +35,11 @@ module Aapms.Service.Fixtures
     openEnvOrDie
   , withOpenEnv
 
-    -- * 讀骨架原始碼(L23/X24/X25 用)
+    -- * 讀骨架原始碼(LAW-23/EX-24/EX-25 用)
   , serviceSourceFiles
   , readServiceSource
 
-    -- * F002:遞迴快照(L9/X9 用)、顯式 UTF-8 讀寫
+    -- * F002:遞迴快照(LAW-9/EX-9 用)、顯式 UTF-8 讀寫
   , snapshotTree
   , readUtf8NoTranslate
   , writeUtf8NoTranslate
@@ -227,12 +227,12 @@ openEnvOrDie sel cwd =
   openEnv sel cwd >>= either (\e -> fail ("openEnv 失敗:" <> T.unpack (renderServiceError e))) pure
 
 -- | 開一個 'Env' 跑一段動作,結束後 'closeEnv'(不經 'Aapms.Service.Monad.withEnv',
--- 因為 'withEnv' 本身就是 L7 的受測對象)。
+-- 因為 'withEnv' 本身就是 LAW-7 的受測對象)。
 withOpenEnv :: Maybe Text -> FilePath -> (Env -> IO a) -> IO a
 withOpenEnv sel cwd = bracket (openEnvOrDie sel cwd) closeEnv
 
 --------------------------------------------------------------------------------
--- 讀骨架原始碼(L23/X24/X25 用)
+-- 讀骨架原始碼(LAW-23/EX-24/EX-25 用)
 
 -- | @service\/src\/@ 的實際位置。測試工作目錄可能是套件目錄或專案根
 -- (對照 "Aapms.Workspace.Fixtures.readWorkspaceSource")。
@@ -252,7 +252,7 @@ readServiceSource rel = do
   readUtf8NoTranslate (dir </> rel)
 
 -- | @service\/src\/@ 底下__遞迴__取得的每一個 @.hs@ 檔,(相對路徑、檔案全文)。
--- __不是一份寫死的清單__(L23 明文):之後 F002–F008 新增的模組都自動被納入。
+-- __不是一份寫死的清單__(LAW-23 明文):之後 F002–F008 新增的模組都自動被納入。
 -- 相對路徑一律用正斜線,不受平台影響。
 serviceSourceFiles :: IO [(FilePath, Text)]
 serviceSourceFiles = do
@@ -271,7 +271,7 @@ serviceSourceFiles = do
     normSlashes = map (\c -> if c == '\\' then '/' else c)
 
 --------------------------------------------------------------------------------
--- F002:遞迴快照(L9/X9「唯讀」用)
+-- F002:遞迴快照(LAW-9/EX-9「唯讀」用)
 
 -- | 一個目錄底下__遞迴__的每一個檔案(相對路徑、顯式 UTF-8\/不轉換換行讀出的
 -- 內容),依相對路徑排序,供前後兩次快照逐一比對。本套件底下要快照的檔案

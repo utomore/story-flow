@@ -5,7 +5,7 @@
 -- @asset-pack@ → 'PackDoc'、@asset-license@ → 'LicenseDoc',其餘一律
 -- 'TopicDoc'。三個保留鍵由 F002 的 @validateRegistry@ 把關,本模組只認字面值。
 --
--- 錯誤契約(graph-core/F004 待確認假設 A2):__只回報第一個錯誤__
+-- 錯誤契約(graph-core/F004 待確認假設 ASM-2):__只回報第一個錯誤__
 -- (依節的文件順序,也就是行號由小到大)。這與舊版「一次列完全部」不同——
 -- 契約 D 的每個函式簽名都是單一 'MdError',不是清單。
 module Aapms.Md.Parse
@@ -212,7 +212,7 @@ structure (s0 : rest) = go [] M.empty rootLevel (s0 : rest)
 
 -- 素材專屬欄位從節的 meta YAML 另外解一次(不在 MetaOverride 裡——那個 DTO 只管
 -- Meta 的欄位)。型別與解碼規則現在與寫入方向共用同一份(Aapms.Md.Render.NewAsset,
--- graph-core/F004 重跑 G1):讀出來的形狀就是寫回去要給的形狀,兩邊的必填/選填
+-- graph-core/F004 重跑 GAP-1):讀出來的形狀就是寫回去要給的形狀,兩邊的必填/選填
 -- 劃分不可能再分歧。
 
 -- | 檔案層 pack.md 的 frontmatter 直接解成 'Pack'(不是先解成 'Meta' 再另外

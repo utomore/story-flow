@@ -1,23 +1,23 @@
--- | F002 L26:Machine 不自己拼路徑的靜態防線——對 @service\/src\/@ 底下每一個
+-- | F002 LAW-26:Machine 不自己拼路徑的靜態防線——對 @service\/src\/@ 底下每一個
 -- @.hs@ 檔的原始碼文字做斷言:任何程式碼行都不得含以下五個__帶引號的__子字串之一
 -- (逐字,含前後的雙引號):@".aapms"@、@"config.toml"@、@"index.db"@、@"cache"@、
 -- @"thumbs"@。
 --
--- 正規化規則與 F001 的 L23\/L25(見 "Aapms.Service.NestedRunServiceSpec")__逐字
+-- 正規化規則與 F001 的 LAW-23\/LAW-25(見 "Aapms.Service.NestedRunServiceSpec")__逐字
 -- 相同__(去行尾 @\\r@ → 丟掉 trim 後以 @--@ 開頭的整行 → 截掉第一個 @\" --\"@
 -- 起的行尾註解):模組 haddock 本來就要寫「不自己拼 @.aapms\/@ 底下的路徑」這句話,
 -- 全檔字串搜尋會把「文件寫得清楚」誤判成「越界」。
 --
 -- __本檔的判準本身寫成對「(檔名, 檔案全文)」的純函數__('pathLiteralViolations'),
--- @service\/src\/@ 的實況(X25)與一份合成文字(X26)餵給同一個判準——沒有 X26
--- 這條就可能是空洞的(掃描器寫壞時 X25 也會綠)。
+-- @service\/src\/@ 的實況(EX-25)與一份合成文字(EX-26)餵給同一個判準——沒有 EX-26
+-- 這條就可能是空洞的(掃描器寫壞時 EX-25 也會綠)。
 --
 -- __spec 對照__(「1-to-1 測試對照表」——__預期綠__:對原始碼文字的斷言,骨架自身
 -- 就承載這個事實,從第一天就綠,而且應該綠,不得因為它綠就退回或改寫):
 --
 -- @
--- L26,X25  對 service\/src\/ 實況跑判準,違規清單為空                              -> test_l26_real_source_is_clean [綠]
--- X26      合成文字插入越界路徑字面,判準恰好抓到那一行,插入的註解行不算違規      -> test_l26_synthetic_violation_detected [綠]
+-- LAW-26,EX-25  對 service\/src\/ 實況跑判準,違規清單為空                              -> test_law26_real_source_is_clean [綠]
+-- EX-26      合成文字插入越界路徑字面,判準恰好抓到那一行,插入的註解行不算違規      -> test_law26_synthetic_violation_detected [綠]
 -- @
 module Aapms.Service.PathLiteralSpec (spec) where
 
@@ -28,7 +28,7 @@ import Test.Hspec
 import Aapms.Service.Fixtures (serviceSourceFiles)
 
 --------------------------------------------------------------------------------
--- 正規化(與 F001 L23/L25 逐字相同,見 "Aapms.Service.NestedRunServiceSpec")
+-- 正規化(與 F001 LAW-23/LAW-25 逐字相同,見 "Aapms.Service.NestedRunServiceSpec")
 
 stripCR :: Text -> Text
 stripCR = T.dropWhileEnd (== '\r')
@@ -55,7 +55,7 @@ pathLiterals :: [Text]
 pathLiterals = ["\".aapms\"", "\"config.toml\"", "\"index.db\"", "\"cache\"", "\"thumbs\""]
 
 -- | __本檔的核心判準__:(檔名, 檔案全文) -> 每一條違規 (檔名, 行號)。
--- @service\/src\/@ 的實況(X25)與一份合成文字(X26)餵的是同一個函數。
+-- @service\/src\/@ 的實況(EX-25)與一份合成文字(EX-26)餵的是同一個函數。
 pathLiteralViolations :: [(FilePath, Text)] -> [(FilePath, Int)]
 pathLiteralViolations files =
   [ (path, i)
@@ -67,12 +67,12 @@ pathLiteralViolations files =
 --------------------------------------------------------------------------------
 
 spec :: Spec
-spec = describe "F002 L26: service/src/ 不得出現五個帶引號的路徑字面(骨架承載,預期綠)" $ do
-  it "test_l26_real_source_is_clean (X25, L26): 對 service/src/ 的實況跑判準,違規清單為空" $ do
+spec = describe "F002 LAW-26: service/src/ 不得出現五個帶引號的路徑字面(骨架承載,預期綠)" $ do
+  it "test_law26_real_source_is_clean (EX-25, LAW-26): 對 service/src/ 的實況跑判準,違規清單為空" $ do
     files <- serviceSourceFiles
     pathLiteralViolations files `shouldBe` []
 
-  it "test_l26_synthetic_violation_detected (X26): 合成文字插入越界路徑字面,判準恰好抓到那一行;插入的註解行不算" $ do
+  it "test_law26_synthetic_violation_detected (EX-26): 合成文字插入越界路徑字面,判準恰好抓到那一行;插入的註解行不算" $ do
     files <- serviceSourceFiles
     machineOriginal <- case lookup "Aapms/Service/Machine.hs" files of
       Just txt -> pure txt

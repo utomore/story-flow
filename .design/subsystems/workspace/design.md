@@ -70,7 +70,7 @@ hubLocation :: IO HubLocation
 loadHub     :: HubLocation -> IO (Either WorkspaceError Hub)
 saveHub     :: HubLocation -> Hub -> IO (Either WorkspaceError ())   -- 原子寫入
 
--- 2026-08-29 W1 閘門裁決:Hub 做成不透明型別,建構與底稿各留一個入口
+-- 2026-08-29 WAVE-1 閘門裁決:Hub 做成不透明型別,建構與底稿各留一個入口
 mkHub         :: [VaultEntry] -> [ProjectEntry] -> Maybe LlmSection -> ToolsConfig -> Text -> Hub
 hubSourceText :: Hub -> Text                    -- 這次載入時的原始檔案文字,saveHub 的底稿
 ```
@@ -81,12 +81,12 @@ hubSourceText :: Hub -> Text                    -- 這次載入時的原始檔�
 | `hlSource` | Enum | `FromEnv`(`AAPMS_HOME` 已設且非空)/ `FromPlatformDefault` | 這個位置怎麼決定的;`doctor` 要印出來 |
 | `mkHub` 的第五參數 / `hubSourceText` | Text | 這次載入時 `config.toml` 的**逐字內容**;`mkHub` 造空中樞時為空字串 | `saveHub` 的底稿。四個純增刪函式**只動結構化的四段、不動它**,差異由 `saveHub` 一次收斂——「既有列的順序、註解與空白行原樣保留」(ADR-017 決策二)靠這條成立 |
 
-`Hub` **不外露建構子**(2026-08-29 W1 閘門裁決):它捧著「底稿」與「解析出來的四段」兩半,
+`Hub` **不外露建構子**(2026-08-29 WAVE-1 閘門裁決):它捧著「底稿」與「解析出來的四段」兩半,
 兩者必須來自同一次載入。攤開欄位就沒有任何東西守這個不變量,而 `saveHub` 會照著一個不一致的
 快照把使用者手寫的檔案寫壞——那是一條不會報錯的資料損毀路徑。被否決的替代方案:`Hub (..)`
 全欄位匯出(照抄 graph-core `VaultHandle` 的先例,成本零,代價就是上面那條路徑)。
 
-**`loadHub` 的合規判準**(2026-08-29 W1 閘門裁決,補契約卡驗收標準沒點名的三種情況):
+**`loadHub` 的合規判準**(2026-08-29 WAVE-1 閘門裁決,補契約卡驗收標準沒點名的三種情況):
 對**工具自己寫得出來的欄位從嚴**——`veName` / `peName` 去空白後為空、或 `veId` / `peId` 在中樞內
 重複,一律 `HubMalformed`(重複 id 的立場與 graph-core 契約 G 對重複 `vmId` 的處置一致:身分不
 確定時,任何以 id 為鍵的操作都是不確定的);對**工具不認識的東西從寬**——未知的鍵與未知的頂層
@@ -183,7 +183,7 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 | `wsTarget` | VaultRef | 恰好一個 | 這次指令的**唯一寫入目標** |
 | `rsIssues` / `wsIssues` / `psIssues` | [ScopeIssue] | 可為空;**不中止查詢** | 降級紀錄,由 `shell` 印成警告 |
 | `vrEntry` | Maybe VaultEntry | `Nothing` ⟺ 這個 vault 不在中樞 `[[vaults]]` 裡(向上探測到的未註冊 vault) | 它在中樞的那一列 |
-| `vrPath` | FilePath | 絕對路徑,**正規化 = `System.Directory.canonicalizePath`**(2026-08-29 W2 閘門釘死):解 `.` / `..`、解 symlink、還原 Windows 8.3 短檔名;指向含 `.aapms/` 的那一層 | vault 根目錄。同一個目錄的兩種寫法會歸一,錯誤訊息印的是工具**真正去看的**那個位置——使用者拿它去 `ls` 才有意義。**被否決**:`makeAbsolute`(純字串 + cwd、不碰檔案系統、好測,但 `C:\x\..\y` 與 `C:\y` 是兩個字串,8.3 短檔名與 symlink 都不還原) |
+| `vrPath` | FilePath | 絕對路徑,**正規化 = `System.Directory.canonicalizePath`**(2026-08-29 WAVE-2 閘門釘死):解 `.` / `..`、解 symlink、還原 Windows 8.3 短檔名;指向含 `.aapms/` 的那一層 | vault 根目錄。同一個目錄的兩種寫法會歸一,錯誤訊息印的是工具**真正去看的**那個位置——使用者拿它去 `ls` 才有意義。**被否決**:`makeAbsolute`(純字串 + cwd、不碰檔案系統、好測,但 `C:\x\..\y` 與 `C:\y` 是兩個字串,8.3 短檔名與 symlink 都不還原) |
 | `vrMarker` | VaultMarker | graph-core 契約 E 的型別,**一律來自檔案** | 權威的 `id` / `kind` / `name` / `refs` |
 
 `ScopeIssue` 四個建構子的參數:
@@ -214,7 +214,7 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 3. **`refs` 遞移展開對環是安全的**。`A → B → A` 的展開結果是 `{A, B}`,不是錯誤、也不是不終止
 4. **`refs` 展開進來的一律唯讀**。它們只出現在 `rsVaults` / `wsRead`,**永遠不會**成為 `wsTarget`
 
-**展開的走訪規則**(2026-08-29 W3 閘門裁決,補契約沒說到的三處):
+**展開的走訪規則**(2026-08-29 WAVE-3 閘門裁決,補契約沒說到的三處):
 
 - **不可達的節點不展開它自己的 `refs`**,三種不可達一視同仁——包含 marker 讀得到、只是身分對不上的
   **id 漂移**。理由與性質 1 同一條:身分不確定時,任何以它為起點的關係都是不確定的,而 ADR-017 把
@@ -230,7 +230,7 @@ lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
 絕對路徑(同樣經 `canonicalizePath`);走到根仍沒有回 `Nothing`。起點**不先驗存在性**,不存在也照樣
 往上走。**它只決定寫入目標,不影響查詢範圍。**
 
-**`lookupSelector` 的比對規則**(2026-08-29 W2 閘門裁決,補契約 C 只說「先比 id 再比 name」沒說
+**`lookupSelector` 的比對規則**(2026-08-29 WAVE-2 閘門裁決,補契約 C 只說「先比 id 再比 name」沒說
 怎麼比的空缺):兩階段都是**逐字精確比對**——不去前後空白、不忽略大小寫。`veId` 階段萬一撞號,
 處置與 `veName` 撞名**同一套**:回 `VaultSelectorAmbiguous` 並列出全部,不取第一列。理由是這條
 規則被四個 feature 共用(三個 `resolve*` 與 `forgetVault` 都寫「比對規則同 `lookupSelector`」),
@@ -257,7 +257,7 @@ syncHub     :: HubLocation -> Hub -> IO (Either WorkspaceError (Hub, [ScopeIssue
 purge       :: HubLocation -> Hub -> PurgeScope -> IO (Either WorkspaceError PurgeReport)
 
 registerProject :: HubLocation -> Hub -> FilePath -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
-allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id   -- 2026-08-29 W4:時間明碼,salt 重試才測得到
+allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id   -- 2026-08-29 WAVE-4:時間明碼,salt 重試才測得到
 forgetProject   :: HubLocation -> Hub -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
 
 data SetupReport = SetupReport { spHubPath :: FilePath, spHubCreated :: Bool, spCacheCreated :: Bool }
@@ -285,7 +285,7 @@ data PurgeReport = PurgeReport
 | `checkVaults` | — | 回傳可為空清單;**不寫任何檔案** | 純體檢,無失敗通道 |
 | `syncHub` | — | 把**修得掉**的漂移(`veName` / `veKind` 與 marker 不符)回寫中樞 | 修不掉的(路徑不見、id 漂移)原樣回傳 |
 
-**刪索引前先驗身分**(2026-08-29 W4 閘門裁決):`forgetVault DeleteIndex` 與
+**刪索引前先驗身分**(2026-08-29 WAVE-4 閘門裁決):`forgetVault DeleteIndex` 與
 `purge PurgeAllVaults` 在刪 `<vault>/.aapms/index.db` **之前**先 `readMarker`——
 
 - **讀不到**(路徑不見、marker 壞)→ **照刪**。那正是 `forget` 最常見的理由
@@ -293,7 +293,7 @@ data PurgeReport = PurgeReport
 
 理由:中樞的 `vePath` 是**快取**(契約 B 寫死),marker 才是真相。那一列過期時——使用者搬走
 vault、原路徑放了**另一個** vault——照 `vePath` 刪掉的是別人的索引。索引是衍生物、rebuild 得回來,
-但使用者不會知道發生過什麼。這與 W3「身分不確定就不往下走」、契約 C 性質 1「marker 是真相」
+但使用者不會知道發生過什麼。這與 WAVE-3「身分不確定就不往下走」、契約 C 性質 1「marker 是真相」
 是同一條原則的第三次適用。**被否決**:只依 `vePath` 刪(零成本,代價如上);把防線移到
 `shell` 的 `--confirm`(使用者正是因為以為那個路徑還是舊 vault 才按下去的,確認擋不住這個錯誤)。
 
@@ -315,7 +315,7 @@ data ToolStatus = ToolStatus
   { tsName :: Text, tsPath :: Maybe FilePath, tsOrigin :: ToolOrigin, tsSearched :: [FilePath] }
 
 detectSevenZip :: ToolsConfig -> IO ToolStatus
--- 2026-08-29 W4 閘門新增:把「去哪裡找」變成明碼參數,NotFound 與 FromCandidate 才驗得到
+-- 2026-08-29 WAVE-4 閘門新增:把「去哪裡找」變成明碼參數,NotFound 與 FromCandidate 才驗得到
 data ToolSearchPlan = ToolSearchPlan { tspPathDirs :: [FilePath], tspCandidates :: [FilePath] }
 detectSevenZipIn :: ToolSearchPlan -> ToolsConfig -> IO ToolStatus
 ```
@@ -345,13 +345,13 @@ data WorkspaceError
   | NoWriteTarget FilePath
   | VaultAlreadyInitialized FilePath | VaultDirMissing FilePath | VaultDirNotEmpty FilePath
   | VaultIdCollision VaultId FilePath FilePath
-  | WriteTargetIdDrift VaultId FilePath VaultId     -- 2026-08-29 W3 閘門新增
+  | WriteTargetIdDrift VaultId FilePath VaultId     -- 2026-08-29 WAVE-3 閘門新增
   | MarkerUnreadable FilePath StoreError
   | ProjectSelectorNotFound Text | ProjectPathMissing Text FilePath
-  | ProjectSelectorAmbiguous Text [ProjectEntry]      -- 2026-08-29 W4 閘門新增
-  | ProjectAlreadyRegistered Id FilePath              -- 2026-08-29 W4 閘門新增
-  | VaultInitFailed FilePath StoreError               -- 2026-08-29 W4 閘門新增
-  | DeleteTargetIdDrift VaultId FilePath VaultId      -- 2026-08-29 W4 閘門新增
+  | ProjectSelectorAmbiguous Text [ProjectEntry]      -- 2026-08-29 WAVE-4 閘門新增
+  | ProjectAlreadyRegistered Id FilePath              -- 2026-08-29 WAVE-4 閘門新增
+  | VaultInitFailed FilePath StoreError               -- 2026-08-29 WAVE-4 閘門新增
+  | DeleteTargetIdDrift VaultId FilePath VaultId      -- 2026-08-29 WAVE-4 閘門新增
   | InvalidName Text
 
 renderWorkspaceError :: WorkspaceError -> Text
@@ -368,8 +368,8 @@ renderWorkspaceError :: WorkspaceError -> Text
 ——兩個路徑都要印,使用者才看得出是不是自己複製了整個 vault 目錄。
 `ProjectPathMissing` 帶專案名與那個不存在的路徑。`InvalidName` 帶收到的原始字串。
 
-**2026-08-29 W4 閘門新增的三個建構子**,共同的理由是同一條:借用既有建構子會讓訊息**說出一件
-假的事**——與 W3 新增 `WriteTargetIdDrift` 是同一個判準。
+**2026-08-29 WAVE-4 閘門新增的三個建構子**,共同的理由是同一條:借用既有建構子會讓訊息**說出一件
+假的事**——與 WAVE-3 新增 `WriteTargetIdDrift` 是同一個判準。
 
 | 建構子 | 帶的值 | 不補的話會說什麼謊 |
 |---|---|---|
@@ -381,7 +381,7 @@ renderWorkspaceError :: WorkspaceError -> Text
 **`WriteTargetIdDrift` 帶三個值**:註冊表記的 `VaultId`、該 vault 的路徑、marker 裡**實際**的
 `VaultId`。它與 `ScopeIssue.VaultIdDrift` 是同一件事的兩種身分:**在讀取路徑上是降級**
 (那個 vault 退出範圍,其餘照跑),**在寫入目標上是硬失敗**(ADR-017:寫入目標決定不了就該
-硬失敗,程式不猜)。2026-08-29 W3 閘門新增,理由是另外兩個候選都會說謊——`NoWriteTarget` 的
+硬失敗,程式不猜)。2026-08-29 WAVE-3 閘門新增,理由是另外兩個候選都會說謊——`NoWriteTarget` 的
 訊息裡「未指定 `--vault`」「向上找不到 `.aapms`」在這條路徑上都不成立,而 `MarkerUnreadable`
 要在這一層捏造一個 graph-core 的 `StoreError`(違反契約 F「這一層不翻譯」),還會叫使用者去修
 一個沒壞的 marker。訊息要說出真正的下一步:`vault check` / `syncHub` / 重新 `vault add`。
@@ -472,32 +472,32 @@ hubLocation → loadHub → hubTools
 | 呼叫方向 | 介面 |
 |---|---|
 | 全部模組 → Types | 型別定義與 `WorkspaceError` / `renderWorkspaceError`;Types 不回頭 import 任何一個 |
-| Types → `aapms-store` / `aapms-core` | 只取型別:`StoreError` / `VaultMarker` / `VaultKind` / `VaultId` / `Id`。**2026-08-29 W1 補表**(原本只寫在「Types 為什麼要獨立」的散文裡) |
+| Types → `aapms-store` / `aapms-core` | 只取型別:`StoreError` / `VaultMarker` / `VaultKind` / `VaultId` / `Id`。**2026-08-29 WAVE-1 補表**(原本只寫在「Types 為什麼要獨立」的散文裡) |
 | Hub → Location | `configPath :: HubLocation -> FilePath`、`thumbCacheDir`;Hub 自己不解析中樞位置 |
-| Hub → `aapms-store` | `readTextFile`(讀 `config.toml`,一律 UTF-8)、`atomicWriteText`(寫回)、`renderStoreError`(把落地失敗的訊息原樣轉成 `HubUnreadable` / `HubWriteFailed` 的 `Text`,**這一層不翻譯**)。**2026-08-29 W1 補表**(原本只寫在「使用的技術」的散文裡) |
-| Location → `aapms-core` | `Sha256`——`thumbCachePath :: HubLocation -> Sha256 -> FilePath` 的第二參數。**2026-08-29 W1 補表** |
-| Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息。另用 `markerDir`——`.aapms` 這個目錄名的唯一真相在 graph-core,本子系統不自己寫一份字面值(**2026-08-29 W2 補列**) |
+| Hub → `aapms-store` | `readTextFile`(讀 `config.toml`,一律 UTF-8)、`atomicWriteText`(寫回)、`renderStoreError`(把落地失敗的訊息原樣轉成 `HubUnreadable` / `HubWriteFailed` 的 `Text`,**這一層不翻譯**)。**2026-08-29 WAVE-1 補表**(原本只寫在「使用的技術」的散文裡) |
+| Location → `aapms-core` | `Sha256`——`thumbCachePath :: HubLocation -> Sha256 -> FilePath` 的第二參數。**2026-08-29 WAVE-1 補表** |
+| Discovery → `aapms-store` | `readMarker :: FilePath -> IO (Either StoreError VaultMarker)`;失敗原樣包成 `MarkerUnreadable`,不翻譯訊息。另用 `markerDir`——`.aapms` 這個目錄名的唯一真相在 graph-core,本子系統不自己寫一份字面值(**2026-08-29 WAVE-2 補列**) |
 | Discovery → Hub | `hubVaults` 取候選清單;`lookupSelector` 是純函式,只吃 `Hub` 值 |
 | Scope → Discovery | `lookupSelector`(selector → `VaultEntry`);`readVaultRef :: VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)`(**已註冊**的 vault:路徑 → 權威身分,失敗是降級紀錄)<br>`readVaultRefAt :: Hub -> FilePath -> IO (Either WorkspaceError VaultRef)`(**向上探測到**的路徑,可能未註冊;失敗是硬錯誤 `MarkerUnreadable`)<br>`detectVault` |
 | Scope → Hub | 依 `veId` 反查 `VaultEntry`,供 `refs` 展開把 `VaultId` 換成路徑 |
-| Scope → `aapms-store` | `VaultMarker` 的 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子,以及 `Aapms.Store.Schema` 的 `VaultKind` 型別(`resolvePipeline` 的簽名是契約 C 寫死的)。**2026-08-29 W3 補表**——`Types.hs` 對 `VaultMarker` 是裸型別 import(F001 的 L17(d) 釘死),轉不出欄位存取子;`VaultKind` 也不在 Types 的匯出清單裡 |
-| Lifecycle → `aapms-store` | `initVaultAt` 與 **`initVaultAtWith`**(寫 marker + 空索引;後者收明碼 `UTCTime`,**2026-08-30 E001 補列**——`initVaultWith` 靠它把時間往下傳)、`indexDbPath`(`--delete-index` 要刪的那一個檔)、`markerDir`(`.aapms` 這個名字的唯一真相)、`readMarker` 與 `VaultMarker` 的 `vmId` / `vmKind` / `vmName` 三個欄位存取子(刪索引前驗身分、`syncHub` 對帳)。**2026-08-29 W4 補表** |
-| Lifecycle → Location | `configPath`(**中樞的**)與 `thumbCacheDir`——`setupHub` 建中樞、`purge` 清快取要用。**2026-08-29 W4 補表**(表裡原本整條不存在) |
-| Projects → Hub | `upsertProject` / `removeProject`(見上)+ `hubProjects`(撞號比對與 selector 候選都要讀它)。**2026-08-29 W4 補表** |
+| Scope → `aapms-store` | `VaultMarker` 的 `vmId` / `vmKind` / `vmRefs` 三個欄位存取子,以及 `Aapms.Store.Schema` 的 `VaultKind` 型別(`resolvePipeline` 的簽名是契約 C 寫死的)。**2026-08-29 WAVE-3 補表**——`Types.hs` 對 `VaultMarker` 是裸型別 import(F001 的 LAW-17(d) 釘死),轉不出欄位存取子;`VaultKind` 也不在 Types 的匯出清單裡 |
+| Lifecycle → `aapms-store` | `initVaultAt` 與 **`initVaultAtWith`**(寫 marker + 空索引;後者收明碼 `UTCTime`,**2026-08-30 E001 補列**——`initVaultWith` 靠它把時間往下傳)、`indexDbPath`(`--delete-index` 要刪的那一個檔)、`markerDir`(`.aapms` 這個名字的唯一真相)、`readMarker` 與 `VaultMarker` 的 `vmId` / `vmKind` / `vmName` 三個欄位存取子(刪索引前驗身分、`syncHub` 對帳)。**2026-08-29 WAVE-4 補表** |
+| Lifecycle → Location | `configPath`(**中樞的**)與 `thumbCacheDir`——`setupHub` 建中樞、`purge` 清快取要用。**2026-08-29 WAVE-4 補表**(表裡原本整條不存在) |
+| Projects → Hub | `upsertProject` / `removeProject`(見上)+ `hubProjects`(撞號比對與 selector 候選都要讀它)。**2026-08-29 WAVE-4 補表** |
 | Lifecycle → Hub | `upsertVault` / `removeVault`(對 `Hub` 值的純操作)+ `saveHub` |
-| Projects → Hub | `upsertProject :: ProjectEntry -> Hub -> Hub` / `removeProject :: Id -> Hub -> Hub` + `saveHub`。**2026-08-29 W1 閘門裁決補上**:`Hub` 不外露建構子,Projects 的骨架又只有 `Projects.hs`,沒有這兩個入口它動不了 `[[projects]]`。語意與 vault 那一組同構(以 id 為鍵、追加或就地取代、保序) |
+| Projects → Hub | `upsertProject :: ProjectEntry -> Hub -> Hub` / `removeProject :: Id -> Hub -> Hub` + `saveHub`。**2026-08-29 WAVE-1 閘門裁決補上**:`Hub` 不外露建構子,Projects 的骨架又只有 `Projects.hs`,沒有這兩個入口它動不了 `[[projects]]`。語意與 vault 那一組同構(以 id 為鍵、追加或就地取代、保序) |
 | Lifecycle → Discovery | `AdoptExisting` 與 `addVault` 時讀既有 marker 取 id / kind / name |
 | Projects → `aapms-core` | `newId PPrj`(純函式,時間由呼叫端給);唯一性由 Projects 對中樞既有 `peId` 重試保證 |
 | Tools → Hub | `hubTools` 取 `ToolsConfig`;Tools 不讀檔案格式 |
 
-**`readVaultRef` 為什麼拆成兩個**(2026-08-29 W2 閘門裁決):本表原本只有一個
+**`readVaultRef` 為什麼拆成兩個**(2026-08-29 WAVE-2 閘門裁決):本表原本只有一個
 `readVaultRef :: Maybe VaultEntry -> ...`,但契約 C 的 `ScopeIssue` 三個相關建構子**每一個都要求
 一列 `VaultEntry`**——第一參數為 `Nothing`(向上探測到、未註冊的 vault)時失敗通道表達不出來,
 而契約卡又把 `MarkerUnreadable` 指給 Discovery,那個回傳型別也生不出它。兩條路徑的**失敗語意本來
 就不同**:「註冊表裡那一列壞了」是降級(其餘 vault 照跑),「你 cd 所在的 vault 壞了」是硬失敗
 (寫入目標決定不了,ADR-017)。拆開之後型別分得出來。**被否決的替代方案**:給 `ScopeIssue` 加一個
-不帶 `VaultEntry` 的建構子——語意最乾淨,但要改已交付的 `Types.hs`,而 D2 的併發前提正是
-「W2 之後沒人再碰 `Types.hs`」,等於整波重排。
+不帶 `VaultEntry` 的建構子——語意最乾淨,但要改已交付的 `Types.hs`,而 DEC-2 的併發前提正是
+「WAVE-2 之後沒人再碰 `Types.hs`」,等於整波重排。
 
 **方向是線性的**:`Types ← Location ← Hub ← Discovery ← Scope`,`Lifecycle` / `Projects` / `Tools`
 各自往左依賴,彼此不互相呼叫。沒有任何一條回頭邊,型別歸屬圖因此無環。
@@ -510,7 +510,7 @@ hubLocation → loadHub → hubTools
   「人可手寫的設定都是 TOML」在整個系統只有一種解析行為
 - **中樞的序列化自己寫**(固定段落順序、保留使用者的註解與空白行),不用泛型 encoder——
   這是「可手寫」這條性質的前提,與 graph-core 對 `meta` 區塊的處置同一個理由
-- **`directory` / `filepath`**:向上探測、路徑正規化(`canonicalizePath`)、`getPermissions` 的可執行判準。**不用 `findExecutable`**(2026-08-29 W4 校正):它在 Windows 走 Win32 `SearchPath`,搜過哪些地方由登錄檔決定、測試控制不了,而契約 E 的 `tsSearched` 要求說得出「找過哪些地方」——PATH 由本子系統自己展開
+- **`directory` / `filepath`**:向上探測、路徑正規化(`canonicalizePath`)、`getPermissions` 的可執行判準。**不用 `findExecutable`**(2026-08-29 WAVE-4 校正):它在 Windows 走 Win32 `SearchPath`,搜過哪些地方由登錄檔決定、測試控制不了,而契約 E 的 `tsSearched` 要求說得出「找過哪些地方」——PATH 由本子系統自己展開
 - 原子寫入沿用 `aapms-store` 的 `atomicWriteText`,**不另寫一份**
 
 ## 架構圖
@@ -545,11 +545,11 @@ hubLocation → loadHub → hubTools
 
 ## 開發階段
 
-對應主架構 **P3「骨幹」**(與 `service`、`shell` 同期)。本子系統是 P3 三個子系統裡的**最上游**:
+對應主架構 **S3「骨幹」**(與 `service`、`shell` 同期)。本子系統是 S3 三個子系統裡的**最上游**:
 `service` 的 `Env` 要靠它決定開哪些 vault,所以階段一結束前 `service` 動不了。
 
 內部里程碑即下方兩個階段:階段一結束時「一道指令對哪些 vault 生效」已經算得出來(給定一份手寫的
-中樞檔案);階段二結束時中樞可以由工具自己建立與維護,主架構 P3 的「舊 marker 探測、`doctor` 合一」
+中樞檔案);階段二結束時中樞可以由工具自己建立與維護,主架構 S3 的「舊 marker 探測、`doctor` 合一」
 兩條交付判準可驗。
 
 ## 功能規劃
@@ -585,7 +585,7 @@ hubLocation → loadHub → hubTools
   **契約 C / D / E 的全部型別宣告**(`VaultRef` / `ScopeIssue` / `ReadScope` / `WriteScope` /
   `PipelineScope` / `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` / `AdoptNotice` /
   `PurgeReport` / `ToolOrigin` / `ToolStatus`——**只有型別,函式留給後續 feature**);
-  契約 F 全部(`WorkspaceError` 十七個建構子與 `renderWorkspaceError`(W3 閘門新增 `WriteTargetIdDrift`))
+  契約 F 全部(`WorkspaceError` 十七個建構子與 `renderWorkspaceError`(WAVE-3 閘門新增 `WriteTargetIdDrift`))
 - **資料流管線段落**:裁決管線的前兩步(`hubLocation` → `loadHub`),以及生命週期管線的最後一步
   (`saveHub`)
 - **驗收標準**:
@@ -750,5 +750,5 @@ hubLocation → loadHub → hubTools
 | `refs` = 收窄時的最小讀取集合(展開進來唯讀) | **刪掉 `refs`**:契約面最小。否決理由是 `--vault X` 收窄後跨 vault 的 `Ref` 一律解不開,`project new --vault <story vault>` 要手指素材庫。**`refs` 取代預設全域查詢**:否決理由是會讓查詢結果與「你 cd 在哪裡」綁定,失去「一次找遍所有素材」 |
 | `aapms-workspace` 依賴 `aapms-store` | **只依賴 `aapms-core` + TOML,marker 交給 `service` 讀**:照 system.md 原文。否決理由是 vault 身分的知識會被切成三半(中樞 / marker / 拼裝),新增一條與 vault 身分有關的規則要改三個地方。**把 marker 讀寫搬進 workspace、`aapms-store` 反過來依賴它**:知識歸屬最乾淨,但要動已交付驗收的 graph-core F005 與契約 E,且依賴方向翻轉是不可逆的 |
 | `[llm]` 住中樞,不住 vault marker | **維持 legacy 的 per-vault `[llm]`**:兩個 vault 可以用不同模型。否決理由是新的 `VaultMarker` 只有四欄,承接 `[llm]` 要回頭擴充已交付的 graph-core;而端點本來就是這台機器的東西,per-vault 等於同一組設定抄 N 次 |
-| `vault init --adopt` 取代 `vault migrate` | **保留 `vault migrate`**:與 ADR-017 決策六原文一致、不用改 ADR。否決理由是 P2 匯出器已於 2026-08-29 放棄,`migrate` 扣掉資料搬遷後與「在既有目錄上 init」是同一件事,而 `.storyflow/` 那條分支在這台機器上沒有任何真實對象;留著等於養一條永遠不會被呼叫、卻要進 CLI 說明與 OpenAPI 的路徑 |
+| `vault init --adopt` 取代 `vault migrate` | **保留 `vault migrate`**:與 ADR-017 決策六原文一致、不用改 ADR。否決理由是 S2 匯出器已於 2026-08-29 放棄,`migrate` 扣掉資料搬遷後與「在既有目錄上 init」是同一件事,而 `.storyflow/` 那條分支在這台機器上沒有任何真實對象;留著等於養一條永遠不會被呼叫、卻要進 CLI 說明與 OpenAPI 的路徑 |
 | 中樞的序列化保留使用者的註解與空白行 | **用泛型 encoder 整檔重寫**:實作最省。否決理由是 ADR-017 決策二把「可手寫」列為中樞的性質,整檔重寫會把使用者寫的註解吃掉一次就沒了 |

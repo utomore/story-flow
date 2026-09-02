@@ -1,4 +1,4 @@
--- | T10:'toLicenses' —— licenses.md 的檔案層是容器不是節點,每節一個
+-- | STEP-10:'toLicenses' —— licenses.md 的檔案層是容器不是節點,每節一個
 -- 'License',八個維度中 @commercial@ / @attribution_required@ 必填、其餘六個
 -- 缺漏是 'Nothing'(graph-core/F004)。
 module Aapms.Md.ParseLicenseSpec (spec) where
@@ -70,7 +70,7 @@ spec = do
       leftKind (toLicenses (docOf bad))
         `shouldBe` Just (SectionFieldMissing (idOf "lic-0000000a") "attribution_required")
 
-  -- T11:renderMdError 對 SectionFieldMissing 印出節 id 與行號
+  -- STEP-11:renderMdError 對 SectionFieldMissing 印出節 id 與行號
   describe "SectionFieldMissing 的訊息" $
     it "renderMdError 印出節 id" $ do
       let bad = T.replace "commercial: true\nattribution_required: false\n" "attribution_required: false\n" licensesMd

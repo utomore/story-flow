@@ -1,4 +1,4 @@
--- | T3:原子寫入。
+-- | STEP-3:原子寫入。
 --
 -- 「覆蓋既有檔案成功」是本檔最重要的一條:Windows 的 rename 在目標已存在時
 -- 不見得會覆寫,entity-graph-core/F004 明確要求驗證這個行為而不是相信它。
@@ -18,7 +18,7 @@ import System.FilePath ((</>))
 import Test.Hspec
 
 spec :: Spec
-spec = describe "T3 atomicWriteText" $ do
+spec = describe "STEP-3 atomicWriteText" $ do
   it "寫入後內容正確、UTF-8 且不加 BOM" $
     withTempVault $ \dir -> do
       let fp = dir </> "琳達.md"

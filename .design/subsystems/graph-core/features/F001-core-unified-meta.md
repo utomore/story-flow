@@ -39,7 +39,7 @@ related-feature: []
 無法與任何其他 feature 平行開發——階段一的 #2、#3 與階段二、三全部 features 都要等本 feature
 定案的型別。
 
-D1(委派決策記錄):下游套件已從 `cabal.project` 凍結,本 feature 以外的程式碼(`service` /
+DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,本 feature 以外的程式碼(`service` /
 `conflict` / `cli` / … 舊碼仍 import 舊 `Aapms.Core.*`)一律不碰、不考慮相容。
 
 ## 對應的 Level 2 契約
@@ -89,8 +89,8 @@ Tree / Json」四個概念桶。桶內實際拆成以下 `.hs` 檔(沿用舊檔�
 | 檔案 | 內容 |
 |---|---|
 | `Id.hs` | `IdPrefix`(8 值)、`Id`、`VaultId`(newtype)、`newId`(舊 `mkId` 改名)、`parseId`、`renderId`、`idPrefix`、`Ref`、`localRef`、`parseRef`、`renderRef`、`IdError`、`fnv1a64` |
-| `Meta.hs` | `TypeKey` / `Revision`(newtype)、`Status`(+`Missing`)、`Source`(+`Scan`/`Ai`)、`Timeline`、`Meta`、`metaFieldNames`、`bumpRevision`、`isCanon`、`MetaWarning`(型別骨架,見待確認假設 A1)、`MetaError` |
-| `Link.hs` | `LinkKind`(+`Uses`/`Depicts`)、`Link`、`coreLinkKinds`、render/parse、`isCoreKind`、`suggestCoreKind`、`LinkGraph`(型別別名,見待確認假設 A2) |
+| `Meta.hs` | `TypeKey` / `Revision`(newtype)、`Status`(+`Missing`)、`Source`(+`Scan`/`Ai`)、`Timeline`、`Meta`、`metaFieldNames`、`bumpRevision`、`isCanon`、`MetaWarning`(型別骨架,見待確認假設 ASM-1)、`MetaError` |
+| `Link.hs` | `LinkKind`(+`Uses`/`Depicts`)、`Link`、`coreLinkKinds`、render/parse、`isCoreKind`、`suggestCoreKind`、`LinkGraph`(型別別名,見待確認假設 ASM-2) |
 | `Entity.hs` | `Entity`(形狀不變,改吃新 `Meta`) |
 | `Asset.hs`(新) | `Sha256` / `LogicalName`(newtype)、`Asset` |
 | `Pack.hs`(新) | `AiDisclosure`、`Author`、`Pack` |
@@ -103,7 +103,7 @@ Tree / Json」四個概念桶。桶內實際拆成以下 `.hs` 檔(沿用舊檔�
 ### 刪除:`Registry.hs`、`Graph.hs`
 
 決策記錄原文:「`Aapms.Core.Registry` 的純驗證與 `checkEntity` 屬 #2 的範圍,本 feature 只需讓它
-還能編(或標明交給 #2 改接)」。查證後選擇「標明交給 #2」而非硬改到能編,理由見待確認假設 A1——
+還能編(或標明交給 #2 改接)」。查證後選擇「標明交給 #2」而非硬改到能編,理由見待確認假設 ASM-1——
 `FieldSpec` / `EntityTypeSpec` / `TypeRegistry` 這三個型別在契約 C 整批搬到 `aapms-types`(型別
 形狀也變了:`TypeDecl` 取代 `EntityTypeSpec`、多了 `Family` / `tdNameKinds`),留著舊形狀的
 `Registry.hs` 只會製造兩份不同形狀的「型別宣告」型別,#2 勢必整份重寫。因此本 feature 直接刪除
@@ -116,7 +116,7 @@ Level 2 契約 B 的清單內(契約 B 只提到型別 `LinkGraph` 本身,經 `a
 子系統,不在 graph-core 範圍)。查證 `design.md` 的「內部模組劃分」表也沒有列出對應的 `Graph`
 模組。因此本 feature 只留下 `type LinkGraph = Map Id [Link]` 這個型別別名(併入 `Link.hs`),刪除
 `buildGraph` / `follow` / `supersededSet` / `contradictionPairs` 與 `core/test/Aapms/Core/GraphSpec.hs`。
-見待確認假設 A2。
+見待確認假設 ASM-2。
 
 ### `CabalSpec.hs`(新)
 
@@ -239,76 +239,76 @@ buildTree :: Level -> [Node] -> Either [TreeError] NodeTree
 ```haskell
 data IdError = BadIdFormat Text | UnknownIdPrefix Text | BadRefFormat Text
 
--- 待確認假設 A1:形狀由本 feature 定,checkMeta 的實作屬 #2
+-- 待確認假設 ASM-1:形狀由本 feature 定,checkMeta 的實作屬 #2
 data MetaWarning
   = MissingRequiredField TypeKey Text
   | LinkNotAllowed TypeKey Text
   | UnknownNodeType TypeKey
   | NameKindNotAllowed TypeKey Text
 
--- 待確認假設 A2:只留型別別名,不含走訪函式
+-- 待確認假設 ASM-2:只留型別別名,不含走訪函式
 type LinkGraph = Map Id [Link]
 ```
 
 ## TodoList
 
-- [x] T1: `Id.hs`:`VaultId` newtype、`IdPrefix` 擴充 8 值、`mkId` 改名 `newId`、`Ref`/`parseRef` 改用 `VaultId`  `dep: -`
-- [x] T2: `Meta.hs`:`TypeKey`/`Revision` newtype、`Status` 加 `Missing`、`Source` 加 `Scan`/`Ai`、`Timeline` 改 `Maybe`、`Meta` 逐欄改型別、`MetaWarning` 型別骨架、`metaFieldNames`/`bumpRevision`/`isCanon`/`MetaError` 更新  `dep: T1`
-- [x] T3: `Link.hs`:`LinkKind` 加 `Uses`/`Depicts`、`LinkGraph` 型別別名併入  `dep: T1`
-- [x] T4: `Entity.hs`:改吃新 `Meta`  `dep: T2`
-- [x] T5: `Asset.hs`(新):`Sha256`/`LogicalName` newtype、`Asset` 型別  `dep: T1, T2`
-- [x] T6: `Pack.hs`(新):`AiDisclosure`、`Author`、`Pack` 型別  `dep: T2, T5`
-- [x] T7: `License.hs`(新):`License` 型別  `dep: T2`
-- [x] T8: `Level.hs`:`Level`/`Node` 改吃新 `Meta`/`Id`,`NodeKind` 沿用  `dep: T1, T2`
-- [x] T9: `AnyNode.hs`(新):`AnyNode`、`anyMeta`、`prefixOf`  `dep: T4, T5, T6, T7, T8`
-- [x] T10: `Tree.hs`:`buildTree` 與既有走訪函式改吃新型別  `dep: T8`
-- [x] T11: 刪除 `Registry.hs` / `RegistrySpec.hs`;`Graph.hs` 併入 `Link.hs` 後刪除、刪除 `GraphSpec.hs`  `dep: T3`
-- [x] T12: `Json.hs`:移除 `FieldSpec`/`EntityTypeSpec` 孤兒實例,新增全部新型別的 `ToJSON`/`FromJSON`  `dep: T2, T4, T5, T6, T7, T8, T9, T10`
-- [x] T13: `aapms-core.cabal`:`exposed-modules` 移除 `Registry`/`Graph`、加入 `Asset`/`Pack`/`License`/`AnyNode`  `dep: T1..T12`
-- [x] T14: 新增 `core/test/Aapms/Core/CabalSpec.hs`(斷言 8 項禁用套件不在 `build-depends`)  `dep: T13`
-- [x] T15: 重寫 `Fixtures.hs`(新 `Meta` 形狀、六種節點 fixture)  `dep: T12`
-- [x] T16: 重寫既有 Spec:`IdSpec` / `MetaSpec` / `LinkSpec` / `EntitySpec` / `TreeSpec` / `JsonSpec`  `dep: T15`
-- [x] T17: 新增 `AssetSpec` / `PackSpec` / `LicenseSpec` / `AnyNodeSpec`  `dep: T15`
-- [x] T18: 更新 `core/test/Spec.hs` 的 describe 清單(移除 Registry/Graph、加入新 Spec)  `dep: T16, T17`
+- [x] STEP-1: `Id.hs`:`VaultId` newtype、`IdPrefix` 擴充 8 值、`mkId` 改名 `newId`、`Ref`/`parseRef` 改用 `VaultId`  `dep: -`
+- [x] STEP-2: `Meta.hs`:`TypeKey`/`Revision` newtype、`Status` 加 `Missing`、`Source` 加 `Scan`/`Ai`、`Timeline` 改 `Maybe`、`Meta` 逐欄改型別、`MetaWarning` 型別骨架、`metaFieldNames`/`bumpRevision`/`isCanon`/`MetaError` 更新  `dep: T1`
+- [x] STEP-3: `Link.hs`:`LinkKind` 加 `Uses`/`Depicts`、`LinkGraph` 型別別名併入  `dep: T1`
+- [x] STEP-4: `Entity.hs`:改吃新 `Meta`  `dep: T2`
+- [x] STEP-5: `Asset.hs`(新):`Sha256`/`LogicalName` newtype、`Asset` 型別  `dep: T1, T2`
+- [x] STEP-6: `Pack.hs`(新):`AiDisclosure`、`Author`、`Pack` 型別  `dep: T2, T5`
+- [x] STEP-7: `License.hs`(新):`License` 型別  `dep: T2`
+- [x] STEP-8: `Level.hs`:`Level`/`Node` 改吃新 `Meta`/`Id`,`NodeKind` 沿用  `dep: T1, T2`
+- [x] STEP-9: `AnyNode.hs`(新):`AnyNode`、`anyMeta`、`prefixOf`  `dep: T4, T5, T6, T7, T8`
+- [x] STEP-10: `Tree.hs`:`buildTree` 與既有走訪函式改吃新型別  `dep: T8`
+- [x] STEP-11: 刪除 `Registry.hs` / `RegistrySpec.hs`;`Graph.hs` 併入 `Link.hs` 後刪除、刪除 `GraphSpec.hs`  `dep: T3`
+- [x] STEP-12: `Json.hs`:移除 `FieldSpec`/`EntityTypeSpec` 孤兒實例,新增全部新型別的 `ToJSON`/`FromJSON`  `dep: T2, T4, T5, T6, T7, T8, T9, T10`
+- [x] STEP-13: `aapms-core.cabal`:`exposed-modules` 移除 `Registry`/`Graph`、加入 `Asset`/`Pack`/`License`/`AnyNode`  `dep: T1..T12`
+- [x] STEP-14: 新增 `core/test/Aapms/Core/CabalSpec.hs`(斷言 8 項禁用套件不在 `build-depends`)  `dep: T13`
+- [x] STEP-15: 重寫 `Fixtures.hs`(新 `Meta` 形狀、六種節點 fixture)  `dep: T12`
+- [x] STEP-16: 重寫既有 Spec:`IdSpec` / `MetaSpec` / `LinkSpec` / `EntitySpec` / `TreeSpec` / `JsonSpec`  `dep: T15`
+- [x] STEP-17: 新增 `AssetSpec` / `PackSpec` / `LicenseSpec` / `AnyNodeSpec`  `dep: T15`
+- [x] STEP-18: 更新 `core/test/Spec.hs` 的 describe 清單(移除 Registry/Graph、加入新 Spec)  `dep: T16, T17`
 
 ## 1-to-1 測試對照表
 
 | Todo | 測試 | 說明 |
 |------|------|------|
-| T1 | test_id_newtypes_and_prefixes | `newId` 同輸入不同 salt 得不同 id;8 種 `IdPrefix` render/parse 互為反函式;`parseRef` 接受 `ent-7f3b2a91` 與 `vlt-a0c4e1f8:ent-7f3b2a91` |
-| T2 | test_meta_status_source_extended | `Status`/`Source` 4/5 值 render/parse 互為反函式(含 `Missing`/`Scan`/`Ai`);`bumpRevision` 對 `Revision` newtype 正確 +1 |
-| T3 | test_link_uses_depicts_and_linkgraph | `coreLinkKinds` 含 `Uses`/`Depicts`,render 為 `"uses"`/`"depicts"`;`LinkGraph` 可放入 `Map.fromList` 並查詢 |
-| T4 | test_entity_shape | `Entity` 以新 `Meta` 建構、欄位存取正確 |
-| T5 | test_asset_shape | `Asset` 全欄位建構與存取,`Sha256`/`LogicalName` 建構子可直接使用 |
-| T6 | test_pack_shape | `Pack` 全欄位建構,`pckAiDisclosure` 4 值可用,`Author` 三欄位 |
-| T7 | test_license_shape | `License` 9 個欄位(不含 `licMeta`)全部可建構與讀取 |
-| T8 | test_level_node_shape | `Level`/`Node` 以新 `Meta`/`Id` 建構,`NodeKind` 6 值 render/parse 不變 |
-| T9 | test_anynode_prefixof | 六種建構子的 `anyMeta` 回傳正確 `Meta`;`prefixOf` 對六種建構子回傳對應 `IdPrefix`(`NEntity`→`PEnt` 等) |
-| T10 | test_buildtree_invariants | 成環(`Cycle`)、跳級(`OrphanNode`)、多重父節點(`MultipleRoots`)三種壞資料各自被 `buildTree` 拒絕;合法教室場景 fixture 建樹成功 |
-| T11 | test_registry_graph_removed | `aapms-core.cabal` 文字裡不再出現 `Aapms.Core.Registry` / `Aapms.Core.Graph`;`Aapms.Core.Link` 匯出 `LinkGraph` 可用 |
-| T12 | test_json_roundtrip_all_nodes | 六種節點與 `AnyNode` 的 `ToJSON`/`decode`(用 `eitherDecodeStrictText`)roundtrip 相等;`metaTimeline = Nothing` 時輸出無 `"timeline"` 鍵;`Ref` 兩種寫法 encode/decode |
-| T13 | test_cabal_exposed_modules | `exposed-modules` 含 `Aapms.Core.Asset`/`Pack`/`License`/`AnyNode`,不含 `Registry`/`Graph` |
-| T14 | test_cabalspec_forbidden_deps | `build-depends` 不含 8 項禁用套件名(逐字比對) |
-| T15 | test_fixtures_build | `Fixtures.hs` 產生的六種節點 fixture 可被其餘 Spec 匯入使用,不編譯錯誤 |
-| T16 | test_existing_specs_pass | 6 個既有 Spec 全數以新型別重寫後綠燈 |
-| T17 | test_new_type_specs_pass | 4 個新 Spec 綠燈 |
-| T18 | test_spec_registration | `core/test/Spec.hs` 的 `describe` 清單引用全部現存 Spec、不引用已刪除的 `RegistrySpec`/`GraphSpec` |
+| STEP-1 | test_id_newtypes_and_prefixes | `newId` 同輸入不同 salt 得不同 id;8 種 `IdPrefix` render/parse 互為反函式;`parseRef` 接受 `ent-7f3b2a91` 與 `vlt-a0c4e1f8:ent-7f3b2a91` |
+| STEP-2 | test_meta_status_source_extended | `Status`/`Source` 4/5 值 render/parse 互為反函式(含 `Missing`/`Scan`/`Ai`);`bumpRevision` 對 `Revision` newtype 正確 +1 |
+| STEP-3 | test_link_uses_depicts_and_linkgraph | `coreLinkKinds` 含 `Uses`/`Depicts`,render 為 `"uses"`/`"depicts"`;`LinkGraph` 可放入 `Map.fromList` 並查詢 |
+| STEP-4 | test_entity_shape | `Entity` 以新 `Meta` 建構、欄位存取正確 |
+| STEP-5 | test_asset_shape | `Asset` 全欄位建構與存取,`Sha256`/`LogicalName` 建構子可直接使用 |
+| STEP-6 | test_pack_shape | `Pack` 全欄位建構,`pckAiDisclosure` 4 值可用,`Author` 三欄位 |
+| STEP-7 | test_license_shape | `License` 9 個欄位(不含 `licMeta`)全部可建構與讀取 |
+| STEP-8 | test_level_node_shape | `Level`/`Node` 以新 `Meta`/`Id` 建構,`NodeKind` 6 值 render/parse 不變 |
+| STEP-9 | test_anynode_prefixof | 六種建構子的 `anyMeta` 回傳正確 `Meta`;`prefixOf` 對六種建構子回傳對應 `IdPrefix`(`NEntity`→`PEnt` 等) |
+| STEP-10 | test_buildtree_invariants | 成環(`Cycle`)、跳級(`OrphanNode`)、多重父節點(`MultipleRoots`)三種壞資料各自被 `buildTree` 拒絕;合法教室場景 fixture 建樹成功 |
+| STEP-11 | test_registry_graph_removed | `aapms-core.cabal` 文字裡不再出現 `Aapms.Core.Registry` / `Aapms.Core.Graph`;`Aapms.Core.Link` 匯出 `LinkGraph` 可用 |
+| STEP-12 | test_json_roundtrip_all_nodes | 六種節點與 `AnyNode` 的 `ToJSON`/`decode`(用 `eitherDecodeStrictText`)roundtrip 相等;`metaTimeline = Nothing` 時輸出無 `"timeline"` 鍵;`Ref` 兩種寫法 encode/decode |
+| STEP-13 | test_cabal_exposed_modules | `exposed-modules` 含 `Aapms.Core.Asset`/`Pack`/`License`/`AnyNode`,不含 `Registry`/`Graph` |
+| STEP-14 | test_cabalspec_forbidden_deps | `build-depends` 不含 8 項禁用套件名(逐字比對) |
+| STEP-15 | test_fixtures_build | `Fixtures.hs` 產生的六種節點 fixture 可被其餘 Spec 匯入使用,不編譯錯誤 |
+| STEP-16 | test_existing_specs_pass | 6 個既有 Spec 全數以新型別重寫後綠燈 |
+| STEP-17 | test_new_type_specs_pass | 4 個新 Spec 綠燈 |
+| STEP-18 | test_spec_registration | `core/test/Spec.hs` 的 `describe` 清單引用全部現存 Spec、不引用已刪除的 `RegistrySpec`/`GraphSpec` |
 
 ## 待確認假設
 
-- A1: `MetaWarning` 的確切建構子清單(`MissingRequiredField` / `LinkNotAllowed` / `UnknownNodeType` /
+- ASM-1: `MetaWarning` 的確切建構子清單(`MissingRequiredField` / `LinkNotAllowed` / `UnknownNodeType` /
   `NameKindNotAllowed`)是依 F002 契約卡驗收標準文字(「`checkMeta` 對 asset 檢查 `name` 第一段在該
   型別的 `name_kinds` 內、關聯在 `allowed_links` 內」)反推的最小合理形狀,`checkMeta` 本身**不**在
   本 feature 實作 → 採取:先把型別骨架放進 `Meta.hs` 供後續 import,`checkMeta` 的呼叫邏輯與
   `TypeRegistry` 相依留給 #2 → 影響:若 #2 需要更多警告種類(例如型別未宣告 `dir`),`MetaWarning`
   要加建構子,不影響 F001 已完成的其餘型別
-- A2: `Aapms.Core.Graph` 的 `buildGraph` / `follow` / `supersededSet` / `contradictionPairs` 四個
+- ASM-2: `Aapms.Core.Graph` 的 `buildGraph` / `follow` / `supersededSet` / `contradictionPairs` 四個
   純函式判定為**不在**本次 Level 2 契約範圍(design.md 契約 B 與「內部模組劃分」都沒有列出),
   只留 `LinkGraph` 型別別名 → 採取:刪除四個函式與 `GraphSpec.hs`,`LinkGraph` 併入 `Link.hs` →
   影響:若編排者認為這四個函式仍是「三條管線共用的型別層」該提供的能力(例如衝突偵測子系統設計
   時想直接沿用),需要回頭修 `design.md` 契約 B 補上這幾個函式簽名,再開一個小 feature 或併入
   日後的 `conflict` 子系統設計時原樣移植
-- A3: `aapms-core.cabal` 的 `CabalSpec.hs` 禁用清單固定抄 design.md「使用的技術」一節逐字列出的
+- ASM-3: `aapms-core.cabal` 的 `CabalSpec.hs` 禁用清單固定抄 design.md「使用的技術」一節逐字列出的
   8 個套件名,不做「凡出現 IO / SQLite / 壓縮 / 影像類套件就擋」的模糊分類判斷(那需要套件分類
   知識庫,超出本 feature 範圍)→ 採取:逐字清單,新出現的違規套件名不會被這條測試攔下 → 影響:
   若日後 `aapms-core` 意外多相依一個沒列在清單裡的重量級套件,這條測試不會變紅,需要人工發現後
@@ -317,7 +317,7 @@ type LinkGraph = Map Id [Link]
 ## 實作備註
 
 - `Entity.hs` 與 `Tree.hs` 的原始碼一字未動:兩者只透過抽象的 `Meta` / `Id` 型別
-  操作(`metaId`、`metaLinks`、`nodMeta` 等存取器),T4 與 T10 完全由下游型別
+  操作(`metaId`、`metaLinks`、`nodMeta` 等存取器),STEP-4 與 STEP-10 完全由下游型別
   (`Meta`、`Ref`)換形狀後自動吃到新契約,不需要任何程式碼變更。
 - `AnyNode` 的 `FromJSON` 沒有另外的判別鍵——解碼時讀 `id` 欄位的前綴決定要
   用哪一種節點的 `FromJSON`(`prefixOf` 的反函式)。這是內部實作自主權範圍

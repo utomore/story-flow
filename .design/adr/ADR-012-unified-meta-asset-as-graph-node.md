@@ -83,7 +83,7 @@ assetdb 的 `notes` / `links` 表是它自己長出來的、Entity 圖譜的弱�
 
 - `aapms search 織紋刀` 一次回「刀的設定片段」與「刀的立繪」
 - 專案產出可以從 Level 順關聯一路找到素材(ADR 未涉及的細節見 system.md 資料流 B)
-- 衝突偵測的候選集自然含素材節點;P5 後可讀素材的視覺標註
+- 衝突偵測的候選集自然含素材節點;S5 後可讀素材的視覺標註
 - assetdb 的 `notes` / `links` 兩張表與 `note import` / `note list` / `link` 三個指令直接刪除
 
 **負面 / 成本**

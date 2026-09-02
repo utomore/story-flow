@@ -2,7 +2,7 @@
 --
 -- 一個 vault = 一個目錄 + @.aapms\/@ marker。本模組只負責「已知根目錄之後」
 -- 的讀寫;__不探測、不讀中樞註冊表、不處理 @--vault@__——那些是 @workspace@
--- 子系統的職責(P3),本模組刻意不 import 任何會做這些事的東西。
+-- 子系統的職責(S3),本模組刻意不 import 任何會做這些事的東西。
 module Aapms.Store.Marker
   ( -- * 型別
     VaultMarker (..)
@@ -68,7 +68,7 @@ data VaultMarker = VaultMarker
 -- graph-core\/F006 起的查詢\/寫入函式都要能直接拿 'vhConn' 操作索引、拿
 -- 'vhRoot' 組出檔案的絕對路徑、拿 'vhRegistry' 跑 'Aapms.Core.Registry.checkMeta'。
 --
--- 註冊表併入 'VaultHandle'(D9,取代原本「各索引函式加一個參數」的方案):
+-- 註冊表併入 'VaultHandle'(DEC-9,取代原本「各索引函式加一個參數」的方案):
 -- @openVault@ 自己就要做過時刷新(graph-core\/F006),那條路徑同樣需要註冊表,
 -- 只補索引函式的參數會漏掉 @openVault@ 這一段;由 @openVault@ 收下也把「先載入
 -- 註冊表、再開 vault」這個順序用型別釘死。
@@ -136,7 +136,7 @@ parseMarker fp txt = case TOML.decode txt of
 -- | 'initVaultAt' 的明碼時間版本(graph-core\/E002)。
 --
 -- __時間是明碼參數__,與 'Aapms.Core.Id.newId' 及 'Aapms.Store.Write.allocateId'
--- (2026-08-25 G8 裁決)一致:vault 的 id 是 @newId PVlt name t 0@ 的結果,時間
+-- (2026-08-25 GAP-8 裁決)一致:vault 的 id 是 @newId PVlt name t 0@ 的結果,時間
 -- 藏在函式內部取樣時,呼叫端就無法預先造出兩個相同的 id —— 而
 -- @workspace@ 的 @initVault@ 有一整條「新 id 撞到中樞既有 id 就回
 -- @VaultIdCollision@ 並回滾」的分支,它的正確性只能靠造出一次碰撞來驗。
@@ -201,7 +201,7 @@ quote t = "\"" <> T.concatMap esc t <> "\""
 
 -- | 讀取管線「openVault:讀 marker → 開索引 → schema 判斷」的完整落地。
 --
--- 型別註冊表由呼叫端先載入好再給(D9):本函式只是把它收進 'VaultHandle',
+-- 型別註冊表由呼叫端先載入好再給(DEC-9):本函式只是把它收進 'VaultHandle',
 -- 不在這裡載入——載入是 IO 且有自己的錯誤型別(契約 C 的 'RegistryError'),
 -- 屬 @aapms-types@\/呼叫端的責任,不是 @openVault@ 的責任。
 openVault :: TypeRegistry -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue]))

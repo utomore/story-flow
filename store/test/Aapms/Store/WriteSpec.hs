@@ -4,22 +4,22 @@
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
 --
 -- @
--- L1   樂觀鎖:不符即拒且檔案未動                    -> test_E5(writeMeta 案例)
--- L2   revision 恰好 +1,且與檔案一致                -> test_E5 / 各 it 內建的 wrRevision 檢查
--- L3   位元組保留                                    -> test_E5 / test_writeBody
--- L4   asset 唯讀欄位不變                            -> test_L4_L5
--- L5   AssetPatch 的三態語意                         -> test_L4_L5
--- L6   addLink / removeLink 往返                     -> test_L6
--- L7   removeLink 沒命中不寫檔                        -> test_E7
--- L8   upsertLicense 讀回相等                        -> test_L8
--- L14  allocateId 互異,且成功時才給 id(固定 t,2026-08-25 G8 收緊)  -> test_L14
--- L14b 碰撞查詢失敗即失敗                             -> test_E15
--- E4   writeAssetFields 三態語意 + 唯讀欄位           -> test_L4_L5(以 E4 的情境為準,合併寫)
--- E5   樂觀鎖失敗路徑                                -> test_E5
--- E6   allocateId 人為碰撞(2026-08-25 G8 裁決:t 明碼參數後可精確重現) -> test_E6
--- E7   removeLink 沒命中                             -> test_E7
--- E9   writeBody 不吃掉 payload 欄位                  -> test_writeBody
--- E15  allocateId 索引查詢失敗                        -> test_E15
+-- LAW-1   樂觀鎖:不符即拒且檔案未動                    -> test_EX5(writeMeta 案例)
+-- LAW-2   revision 恰好 +1,且與檔案一致                -> test_EX5 / 各 it 內建的 wrRevision 檢查
+-- LAW-3   位元組保留                                    -> test_EX5 / test_writeBody
+-- LAW-4   asset 唯讀欄位不變                            -> test_LAW4_LAW5
+-- LAW-5   AssetPatch 的三態語意                         -> test_LAW4_LAW5
+-- LAW-6   addLink / removeLink 往返                     -> test_LAW6
+-- LAW-7   removeLink 沒命中不寫檔                        -> test_EX7
+-- LAW-8   upsertLicense 讀回相等                        -> test_LAW8
+-- LAW-14  allocateId 互異,且成功時才給 id(固定 t,2026-08-25 GAP-8 收緊)  -> test_LAW14
+-- LAW-14b 碰撞查詢失敗即失敗                             -> test_EX15
+-- EX-4   writeAssetFields 三態語意 + 唯讀欄位           -> test_LAW4_LAW5(以 EX-4 的情境為準,合併寫)
+-- EX-5   樂觀鎖失敗路徑                                -> test_EX5
+-- EX-6   allocateId 人為碰撞(2026-08-25 GAP-8 裁決:t 明碼參數後可精確重現) -> test_EX6
+-- EX-7   removeLink 沒命中                             -> test_EX7
+-- EX-9   writeBody 不吃掉 payload 欄位                  -> test_writeBody
+-- EX-15  allocateId 索引查詢失敗                        -> test_EX15
 -- @
 module Aapms.Store.WriteSpec (spec) where
 
@@ -62,7 +62,7 @@ rereadDoc vh rel = parseOrFail =<< orDie =<< readTextFile (vhRoot vh </> rel)
 sectionBytes :: Document -> Id -> Maybe Text
 sectionBytes doc sid = renderSection <$> find ((== sid) . secId) (docSections doc)
 
--- | 去掉 meta 區塊裡的 @revision:@ \/ @updated:@ 兩行後的內容(L6 用)。
+-- | 去掉 meta 區塊裡的 @revision:@ \/ @updated:@ 兩行後的內容(LAW-6 用)。
 stripRevisionUpdated :: Text -> Text
 stripRevisionUpdated =
   T.unlines
@@ -76,7 +76,7 @@ stripRevisionUpdated =
 spec :: Spec
 spec = describe "graph-core/F008 Aapms.Store.Write" $ do
   --------------------------------------------------------------------------------
-  describe "E5 / L1 / L2 / L3: writeMeta" $
+  describe "EX-5 / LAW-1 / LAW-2 / LAW-3: writeMeta" $
     it "revision 不符時拒絕且檔案不變;revision 相符時 +1、重讀相符、其他節位元組不變" $
       withIndexedStoryVault $ \vh -> do
         let topicPath = "characters/test-character.md"
@@ -89,13 +89,13 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         let (Revision n0) = r0
             wrong = Revision (n0 + 5)
 
-        -- E5:revision 不符
+        -- EX-5:revision 不符
         rBad <- writeMeta vh target wrong (\o -> o {moSummary = Just "不應該被寫入"})
         rBad `shouldBe` Left (RevisionMismatch target wrong r0)
         afterBadDoc <- rereadDoc vh topicPath
         sectionBytes afterBadDoc target `shouldBe` sectionBytes beforeDoc target
 
-        -- L1/L2/L3:revision 相符
+        -- LAW-1/LAW-2/LAW-3:revision 相符
         r <- writeMeta vh target r0 (\o -> o {moSummary = Just "新的摘要"})
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
@@ -109,7 +109,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
             metaRevision (entMeta f) `shouldBe` Revision (n0 + 1)
             metaSummary (entMeta f) `shouldBe` "新的摘要"
           Nothing -> expectationFailure "找不到目標片段(改寫後)"
-        -- L3:除目標外,ent-00000003 的位元組不變
+        -- LAW-3:除目標外,ent-00000003 的位元組不變
         sectionBytes afterDoc (idOf "ent-00000003") `shouldBe` sectionBytes beforeDoc (idOf "ent-00000003")
 
   -- 'Aapms.Store.Edit.locate' 沒有獨立 law(見 "Aapms.Store.EditSpec" 頂端說明),依它自己的
@@ -122,7 +122,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         r `shouldBe` Left (NodeNotFound missing)
 
   --------------------------------------------------------------------------------
-  describe "E4 / L4 / L5: writeAssetFields" $
+  describe "EX-4 / LAW-4 / LAW-5: writeAssetFields" $
     it "三態語意(不動/清空/設值)正確,且 sha256/entry/ext/kindMeta/body 全程不變" $
       withIndexedAssetVault $ \vh -> do
         let packPath = "library/packs/test-vendor/test-pack/pack.md"
@@ -180,7 +180,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
           Just a -> pure a
           Nothing -> fail "找不到 ast-00000001(第二步後)"
         astName a2 `shouldBe` Just (LogicalName "重新命名的資產")
-        astLicense a2 `shouldBe` Just licRef -- L5:Nothing = 不動,維持第一步設的值
+        astLicense a2 `shouldBe` Just licRef -- LAW-5:Nothing = 不動,維持第一步設的值
         astAuthor a2 `shouldBe` Just "某人"
         metaTags (astMeta a2) `shouldBe` ["t1", "t2"]
         astSha256 a2 `shouldBe` astSha256 a0
@@ -192,7 +192,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         sectionBytes doc2 (idOf "ast-00000002") `shouldBe` sectionBytes doc0 (idOf "ast-00000002")
 
   --------------------------------------------------------------------------------
-  describe "E9 / L3: writeBody" $
+  describe "EX-9 / LAW-3: writeBody" $
     it "換掉 asset 節的正文,不吃掉 sha256/entry 等 payload 欄位,其他節位元組不變" $
       withIndexedAssetVault $ \vh -> do
         let packPath = "library/packs/test-vendor/test-pack/pack.md"
@@ -219,8 +219,8 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         sectionBytes doc1 (idOf "ast-00000002") `shouldBe` sectionBytes doc0 (idOf "ast-00000002")
 
   --------------------------------------------------------------------------------
-  describe "L6 / L7 / E7: addLink / removeLink" $ do
-    it "L6: addLink 再 removeLink 同一筆關聯後,linksFrom 回到最初;檔案位元組除 revision/updated 外不變" $
+  describe "LAW-6 / LAW-7 / EX-7: addLink / removeLink" $ do
+    it "LAW-6: addLink 再 removeLink 同一筆關聯後,linksFrom 回到最初;檔案位元組除 revision/updated 外不變" $
       withIndexedStoryVault $ \vh -> do
         let topicPath = "characters/test-character.md"
             target = idOf "ent-00000002"
@@ -249,7 +249,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         afterLinks <- linksFrom vh target
         afterLinks `shouldBe` before
 
-    it "E7/L7: removeLink 對沒有的關聯回 Left (LinkNotFound i l),檔案不變" $
+    it "EX-7/LAW-7: removeLink 對沒有的關聯回 Left (LinkNotFound i l),檔案不變" $
       withIndexedStoryVault $ \vh -> do
         let topicPath = "characters/test-character.md"
             target = idOf "ent-00000002"
@@ -262,7 +262,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         afterRaw `shouldBe` beforeRaw
 
   --------------------------------------------------------------------------------
-  describe "L8: upsertLicense" $
+  describe "LAW-8: upsertLicense" $
     it "讀回相等(除 licMeta 的 metaRevision/metaUpdated 與 licFullText 外);對同一個 id 呼叫兩次節數不變" $
       withLicenseVault $ \vh -> do
         doc0 <- rereadDoc vh licensesPath
@@ -298,8 +298,8 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         length existing2 `shouldBe` length existing0
 
   --------------------------------------------------------------------------------
-  describe "L14 / E6 / E15 / L14b: allocateId(2026-08-25 G8 裁決:t 是明碼參數)" $ do
-    it "L14: 固定同一個 t,連續呼叫 3 次(每次把結果寫進索引)全部成功、互異、idPrefix 皆等於 prefix" $
+  describe "LAW-14 / EX-6 / EX-15 / LAW-14b: allocateId(2026-08-25 GAP-8 裁決:t 是明碼參數)" $ do
+    it "LAW-14: 固定同一個 t,連續呼叫 3 次(每次把結果寫進索引)全部成功、互異、idPrefix 皆等於 prefix" $
       withIndexedStoryVault $ \vh -> do
         let fixedT = UTCTime (fromGregorian 2026 8 25) 0
         ids <- allocateThreeDistinctIds vh fixedT
@@ -307,7 +307,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         nub ids `shouldBe` ids
         forM_ ids $ \i -> idPrefix i `shouldBe` PEnt
 
-    it "E6: 索引裡已存在 newId p c t 0 / newId p c t 1(同一個 t),allocateId vh p c t 回 Right (newId p c t 2)" $
+    it "EX-6: 索引裡已存在 newId p c t 0 / newId p c t 1(同一個 t),allocateId vh p c t 回 Right (newId p c t 2)" $
       withIndexedStoryVault $ \vh -> do
         let fixedT = UTCTime (fromGregorian 2026 8 25) 0
             p = PEnt
@@ -325,7 +325,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
             i `shouldNotBe` collide1
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
 
-    it "E15/L14b: nodes 表被 DROP 掉時,allocateId 回 Left (SqliteError _),不是 Right" $
+    it "EX-15/LAW-14b: nodes 表被 DROP 掉時,allocateId 回 Left (SqliteError _),不是 Right" $
       withIndexedStoryVault $ \vh -> do
         execute_ (vhConn vh) "DROP TABLE nodes"
         let fixedT = UTCTime (fromGregorian 2026 8 25) 0
@@ -335,8 +335,8 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
           other -> expectationFailure ("預期 Left (SqliteError _),得到 " <> show other)
 
 --------------------------------------------------------------------------------
--- L8 用:本檔自建一個最小授權登記檔,不沿用 "Aapms.Store.Fixtures" 的 asset vault fixture
--- ——後者帶著兩個 pack 與完整節點,L8 只需要一份乾淨的 @library/licenses.md@。
+-- LAW-8 用:本檔自建一個最小授權登記檔,不沿用 "Aapms.Store.Fixtures" 的 asset vault fixture
+-- ——後者帶著兩個 pack 與完整節點,LAW-8 只需要一份乾淨的 @library/licenses.md@。
 --
 -- graph-core/B001 之前這裡還有第二個理由:F006 的 fixture 曾把 licenses.md 放在 vault
 -- 根目錄,與 system.md:439 明訂的 @library/licenses.md@ 不符,所以本檔繞開它。B001 已修好
@@ -391,8 +391,8 @@ currentFragRevision vh rel target = do
     Just f -> pure (metaRevision (entMeta f))
     Nothing -> fail ("找不到片段:" <> show target)
 
--- | L14 用:__同一個固定的 t__,連續呼叫 3 次 allocateId,每次都把結果寫進索引
--- (law 的前提條件,2026-08-25 G8 裁決收緊)。t 若每次不同,就算 salt 恆為 0 也幾乎必然
+-- | LAW-14 用:__同一個固定的 t__,連續呼叫 3 次 allocateId,每次都把結果寫進索引
+-- (law 的前提條件,2026-08-25 GAP-8 裁決收緊)。t 若每次不同,就算 salt 恆為 0 也幾乎必然
 -- 互異——那樣測到的是「t 在變」,不是「salt 在遞增」。
 allocateThreeDistinctIds :: VaultHandle -> UTCTime -> IO [Id]
 allocateThreeDistinctIds vh fixedT = go 3 []
@@ -407,7 +407,7 @@ allocateThreeDistinctIds vh fixedT = go 3 []
           go (n - 1 :: Int) (i : acc)
 
 -- | 把一個 id 以最小的 Meta 寫進 @nodes@ 表(先補一筆 @files@ 列滿足外鍵),
--- 供 L14 的碰撞查詢用。
+-- 供 LAW-14 的碰撞查詢用。
 insertMinimalNode :: VaultHandle -> Id -> IO ()
 insertMinimalNode vh i = withTransaction (vhConn vh) $ do
   execute

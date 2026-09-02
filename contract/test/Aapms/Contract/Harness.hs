@@ -2,11 +2,11 @@
 --
 -- 與 @cli/test@ 的 Fixtures 不同,這裡__不__ import 任何 aapms library——每一條測試都是
 -- 真的起一個子行程、餵參數、收位元組。這是 ADR-018 第二條的前提:契約測試只依賴對外契約,
--- 整個重建期(P1–P3)都有效。
+-- 整個重建期(S1–S3)都有效。
 --
 -- 執行檔由 cabal 的 @build-tool-depends@ 放進 PATH;找不到就直接 fail,不退回任何猜測。
 --
--- 執行期契約名稱集中在這裡(下方「環境變數」一節):P3 的 @workspace@ / @shell@ 依 ADR-017
+-- 執行期契約名稱集中在這裡(下方「環境變數」一節):S3 的 @workspace@ / @shell@ 依 ADR-017
 -- 把 @STORYFLOW_*@ 換成 @AAPMS_*@、@.storyflow/@ 換成 @.aapms/@ 時,只改這一個模組。
 module Aapms.Contract.Harness
   ( -- * 跑指令
@@ -58,7 +58,7 @@ import System.Process
 import Test.Hspec
 
 -- 環境變數 ---------------------------------------------------------------------
--- 這三個名字是目前(P0)的執行期契約,P3 依 ADR-017 改名時只動這裡。
+-- 這三個名字是目前(S0)的執行期契約,S3 依 ADR-017 改名時只動這裡。
 
 envVaults, envRegistry :: String
 envVaults = "STORYFLOW_VAULTS"

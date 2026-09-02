@@ -3,18 +3,18 @@
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
 --
 -- @
--- L1(部分)  checkRevision i r a 在 r == a 時且僅在此時回 Right ()  -> prop_checkRevision
--- L19       sectionBodyRaw 的形狀                                  -> prop_sectionBodyRaw
--- L2\/L16\/L18(經由 commit 直接呼叫)commit 的落地行為              -> test_commit_*
+-- LAW-1(部分)  checkRevision i r a 在 r == a 時且僅在此時回 Right ()  -> prop_checkRevision
+-- LAW-19       sectionBodyRaw 的形狀                                  -> prop_sectionBodyRaw
+-- LAW-2\/LAW-16\/LAW-18(經由 commit 直接呼叫)commit 的落地行為              -> test_commit_*
 -- @
 --
 -- __其餘 8 個函式沒有獨立測試,理由是 spec 本身的 L-__:
 --
 -- * @(>>?)@ \/ @(?>>)@ ——「無獨立 law:它們是 'Either' 的短路組合子……『失敗就不繼續』
---   這件事已由 L1 與 L16 的『檔案不變』觀察到」,已由 "Aapms.Store.WriteSpec" \/
+--   這件事已由 LAW-1 與 LAW-16 的『檔案不變』觀察到」,已由 "Aapms.Store.WriteSpec" \/
 --   "Aapms.Store.CreateSpec" 對公開介面的樂觀鎖\/位元組保留斷言間接涵蓋
 -- * @orMd@ \/ @vaultAbsPath@ \/ @ensureDir@ \/ @readDocument@ \/ @locate@ \/ @dropFile@ ——
---   同一條 L-:「純粹的包裝與定位,沒有任何從公開介面觀察得到、而不被 L10 \/ L13 \/ L16
+--   同一條 L-:「純粹的包裝與定位,沒有任何從公開介面觀察得到、而不被 LAW-10 \/ LAW-13 \/ LAW-16
 --   覆蓋的行為」。@locate@ 由 "Aapms.Store.WriteSpec" 的 'Aapms.Store.Error.NodeNotFound'
 --   案例間接涵蓋;@dropFile@ 由 "Aapms.Store.CreateSpec" 的 @deleteNode@ 案例間接涵蓋
 module Aapms.Store.EditSpec (spec) where
@@ -42,7 +42,7 @@ import System.FilePath ((</>))
 
 spec :: Spec
 spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
-  describe "L1(部分): checkRevision" $ do
+  describe "LAW-1(部分): checkRevision" $ do
     it "r == a 時回 Right ()" $
       checkRevision (idOf "ent-00000001") (Revision 3) (Revision 3) `shouldBe` Right ()
 
@@ -66,7 +66,7 @@ spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
           then checkRevision i r a === Right ()
           else checkRevision i r a === Left (RevisionMismatch i r a)
 
-  describe "L19: sectionBodyRaw" $
+  describe "LAW-19: sectionBodyRaw" $
     it "對任意非空白 t 與行尾風格 le:sectionBodyRaw le t 以 renderLineEnding le 開頭且結尾,且 strip 後等於 T.strip t" $
       hedgehog $ do
         le <- forAll (Gen.element [LF, CRLF])
@@ -77,7 +77,7 @@ spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
         assert (nl `T.isSuffixOf` r)
         T.strip r === T.strip t
 
-  describe "L2 / L16 / L18(直接呼叫 commit)" $
+  describe "LAW-2 / LAW-16 / LAW-18(直接呼叫 commit)" $
     it "commit 寫入 renderDocument 的位元組、回傳的 wrRevision 與傳入值一致,且 files 表裡其他檔案的 (path, mtime, size) 不變" $
       withIndexedStoryVault $ \vh -> do
         let targetPath = "characters/test-character.md"

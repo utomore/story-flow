@@ -5,11 +5,11 @@
 -- 「1-to-1 測試對照表」——全部紅:'vaultList' \/ 'vaultCheck' 本體皆 @undefined@):
 --
 -- @
--- L1,X1      vaultList 逐列對應 hubVaults;空中樞回 Right []        -> prop_vault_list_matches_hub, test_vault_list_full_layout_example, test_vault_list_empty_hub_example
--- L2         vvRegistered 恒真                                      -> prop_vault_list_registered_always_true
--- L3,X2      vvReachable 恰等於 PathMissing\/MarkerBroken 的集合     -> prop_vault_reachable_matches_scope_issues, test_vault_list_unreachable_example
--- L3,X3      VaultIdDrift 不影響 vvReachable                         -> test_vault_id_drift_still_reachable_example
--- L4,X2,X3   vaultCheck 原樣轉出 checkVaults(逐項、順序相同)         -> prop_vault_check_matches_checkVaults, test_vault_check_path_missing_example, test_vault_check_id_drift_example
+-- LAW-1,EX-1      vaultList 逐列對應 hubVaults;空中樞回 Right []        -> prop_vault_list_matches_hub, test_vault_list_full_layout_example, test_vault_list_empty_hub_example
+-- LAW-2         vvRegistered 恒真                                      -> prop_vault_list_registered_always_true
+-- LAW-3,EX-2      vvReachable 恰等於 PathMissing\/MarkerBroken 的集合     -> prop_vault_reachable_matches_scope_issues, test_vault_list_unreachable_example
+-- LAW-3,EX-3      VaultIdDrift 不影響 vvReachable                         -> test_vault_id_drift_still_reachable_example
+-- LAW-4,EX-2,EX-3   vaultCheck 原樣轉出 checkVaults(逐項、順序相同)         -> prop_vault_check_matches_checkVaults, test_vault_check_path_missing_example, test_vault_check_id_drift_example
 -- @
 module Aapms.Service.MachineVaultSpec (spec) where
 
@@ -69,7 +69,7 @@ withExtraVaultsLayout n act = withFixedLayout $ \fl -> do
     )
   act fl
 
--- | 中樞多一列指向不存在路徑的 vault(產生 'VaultPathMissing',X2)。
+-- | 中樞多一列指向不存在路徑的 vault(產生 'VaultPathMissing',EX-2)。
 withPathMissingLayout :: (FixedLayout -> VaultId -> IO a) -> IO a
 withPathMissingLayout act = withFixedLayout $ \fl -> do
   let brokenId = VaultId "vlt-99990000"
@@ -89,7 +89,7 @@ withChosenLayout useBroken act
   | useBroken = withPathMissingLayout (\fl _ -> act fl)
   | otherwise = withFixedLayout act
 
--- | VA 的 marker id 被改成別的值(產生 'VaultIdDrift',X3)。
+-- | VA 的 marker id 被改成別的值(產生 'VaultIdDrift',EX-3)。
 withIdDriftLayout :: (FixedLayout -> IO a) -> IO a
 withIdDriftLayout act = withFixedLayout $ \fl -> do
   writeVaultMarkerAt (flVaPath fl) (markerTomlText (VaultId "vlt-d0000000") vaKindText "story" [])
@@ -100,8 +100,8 @@ withIdDriftLayout act = withFixedLayout $ \fl -> do
 spec :: Spec
 spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
   --------------------------------------------------------------------------
-  describe "L1/X1/X4: vaultList 逐列對應 hubVaults" $ do
-    it "prop_vault_list_matches_hub (L1): 對 0..3 個額外 vault,vaultList 的長度、順序、四欄逐項等於 askHub 的 hubVaults" $
+  describe "LAW-1/EX-1/EX-4: vaultList 逐列對應 hubVaults" $ do
+    it "prop_vault_list_matches_hub (LAW-1): 對 0..3 個額外 vault,vaultList 的長度、順序、四欄逐項等於 askHub 的 hubVaults" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 0 3))
         outcome <- liftIO $ withExtraVaultsLayout n $ \fl ->
@@ -118,7 +118,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
           (hubR, listR) ->
             annotate (describeServiceResult hubR <> " / " <> describeServiceResult listR) >> failure
 
-    it "test_vault_list_full_layout_example (X1): 兩筆,vvId 依序 [VA,VB],name/kind 相符,兩筆皆 registered/reachable" $
+    it "test_vault_list_full_layout_example (EX-1): 兩筆,vvId 依序 [VA,VB],name/kind 相符,兩筆皆 registered/reachable" $
       withFixedLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           result <- runService env vaultList
@@ -131,7 +131,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
               map vvReachable vs `shouldBe` [True, True]
             Left e -> expectationFailure (show e)
 
-    it "test_vault_list_empty_hub_example (X4): 中樞沒有 vault 時回 Right []" $
+    it "test_vault_list_empty_hub_example (EX-4): 中樞沒有 vault 時回 Right []" $
       withFixedLayout $ \fl -> do
         writeHubConfigAt (flHubDir fl) (hubConfigText [])
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
@@ -139,8 +139,8 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
           result `shouldBe` Right []
 
   --------------------------------------------------------------------------
-  describe "L2: vvRegistered 恒真" $
-    it "prop_vault_list_registered_always_true (L2): 對 0..3 個額外 vault,vaultList 每一筆 vvRegistered == True" $
+  describe "LAW-2: vvRegistered 恒真" $
+    it "prop_vault_list_registered_always_true (LAW-2): 對 0..3 個額外 vault,vaultList 每一筆 vvRegistered == True" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 0 3))
         outcome <- liftIO $ withExtraVaultsLayout n $ \fl ->
@@ -150,8 +150,8 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
           Left e -> annotate (show e) >> failure
 
   --------------------------------------------------------------------------
-  describe "L3/X2/X3: vvReachable 的判準(恰等於 VaultPathMissing/VaultMarkerBroken 的集合)" $ do
-    it "prop_vault_reachable_matches_scope_issues (L3): 不可達的 vvId 集合恰等於 PathMissing/MarkerBroken 那些 veId 的集合" $
+  describe "LAW-3/EX-2/EX-3: vvReachable 的判準(恰等於 VaultPathMissing/VaultMarkerBroken 的集合)" $ do
+    it "prop_vault_reachable_matches_scope_issues (LAW-3): 不可達的 vvId 集合恰等於 PathMissing/MarkerBroken 那些 veId 的集合" $
       hedgehog $ do
         useBroken <- forAll Gen.bool
         outcome <- liftIO $ withChosenLayout useBroken $ \fl ->
@@ -169,7 +169,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
           (listR, checkR) ->
             annotate (describeServiceResult listR <> " / " <> describeServiceResult checkR) >> failure
 
-    it "test_vault_list_unreachable_example (X2): VC 那筆 vvReachable == False,其餘 True;vaultCheck 恰含一則 VaultPathMissing 且 veId 是 VC" $
+    it "test_vault_list_unreachable_example (EX-2): VC 那筆 vvReachable == False,其餘 True;vaultCheck 恰含一則 VaultPathMissing 且 veId 是 VC" $
       withPathMissingLayout $ \fl brokenId ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           listResult <- runService env vaultList
@@ -183,7 +183,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
               [() | VaultPathMissing e _ <- issues, veId e == brokenId] `shouldBe` [()]
             other -> expectationFailure (show other)
 
-    it "test_vault_id_drift_still_reachable_example (X3): VaultIdDrift 出現在 vaultCheck,而 vvReachable 仍為 True" $
+    it "test_vault_id_drift_still_reachable_example (EX-3): VaultIdDrift 出現在 vaultCheck,而 vvReachable 仍為 True" $
       withIdDriftLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           listResult <- runService env vaultList
@@ -195,8 +195,8 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
             other -> expectationFailure (show other)
 
   --------------------------------------------------------------------------
-  describe "L4: vaultCheck 原樣轉出 checkVaults" $ do
-    it "prop_vault_check_matches_checkVaults (L4): vaultCheck 與同一份中樞快照上直接呼叫 checkVaults 逐項相同" $
+  describe "LAW-4: vaultCheck 原樣轉出 checkVaults" $ do
+    it "prop_vault_check_matches_checkVaults (LAW-4): vaultCheck 與同一份中樞快照上直接呼叫 checkVaults 逐項相同" $
       hedgehog $ do
         useBroken <- forAll Gen.bool
         outcome <- liftIO $ withChosenLayout useBroken $ \fl ->
@@ -209,7 +209,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
           (Right issues, Just direct) -> issues === direct
           (checkR, _) -> annotate (describeServiceResult checkR) >> failure
 
-    it "test_vault_check_path_missing_example (X2): vaultCheck 恰含一則 VaultPathMissing" $
+    it "test_vault_check_path_missing_example (EX-2): vaultCheck 恰含一則 VaultPathMissing" $
       withPathMissingLayout $ \fl _ ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           checkResult <- runService env vaultCheck
@@ -217,7 +217,7 @@ spec = describe "F002 Aapms.Service.Machine: vaultList / vaultCheck" $ do
             Right [VaultPathMissing _ _] -> pure ()
             other -> expectationFailure ("預期恰一則 VaultPathMissing,得到 " <> show other)
 
-    it "test_vault_check_id_drift_example (X3): vaultCheck 恰含一則 VaultIdDrift" $
+    it "test_vault_check_id_drift_example (EX-3): vaultCheck 恰含一則 VaultIdDrift" $
       withIdDriftLayout $ \fl ->
         withOpenEnv Nothing (flOutsidePath fl) $ \env -> do
           checkResult <- runService env vaultCheck

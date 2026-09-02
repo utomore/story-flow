@@ -111,7 +111,7 @@ import Aapms.Store.Row
 -- 'vaultSetIds' / 'listAcross' / 'searchAcross' / 'lookupRef' /
 -- 'checkReferences' 這幾個出口的行為才是。骨架裡的兩個欄位(去重後的把手清單、
 -- 'VaultSet' 自己的讀連線)是為了讓型別編得過而寫的最小表示,__impl 可以依
--- 2026-08-26 A1 裁決的落地方式增刪欄位__,不受「不得改動骨架型別」的限制——這是本
+-- 2026-08-26 ASM-1 裁決的落地方式增刪欄位__,不受「不得改動骨架型別」的限制——這是本
 -- spec 對這一個不透明型別的明文豁免。impl 落地時把「去重後的把手清單」擴成
 -- 「(vault id、把手、@ATTACH@ schema 前綴含結尾的點)」三元組,方便 'listAcross'
 -- 組 SQL 時直接查得到每個 vault 的前綴;第二個欄位仍是本模組自己開的讀連線,
@@ -152,7 +152,7 @@ findCollision hs =
 -- | 把一組已經開好的 vault 把手接成一個 'VaultSet'。
 --
 -- __同一個 'Aapms.Store.Marker.vmId' 出現兩次有兩種成因,處置不同__
--- (2026-08-26 A5 裁決,契約 G):
+-- (2026-08-26 ASM-5 裁決,契約 G):
 --
 -- * 兩筆的 'Aapms.Store.Marker.vhRoot' __相同__(同一個路徑被傳兩次)——無害的
 --   呼叫端疏忽(預設 vault 又被顯式指定一次),__保序去重、只留第一個__,
@@ -190,7 +190,7 @@ openVaultSet hs = case findCollision hs of
 -- | 釋放 'VaultSet' 自己持有的資源(它自己的讀連線),__不__關閉任何
 -- 'Aapms.Store.Marker.VaultHandle'。
 --
--- 契約 E 原本沒有這個函式(2026-08-26 A2 裁決後已回寫):@openVaultSet@ 自己持有連線,少了
+-- 契約 E 原本沒有這個函式(2026-08-26 ASM-2 裁決後已回寫):@openVaultSet@ 自己持有連線,少了
 -- 對稱的關閉在 Windows 上會鎖住 @index.db@,連暫存目錄都刪不掉。對不持有任何
 -- 資源的實作而言它是 no-op,兩種實作下呼叫端的用法都一樣。
 closeVaultSet :: VaultSet -> IO ()
@@ -199,7 +199,7 @@ closeVaultSet (VaultSet _ conn) = close conn
 -- | 這個 'VaultSet' 實際涵蓋哪些 vault,依 'openVaultSet' 收到的順序、已去重。
 --
 -- 'VaultSet' 不透明,少了這個出口就沒有任何辦法從公開介面觀察「去重與上限
--- 到底怎麼作用」(2026-08-26 A2 裁決後已回寫契約 E)。
+-- 到底怎麼作用」(2026-08-26 ASM-2 裁決後已回寫契約 E)。
 vaultSetIds :: VaultSet -> [VaultId]
 vaultSetIds (VaultSet aliased _) = [v | (v, _, _) <- aliased]
 
@@ -279,7 +279,7 @@ hydrateMap h ids = M.fromList . map (\m -> (metaId m, m)) <$> hydrateIds h ids
 -- SQL 加了 @ORDER BY rowid@,與 @metasFor@ 沒有排序的批次查詢在同一份資料上
 -- 可能給出不同的實際列序,'Meta' 的 @metaTags@\/@metaLinks@ 是 list 而非
 -- set,order 不同會讓 'listAcross' 與單一 vault 'Aapms.Store.Query.listNodes'
--- 的 'Meta' 不相等(L4\/L19\/E11 靠這個抓到)。
+-- 的 'Meta' 不相等(LAW-4\/LAW-19\/EX-11 靠這個抓到)。
 hydrateIds :: VaultHandle -> [Id] -> IO [Meta]
 hydrateIds _ [] = pure []
 hydrateIds h ids = do
@@ -348,7 +348,7 @@ searchAcross (VaultSet aliased _) q = do
         | otherwise = Nothing
   pure SearchResult {srHits = paged, srTotal = total, srFacets = facets}
 
--- | 分數遞減、分數相同時 'metaId' 遞增、再相同時 'shVault' 遞增(L9)。
+-- | 分數遞減、分數相同時 'metaId' 遞增、再相同時 'shVault' 遞增(LAW-9)。
 sortSearchHits :: [SearchHit] -> [SearchHit]
 sortSearchHits =
   sortBy
@@ -360,7 +360,7 @@ sortSearchHits =
 
 -- | 逐 vault 的 'FacetCounts' 合併(不重用\/不修改 "Aapms.Store.Query" 的
 -- 私有 @computeFacets@):同值求和、濾掉計數 0、依「計數遞減、同計數以值
--- 遞增」重排(L12)。
+-- 遞增」重排(LAW-12)。
 mergeFacets :: [FacetCounts] -> FacetCounts
 mergeFacets fcs =
   FacetCounts
@@ -379,7 +379,7 @@ mergeFacets fcs =
 -- 懸空引用
 
 -- | 一筆指不到目標的關聯(契約 E 的 @DanglingRef@;形狀由本 feature 定,
--- 2026-08-26 A3 裁決,已回寫契約 E)。
+-- 2026-08-26 ASM-3 裁決,已回寫契約 E)。
 --
 -- 本子系統的定位是「只說出發生了什麼,不決定怎麼辦」:懸空引用要不要擋、要不
 -- 要修,是 @service@ 的事,這裡只把它描述完整。

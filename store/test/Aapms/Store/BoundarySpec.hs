@@ -1,20 +1,20 @@
--- | graph-core\/E001:cabal 可見度界線(L1\/L2\/L3\/E1)、"Aapms.Store.Index" 匯出清單
--- 界線(L4)、門面完整性(R1\/E2)與 'WriteResult' 型別同一性(R2)。
+-- | graph-core\/E001:cabal 可見度界線(LAW-1\/LAW-2\/LAW-3\/EX-1)、"Aapms.Store.Index" 匯出清單
+-- 界線(LAW-4)、門面完整性(REG-1\/EX-2)與 'WriteResult' 型別同一性(REG-2)。
 --
 -- __spec 對照__(@.design\/subsystems\/graph-core\/enhancements\/E001-store-internal-module-boundary.md@)
 --
 -- @
--- R1  只 import Aapms.Store 就取得到契約 E 的每一個公開符號,由「能不能編譯」證明 -> test_E2
--- R2  WriteResult 經 Aapms.Store 與經 Aapms.Store.Write 取得的是同一個型別        -> _r2SameType(型別檢查即斷言)
--- L1  aapms-store.cabal 的 exposed-modules 不含 Edit\/Node\/Row\/Walk             -> test_L1
--- L2  上述四個模組都在 other-modules                                             -> test_L2
--- L3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_L3
--- L4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_L4
--- E1  exposed-modules 11 項 + other-modules 4 項 = 15,對帳                       -> test_E1
--- E2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_E2 / _contractEFunctions / ContractETypesCheck
+-- REG-1  只 import Aapms.Store 就取得到契約 E 的每一個公開符號,由「能不能編譯」證明 -> test_EX2
+-- REG-2  WriteResult 經 Aapms.Store 與經 Aapms.Store.Write 取得的是同一個型別        -> _r2SameType(型別檢查即斷言)
+-- LAW-1  aapms-store.cabal 的 exposed-modules 不含 Edit\/Node\/Row\/Walk             -> test_LAW1
+-- LAW-2  上述四個模組都在 other-modules                                             -> test_LAW2
+-- LAW-3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_LAW3
+-- LAW-4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_LAW4
+-- EX-1  exposed-modules 11 項 + other-modules 4 項 = 15,對帳                       -> test_EX1
+-- EX-2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_EX2 / _contractEFunctions / ContractETypesCheck
 -- @
 --
--- __禁止讀實作__:L1\/L2\/L3\/L4 全部是對原始檔文字的字串比對,不解讀語意;
+-- __禁止讀實作__:LAW-1\/LAW-2\/LAW-3\/LAW-4 全部是對原始檔文字的字串比對,不解讀語意;
 -- 契約 E 的完整符號清單抄自 @.design\/subsystems\/graph-core\/design.md@「### E. 落地」,
 -- 不是從程式碼推論出來的。
 module Aapms.Store.BoundarySpec (spec) where
@@ -95,18 +95,18 @@ import qualified Aapms.Store.Write as Write
 
 spec :: Spec
 spec = describe "graph-core/E001 cabal 可見度界線" $ do
-  describe "L1 / L2 / E1: library exposed-modules / other-modules" $ do
-    it "L1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
+  describe "LAW-1 / LAW-2 / EX-1: library exposed-modules / other-modules" $ do
+    it "LAW-1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
       filter (`elem` movedModules) exposed `shouldBe` []
 
-    it "L2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
+    it "LAW-2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "E1: exposed-modules 11 項 + other-modules 4 項 = 15,對帳" $ do
+    it "EX-1: exposed-modules 11 項 + other-modules 4 項 = 15,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
@@ -114,7 +114,7 @@ spec = describe "graph-core/E001 cabal 可見度界線" $ do
       sort other `shouldBe` sort movedModules
       (length exposed + length other) `shouldBe` 15
 
-  describe "L3: aapms-store-test stanza" $
+  describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
       src <- readCabalSource
       let testStanza = snd (T.breakOn "\ntest-suite" (normalizeEol src))
@@ -125,22 +125,22 @@ spec = describe "graph-core/E001 cabal 可見度界線" $ do
       ("src" `T.isInfixOf` dirsField) `shouldBe` True
       ("test" `T.isInfixOf` dirsField) `shouldBe` True
 
-  describe "L4: Aapms.Store.Index 匯出清單" $
+  describe "LAW-4: Aapms.Store.Index 匯出清單" $
     it "匯出清單那一段(module ... 到 ) where 之前)不含 vaultMarkdownFiles / statOf" $ do
       hdr <- indexModuleHeader
       ("vaultMarkdownFiles" `T.isInfixOf` hdr) `shouldBe` False
       ("statOf" `T.isInfixOf` hdr) `shouldBe` False
 
-  describe "R1 / E2: 門面完整性" $
-    it "E2: 只 import Aapms.Store(...)列出契約 E 的全部符號各引用一次,編譯即通過" $
+  describe "REG-1 / EX-2: 門面完整性" $
+    it "EX-2: 只 import Aapms.Store(...)列出契約 E 的全部符號各引用一次,編譯即通過" $
       True `shouldBe` True
 
--- | R2:'Write.WriteResult'(經 "Aapms.Store.Write")與經 "Aapms.Store" 取得的
+-- | REG-2:'Write.WriteResult'(經 "Aapms.Store.Write")與經 "Aapms.Store" 取得的
 -- 'WriteResult' 是同一個型別——把前者的值餵給後者匯入的欄位選取器,能編譯就是證明。
 _r2SameType :: Write.WriteResult -> (Id, FilePath, Revision, [IndexIssue])
 _r2SameType wr = (wrId wr, wrPath wr, wrRevision wr, wrIssues wr)
 
--- | E2 / R1 的核心斷言:這個 tuple 本身就是證據——每一個成員都直接引用契約 E
+-- | EX-2 / REG-1 的核心斷言:這個 tuple 本身就是證據——每一個成員都直接引用契約 E
 -- 的一個函式\/值符號,少一項就編不過。__刻意不寫型別簽名__:每個成員各自保留它在
 -- "Aapms.Store" 裡的真實型別(全部單型,寫簽名反而要手抄一遍簽名,徒增出錯機會);
 -- 名稱清單抄自 design.md「### E. 落地」,不執行、不呼叫。
@@ -183,7 +183,7 @@ _contractEFunctions =
   , allocateId
   )
 
--- | E2:契約 E 的全部型別符號各引用一次(型別層級,只需要名字在作用域內)。
+-- | EX-2:契約 E 的全部型別符號各引用一次(型別層級,只需要名字在作用域內)。
 type ContractETypesCheck =
   ( VaultKind
   , VaultMarker

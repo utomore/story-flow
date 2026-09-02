@@ -1,4 +1,4 @@
--- | graph-core/F002 T12(naming.toml \/ family 整合)與 T13(專案實檔)的對照測試。
+-- | graph-core/F002 STEP-12(naming.toml \/ family 整合)與 STEP-13(專案實檔)的對照測試。
 --
 -- 沿用 graph-core/F001 之前(entity-graph-core/F002、F005、service-and-
 -- interfaces/F001、G-E002)留下的既有涵蓋範圍,改吃新簽名
@@ -393,7 +393,7 @@ spec = do
         let msgs = map renderRegistryError (errsOf r)
         msgs `shouldSatisfy` all (T.isInfixOf "nokey.toml")
 
-  describe "T12 —— naming.toml 與 family 的整合" $ do
+  describe "STEP-12 —— naming.toml 與 family 的整合" $ do
     it "缺 naming.toml 回 NamingFileMissing(與上方一致,單獨掛在驗收清單下)" $
       withRegistryDirRaw [("a.toml", goodToml "a-fragment" "甲")] $ \dir -> do
         r <- loadRegistry dir
@@ -420,7 +420,7 @@ spec = do
           locateRegistryWith (pure (dir </> "aapms.exe"))
             `shouldReturn` Left (RegistryNotFound [missing])
 
-  describe "T13 —— 專案實際的 types/registry/" $ do
+  describe "STEP-13 —— 專案實際的 types/registry/" $ do
     it "loadRegistry 對真實目錄成功,13 個型別鍵(5 entity + 8 asset)" $ do
       r <- loadRegistry projectRegistryDir
       case regOf r of
@@ -507,7 +507,7 @@ spec = do
               Nothing -> expectationFailure ("專案實檔載入失敗:" <> show (errsOf r))
               Just reg -> length (listTypes reg) `shouldBe` 13
 
-  -- G-E002 T1:三層查找,並說出是哪一層。執行檔路徑用 locateRegistryWith 注入——
+  -- G-E002 STEP-1:三層查找,並說出是哪一層。執行檔路徑用 locateRegistryWith 注入——
   -- 測試執行檔旁邊不會真的有 registry/。
   describe "locateRegistry(G-E002)" $ do
     it "環境變數優先,連執行檔旁都不看" $

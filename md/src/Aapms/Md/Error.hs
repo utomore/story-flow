@@ -2,7 +2,7 @@
 --
 -- 原則(entity-graph-core/F003,graph-core/F004 沿用):__任何無法還原資料的情況是錯誤__。
 -- 品質警告(缺 summary、自訂關聯……)已經整組移除('MdWarning' 通道退場,見
--- F004 待確認假設 A1)——graph-core design.md 的讀取管線明寫警告的唯一來源是
+-- F004 待確認假設 ASM-1)——graph-core design.md 的讀取管線明寫警告的唯一來源是
 -- 'Aapms.Core.Meta.MetaWarning'(F002 的 @checkMeta@)。
 --
 -- 所有錯誤都帶行號,'renderMdError' 輸出 @第 <line> 行:<msg>@。graph-core/F004
@@ -49,7 +49,7 @@ data MdErrorKind
   | -- | 根層級, 這一個層級
     HeadingAboveRoot Int Int
   | -- | 父節點層級, 算出來的層級。插入一個節時算出來的標題層級超過 Markdown 的
-    -- 六級上限(graph-core/F004,2026-08-25 裁決 A8)。
+    -- 六級上限(graph-core/F004,2026-08-25 裁決 ASM-8)。
     --
     -- 與 'HeadingSkip' 分開是因為__性質不同__:'HeadingSkip' 在
     -- 'Aapms.Md.Render.insertSection' 上只會由呼叫端算錯 @nsLevel@ 造成
@@ -95,7 +95,7 @@ renderMdErrorKind = \case
     "標題層級跳級:" <> hashes prev <> " 之後不能直接接 " <> hashes cur
   HeadingAboveRoot root cur ->
     "標題層級 " <> hashes cur <> " 比根層級 " <> hashes root <> " 還淺"
-  -- 訊息原文是規格,寫在 F004 的 L39 / E21——spec 寫一次、impl 轉錄一次,兩次
+  -- 訊息原文是規格,寫在 F004 的 LAW-39 / EX-21——spec 寫一次、impl 轉錄一次,兩次
   -- 獨立轉錄才驗得到東西。(建骨架時這裡刻意留 undefined 好讓那條逐字斷言有真正
   -- 的紅綠;F004 交付後已填實,見下。)
   HeadingTooDeep parent cur ->

@@ -1,4 +1,4 @@
--- | graph-core/F004(重跑)Law L22:'docKind' 只由檔案層 @type@ 決定。
+-- | graph-core/F004(重跑)Law LAW-22:'docKind' 只由檔案層 @type@ 決定。
 --
 -- __委派備註__:同 "Aapms.Md.EditLawsSpec",依賴 @hedgehog@ \/
 -- @hspec-hedgehog@,@md\/aapms-md.cabal@ 尚未接線,__未列進__
@@ -6,9 +6,9 @@
 --
 -- 'docKind'\/'Aapms.Md.Parse.resolveDocKind' 本次未改動,預期__綠__。
 -- Example 10(五份具體 frontmatter)是純 hspec、已在 "Aapms.Md.DocKindSpec"
--- 覆蓋且__已用 cabal 驗證通過__——本檔是 L22 的全稱量詞版本。
+-- 覆蓋且__已用 cabal 驗證通過__——本檔是 LAW-22 的全稱量詞版本。
 --
--- __spec 對照__:@L22 docKind 只由檔案層 type 決定 -> prop_L22@
+-- __spec 對照__:@LAW-22 docKind 只由檔案層 type 決定 -> prop_LAW22@
 module Aapms.Md.DocKindLawSpec (spec) where
 
 import Data.Text (Text)
@@ -72,7 +72,7 @@ buildFrontmatter ts =
 
 spec :: Spec
 spec = describe "graph-core/F004 重跑:docKind Law" $
-  it "L22: docKind 只由檔案層 type 決定(三個保留字 / 其餘一律 TopicDoc)" $
+  it "LAW-22: docKind 只由檔案層 type 決定(三個保留字 / 其餘一律 TopicDoc)" $
     hedgehog $ do
       ts <- forAll genTypeSpec
       docKind (docOf (buildFrontmatter ts)) === expectedKind ts

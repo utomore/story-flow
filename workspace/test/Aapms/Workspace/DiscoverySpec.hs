@@ -1,44 +1,44 @@
--- | F002:'Aapms.Workspace.Discovery' 的向上探測('detectVault',L1-L5\/X1-X7)、
--- selector 解析('lookupSelector',L6-L9\/X8-X13)、重讀 marker('readVaultRef'\/
--- 'readVaultRefAt',L10-L17\/X14-X24)與依賴方向的 import 清單檢查
--- (L18,__預期綠__——見 spec「紅綠預期」)。
+-- | F002:'Aapms.Workspace.Discovery' 的向上探測('detectVault',LAW-1-LAW-5\/EX-1-EX-7)、
+-- selector 解析('lookupSelector',LAW-6-LAW-9\/EX-8-EX-13)、重讀 marker('readVaultRef'\/
+-- 'readVaultRefAt',LAW-10-LAW-17\/EX-14-EX-24)與依賴方向的 import 清單檢查
+-- (LAW-18,__預期綠__——見 spec「紅綠預期」)。
 --
 -- __spec 對照__(@.design\/subsystems\/workspace\/features\/F002-vault-discovery.md@):
 --
 -- @
--- T1 detectVault
--- L1  命中的是最近的那一層                    -> test_detect_vault_from_nested_child / test_detect_vault_picks_nearest
--- L2  到根仍沒有就是 Nothing,而且一定終止      -> test_detect_vault_outside_returns_nothing
--- L3  自身也算、深度不敏感                      -> test_detect_vault_at_root_itself / test_detect_vault_from_nested_child
--- L4  detectVault 不動檔案系統                  -> test_detect_vault_creates_nothing
--- L5  .aapms 必須是目錄                         -> test_detect_vault_ignores_marker_file
--- X1-X7                                          -> 對應各 test_detect_vault_*
+-- STEP-1 detectVault
+-- LAW-1  命中的是最近的那一層                    -> test_detect_vault_from_nested_child / test_detect_vault_picks_nearest
+-- LAW-2  到根仍沒有就是 Nothing,而且一定終止      -> test_detect_vault_outside_returns_nothing
+-- LAW-3  自身也算、深度不敏感                      -> test_detect_vault_at_root_itself / test_detect_vault_from_nested_child
+-- LAW-4  detectVault 不動檔案系統                  -> test_detect_vault_creates_nothing
+-- LAW-5  .aapms 必須是目錄                         -> test_detect_vault_ignores_marker_file
+-- EX-1-EX-7                                          -> 對應各 test_detect_vault_*
 --
--- T2 lookupSelector
--- L6  兩階段,id 絕對優先                        -> test_lookup_selector_id_beats_name
--- L7  命中集合 -> 結果,兩階段同一套規則          -> test_lookup_selector_ambiguous_lists_all / test_lookup_selector_not_found
--- L8  逐字精確比對                                -> test_lookup_selector_is_case_sensitive / test_lookup_selector_does_not_trim
--- L9  只看 [[vaults]]                             -> test_lookup_selector_ignores_other_sections
--- X8-X13                                          -> 對應各 test_lookup_selector_*
+-- STEP-2 lookupSelector
+-- LAW-6  兩階段,id 絕對優先                        -> test_lookup_selector_id_beats_name
+-- LAW-7  命中集合 -> 結果,兩階段同一套規則          -> test_lookup_selector_ambiguous_lists_all / test_lookup_selector_not_found
+-- LAW-8  逐字精確比對                                -> test_lookup_selector_is_case_sensitive / test_lookup_selector_does_not_trim
+-- LAW-9  只看 [[vaults]]                             -> test_lookup_selector_ignores_other_sections
+-- EX-8-EX-13                                          -> 對應各 test_lookup_selector_*
 --
--- T3 readVaultRef
--- L10 marker 是真相                              -> test_read_vault_ref_marker_is_truth
--- L11 成功時的三個欄位                            -> test_read_vault_ref_fields_on_success
--- L12 三種降級互斥且依序判定                      -> test_read_vault_ref_path_missing / test_read_vault_ref_marker_broken_carries_original / test_read_vault_ref_id_drift
--- L13 readVaultRef 不動檔案系統                   -> test_read_vault_ref_creates_nothing
--- X14-X18                                         -> 對應各 test_read_vault_ref_*
+-- STEP-3 readVaultRef
+-- LAW-10 marker 是真相                              -> test_read_vault_ref_marker_is_truth
+-- LAW-11 成功時的三個欄位                            -> test_read_vault_ref_fields_on_success
+-- LAW-12 三種降級互斥且依序判定                      -> test_read_vault_ref_path_missing / test_read_vault_ref_marker_broken_carries_original / test_read_vault_ref_id_drift
+-- LAW-13 readVaultRef 不動檔案系統                   -> test_read_vault_ref_creates_nothing
+-- EX-14-EX-18                                         -> 對應各 test_read_vault_ref_*
 --
--- T4 readVaultRefAt
--- L14 readVaultRefAt 的身分回填                   -> test_read_vault_ref_at_fills_entry_by_id / test_read_vault_ref_at_unregistered_is_nothing / test_read_vault_ref_at_ignores_path_match
--- L15 readVaultRefAt 的失敗一律是 MarkerUnreadable -> test_read_vault_ref_at_marker_unreadable
--- X19-X22                                         -> 對應各 test_read_vault_ref_at_*
+-- STEP-4 readVaultRefAt
+-- LAW-14 readVaultRefAt 的身分回填                   -> test_read_vault_ref_at_fills_entry_by_id / test_read_vault_ref_at_unregistered_is_nothing / test_read_vault_ref_at_ignores_path_match
+-- LAW-15 readVaultRefAt 的失敗一律是 MarkerUnreadable -> test_read_vault_ref_at_marker_unreadable
+-- EX-19-EX-22                                         -> 對應各 test_read_vault_ref_at_*
 --
--- T5 兩者一致、refs 原樣捧著
--- L16 兩個函式對同一個 vault 一致                 -> test_two_readers_agree
--- L17 不展開 refs                                 -> test_refs_carried_verbatim_not_expanded
--- X23/X24                                         -> test_two_readers_agree / test_refs_carried_verbatim_not_expanded
+-- STEP-5 兩者一致、refs 原樣捧著
+-- LAW-16 兩個函式對同一個 vault 一致                 -> test_two_readers_agree
+-- LAW-17 不展開 refs                                 -> test_refs_carried_verbatim_not_expanded
+-- EX-23/EX-24                                         -> test_two_readers_agree / test_refs_carried_verbatim_not_expanded
 --
--- L18(預期綠) 依賴方向與職責界線(以 import 行驗證)
+-- LAW-18(預期綠) 依賴方向與職責界線(以 import 行驗證)
 -- (a) 無 Location/Scope/Lifecycle/Projects/Tools,只准 Types/Hub -> test_discovery_no_downstream_or_location_imports
 -- (b) Aapms.Store.Marker 的 import(若有)逐字只拿 VaultMarker (vmId)/markerDir/readMarker(守「只讀 id」) -> test_discovery_marker_import_is_id_reader_only
 -- (c) 不得 import Aapms.Store.Atomic                -> test_discovery_never_imports_atomic
@@ -72,8 +72,8 @@ import System.FilePath ((</>))
 -- 本檔專用 helper(不匯出)
 
 -- | 一個骨架檔案裡,去除前導空白、去除行尾 @\\r@(CRLF checkout 的產物)之後、以
--- @import@ 起頭的行。判準只看 import 行,不做全檔字串搜尋(L18 明文;做法對照
--- "Aapms.Workspace.TypesSpec.importLinesOf",F001 L17 用的是同一套邏輯)。
+-- @import@ 起頭的行。判準只看 import 行,不做全檔字串搜尋(LAW-18 明文;做法對照
+-- "Aapms.Workspace.TypesSpec.importLinesOf",F001 LAW-17 用的是同一套邏輯)。
 importLinesOf :: FilePath -> IO [String]
 importLinesOf rel = do
   src <- readWorkspaceSource rel
@@ -113,8 +113,8 @@ joinSegs = foldl (</>)
 spec :: Spec
 spec = describe "F002 Aapms.Workspace.Discovery" $ do
   --------------------------------------------------------------------------
-  describe "T1/L1-L5/X1-X7: detectVault 向上探測" $ do
-    it "test_detect_vault_from_nested_child (X1, L1, L3): 從 vault 內任意深度的子目錄回最近一層含 .aapms/ 的正規化路徑" $
+  describe "STEP-1/LAW-1-LAW-5/EX-1-EX-7: detectVault 向上探測" $ do
+    it "test_detect_vault_from_nested_child (EX-1, LAW-1, LAW-3): 從 vault 內任意深度的子目錄回最近一層含 .aapms/ 的正規化路徑" $
       hedgehog $ do
         segs <- forAll (Gen.list (Range.linear 1 4) genSegment)
         (result, canonRoot) <- liftIO $ withTempHubDir $ \root -> do
@@ -126,14 +126,14 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           pure (r, canonRoot)
         result === Just canonRoot
 
-    it "test_detect_vault_at_root_itself (X2, L3): 起點就是 vault 根,回自己" $
+    it "test_detect_vault_at_root_itself (EX-2, LAW-3): 起點就是 vault 根,回自己" $
       withTempHubDir $ \root -> do
         writeVaultMarker root (markerTomlText "vlt-7f3b2a91" "asset" "alchbees-assets" [])
         canonRoot <- canonicalizePath root
         r <- detectVault root
         r `shouldBe` Just canonRoot
 
-    it "test_detect_vault_normalizes_dotdot (X3, L1): 起點含 ../ 之後正規化,不多走一層" $
+    it "test_detect_vault_normalizes_dotdot (EX-3, LAW-1): 起點含 ../ 之後正規化,不多走一層" $
       withTempHubDir $ \root -> do
         writeVaultMarker root (markerTomlText "vlt-7f3b2a91" "asset" "alchbees-assets" [])
         createDirectoryIfMissing True (root </> "a" </> "b")
@@ -141,7 +141,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         r <- detectVault (root </> "a" </> ".." </> "a" </> "b")
         r `shouldBe` Just canonRoot
 
-    it "test_detect_vault_outside_returns_nothing (X4, L2): 沒有任何祖先含 .aapms/ 時回 Nothing \
+    it "test_detect_vault_outside_returns_nothing (EX-4, LAW-2): 沒有任何祖先含 .aapms/ 時回 Nothing \
        \(前提同 spec X4:暫存目錄的祖先鏈本身沒有 .aapms/)" $
       hedgehog $ do
         segs <- forAll (Gen.list (Range.linear 0 3) genSegment)
@@ -151,7 +151,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           detectVault start
         result === Nothing
 
-    it "test_detect_vault_picks_nearest (X5, L1(d)): 兩層都有 marker 時回最近的那一層" $
+    it "test_detect_vault_picks_nearest (EX-5, LAW-1(d)): 兩層都有 marker 時回最近的那一層" $
       hedgehog $ do
         extraSegs <- forAll (Gen.list (Range.linear 0 3) genSegment)
         (result, canonInner) <- liftIO $ withTempHubDir $ \root -> do
@@ -165,14 +165,14 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           pure (r, canonInner)
         result === Just canonInner
 
-    it "test_detect_vault_ignores_marker_file (X6, L5): .aapms 是普通檔案時不算命中,一路到根都沒有 -> Nothing" $
+    it "test_detect_vault_ignores_marker_file (EX-6, LAW-5): .aapms 是普通檔案時不算命中,一路到根都沒有 -> Nothing" $
       withTempHubDir $ \root -> do
         createDirectoryIfMissing True (root </> "a")
         writeFile (root </> ".aapms") "not a directory"
         r <- detectVault (root </> "a")
         r `shouldBe` Nothing
 
-    it "L5(續): .aapms 是檔案時越過它,繼續往上找到再上一層真正的 marker" $
+    it "LAW-5(續): .aapms 是檔案時越過它,繼續往上找到再上一層真正的 marker" $
       withTempHubDir $ \root -> do
         writeVaultMarker root (markerTomlText "vlt-7f3b2a91" "asset" "outer" [])
         createDirectoryIfMissing True (root </> "inner")
@@ -181,7 +181,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         r <- detectVault (root </> "inner")
         r `shouldBe` Just canonRoot
 
-    it "test_detect_vault_creates_nothing (X7, L4): 呼叫前後整棵目錄樹逐位元組相同" $
+    it "test_detect_vault_creates_nothing (EX-7, LAW-4): 呼叫前後整棵目錄樹逐位元組相同" $
       withTempHubDir $ \root -> do
         writeVaultMarker root (markerTomlText "vlt-7f3b2a91" "asset" "alchbees-assets" [])
         createDirectoryIfMissing True (root </> "a" </> "b" </> "c")
@@ -191,14 +191,14 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         snapAfter `shouldBe` snapBefore
 
   --------------------------------------------------------------------------
-  describe "T2/L6-L9/X8-X13: lookupSelector selector 解析" $ do
-    it "test_lookup_selector_id_beats_name (X8, L6): id 命中時 name 完全不參與" $ do
+  describe "STEP-2/LAW-6-LAW-9/EX-8-EX-13: lookupSelector selector 解析" $ do
+    it "test_lookup_selector_id_beats_name (EX-8, LAW-6): id 命中時 name 完全不參與" $ do
       let e1 = VaultEntry (VaultId "vlt-7f3b2a91") "alchbees-assets" AssetVault "C:/a"
           e2 = VaultEntry (VaultId "vlt-a0c4e1f8") "vlt-7f3b2a91" StoryVault "C:/b"
           h = mkHub [e1, e2] [] Nothing (ToolsConfig Nothing) ""
       lookupSelector h "vlt-7f3b2a91" `shouldBe` Right e1
 
-    it "L6(property): byId 非空時,把 byName 那些列的 veName 任意換掉,結果不變" $
+    it "LAW-6(property): byId 非空時,把 byName 那些列的 veName 任意換掉,結果不變" $
       hedgehog $ do
         others <- forAll (Gen.list (Range.linear 0 3) genVaultEntry)
         targetId <- forAll genVaultId
@@ -215,13 +215,13 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         lookupSelector h0 s === Right target
         lookupSelector h1 s === Right target
 
-    it "test_lookup_selector_ambiguous_lists_all (X9, L7): 撞名回全部候選列,順序同中樞" $ do
+    it "test_lookup_selector_ambiguous_lists_all (EX-9, LAW-7): 撞名回全部候選列,順序同中樞" $ do
       let e3 = VaultEntry (VaultId "vlt-11112222") "lore" AssetVault "C:/e3"
           e4 = VaultEntry (VaultId "vlt-33334444") "lore" StoryVault "C:/e4"
           h = mkHub [e3, e4] [] Nothing (ToolsConfig Nothing) ""
       lookupSelector h "lore" `shouldBe` Left (VaultSelectorAmbiguous "lore" [e3, e4])
 
-    it "L7(property): 任意 n>=2 列撞同一個 veName 時,Ambiguous 的清單逐列等於全部撞名列、順序不變" $
+    it "LAW-7(property): 任意 n>=2 列撞同一個 veName 時,Ambiguous 的清單逐列等於全部撞名列、順序不變" $
       hedgehog $ do
         n <- forAll (Gen.int (Range.linear 2 5))
         name <- forAll genName
@@ -232,11 +232,11 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             h = mkHub vs [] Nothing (ToolsConfig Nothing) ""
         lookupSelector h name === Left (VaultSelectorAmbiguous name vs)
 
-    it "test_lookup_selector_not_found (X10, L7): 兩階段都沒命中回 NotFound" $ do
+    it "test_lookup_selector_not_found (EX-10, LAW-7): 兩階段都沒命中回 NotFound" $ do
       let h = mkHub [sampleVault1] [] Nothing (ToolsConfig Nothing) ""
       lookupSelector h "nope" `shouldBe` Left (VaultSelectorNotFound "nope")
 
-    it "L7(property): 任意 hub 與任意兩階段都不命中的 s,回 VaultSelectorNotFound s" $
+    it "LAW-7(property): 任意 hub 與任意兩階段都不命中的 s,回 VaultSelectorNotFound s" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 5) genVaultEntry)
         s <-
@@ -248,11 +248,11 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         let h = mkHub vs [] Nothing (ToolsConfig Nothing) ""
         lookupSelector h s === Left (VaultSelectorNotFound s)
 
-    it "test_lookup_selector_is_case_sensitive (X11, L8): 大小寫不同時視為不同字串" $ do
+    it "test_lookup_selector_is_case_sensitive (EX-11, LAW-8): 大小寫不同時視為不同字串" $ do
       let h = mkHub [sampleVault1] [] Nothing (ToolsConfig Nothing) ""
       lookupSelector h "ALCHBEES-ASSETS" `shouldBe` Left (VaultSelectorNotFound "ALCHBEES-ASSETS")
 
-    it "L8(property): 任意 entry,veId 的大寫翻轉版本(vlt- 前綴保證與原字串不同)一律 NotFound" $
+    it "LAW-8(property): 任意 entry,veId 的大寫翻轉版本(vlt- 前綴保證與原字串不同)一律 NotFound" $
       hedgehog $ do
         e <- forAll genVaultEntry
         let idFlipped = T.toUpper (vaultIdText (veId e))
@@ -260,11 +260,11 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         (idFlipped /= vaultIdText (veId e)) === True
         lookupSelector h idFlipped === Left (VaultSelectorNotFound idFlipped)
 
-    it "test_lookup_selector_does_not_trim (X12, L8): 前後空白不去除" $ do
+    it "test_lookup_selector_does_not_trim (EX-12, LAW-8): 前後空白不去除" $ do
       let h = mkHub [sampleVault1] [] Nothing (ToolsConfig Nothing) ""
       lookupSelector h " alchbees-assets " `shouldBe` Left (VaultSelectorNotFound " alchbees-assets ")
 
-    it "L8(property): 任意 entry,veName 前後加空白後查詢一律 NotFound" $
+    it "LAW-8(property): 任意 entry,veName 前後加空白後查詢一律 NotFound" $
       hedgehog $ do
         e <- forAll genVaultEntry
         pad <- forAll (Gen.text (Range.linear 1 2) (pure ' '))
@@ -272,7 +272,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             h = mkHub [e] [] Nothing (ToolsConfig Nothing) ""
         lookupSelector h padded === Left (VaultSelectorNotFound padded)
 
-    it "test_lookup_selector_ignores_other_sections (X13, L9): 換掉 projects/llm/tools/原始文字,結果不變" $
+    it "test_lookup_selector_ignores_other_sections (EX-13, LAW-9): 換掉 projects/llm/tools/原始文字,結果不變" $
       hedgehog $ do
         vs <- forAll (Gen.list (Range.linear 0 5) genVaultEntry)
         s <- forAll genName
@@ -289,8 +289,8 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         lookupSelector h1 s === lookupSelector h2 s
 
   --------------------------------------------------------------------------
-  describe "T3/L10-L13/X14-X18: readVaultRef 重讀 marker(已註冊的一列)" $ do
-    it "test_read_vault_ref_marker_is_truth (X14, L10): vrMarker 一律來自檔案,中樞欄位換掉不影響" $
+  describe "STEP-3/LAW-10-LAW-13/EX-14-EX-18: readVaultRef 重讀 marker(已註冊的一列)" $ do
+    it "test_read_vault_ref_marker_is_truth (EX-14, LAW-10): vrMarker 一律來自檔案,中樞欄位換掉不影響" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-7f3b2a91" "asset" "real" [])
         let e = VaultEntry (VaultId "vlt-7f3b2a91") "stale" StoryVault v
@@ -304,7 +304,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             vrPath ref `shouldBe` canonV
           Left issue -> expectationFailure ("預期 Right,得到 " <> show issue)
 
-    it "L10(property): 把 e 的 veName/veKind 換成與 marker 不同的任何值後重跑,vrMarker 逐欄不變" $
+    it "LAW-10(property): 把 e 的 veName/veKind 換成與 marker 不同的任何值後重跑,vrMarker 逐欄不變" $
       hedgehog $ do
         vid <- forAll genVaultId
         markerName <- forAll genName
@@ -324,7 +324,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           (Right ref1, Right ref2) -> vrMarker ref1 === vrMarker ref2
           other -> annotate (show other) >> failure
 
-    it "test_read_vault_ref_fields_on_success (L11): 成功時 vrEntry == Just e、vrPath 是正規化路徑、vmId == veId e" $
+    it "test_read_vault_ref_fields_on_success (LAW-11): 成功時 vrEntry == Just e、vrPath 是正規化路徑、vmId == veId e" $
       hedgehog $ do
         e <- forAll genVaultEntry
         markerName <- forAll genName
@@ -342,7 +342,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             vmId (vrMarker ref) === veId e
           Left issue -> annotate (show issue) >> failure
 
-    it "test_read_vault_ref_path_missing (X15, L12a): 路徑不存在回 VaultPathMissing e (正規化後的路徑)" $
+    it "test_read_vault_ref_path_missing (EX-15, LAW-12a): 路徑不存在回 VaultPathMissing e (正規化後的路徑)" $
       withTempHubDir $ \parent -> do
         let x = parent </> "does-not-exist"
             e = sampleVault1 {vePath = x}
@@ -350,7 +350,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         r <- readVaultRef e x
         r `shouldBe` Left (VaultPathMissing e canonX)
 
-    it "L12a(property): 任意 e 與任意不存在的路徑,回 VaultPathMissing e (p 的正規化)" $
+    it "LAW-12a(property): 任意 e 與任意不存在的路徑,回 VaultPathMissing e (p 的正規化)" $
       hedgehog $ do
         e <- forAll genVaultEntry
         segs <- forAll (Gen.list (Range.linear 1 3) genSegment)
@@ -361,7 +361,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           pure (r, canonX)
         result === Left (VaultPathMissing e canonX)
 
-    it "test_read_vault_ref_marker_broken_carries_original (X16, L12b): .aapms/ 在但沒有 config.toml" $
+    it "test_read_vault_ref_marker_broken_carries_original (EX-16, LAW-12b): .aapms/ 在但沒有 config.toml" $
       withTempHubDir $ \v -> do
         createDirectoryIfMissing True (v </> ".aapms")
         let e = sampleVault1 {vePath = v}
@@ -374,7 +374,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             err `shouldBe` expectedErr
           other -> expectationFailure ("預期兩者都失敗且相符,得到 " <> show other)
 
-    it "X17/L12b: kind 欄位不合規時,VaultMarkerBroken 捧著與 readMarker 逐欄相同的 StoreError" $
+    it "EX-17/LAW-12b: kind 欄位不合規時,VaultMarkerBroken 捧著與 readMarker 逐欄相同的 StoreError" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (T.unlines ["id = \"vlt-7f3b2a91\"", "kind = \"media\"", "name = \"a\"", "refs = []"])
         let e = sampleVault1 {vePath = v}
@@ -387,14 +387,14 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             err `shouldBe` expectedErr
           other -> expectationFailure ("預期兩者都失敗且相符,得到 " <> show other)
 
-    it "test_read_vault_ref_id_drift (X18, L12c): marker 的 id 與中樞不符時回 VaultIdDrift,帶 marker 裡的 id" $
+    it "test_read_vault_ref_id_drift (EX-18, LAW-12c): marker 的 id 與中樞不符時回 VaultIdDrift,帶 marker 裡的 id" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-aaaa1111" "asset" "a" [])
         let e = sampleVault1 {veId = VaultId "vlt-bbbb2222", vePath = v}
         r <- readVaultRef e v
         r `shouldBe` Left (VaultIdDrift e (VaultId "vlt-aaaa1111"))
 
-    it "L12c(property): 任意兩個不同 id,marker 用其一、中樞用另一,回 VaultIdDrift e (marker 的 id)" $
+    it "LAW-12c(property): 任意兩個不同 id,marker 用其一、中樞用另一,回 VaultIdDrift e (marker 的 id)" $
       hedgehog $ do
         markerId <- forAll genVaultId
         entryId <- forAll (Gen.filter (/= markerId) genVaultId)
@@ -408,7 +408,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           pure (r, e)
         result === Left (VaultIdDrift e' markerId)
 
-    it "test_read_vault_ref_creates_nothing (L13): 無論成功或失敗,呼叫前後目錄樹逐位元組相同" $
+    it "test_read_vault_ref_creates_nothing (LAW-13): 無論成功或失敗,呼叫前後目錄樹逐位元組相同" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-7f3b2a91" "asset" "a" [])
         let e = sampleVault1 {vePath = v}
@@ -417,7 +417,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         snapAfter <- snapshotTree v
         snapAfter `shouldBe` snapBefore
 
-    it "L13(續): marker 讀不到(路徑不存在)時,readVaultRef 也不會把它建出來" $
+    it "LAW-13(續): marker 讀不到(路徑不存在)時,readVaultRef 也不會把它建出來" $
       withTempHubDir $ \parent -> do
         let v = parent </> "missing-vault"
             e = sampleVault1 {vePath = v}
@@ -427,8 +427,8 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         snapAfter `shouldBe` snapBefore
 
   --------------------------------------------------------------------------
-  describe "T4/L14-L15/X19-X22: readVaultRefAt 重讀 marker(只知道路徑)" $ do
-    it "test_read_vault_ref_at_fills_entry_by_id (X19, L14): 中樞有 veId 等於 marker id 的列時 vrEntry 是 Just 那一列" $
+  describe "STEP-4/LAW-14-LAW-15/EX-19-EX-22: readVaultRefAt 重讀 marker(只知道路徑)" $ do
+    it "test_read_vault_ref_at_fills_entry_by_id (EX-19, LAW-14): 中樞有 veId 等於 marker id 的列時 vrEntry 是 Just 那一列" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-7f3b2a91" "asset" "a" [])
         let e = sampleVault1 {veId = VaultId "vlt-7f3b2a91", vePath = v}
@@ -441,7 +441,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             vrPath ref `shouldBe` canonV
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "L14(property): 多列同一個 veId 時,回中樞裡第一列滿足條件的那一列" $
+    it "LAW-14(property): 多列同一個 veId 時,回中樞裡第一列滿足條件的那一列" $
       hedgehog $ do
         vid <- forAll genVaultId
         e1raw <- forAll genVaultEntry
@@ -460,7 +460,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           Right ref -> vrEntry ref === Just first
           Left err -> annotate (show err) >> failure
 
-    it "test_read_vault_ref_at_unregistered_is_nothing (X20, L14): 中樞沒有任何列符合時 vrEntry 是 Nothing,vrMarker 仍來自檔案" $
+    it "test_read_vault_ref_at_unregistered_is_nothing (EX-20, LAW-14): 中樞沒有任何列符合時 vrEntry 是 Nothing,vrMarker 仍來自檔案" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-7f3b2a91" "asset" "a" [])
         let h = mkHub [] [] Nothing (ToolsConfig Nothing) ""
@@ -471,7 +471,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             vmId (vrMarker ref) `shouldBe` VaultId "vlt-7f3b2a91"
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_read_vault_ref_at_ignores_path_match (X21, L14): 中樞的 vePath 等於 V 但 veId 不同時,vrEntry 仍是 Nothing" $
+    it "test_read_vault_ref_at_ignores_path_match (EX-21, LAW-14): 中樞的 vePath 等於 V 但 veId 不同時,vrEntry 仍是 Nothing" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (markerTomlText "vlt-7f3b2a91" "asset" "a" [])
         let e = sampleVault1 {veId = VaultId "vlt-deadbeef", vePath = v}
@@ -481,7 +481,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           Right ref -> vrEntry ref `shouldBe` Nothing
           Left err -> expectationFailure ("預期 Right,得到 " <> show err)
 
-    it "test_read_vault_ref_at_marker_unreadable (X22, L15): 路徑不存在時回 MarkerUnreadable,renderWorkspaceError 含路徑與原因" $
+    it "test_read_vault_ref_at_marker_unreadable (EX-22, LAW-15): 路徑不存在時回 MarkerUnreadable,renderWorkspaceError 含路徑與原因" $
       withTempHubDir $ \parent -> do
         let x = parent </> "does-not-exist"
             h = mkHub [] [] Nothing (ToolsConfig Nothing) ""
@@ -498,8 +498,8 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
           other -> expectationFailure ("預期兩者都失敗,得到 " <> show other)
 
   --------------------------------------------------------------------------
-  describe "T5/L16-L17/X23-X24: 兩個讀取函式一致、refs 原樣捧著" $ do
-    it "test_two_readers_agree (L16 前半): readVaultRefAt 命中的那一列餵回 readVaultRef,兩者逐欄相同" $
+  describe "STEP-5/LAW-16-LAW-17/EX-23-EX-24: 兩個讀取函式一致、refs 原樣捧著" $ do
+    it "test_two_readers_agree (LAW-16 前半): readVaultRefAt 命中的那一列餵回 readVaultRef,兩者逐欄相同" $
       hedgehog $ do
         e <- forAll genVaultEntry
         markerName <- forAll genName
@@ -514,7 +514,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         vrEntry atRef === Just e
         refRef === atRef
 
-    it "test_two_readers_agree (X23, L16 後半): readVaultRefAt 的 MarkerUnreadable 與 readVaultRef 的 VaultMarkerBroken 捧著同一個 err" $
+    it "test_two_readers_agree (EX-23, LAW-16 後半): readVaultRefAt 的 MarkerUnreadable 與 readVaultRef 的 VaultMarkerBroken 捧著同一個 err" $
       withTempHubDir $ \v -> do
         writeVaultMarker v (T.unlines ["id = \"vlt-7f3b2a91\"", "kind = \"media\"", "name = \"a\"", "refs = []"])
         let e = sampleVault1 {veId = VaultId "vlt-7f3b2a91", vePath = v}
@@ -527,7 +527,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
             err2 `shouldBe` err1
           other -> expectationFailure ("預期 (MarkerUnreadable, VaultMarkerBroken) 成對,得到 " <> show other)
 
-    it "X24(字面例子): refs = [vlt-11112222, vlt-33334444] 時 vmRefs 逐項相符" $
+    it "EX-24(字面例子): refs = [vlt-11112222, vlt-33334444] 時 vmRefs 逐項相符" $
       withTempHubDir $ \v -> do
         let e = sampleVault1 {vePath = v}
         writeVaultMarker
@@ -541,7 +541,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         r <- orDie =<< readVaultRef e v
         vmRefs (vrMarker r) `shouldBe` [VaultId "vlt-11112222", VaultId "vlt-33334444"]
 
-    it "test_refs_carried_verbatim_not_expanded (L17): vmRefs 逐項等於檔案裡的 refs,且不影響 vrEntry" $
+    it "test_refs_carried_verbatim_not_expanded (LAW-17): vmRefs 逐項等於檔案裡的 refs,且不影響 vrEntry" $
       hedgehog $ do
         e <- forAll genVaultEntry
         markerName <- forAll genName
@@ -558,7 +558,7 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
         vrEntry withoutRefs === Just e
 
   --------------------------------------------------------------------------
-  describe "L18(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+  describe "LAW-18(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
     it "test_discovery_no_downstream_or_location_imports(a): 本套件內的 import 只能是 \
        \Aapms.Workspace.Types 或 Aapms.Workspace.Hub" $ do
       importLines <- discoveryImportLines

@@ -355,7 +355,7 @@ instance FromJSON AnyNode where
 -- | @schemaVersion@ 短路檢查(舊 @AssetDB.Manifest@ 的 fail-fast 順序):
 -- 版本不符立刻 'fail' 明確中文訊息,不繼續解析其餘欄位——避免版本不符時連鎖
 -- 冒出一堆缺欄位錯誤,蓋掉真正原因。'Manifest' 與 'StoryManifest' 各自呼叫,
--- 各自的版本常數獨立(F003 待確認假設 A4)。
+-- 各自的版本常數獨立(F003 待確認假設 ASM-4)。
 checkSchemaVersion :: Text -> Int -> Int -> Parser ()
 checkSchemaVersion docName expected got
   | got == expected = pure ()

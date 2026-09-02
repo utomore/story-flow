@@ -2,7 +2,7 @@
 id: E002
 type: enhance
 title: init-vault-with-path-and-signature-coverage
-description: 補 initVaultWith 的 vePath 斷言,並修 L3 不可滿足的措辭
+description: 補 initVaultWith 的 vePath 斷言,並修 LAW-3 不可滿足的措辭
 status: open
 created: 2026-08-30
 updated: 2026-08-30
@@ -11,7 +11,7 @@ related-adr: [ADR-017]
 related-feature: [F004]
 ---
 
-# E002:`initVaultWith` 的 `vePath` 覆蓋缺口,與 L3 的措辭修正
+# E002:`initVaultWith` 的 `vePath` 覆蓋缺口,與 LAW-3 的措辭修正
 
 > **本檔由 `/arch-audit feature workspace/E001`(2026-08-30)建立,只記錄發現與依據,
 > 不是 spec。** 真要動手,先走 `/spec-design` enhance 更新模式談 scope、寫 Laws/Examples
@@ -22,11 +22,11 @@ related-feature: [F004]
 `workspace/E001` 已於 2026-08-30 交付並全綠(`aapms-workspace-test` 319/0/0)。
 **程式碼行為是對的,本檔記的兩條都不是執行期缺陷**,而是**驗收覆蓋**與 **spec 措辭**的問題。
 
-## 發現一(中):L3 的條文不可滿足,`initVaultWith` 的 `vePath` 沒有任何斷言
+## 發現一(中):LAW-3 的條文不可滿足,`initVaultWith` 的 `vePath` 沒有任何斷言
 
 ### 條文與現實對不上
 
-E001 的 **L3(薄包裝等價)**原文:
+E001 的 **LAW-3(薄包裝等價)**原文:
 
 > `initVault loc hub **d** kind name mode` 的結果,除了 `veId` 之外,與
 > `initVaultWith loc hub **d** kind name mode t`(任意 `t`)逐欄相同:
@@ -34,7 +34,7 @@ E001 的 **L3(薄包裝等價)**原文:
 > 中樞新增的列數一致
 
 **這個情境不可達**:兩次呼叫用**同一個 `d`**,第一次會建出 `.aapms/`,第二次必然回
-`VaultAlreadyInitialized`——那正是 E001 自己的 **R2** 規定的行為。L3 字面要求的「兩個
+`VaultAlreadyInitialized`——那正是 E001 自己的 **REG-2** 規定的行為。LAW-3 字面要求的「兩個
 `Right` 逐欄比較」永遠取不到。
 
 ### qa 實際怎麼做
@@ -60,9 +60,9 @@ E001 的 **L3(薄包裝等價)**原文:
 而 `vePath` 是 `design.md` 契約 B 明訂的欄位:
 
 > `vePath` | FilePath | 絕對路徑,**正規化 = `System.Directory.canonicalizePath`**
-> (2026-08-29 W2 閘門釘死):解 `.` / `..`、解 symlink、還原 Windows 8.3 短檔名
+> (2026-08-29 WAVE-2 閘門釘死):解 `.` / `..`、解 symlink、還原 Windows 8.3 短檔名
 
-W2 閘門**特意否決**了 `makeAbsolute`(純字串、不碰檔案系統、好測,但 `C:\x\..\y` 與
+WAVE-2 閘門**特意否決**了 `makeAbsolute`(純字串、不碰檔案系統、好測,但 `C:\x\..\y` 與
 `C:\y` 是兩個字串,8.3 短檔名與 symlink 都不還原)。也就是說這一欄的正規化方式是被論證過的
 不可逆決定,現在新入口上沒有任何東西守它。
 
@@ -72,15 +72,15 @@ W2 閘門**特意否決**了 `makeAbsolute`(純字串、不碰檔案系統、好
 
 ### 建議修法(分析結論,不是 spec)
 
-1. L3 改寫成兩個**相異**目錄的等價性,並明列比較欄位(把 `vePath` 從「一致」改成
+1. LAW-3 改寫成兩個**相異**目錄的等價性,並明列比較欄位(把 `vePath` 從「一致」改成
    「各自等於自己的正規化路徑」)
 2. 補一條 `initVaultWith` 的 `vePath` 斷言,形狀比照 `LifecycleSpec.hs:605`
 3. 可考慮把「`vePath` 一律等於 `canonicalizePath` 的結果」提成一條獨立的 law,讓兩個入口
    共用——這比在兩處各寫一條更貼近「契約 B 的那一欄只有一種正規化」
 
-## 發現二(低):R1「簽名逐字等於」沒有逐字驗證
+## 發現二(低):REG-1「簽名逐字等於」沒有逐字驗證
 
-E001 的 **R1** 要求 `initVault` 的型別簽名**逐字等於**
+E001 的 **REG-1** 要求 `initVault` 的型別簽名**逐字等於**
 
 ```haskell
 initVault :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
@@ -90,18 +90,18 @@ qa 的對照表(`LifecycleSpec.hs:112`)填的是「由既有呼叫端持續以 6
 編譯通過保證」。
 
 **編譯通過擋不到「逐字」層級**:Haskell 的 `type FilePath = String`,把簽名裡的 `FilePath`
-換成 `String`,編譯結果完全一樣、所有呼叫端照過,而 R1 的字面要求已經被違反。
+換成 `String`,編譯結果完全一樣、所有呼叫端照過,而 REG-1 的字面要求已經被違反。
 
-這個專案本來就有**逐字比對原始碼文字**的慣例(`lifecycleImportLines` 那一組 L42 測試,
-`LifecycleSpec.hs:1146` 附近),R1 用同一套手法做得到。
+這個專案本來就有**逐字比對原始碼文字**的慣例(`lifecycleImportLines` 那一組 LAW-42 測試,
+`LifecycleSpec.hs:1146` 附近),REG-1 用同一套手法做得到。
 
 **實際風險低**:`design.md` 契約 D 也釘著這條簽名,而且 `/arch-audit` 的「骨架符合度」檢查
 會比對簽名原文(2026-08-30 這次就是這樣驗過的)。
 
 ### 建議修法(二擇一)
 
-- 補一條逐字比對 `initVault` 簽名行的測試(比照 L42 的做法,比對前去除行尾 `\r`);或
-- 把 R1 的措辭從「逐字等於」放寬成「arity 與參數型別不變」,讓條文與驗證方式對齊
+- 補一條逐字比對 `initVault` 簽名行的測試(比照 LAW-42 的做法,比對前去除行尾 `\r`);或
+- 把 REG-1 的措辭從「逐字等於」放寬成「arity 與參數型別不變」,讓條文與驗證方式對齊
 
 兩者都可以,重點是**條文與驗證手段必須一致**——目前是條文寫得比驗證強。
 

@@ -2,7 +2,7 @@
 id: ADR-018
 type: adr
 title: rebuild-core-with-contract-test-safety-net
-description: 以重建核心的方式整合,契約層測試先釘死當安全網,真實資料 P2 進場
+description: 以重建核心的方式整合,契約層測試先釘死當安全網,真實資料 S2 進場
 status: accepted
 created: 2026-08-23
 updated: 2026-08-23
@@ -30,9 +30,9 @@ accepted
 **一、重建核心,舊程式碼當素材搬。** `aapms-core` / `-store` / `-service` 依新模型重寫;
 assetdb 的 `archive` / `ingest` / `reorg` / `project` / `ai`,story-flow 的 `md` / `conflict` /
 `workshop` / `api` / `cli` / `server` / `mcp` 當可搬的零件改接新底座。接受中間有一段兩邊功能都不
-完整的時期(P1–P2),換真正一份的核心。
+完整的時期(S1–S2),換真正一份的核心。
 
-**二、契約層測試先釘死,在 P0 就立起來。** 這些測試只依賴對外契約,不依賴內部型別,整個重建期
+**二、契約層測試先釘死,在 S0 就立起來。** 這些測試只依賴對外契約,不依賴內部型別,整個重建期
 都有效:
 
 | 契約 | 測試什麼 |
@@ -46,17 +46,17 @@ assetdb 的 `archive` / `ingest` / `reorg` / `project` / `ai`,story-flow 的 `md
 
 內部單元測試隨模組重寫,不逐一改寫舊的。
 
-**三、真實資料 P2 進場。** `graph-core` 一完成就寫一次性匯出器,把 `alchbees-assets` 的
+**三、真實資料 S2 進場。** `graph-core` 一完成就寫一次性匯出器,把 `alchbees-assets` 的
 `assetdb.sqlite` 匯成 `pack.md`,拿 6,783 筆真資料驗證統一 `Meta` 與 schema——在 schema 還改得動
 的時候發現問題,而不是建了五層之後。
 
 **四、匯出器是拋棄式程式碼。** 不重算雜湊(沿用 `sha256` 與 85 MB 縮圖快取)、重發短 id、
 對帳 1,653 筆命名零遺失、匯出後與舊 DB 對帳;完成即從 `cabal.project` 移除,不進任何子系統。
 
-**五、P0 是純機械改動,單獨 commit。** repo 讓名改名、兩樹合一、`Aapms.*` 前綴、搬 ADR、立契約
+**五、S0 是純機械改動,單獨 commit。** repo 讓名改名、兩樹合一、`Aapms.*` 前綴、搬 ADR、立契約
 測試——零邏輯改動,`cabal build all` 與契約測試是唯一的驗收。越晚做衝突越大。
 
-**六、web 前端 P7 才接回。** 核心重建期間不維護;`types.ts` 是產生物,API 穩定後重產即可。
+**六、web 前端 S7 才接回。** 核心重建期間不維護;`types.ts` 是產生物,API 穩定後重產即可。
 
 ## 考慮過的替代方案(Alternatives Considered)
 
@@ -78,11 +78,11 @@ assetdb 的 `archive` / `ingest` / `reorg` / `project` / `ai`,story-flow 的 `md
 
 - 核心真正只有一份,沒有轉接層遺留
 - 契約測試在整個重建期間是有效的安全網,且重建完成後仍是回歸測試
-- 真資料在 P2 就驗證過 schema,P3–P6 不會回頭改 `Meta`
+- 真資料在 S2 就驗證過 schema,S3–S6 不會回頭改 `Meta`
 
 **負面 / 成本**
 
-- P1–P2 期間兩邊功能都不完整,素材庫的日常查詢要用 legacy repo 的舊執行檔頂著
+- S1–S2 期間兩邊功能都不完整,素材庫的日常查詢要用 legacy repo 的舊執行檔頂著
 - 匯出器是一次性程式碼,寫完即刪,測試也只活一期
-- 內部單元測試覆蓋在 P1–P3 會暫時低於現況;`/arch-audit status` 會反映這點
+- 內部單元測試覆蓋在 S1–S3 會暫時低於現況;`/arch-audit status` 會反映這點
 - 測試行數會下降(舊測試不逐一改寫),不應以行數當指標

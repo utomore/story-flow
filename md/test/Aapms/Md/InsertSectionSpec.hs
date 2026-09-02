@@ -1,43 +1,43 @@
--- | graph-core/F004(2026-08-25 追加,F008 假設 A5 的裁決):'insertSection' ——
+-- | graph-core/F004(2026-08-25 追加,F008 假設 ASM-5 的裁決):'insertSection' ——
 -- 在指定父節點的__子樹之後__插入新節(= 成為它的最後一個子節點),以及
 -- 'Aapms.Md.Error.renderMdErrorKind' 新增的 'HeadingTooDeep' 分支。
 --
--- 本檔只翻新增的那一組:Laws L32–L39(「在父節點底下插入」)與 Examples
--- E11–E22。其餘 31 條 law 的測試已存在(見 "Aapms.Md.EditLawsSpec" /
+-- 本檔只翻新增的那一組:Laws LAW-32–LAW-39(「在父節點底下插入」)與 Examples
+-- EX-11–EX-22。其餘 31 條 law 的測試已存在(見 "Aapms.Md.EditLawsSpec" /
 -- "Aapms.Md.NewSectionLawsSpec" / "Aapms.Md.RegressionLawsSpec" /
 -- "Aapms.Md.DocKindLawSpec"),本檔不重寫、不碰。
 --
 -- __預期紅綠__:'insertSection' 本體是 @undefined@,'HeadingTooDeep' 的
 -- @renderMdErrorKind@ 分支本體也是 @undefined@——所有呼叫到這兩者的測試都
--- 應該紅。E16\/E17\/E19\/E20 只斷言 'insertSection' 回傳的 'MdError' __值__
+-- 應該紅。EX-16\/EX-17\/EX-19\/EX-20 只斷言 'insertSection' 回傳的 'MdError' __值__
 -- (建構子相等),不呼叫 'renderMdError',所以它們的紅綠只繫於 'insertSection'
--- 是否正確 pattern match 到對應分支;E21 才是唯一同時撞到
+-- 是否正確 pattern match 到對應分支;EX-21 才是唯一同時撞到
 -- 'renderMdErrorKind' 那個 @undefined@ 分支的測試。
 --
 -- __spec 對照__:
 --
 -- @
--- L32 插入位置(k = j+1+length(subtree p d))              -> "L32" it
--- L33 ADR-010 位元組保留(唯一例外:插入點前一節的尾端)     -> "L33" it
--- L34 新節內容(與 mkSection 一致;正文的 blankTail 條款)   -> "L34" it
--- L35 可解析(parseDocument\/to* 往返,依文件身分分四個 it) -> "L35" describe(四個 it)
--- L36 樹合法性與父子關係(nodParent\/nodOrder\/buildTree)   -> "L36" it
--- L37 父節點是最後一節時退化為 appendSection               -> "L37" it
--- L38 四條錯誤檢查依序取第一個成立的分支                    -> "L38" it
--- L39 HeadingTooDeep 的訊息(前綴\/兩個 # 字串\/下一步指引)  -> "L39" it
+-- LAW-32 插入位置(k = j+1+length(subtree p d))              -> "LAW-32" it
+-- LAW-33 ADR-010 位元組保留(唯一例外:插入點前一節的尾端)     -> "LAW-33" it
+-- LAW-34 新節內容(與 mkSection 一致;正文的 blankTail 條款)   -> "LAW-34" it
+-- LAW-35 可解析(parseDocument\/to* 往返,依文件身分分四個 it) -> "LAW-35" describe(四個 it)
+-- LAW-36 樹合法性與父子關係(nodParent\/nodOrder\/buildTree)   -> "LAW-36" it
+-- LAW-37 父節點是最後一節時退化為 appendSection               -> "LAW-37" it
+-- LAW-38 四條錯誤檢查依序取第一個成立的分支                    -> "LAW-38" it
+-- LAW-39 HeadingTooDeep 的訊息(前綴\/兩個 # 字串\/下一步指引)  -> "LAW-39" it
 --
--- E11 「子樹之後」而非「父節點正後方」                      -> "E11" it
--- E12 格式正常的檔案上插入點位元組不變(+ 單一空行變體)     -> "E12" 兩個 it
--- E13 1,693 節,對中間有子樹的節插入                        -> "E13" it
--- E14 父節點是最後一節,退化為 appendSection                -> "E14" it
--- E15 新節本身的行尾補齊(不會與下一節標題黏住)              -> "E15" it
--- E16 父節點不存在                                          -> "E16" it
--- E17 nsLevel 不等於 secLevel(父)+1                        -> "E17" it
--- E18 算出來的層級 > 6                                      -> "E18" it
--- E19 撞號優先於層級檢查                                    -> "E19" it
--- E20 第 3 條檢查先於第 4 條(HeadingSkip 不是 HeadingTooDeep) -> "E20" it
--- E21 HeadingTooDeep 訊息逐字(契約 G:下一步指引)            -> "E21" it
--- E22 既有建構子的訊息回歸(見檔內註解:spec-gaps G3)         -> "E22" it
+-- EX-11 「子樹之後」而非「父節點正後方」                      -> "EX-11" it
+-- EX-12 格式正常的檔案上插入點位元組不變(+ 單一空行變體)     -> "EX-12" 兩個 it
+-- EX-13 1,693 節,對中間有子樹的節插入                        -> "EX-13" it
+-- EX-14 父節點是最後一節,退化為 appendSection                -> "EX-14" it
+-- EX-15 新節本身的行尾補齊(不會與下一節標題黏住)              -> "EX-15" it
+-- EX-16 父節點不存在                                          -> "EX-16" it
+-- EX-17 nsLevel 不等於 secLevel(父)+1                        -> "EX-17" it
+-- EX-18 算出來的層級 > 6                                      -> "EX-18" it
+-- EX-19 撞號優先於層級檢查                                    -> "EX-19" it
+-- EX-20 第 3 條檢查先於第 4 條(HeadingSkip 不是 HeadingTooDeep) -> "EX-20" it
+-- EX-21 HeadingTooDeep 訊息逐字(契約 G:下一步指引)            -> "EX-21" it
+-- EX-22 既有建構子的訊息回歸(見檔內註解:spec-gaps GAP-3)         -> "EX-22" it
 -- @
 module Aapms.Md.InsertSectionSpec (spec) where
 
@@ -100,7 +100,7 @@ insertIndexOf pid d = sectionIndexOf pid d + 1 + length (subtreeOf pid d)
 insertAt :: Int -> a -> [a] -> [a]
 insertAt k x xs = let (pre, post) = splitAt k xs in pre ++ [x] ++ post
 
--- | L33\/A10 原文轉錄的 'blankTail' 公式(私有函式,test-suite 拿不到,只能
+-- | LAW-33\/ASM-10 原文轉錄的 'blankTail' 公式(私有函式,test-suite 拿不到,只能
 -- 依 spec 給的算法自己重建一份 oracle):原文已以兩個行尾結尾時原樣回傳、
 -- 以一個行尾結尾時補一個、空字串補一個、其餘補兩個。
 blankTailOracle :: LineEnding -> Text -> Text
@@ -114,8 +114,8 @@ blankTailOracle le t
 
 spec :: Spec
 spec = do
-  describe "graph-core/F004(2026-08-25):insertSection Laws(L32-L39)" $ do
-    it "L32: 插入索引 k 符合 subtree 定義;有子節點時新節前一節是子樹最後一節" $
+  describe "graph-core/F004(2026-08-25):insertSection Laws(LAW-32-LAW-39)" $ do
+    it "LAW-32: 插入索引 k 符合 subtree 定義;有子節點時新節前一節是子樹最後一節" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         p <- forAll (genInsertableParent d)
@@ -138,7 +138,7 @@ spec = do
                 predId === secId (last sub)
                 assert (predId /= pid)
 
-    it "L33(ADR-010): 除插入點前一節的正文尾端外,其餘節逐位元組不變;frontRaw/preamble 不變" $
+    it "LAW-33(ADR-010): 除插入點前一節的正文尾端外,其餘節逐位元組不變;frontRaw/preamble 不變" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         p <- forAll (genInsertableParent d)
@@ -165,7 +165,7 @@ spec = do
                       then secBodyRaw s === blankTailOracle (docEnding d) (secBodyRaw orig)
                       else secBodyRaw s === secBodyRaw orig
 
-    it "L34: 新節的標題\\/meta\\/層級\\/標題文字\\/id 與 mkSection 一致;正文依是否為最後一節套用 blankTail" $
+    it "LAW-34: 新節的標題\\/meta\\/層級\\/標題文字\\/id 與 mkSection 一致;正文依是否為最後一節套用 blankTail" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         p <- forAll (genInsertableParent d)
@@ -191,7 +191,7 @@ spec = do
                 then secBodyRaw new === body
                 else secBodyRaw new === blankTailOracle (docEnding d) body
 
-    describe "L35(可解析:parseDocument/to* 在插入後仍成功,新節點 metaId 正確)" $ do
+    describe "LAW-35(可解析:parseDocument/to* 在插入後仍成功,新節點 metaId 正確)" $ do
       it "TopicDoc(lindaMd, NSFragment)" $
         hedgehog $ do
           let d = docOf lindaMd
@@ -281,7 +281,7 @@ spec = do
                     [n] -> nodKind n === nnKind nn
                     other -> footnoteShow (length other) >> failure
 
-    it "L36: 樹合法性 — nodParent/nodKind/nodOrder 正確,既有節點不重編,buildTree 成功" $
+    it "LAW-36: 樹合法性 — nodParent/nodKind/nodOrder 正確,既有節點不重編,buildTree 成功" $
       hedgehog $ do
         let d = docOf classroomMd
         p <- forAll (genInsertableParent d)
@@ -320,7 +320,7 @@ spec = do
                   Left errs -> footnoteShow errs >> failure
                   Right _ -> success
 
-    it "L37: 父節點是最後一節時,insertSection 與 appendSection 產生相同的 renderDocument" $
+    it "LAW-37: 父節點是最後一節時,insertSection 與 appendSection 產生相同的 renderDocument" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         let lastSec = last (docSections d)
@@ -335,7 +335,7 @@ spec = do
               === (renderDocument <$> appendSection ns d)
           else success
 
-    it "L38: 四個檢查依序取第一個成立的分支(含 E19:撞號優先於層級)" $
+    it "LAW-38: 四個檢查依序取第一個成立的分支(含 EX-19:撞號優先於層級)" $
       hedgehog $ do
         d <- forAll (Gen.element fixtureDocs)
         existingId <- forAll (genSectionIdOf d)
@@ -368,7 +368,7 @@ spec = do
                         Right _ -> success
                         Left e -> footnoteShow e >> failure
 
-    it "L39: HeadingTooDeep 的訊息以「第 <l> 行:」開頭,含兩個 # 字串與下一步指引" $
+    it "LAW-39: HeadingTooDeep 的訊息以「第 <l> 行:」開頭,含兩個 # 字串與下一步指引" $
       hedgehog $ do
         l <- forAll (Gen.int (Range.linear 1 9999))
         parent <- forAll (Gen.int (Range.linear 1 6))
@@ -379,8 +379,8 @@ spec = do
         assert (T.replicate parent "#" `T.isInfixOf` msg)
         assert ("請改插到較淺的父節點底下,或先把這條分支中間的層級壓平" `T.isInfixOf` msg)
 
-  describe "graph-core/F004(2026-08-25):insertSection Examples(E11-E22)" $ do
-    it "E11: 插在子樹之後(而非父節點正後方)" $ do
+  describe "graph-core/F004(2026-08-25):insertSection Examples(EX-11-EX-22)" $ do
+    it "EX-11: 插在子樹之後(而非父節點正後方)" $ do
       let d = docOf e11LevelMd
           ns = NewSection (idOf "nod-0030") 3 "新場景" "" (NSNode emptyOverride (NewNode KScene))
       case insertSection (idOf "nod-0003") ns d of
@@ -410,7 +410,7 @@ spec = do
                     nodOrder n `shouldBe` ord
                   other -> expectationFailure (T.unpack i <> " 應該恰一筆,得到 " <> show (length other))
 
-    it "E12: 格式正常(雙空行)的檔案上,插入點也一個位元組都不動" $ do
+    it "EX-12: 格式正常(雙空行)的檔案上,插入點也一個位元組都不動" $ do
       let d = docOf e11LevelMd
           ns = NewSection (idOf "nod-0030") 3 "新場景" "" (NSNode emptyOverride (NewNode KScene))
       case insertSection (idOf "nod-0003") ns d of
@@ -423,7 +423,7 @@ spec = do
               Nothing -> expectationFailure "既有節不該消失"
               Just s -> renderSection s `shouldBe` renderSection orig
 
-    it "E12 變體:nod-0020 只有單一空行時,只有它的 secBodyRaw 尾端補齊,其餘不變" $ do
+    it "EX-12 變體:nod-0020 只有單一空行時,只有它的 secBodyRaw 尾端補齊,其餘不變" $ do
       let d = docOf e12SingleBlankVariant
           ns = NewSection (idOf "nod-0030") 3 "新場景" "" (NSNode emptyOverride (NewNode KScene))
       case insertSection (idOf "nod-0003") ns d of
@@ -443,7 +443,7 @@ spec = do
               secBodyRaw s `shouldBe` blankTailOracle LF (secBodyRaw orig)
             _ -> expectationFailure "nod-0020 應該在兩邊都找得到"
 
-    it "E13: 1,693 節的合成 Level 檔,對中間有子樹的節插入,除插入點前一節外其餘 1,692 節逐位元組不變" $ do
+    it "EX-13: 1,693 節的合成 Level 檔,對中間有子樹的節插入,除插入點前一節外其餘 1,692 節逐位元組不變" $ do
       let midI = 846
           src = synthLevelMd 1693 midI
           d = docOf src
@@ -467,14 +467,14 @@ spec = do
               Left errs -> expectationFailure ("buildTree 應該成功:" <> show errs)
               Right _ -> pure ()
 
-    it "E14: 父節點是文件的最後一節時,insertSection 與 appendSection 產生相同的 renderDocument" $ do
+    it "EX-14: 父節點是文件的最後一節時,insertSection 與 appendSection 產生相同的 renderDocument" $ do
       let d = docOf classroomMd
           lastSec = last (docSections d)
           ns = NewSection (idOf "nod-0099") (secLevel lastSec + 1) "附註" "" (NSNode emptyOverride (NewNode KCamera))
       (renderDocument <$> insertSection (secId lastSec) ns d)
         `shouldBe` (renderDocument <$> appendSection ns d)
 
-    it "E15: 新節插在中間、nsBody 不以行尾結尾,不會與下一節標題黏在一起" $ do
+    it "EX-15: 新節插在中間、nsBody 不以行尾結尾,不會與下一節標題黏在一起" $ do
       let d = docOf e11LevelMd
           ns = NewSection (idOf "nod-0031") 3 "新場景" "內文" (NSNode emptyOverride (NewNode KScene))
       case insertSection (idOf "nod-0003") ns d of
@@ -487,44 +487,44 @@ spec = do
               Nothing -> expectationFailure "新節應該存在"
               Just s -> secTitle s `shouldBe` "新場景"
 
-    it "E16: 父節點不存在回 UnknownSectionId" $ do
+    it "EX-16: 父節點不存在回 UnknownSectionId" $ do
       let d = docOf classroomMd
           ns = NewSection (idOf "nod-0099") 3 "x" "" (NSFragment emptyOverride)
       insertSection (idOf "nod-9999") ns d `shouldBe` Left (mdError 1 (UnknownSectionId (idOf "nod-9999")))
 
-    it "E17: nsLevel 不等於 secLevel(父)+1 時回 HeadingSkip" $ do
+    it "EX-17: nsLevel 不等於 secLevel(父)+1 時回 HeadingSkip" $ do
       let d = docOf classroomMd -- nod-0001 是 level 2
           ns = NewSection (idOf "nod-0099") 4 "x" "" (NSFragment emptyOverride)
       insertSection (idOf "nod-0001") ns d `shouldBe` Left (mdError 1 (HeadingSkip 2 4))
 
-    it "E18: 父節點在第 6 級,nsLevel = 7 時回 HeadingTooDeep(第 3 條檢查會過)" $ do
+    it "EX-18: 父節點在第 6 級,nsLevel = 7 時回 HeadingTooDeep(第 3 條檢查會過)" $ do
       let d = docOf classroomMd -- nod-0007 是 level 6
           ns = NewSection (idOf "nod-0099") 7 "x" "" (NSFragment emptyOverride)
       insertSection (idOf "nod-0007") ns d `shouldBe` Left (mdError 1 (HeadingTooDeep 6 7))
 
-    it "E19: nsId 撞號時優先於層級檢查,回 DuplicateSectionId" $ do
+    it "EX-19: nsId 撞號時優先於層級檢查,回 DuplicateSectionId" $ do
       let d = docOf classroomMd -- nod-0001 是 level 2,nod-0002 已存在
           ns = NewSection (idOf "nod-0002") 5 "x" "" (NSFragment emptyOverride)
       insertSection (idOf "nod-0001") ns d `shouldBe` Left (mdError 1 (DuplicateSectionId (idOf "nod-0002")))
 
-    it "E20: 父節點在第 6 級但 nsLevel = 9(第 3 條先擋下),回 HeadingSkip 不是 HeadingTooDeep" $ do
+    it "EX-20: 父節點在第 6 級但 nsLevel = 9(第 3 條先擋下),回 HeadingSkip 不是 HeadingTooDeep" $ do
       let d = docOf classroomMd -- nod-0007 是 level 6
           ns = NewSection (idOf "nod-0099") 9 "x" "" (NSFragment emptyOverride)
       insertSection (idOf "nod-0007") ns d `shouldBe` Left (mdError 1 (HeadingSkip 6 9))
 
-    it "E21: HeadingTooDeep 的訊息逐字相符(契約 G:下一步指引;L39 原文轉錄)" $
+    it "EX-21: HeadingTooDeep 的訊息逐字相符(契約 G:下一步指引;LAW-39 原文轉錄)" $
       renderMdError (mdError 12 (HeadingTooDeep 6 7))
         `shouldBe` "第 12 行:標題層級 #######(第 7 級)超過 Markdown 的六級上限,父節點 ###### 已經在第 6 級,底下加不了子節點了:請改插到較淺的父節點底下,或先把這條分支中間的層級壓平"
 
-    -- E22:既有建構子的訊息逐字回歸(不受 HeadingTooDeep 影響)。
+    -- EX-22:既有建構子的訊息逐字回歸(不受 HeadingTooDeep 影響)。
     --
     -- __委派備註__:spec 原文說「既有 14 個建構子」,但 'MdErrorKind' 扣掉
     -- 'HeadingTooDeep' 實際數出來是 15 個(與 "Aapms.Md.ErrorSpec"「每一種
     -- 錯誤都有非空訊息」測試枚舉的清單一致)——這條數字對不上已記進
-    -- spec-gaps(G3)。以下訊息逐字轉錄自現行(本次委派明令不得更動)的
+    -- spec-gaps(GAP-3)。以下訊息逐字轉錄自現行(本次委派明令不得更動)的
     -- 'renderMdErrorKind',是回歸 law 的釘子,不是對受測介面(insertSection /
     -- HeadingTooDeep)行為的推論。
-    it "E22: 既有(15 個)建構子的訊息與本輪之前逐字相同" $ do
+    it "EX-22: 既有(15 個)建構子的訊息與本輪之前逐字相同" $ do
       renderMdError (mdError 1 NoFrontmatter) `shouldBe` "第 1 行:檔案開頭缺少 --- frontmatter 界線"
       renderMdError (mdError 1 UnterminatedFrontmatter)
         `shouldBe` "第 1 行:frontmatter 只有開頭的 ---,找不到結尾的 ---"
@@ -549,13 +549,13 @@ spec = do
       renderMdError (mdError 1 (UnknownSectionId (idOf "ent-0001"))) `shouldBe` "第 1 行:找不到節 ent-0001"
 
 --------------------------------------------------------------------------------
--- E11–E13 專用 fixture(本檔自建,不改 "Aapms.Md.Fixtures":委派指示只准新建
--- 本檔)。結構依 F004 spec 的 E11 描述逐字構造:@## 第三章 {#nod-0003}@ 底下
+-- EX-11–EX-13 專用 fixture(本檔自建,不改 "Aapms.Md.Fixtures":委派指示只准新建
+-- 本檔)。結構依 F004 spec 的 EX-11 描述逐字構造:@## 第三章 {#nod-0003}@ 底下
 -- 依序有 @### 第一節 {#nod-0010}@、@### 第二節 {#nod-0011}@,
 -- @nod-0011@ 底下還有 @#### 場景 A {#nod-0020}@;檔尾另有
 -- @## 第四章 {#nod-0004}@。每節之後隔兩個空行(理由同
 -- 'Aapms.Md.Fixtures.synthPackMd' 的檔頭註解:secBodyRaw 已經是 @"\n\n"@,
--- blankTail 補齊分隔空行時剛好是 no-op——E12「格式正常的檔案上插入點位元組
+-- blankTail 補齊分隔空行時剛好是 no-op——EX-12「格式正常的檔案上插入點位元組
 -- 不變」才斷言得到逐位元組相等,不必靠但書)。
 
 e11LevelMd :: Text
@@ -565,7 +565,7 @@ e11LevelMd =
     , "id: lvl-0000e011"
     , "vault: liftgame"
     , "type: level"
-    , "title: E11 Level"
+    , "title: EX-11 Level"
     , "summary: 測試用 Level 檔"
     , "status: canon"
     , "source: human"
@@ -614,7 +614,7 @@ e11LevelMd =
     ]
 
 -- | 與 'e11LevelMd' 只有一處不同:@nod-0020@ 到 @nod-0004@ 之間只有__單一__
--- 空行(而不是雙空行),用來覆蓋 L33 的但書(插入點前一節__還沒有__以空行
+-- 空行(而不是雙空行),用來覆蓋 LAW-33 的但書(插入點前一節__還沒有__以空行
 -- 結尾時才補齊)。
 e12SingleBlankVariant :: Text
 e12SingleBlankVariant =
@@ -623,7 +623,7 @@ e12SingleBlankVariant =
     , "id: lvl-0000e011"
     , "vault: liftgame"
     , "type: level"
-    , "title: E11 Level"
+    , "title: EX-11 Level"
     , "summary: 測試用 Level 檔"
     , "status: canon"
     , "source: human"
@@ -670,7 +670,7 @@ e12SingleBlankVariant =
     , ""
     ]
 
--- E13 專用:合成 1,693 節的 Level 檔(D4:測試內生成器合成,不需要真實大檔,
+-- EX-13 專用:合成 1,693 節的 Level 檔(DEC-4:測試內生成器合成,不需要真實大檔,
 -- 與 'Aapms.Md.Fixtures.synthPackMd' 同一個理由)。
 --
 -- __W6 仲裁修正(F004 第 1 輪)__:上一版把 1,692 個章節全部放在 level 2,
@@ -707,7 +707,7 @@ synthLevelMd n mid =
     , "vault: liftgame"
     , "type: level"
     , "title: 合成 Level"
-    , "summary: E13 用"
+    , "summary: EX-13 用"
     , "status: canon"
     , "source: human"
     , "revision: 1"

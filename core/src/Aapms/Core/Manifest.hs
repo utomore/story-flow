@@ -66,7 +66,7 @@ currentSchemaVersion :: Int
 currentSchemaVersion = 2
 
 -- | @story/manifest.json@ 目前支援的 schema 版本(獨立於 'currentSchemaVersion',
--- 待確認假設 A4)。
+-- 待確認假設 ASM-4)。
 currentStoryManifestSchemaVersion :: Int
 currentStoryManifestSchemaVersion = 2
 
@@ -77,14 +77,14 @@ data Manifest = Manifest
   , mGeneratedAt :: UTCTime
   , mAssets :: [ManifestAsset]
   , mPacks :: [ManifestPack]
-  -- ^ 出現在 'mAssets' 的 pack,去重(待確認假設 A3)
+  -- ^ 出現在 'mAssets' 的 pack,去重(待確認假設 ASM-3)
   , mLicenses :: [ManifestLicense]
-  -- ^ 出現在 'mAssets' 的 license,去重(待確認假設 A3)
+  -- ^ 出現在 'mAssets' 的 license,去重(待確認假設 ASM-3)
   }
   deriving stock (Eq, Show)
 
 -- | 一筆素材。'maPack' \/ 'maLicense' 是**跨 vault 的 'Ref'**(F003 階段一閘門
--- 裁決 A2,取代先前「同一個 vault 內的短 id」的假設):短 id 只在單一 vault 內
+-- 裁決 ASM-2,取代先前「同一個 vault 內的短 id」的假設):短 id 只在單一 vault 內
 -- 唯一,專案的素材未來可能來自兩個 vault,JSON 編碼為 @"\<vault\>:\<id\>"@
 -- (本 vault 內時可省略 vault 段,見 'Aapms.Core.Id.parseRef')。
 data ManifestAsset = ManifestAsset
@@ -102,7 +102,7 @@ data ManifestAsset = ManifestAsset
   deriving stock (Eq, Show)
 
 -- | 頂層去重清單裡的一筆 pack。'mpId' \/ 'mpLicense' 是 'Ref'(2026-08-23 二輪
--- 裁決,見 F003「已裁決假設」A2 補述):manifest 內部的引用圖整個 vault 化,
+-- 裁決,見 F003「已裁決假設」ASM-2 補述):manifest 內部的引用圖整個 vault 化,
 -- 讓 'ManifestAsset.maPack' 與這裡的 'mpId' 形狀一致——兩個 vault 各有一筆
 -- @pck-11223344@ 時仍是兩筆可區分的項目,不必先剝掉 vault 前綴再比對就會撞名。
 data ManifestPack = ManifestPack
@@ -171,7 +171,7 @@ manifestIndex :: Manifest -> Map AssetKey ManifestAsset
 manifestIndex m = Map.fromList [(maKey a, a) | a <- mAssets m]
 
 -- | 型別化讀取:相符 kind 的 'Value' 回 'Just',欄位缺漏或型別不符回
--- 'Nothing'(待確認假設 A1:同時適用於 'ManifestAsset' 的 @meta@ 欄位與
+-- 'Nothing'(待確認假設 ASM-1:同時適用於 'ManifestAsset' 的 @meta@ 欄位與
 -- "Aapms.Core.Asset" 的 @astKindMeta@ 兩處)。
 imageMeta :: Value -> Maybe ImageMeta
 imageMeta = parseMaybe parseImageMeta

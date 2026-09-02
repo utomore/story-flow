@@ -11,7 +11,7 @@
 -- 自己的 'Aapms.Store.Marker.vhMarker' \/ 'Aapms.Store.Marker.vmId',永遠可得、
 -- 零額外 IO)__原樣填回__。這與 md fixture 展示的「frontmatter 的 @vault:@
 -- 只是自由文字標籤,不強制等於 vault 自己的 @vlt-@ id」一致:同一個 vault 內
--- 重建兩次、或 @rm index.db@ 前後,'hydrateMeta' 永遠用同一個來源填,P0 契約
+-- 重建兩次、或 @rm index.db@ 前後,'hydrateMeta' 永遠用同一個來源填,S0 契約
 -- 測試(F006 驗收標準)因此仍然成立,只是 hydrate 出來的 @metaVault@ 不保證
 -- 逐位元組等於檔案 frontmatter 當初寫的那個字串。**影響**:若之後某個 feature
 -- 需要「這個節點檔案宣告的 vault 標籤」而非「它實際所在的 vault」,要幫
@@ -138,7 +138,7 @@ nodeColumns :: Text
 nodeColumns = T.intercalate ", " nodeColumnList
 
 -- | 一個 'Meta' + 它的 prefix + 檔案路徑 + section anchor(@Nothing@ = 檔案層
--- 容器)+ owner 轉成一列。@metaVault@ 不落地(見本模組頂端的待確認假設 A10)。
+-- 容器)+ owner 轉成一列。@metaVault@ 不落地(見本模組頂端的待確認假設 ASM-10)。
 nodeFields :: Meta -> IdPrefix -> FilePath -> Maybe Text -> Maybe Id -> [SQLData]
 nodeFields Meta {..} prefix filePath anchor owner =
   [ sText (renderId metaId)
@@ -461,7 +461,7 @@ refOf :: Text -> Maybe Ref
 refOf t = either (const Nothing) Just (parseRef t)
 
 --------------------------------------------------------------------------------
--- DocKind 文字編碼(待確認假設 A6:store 自訂,不用 DocKind 的 Show 實例)
+-- DocKind 文字編碼(待確認假設 ASM-6:store 自訂,不用 DocKind 的 Show 實例)
 
 renderDocKind :: DocKind -> Text
 renderDocKind = \case

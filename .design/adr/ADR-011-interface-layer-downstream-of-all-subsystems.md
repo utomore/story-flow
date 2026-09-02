@@ -19,7 +19,7 @@ superseded by ADR-015(2026-08-23):合併 assetdb 後業務領域從一個變成�
 `system.md` 原本把依賴方向寫成一句話:「依賴方向單向向下,編號小的不知道編號大的存在」,
 並附一張 `entity-graph-core ──► service-and-interfaces ──► conflict-detection` 的圖。
 
-`conflict-detection` 的 `context-command`(P4)落地後,這句話變成假的:`storyflow-api`、
+`conflict-detection` 的 `context-command`(S4)落地後,這句話變成假的:`storyflow-api`、
 `storyflow-server`、`storyflow-cli` 三個套件都 `build-depends` 了 `storyflow-conflict`
 ——因為 `POST /conflict/context` 與 `story-flow context` 的路由型別與指令定義住在那裡。
 而這三個套件都屬於 `service-and-interfaces`,一個「排在 `conflict-detection` 前面」的子系統。
@@ -68,7 +68,7 @@ superseded by ADR-015(2026-08-23):合併 assetdb 後業務領域從一個變成�
   線性單向了,敘述不必分兩層。代價是把「薄包裝」與「它所包的契約」拆到兩份 Level 2 文件,
   而 ADR-006 的核心約束正好跨在那條縫上;另外要動 `system.md` 的 `subsystems` 權威清單、
   新建一份 `design.md`、搬遷兩份已完成的 feature 文檔。**為了讓一句話成立而拆結構,方向反了。**
-- **保留「單向向下」主句,把包裝層列為第二個例外**:改動最小。但 P5 的 `workshop-interface`
+- **保留「單向向下」主句,把包裝層列為第二個例外**:改動最小。但 S5 的 `workshop-interface`
   與 `mcp-adapter` 上線後還會再加邊,例外清單會越長越像在掛病號——而它們全部是同一個原因。
   例外清單不斷增長,通常代表主句的模型錯了。
 - **禁止 `api` 依賴 `conflict`,改用某種註冊機制反轉**:讓 `storyflow-conflict` 自己把路由
@@ -82,7 +82,7 @@ superseded by ADR-015(2026-08-23):合併 assetdb 後業務領域從一個變成�
 - 「架構違規」與「正常成長」分得開了:包裝層多一條相依是預期的,契約層多一條就是紅線,
   而且有 `CabalSpec` 直接擋
 - `arch-audit` 有一條可引用的依據,不必每次重新辯論
-- P5 的 `workshop-interface`、`mcp-adapter` 落地時不會再觸發同一輪討論
+- S5 的 `workshop-interface`、`mcp-adapter` 落地時不會再觸發同一輪討論
 
 **負面 / 成本**
 

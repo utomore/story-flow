@@ -5,10 +5,13 @@ title: md-unified-sections
 description: 分節引擎接統一 Meta;新增 pack.md/licenses.md 解析與位元組保留寫回
 status: done
 created: 2026-08-23
-updated: 2026-08-25
-depends-on: [F001, F002]
+updated: 2026-09-04
+stage: S1
+modules: [分節引擎, 文件轉換]
+depends-on: [graph-core/F001, graph-core/F002]
 related-adr: [ADR-002, ADR-009, ADR-010, ADR-013]
 related-feature: []
+code-paths: [md/aapms-md.cabal, md/src/Aapms/Md.hs, md/src/Aapms/Md/Document.hs, md/src/Aapms/Md/Error.hs, md/src/Aapms/Md/Inherit.hs, md/src/Aapms/Md/Lexer.hs, md/src/Aapms/Md/Parse.hs, md/src/Aapms/Md/Render.hs, md/test/Aapms/Md/AppendSectionSpec.hs, md/test/Aapms/Md/DocKindLawSpec.hs, md/test/Aapms/Md/DocKindSpec.hs, md/test/Aapms/Md/DocumentSpec.hs, md/test/Aapms/Md/EditLawsSpec.hs, md/test/Aapms/Md/EditSpec.hs, md/test/Aapms/Md/ErrorSpec.hs, md/test/Aapms/Md/Fixtures.hs, md/test/Aapms/Md/FrontExtrasSpec.hs, md/test/Aapms/Md/Gens.hs, md/test/Aapms/Md/HeadingSpec.hs, md/test/Aapms/Md/InheritSpec.hs, md/test/Aapms/Md/InsertSectionSpec.hs, md/test/Aapms/Md/LexerSpec.hs, md/test/Aapms/Md/NewSectionLawsSpec.hs, md/test/Aapms/Md/ParseEntitySpec.hs, md/test/Aapms/Md/ParseLevelSpec.hs, md/test/Aapms/Md/ParseLicenseSpec.hs, md/test/Aapms/Md/ParsePackSpec.hs, md/test/Aapms/Md/RegressionLawsSpec.hs, md/test/Aapms/Md/RenderSpec.hs, md/test/Aapms/Md/YamlSpec.hs, md/test/Aapms/MdSpec.hs, md/test/Spec.hs]
 ---
 
 # F004: md-unified-sections
@@ -94,7 +97,18 @@ GAP-17 能潛伏到 F008 才被 impl 用眼睛看出來,是因為**沒有任何 
 frontmatter 寫出去再讀回來,七個欄位逐欄相等。判準沿用 GAP-2 的作法——「鍵不在 `frontmatterFieldOrder`
 裡」就是 extras,而不是列舉已知的 pack 七欄,這樣註冊表宣告的任意自訂欄位也一併保住。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:分節引擎、文件轉換(`aapms-md`)
+- **驗收標準**(契約卡原文):四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同(S0 契約測試
+  持續綠);繼承規則照本文件表格——pack.md 的節層 `type` 不繼承且缺漏是錯誤;
+  `toPack` 把檔案層轉成 `Pack`、每節轉成 `Asset`;`toLicenses` 每節一個 `License`,八個維度缺漏為
+  `Nothing` 而非錯誤(`commercial` 與 `attribution_required` 除外,缺漏是錯誤);`appendSection`
+  在 1,693 節的文件末尾追加一節,前面 1,693 節位元組不變;`insertSection` 在中間插一節,
+  其餘每一節位元組不變——**唯一的例外是插入點之前那一段的行尾**:它還沒有以空行結尾時會被補齊
+  (`blankTail` 冪等,已經是空行結尾就原樣不動),`appendSection` 走的是同一條規則,
+  被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010;`MdError` 指出行號
 
 - **契約 D(`aapms-md`)全部**:`DocKind` / `Document` / `parseDocument` / `docKind` /
   `toTopic` / `toLevel` / `toPack` / `toLicenses` / `renderDocument` / `updateFrontmatter` /
@@ -114,6 +128,8 @@ frontmatter 寫出去再讀回來,七個欄位逐欄相等。判準沿用 GAP-2 
 契約 D**(2026-08-25,含「GAP-17 定案」段落);本文檔的簽名以 `design.md` 為準、逐字一致。`mergeFrontExtras`
 是唯一超出契約 D 逐字清單的一條(`mergeExtras` 的一行 wrapper)。`updateFrontmatter` 的**簽名不變**,
 只有語意收緊(不得吃掉專屬條目)。不動契約 A / B / C / E / F。
+
+- **明確不做**(契約卡原文):不碰檔案系統與索引;不驗證關聯目標;不算 sha256(`asset-ingest` 給)
 
 ## 數據
 

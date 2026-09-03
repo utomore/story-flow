@@ -5,10 +5,13 @@ title: core-unified-meta
 description: 統一六種節點共用的 Meta、短 id、Link 詞彙與 aeson 編碼規則
 status: done
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-09-04
+stage: S1
+modules: ["Meta 與節點型別", Id, Tree, Json]
 depends-on: []
 related-adr: [ADR-004, ADR-005, ADR-012, ADR-014]
 related-feature: []
+code-paths: [core/aapms-core.cabal, core/src/Aapms/Core/AnyNode.hs, core/src/Aapms/Core/Asset.hs, core/src/Aapms/Core/Id.hs, core/src/Aapms/Core/Json.hs, core/src/Aapms/Core/License.hs, core/src/Aapms/Core/Link.hs, core/src/Aapms/Core/Meta.hs, core/src/Aapms/Core/Pack.hs, core/src/Aapms/Core/Registry.hs, core/test/Aapms/Core/AnyNodeSpec.hs, core/test/Aapms/Core/AssetSpec.hs, core/test/Aapms/Core/CabalSpec.hs, core/test/Aapms/Core/EntitySpec.hs, core/test/Aapms/Core/Fixtures.hs, core/test/Aapms/Core/IdSpec.hs, core/test/Aapms/Core/JsonSpec.hs, core/test/Aapms/Core/LicenseSpec.hs, core/test/Aapms/Core/LinkSpec.hs, core/test/Aapms/Core/MetaSpec.hs, core/test/Aapms/Core/PackSpec.hs, core/test/Aapms/Core/RegistrySpec.hs, core/test/Aapms/Core/TreeSpec.hs, core/test/Spec.hs]
 ---
 
 # F001: 統一 Meta 與節點型別(core-unified-meta)
@@ -42,7 +45,14 @@ related-feature: []
 DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,本 feature 以外的程式碼(`service` /
 `conflict` / `cli` / … 舊碼仍 import 舊 `Aapms.Core.*`)一律不碰、不考慮相容。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Meta 與節點型別、Id、Tree、Json(`aapms-core`)
+- **驗收標準**(契約卡原文):六種節點共用同一個 `Meta` 型別;`Status` / `Source` / `LinkKind` 的 JSON 與文字表示
+  是穩定小寫且只有一份;`parseRef` 接受 `ent-7f3b2a91` 與 `vlt-a0c4e1f8:ent-7f3b2a91` 兩種寫法;
+  `newId` 對同一輸入不同 salt 產生不同 id;`buildTree` 拒絕成環、跳級、多重父節點;
+  `aapms-core` 的 `build-depends` 不含任何 IO / SQLite / 壓縮 / 影像套件(`CabalSpec` 斷言)
 
 ### 契約 A(全部,`aapms-core`)
 
@@ -78,6 +88,9 @@ DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,本 feature 
 ### 明確不做(契約卡逐字)
 
 不讀檔、不解析 Markdown、不碰註冊表載入;不定義命名文法(#2);不定義 Manifest(#3)。
+
+- **明確不做**(契約卡原文):不讀檔、不解析 Markdown、不碰註冊表載入;不定義命名文法(那是 #2);
+  不定義 Manifest(#3)
 
 ## 實作方式
 

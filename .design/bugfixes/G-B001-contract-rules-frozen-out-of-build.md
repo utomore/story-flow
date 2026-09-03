@@ -5,11 +5,12 @@ title: contract-rules-frozen-out-of-build
 description: 相依方向的四條硬規則在 S1 期間無人斷言,違規可靜默通過
 status: done
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-09-04
 depends-on: []
 related-adr: [ADR-015, ADR-018]
 related-feature: [graph-core/F001]
 subsystems: [graph-core]
+code-paths: [contract/aapms-contract.cabal, contract/test/RulesMain.hs, cabal.project]
 ---
 
 # G-B001: 契約層的相依方向規則被凍結出建置範圍

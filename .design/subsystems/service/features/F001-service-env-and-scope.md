@@ -5,10 +5,13 @@ title: service-env-and-scope
 description: "Env(中樞 + 註冊表 + handle 快取 + 全域鎖)、openEnv / runService / closeEnv / withEnv、三個範圍取得口、ServiceError 前四個建構子與 errorCode / renderServiceError"
 status: done
 created: 2026-08-30
-updated: 2026-08-30
+updated: 2026-09-04
+stage: S3
+modules: [Types, Monad, Scope]
 depends-on: [graph-core/F001, graph-core/F002, graph-core/F005, graph-core/F009, workspace/F001, workspace/F003]
 related-adr: [ADR-006, ADR-013, ADR-014, ADR-015, ADR-017]
 related-feature: []
+code-paths: [service/src/Aapms/Service/Monad.hs, service/src/Aapms/Service/Scope.hs, service/src/Aapms/Service/Types.hs, service/test/Aapms/Service/MonadSpec.hs, service/test/Aapms/Service/NestedRunServiceSpec.hs]
 ---
 
 # F001: 執行環境、範圍取得與錯誤語彙骨架(service-env-and-scope)
@@ -63,7 +66,27 @@ workspace/F003]`——design.md「功能規劃」階段一表 #1 的「依賴」
 
 本子系統內:F002–F008 全部反過來依賴本 feature。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Types(建立骨架,後續 feature 各自擴充建構子)、Monad、Scope
+- **驗收標準**(契約卡原文):- `openEnv` 成功回傳後**尚未開任何 vault 索引**(可觀察:任一 vault 的 `index.db` 檔案 mtime 不變,
+    且該 vault 的 `.aapms/` 沒有新增暫存檔) — 觀察點:契約 A 的 `openEnv`
+  - 中樞載不起來或型別註冊表載不起來時 `openEnv` 回 `Left`,**不回一個空的 `Env`**;錯誤分別是
+    `WorkspaceFailed` 與 `RegistryUnavailable` / `RegistryLoadFailed` — 觀察點:契約 A 的 `openEnv`、
+    契約 F 的四個建構子
+  - 同一個 `Env` 上對同一個 vault 連續兩次 `withRead`,第二次**不再呼叫 `openVault`**(可觀察:
+    索引檔的存取次數不增,或以一個只會成功一次的假路徑替換後第二次仍成功) — 觀察點:模組間公開
+    介面的 `handleFor`
+  - `closeEnv` 後所有開過的 handle 都被關閉:同一目錄可立即被另一個 `Env` 開啟且無鎖檔殘留 —
+    觀察點:契約 A 的 `closeEnv`
+  - 兩個並發的 `runService` 不會交錯:對同一個 `Env` 同時跑兩個寫入,最終 `revision` 恒為 +2 且
+    兩次都成功或其中一次回 `RevisionConflict`,**不會出現索引與檔案不一致** — 觀察點:契約 A 的
+    `runService`、契約 F 的 `RevisionConflict`
+  - `errorCode` 對每個建構子都回一個非空、snake_case、**不含產品前綴**的字串,且兩兩相異 —
+    觀察點:契約 F 的 `errorCode`
+  - `renderServiceError (StoreFailed e)` 逐字等於 graph-core 的 `renderStoreError e`;
+    `WorkspaceFailed` 同理委派 — 觀察點:契約 F 的 `renderServiceError`
 
 ### 契約 A(全部四個函式 + 兩個型別)
 
@@ -110,6 +133,8 @@ workspace/F003]`——design.md「功能規劃」階段一表 #1 的「依賴」
 資源就會用到)。它取代的是 WAVE-1 impl 自己補上的 `deriving newtype instance MonadError ServiceError ServiceM`——
 來由、歸因與裁決見「實作備註」,守衛是 **LAW-25**。這一列**尚未**進 design.md 的「模組間公開介面」表,
 建議編排者比照 `indexIssuesFor` 回填。
+
+- **明確不做**(契約卡原文):不實作任何業務操作(#2 起);不做業務驗證(#4);不決定 HTTP 狀態碼(`shell`)
 
 ## 實作方式
 

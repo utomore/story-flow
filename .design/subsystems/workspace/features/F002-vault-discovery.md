@@ -5,10 +5,13 @@ title: vault-discovery
 description: "向上探測 .aapms/、selector 解析、重讀 marker 取權威身分、不可達降級"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
-depends-on: [F001]
+updated: 2026-09-04
+stage: S3
+modules: [Discovery]
+depends-on: [workspace/F001]
 related-adr: [ADR-008, ADR-014, ADR-017]
 related-feature: []
+code-paths: [workspace/aapms-workspace.cabal, workspace/src/Aapms/Workspace/Discovery.hs, workspace/test/Aapms/Workspace/DiscoverySpec.hs, workspace/test/Aapms/Workspace/Fixtures.hs, workspace/test/Spec.hs]
 ---
 
 # F002: 向上探測、selector 解析、重讀 marker(vault-discovery)
@@ -59,7 +62,22 @@ related-feature: []
 `filepath` / `text` / `time` / `toml-reader` / `aapms-core` / `aapms-store` 覆蓋本 feature 全部
 所需。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Discovery
+- **驗收標準**(契約卡原文):- `detectVault` 從一個位於 vault 內任意深度的子目錄出發,回傳**含 `.aapms/` 的那一層**的絕對路徑;
+    從 vault 外任何目錄出發(一路到檔案系統根都沒有 marker)回 `Nothing` — 觀察點:契約 C 的
+    `detectVault`
+  - `lookupSelector` 先比 `veId` 的完整字串再比 `veName`:當某字串同時是甲的 id 與乙的 name 時,
+    回甲 — 觀察點:契約 C 的 `lookupSelector`
+  - 兩列 `VaultEntry` 同名時以該名稱查回 `VaultSelectorAmbiguous`,且其清單**含全部**撞名的列 —
+    觀察點:契約 C 的 `lookupSelector`、契約 F 的 `VaultSelectorAmbiguous`
+  - `readVaultRef` 回傳的 `vrMarker` 一律來自檔案:把中樞的 `veName` / `veKind` 改成與 marker 不同的
+    值後重跑,`vrMarker` 不變 — 觀察點:模組間公開介面的 `readVaultRef`、契約 C 的 `VaultRef`
+  - 路徑不存在 → `VaultPathMissing`;路徑在但 marker 解不開 → `VaultMarkerBroken` 且捧著
+    graph-core 的 `StoreError` 原件;marker 的 id 與中樞不符 → `VaultIdDrift` 帶兩個 id —
+    觀察點:契約 C 的 `ScopeIssue`
 
 ### 契約 C(本 feature 負責的四項)
 
@@ -109,6 +127,8 @@ readVaultRef :: Maybe VaultEntry -> FilePath -> IO (Either ScopeIssue VaultRef)
 > `readVaultRefAt` 同時是契約卡指給本 feature 的 `MarkerUnreadable` 的**唯一生產者**——沒有它,
 > 契約卡列的那個建構子在本 feature 裡沒有任何地方生得出來。契約 C 的 `VaultRef` / `ScopeIssue`
 > 與 `Types.hs` **一個字都沒動**。
+
+- **明確不做**(契約卡原文):不做 `refs` 展開、不決定範圍(那是 #3);不開索引;marker 的**寫入**不在這裡(#4)
 
 ## 實作方式
 

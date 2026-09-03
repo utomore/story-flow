@@ -5,10 +5,13 @@ title: store-vault-handle
 description: "aapms-store 的 vault marker 讀寫、initVaultAt / openVault / closeVault、schema 骨架"
 status: done
 created: 2026-08-23
-updated: 2026-08-23
-depends-on: [F001]
+updated: 2026-09-04
+stage: S1
+modules: [Marker, Atomic, Schema]
+depends-on: [graph-core/F001]
 related-adr: [ADR-013, ADR-017, ADR-022]
 related-feature: []
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store.hs, store/src/Aapms/Store/Error.hs, store/src/Aapms/Store/Marker.hs, store/src/Aapms/Store/Schema.hs, store/test/Aapms/Store/ErrorSpec.hs, store/test/Aapms/Store/Fixtures.hs, store/test/Aapms/Store/MarkerSpec.hs, store/test/Aapms/Store/SchemaSpec.hs, store/test/Aapms/StoreSpec.hs, store/test/Spec.hs]
 ---
 
 # F005: vault marker、原子寫入、schema 骨架(store-vault-handle)
@@ -51,7 +54,14 @@ Schema 三個(`aapms-store`)。
 `store-multi-vault-read`(#9)四個 feature 依賴本 feature(它們都要用 `VaultHandle`/`openVault`),
 但本 feature 不依賴它們。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:Marker、Atomic、Schema(`aapms-store`)
+- **驗收標準**(契約卡原文):`initVaultAt` 寫出 `.aapms/config.toml`(含新發的 `vlt-` id 與 kind)與空索引;
+  對已有 marker 的目錄再 `initVaultAt` 是錯誤;`openVault` 對 marker 損壞回指出欄位的錯誤,不自動
+  建檔;`schema_version` 不符時整庫重建並在 `IndexIssue` 回報;原子寫入在 Windows 上能覆蓋既有檔案;
+  沒有任何程式路徑讀 `%APPDATA%` 或向上探測——那是 `workspace`
 
 ### 契約 E(部分,依契約卡指定)
 
@@ -85,6 +95,9 @@ closeVault  :: VaultHandle -> IO ()
 ### 明確不做(契約卡逐字)
 
 不探測 vault、不讀中樞註冊表、不處理 `--vault`;不做 `migrate`(`workspace`);不建任何業務表(#6)。
+
+- **明確不做**(契約卡原文):不探測 vault、不讀中樞註冊表、不處理 `--vault`;不做 `migrate`(`workspace`);
+  不建任何業務表(#6)
 
 ## 實作方式
 

@@ -5,10 +5,13 @@ title: hub-registry
 description: "中樞位置解析、config.toml 四段的讀寫與可手寫保留、載入失敗即失敗;Types 一次寫齊契約 A–F 的全部型別"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-04
+stage: S3
+modules: [Types, Location, Hub]
 depends-on: []
 related-adr: [ADR-008, ADR-014, ADR-017]
 related-feature: []
+code-paths: [workspace/aapms-workspace.cabal, workspace/src/Aapms/Workspace/Hub.hs, workspace/src/Aapms/Workspace/Location.hs, workspace/src/Aapms/Workspace/Types.hs, workspace/test/Aapms/Workspace/Fixtures.hs, workspace/test/Aapms/Workspace/HubSpec.hs, workspace/test/Aapms/Workspace/LocationSpec.hs, workspace/test/Aapms/Workspace/TypesSpec.hs, workspace/test/Spec.hs]
 ---
 
 # F001: 中樞位置、config.toml 四段讀寫、全套型別與錯誤(hub-registry)
@@ -54,7 +57,27 @@ feature 建立,本 feature 只把它們會用到的**型別**一次宣告到位�
 `markerDir` / `configPath` / `indexDbPath` / `atomicWriteText` / `readTextFile` /
 `renderStoreError`)都已交付,簽名逐一開原始碼查證過,見「使用到的既有串接介面」。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Types(**一次寫齊**契約 A–F 的全部型別與 `WorkspaceError` 的全部建構子)、Location、Hub
+- **驗收標準**(契約卡原文):- `AAPMS_HOME` 設為非空字串時 `hlSource == FromEnv` 且 `hlPath` 等於該字串的絕對化;未設或空字串時
+    `hlSource == FromPlatformDefault` — 觀察點:契約 A 的 `hubLocation`
+  - 中樞檔案不存在時 `loadHub` 回 `HubNotFound` 且**不是**空的 `Hub` — 觀察點:契約 A 的 `loadHub`、
+    契約 F 的 `HubNotFound`
+  - TOML 解不開回 `HubUnreadable`、解得開但欄位不合規(`id` 缺、`kind` 不是 `asset` / `story`、
+    路徑非絕對)回 `HubMalformed`,兩者的訊息都含**檔案路徑** — 觀察點:契約 F 的
+    `renderWorkspaceError`
+  - 對任意合法中樞檔案,`loadHub` 後立刻 `saveHub` 再 `loadHub`,兩次的 `hubVaults` / `hubProjects` /
+    `hubLlm` / `hubTools` 逐欄相等,且**檔案中原有的註解與空白行逐字保留** — 觀察點:契約 A 的
+    `loadHub` / `saveHub` 與契約 B 的四個 getter
+  - `hubLlm` 對「整段缺席」回 `Nothing`、對「空的 `[llm]` 段」回 `Just` 空表,兩者可區分 —
+    觀察點:契約 B 的 `hubLlm`
+  - `thumbCachePath loc (Sha256 h)` 的結果一律是 `<hlPath>/cache/thumbs/<take 2 h>/<h>.png`,而且
+    以 `thumbCacheDir loc` 為前綴 — 觀察點:契約 B 的 `thumbCachePath` / `thumbCacheDir`
+  - `renderWorkspaceError` 對 `WorkspaceError` 的**每一個**建構子都回一段非空的繁中訊息,且訊息
+    含該建構子攜帶的路徑 / 名稱 / id(契約 F 逐條規定的那些值) — 觀察點:契約 F 的
+    `renderWorkspaceError`
 
 ### 契約 A(全部)
 
@@ -139,6 +162,11 @@ removeProject :: Id           -> Hub -> Hub
 那一列);`upsertProject` / `removeProject` 是對稱補齊,理由見「待確認假設」ASM-2。四者都住
 `Aapms.Workspace.Hub`——那是本 feature 的檔案,而 F004 / F005 的骨架白名單只有
 `Lifecycle.hs` / `Projects.hs`,它們沒有地方寫這四個函式。
+
+- **明確不做**(契約卡原文):不建立任何目錄或檔案(那是 `setupHub`,#4);不解讀 `[llm]` 的任何鍵;
+  不驗證 `vePath` 指的目錄真的存在(那是 #2 的重讀 marker);**契約 C / D / E 的函式完全不在本
+  feature**——它們住在 Discovery / Scope / Lifecycle / Projects / Tools,那幾個模組由各自的 feature
+  建立,本 feature 只把它們會用到的**型別**一次宣告到位
 
 ## 實作方式
 

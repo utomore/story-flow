@@ -5,10 +5,13 @@ title: scope-resolution
 description: "resolveRead / resolveWrite / resolvePipeline、refs 遞移展開與擋環、保序去重"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
-depends-on: [F001, F002]
+updated: 2026-09-04
+stage: S3
+modules: [Scope]
+depends-on: [workspace/F001, workspace/F002]
 related-adr: [ADR-008, ADR-014, ADR-017]
 related-feature: []
+code-paths: [workspace/aapms-workspace.cabal, workspace/src/Aapms/Workspace/Scope.hs, workspace/src/Aapms/Workspace/Types.hs, workspace/test/Aapms/Workspace/Fixtures.hs, workspace/test/Aapms/Workspace/ScopeSpec.hs, workspace/test/Aapms/Workspace/TypesSpec.hs, workspace/test/Spec.hs]
 ---
 
 # F003: 三種作用範圍的裁決(scope-resolution)
@@ -81,7 +84,26 @@ related-feature: []
 所需(`containers` 供 `refs` 展開的 `Data.Set` visited 集合;`directory` 供
 `canonicalizePath`)。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Scope
+- **驗收標準**(契約卡原文):- 對任意中樞,`resolveRead hub Nothing` 的 `rsVaults` 的 id 集合 = 全部**讀得到 marker 的**
+    已註冊 vault,且**與當前目錄無關**(在 vault 內外各跑一次結果相同) — 觀察點:契約 C 的
+    `resolveRead`
+  - 對任意 `X`,`resolveRead hub (Just X)` 的 id 集合 = `{X} ∪ refs*(X)`;`refs` 成環時仍終止且
+    結果是集合(不重複) — 觀察點:契約 C 的 `resolveRead`、`ReadScope`
+  - `resolveWrite` 的 `wsTarget` 恒**不**來自 `refs` 展開:對任意 `X`,`wsTarget` 的 id 恒等於
+    selector 指定或向上探測到的那一個 — 觀察點:契約 C 的 `WriteScope`
+  - 沒有 selector 且從起點一路向上都沒有 `.aapms/` 時 `resolveWrite` 回 `NoWriteTarget`,訊息含
+    **起點路徑** — 觀察點:契約 C 的 `resolveWrite`、契約 F 的 `renderWorkspaceError`
+  - `resolvePipeline` 無 selector 時 `psRuns` 只含 `vmKind` 相符者;有 selector 且 kind 不符時回
+    `VaultKindMismatch`,帶 vault id、要求的 kind、實際的 kind 三個值 — 觀察點:契約 C 的
+    `resolvePipeline`、契約 F 的 `VaultKindMismatch`
+  - 任一 vault 路徑不見或 marker 壞掉時,三個函式都仍回 `Right`,該 vault 不在結果集裡而在
+    `*Issues` 裡 — 觀察點:契約 C 的三個 scope 型別的 `*Issues` 欄位
+  - 三個結果清單都**保序去重**:同一個 vault 被 selector 與 `refs` 各帶進來一次時只出現一次,
+    且順序是第一次出現的位置 — 觀察點:契約 C 的 `rsVaults` / `wsRead` / `psRuns`
 
 ### 契約 C(本 feature 負責的六項)
 
@@ -144,6 +166,9 @@ hubVaults :: Hub -> [VaultEntry]        -- 依 veId 反查 VaultEntry,供 refs �
 ```
 
 四個函式的簽名與 WAVE-2 閘門裁決逐字相同,本 feature **不要求任何修改**。
+
+- **明確不做**(契約卡原文):不判斷 ATTACH 上限(graph-core 的 `maxAttachedVaults` / `TooManyVaults` 擁有它);
+  不開任何 vault;不決定「這個指令屬於讀還是寫」(呼叫端選函式)
 
 ## 實作方式
 

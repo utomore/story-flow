@@ -5,10 +5,13 @@ title: manifest-schema-v2
 description: 兩份 manifest(assets/story)的 schema 2 型別、JSON 編碼與 kind 專屬型別化讀取
 status: done
 created: 2026-08-23
-updated: 2026-08-23
-depends-on: [F001, F002]
+updated: 2026-09-04
+stage: S1
+modules: [Manifest]
+depends-on: [graph-core/F001, graph-core/F002]
 related-adr: [ADR-012, ADR-014]
 related-feature: []
+code-paths: [core/aapms-core.cabal, core/src/Aapms/Core/Json.hs, core/src/Aapms/Core/Manifest.hs, core/test/Aapms/Core/CabalSpec.hs, core/test/Aapms/Core/ManifestSpec.hs, core/test/Spec.hs]
 ---
 
 # F003: Manifest schema 2(manifest-schema-v2)
@@ -54,7 +57,14 @@ F002 先定案。
 DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / `project` / `cli` / … 舊碼一律
 不碰、不考慮相容。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Manifest(`aapms-core`)
+- **驗收標準**(契約卡原文):`schemaVersion = 2`,每筆 asset 帶 `id`(短 id)/ `key`(邏輯名稱)/ `path` / `type` /
+  `sha256` / `vault`(來源 vault id)/ `pack` / `license`;`StoryManifest` 每筆帶 `ref`(`<vault>:<id>`)/
+  `title` / `summary` / `purpose` / `revision`;`FromJSON` 對 `schemaVersion = 1` 回明確錯誤「請重新產生」
+  而不是靜默解析;golden file roundtrip 測試
 
 ### 契約 B(部分,依契約卡指定)
 
@@ -72,6 +82,8 @@ DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / 
 ### 明確不做(契約卡逐字)
 
 不產生 manifest(`project`);不產生 `Assets.hs`(`project`);不做授權判斷。
+
+- **明確不做**(契約卡原文):不產生 manifest(`project`);不產生 `Assets.hs`(`project`);不做授權判斷
 
 ## 相依性查證
 

@@ -5,10 +5,11 @@ title: init-vault-explicit-time
 description: initVault 的時間提成明碼參數,讓撞號與建檔失敗兩條分支驗得到
 status: done
 created: 2026-08-30
-updated: 2026-08-30
-depends-on: [F001, F004, graph-core/F001, graph-core/F005, graph-core/E002]
+updated: 2026-09-04
+depends-on: [workspace/F001, workspace/F004, graph-core/F001, graph-core/F005, graph-core/E002]
 related-adr: [ADR-014, ADR-017]
-related-feature: [F004]
+related-feature: [workspace/F004]
+code-paths: [workspace/src/Aapms/Workspace/Lifecycle.hs, workspace/test/Aapms/Workspace/LifecycleSpec.hs]
 ---
 
 # E001:`initVault` 的明碼時間版本,兼收 `VaultInitFailed` 的驗收路徑

@@ -1,11 +1,11 @@
 ---
-id: workspace-spec-gaps
+id: workspace-gaps
 type: spec-gaps
-title: workspace-spec-gaps
+title: workspace-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
 status: done
 created: 2026-08-29
-updated: 2026-08-30
+updated: 2026-09-04
 parent: workspace
 ---
 
@@ -16,7 +16,7 @@ parent: workspace
 > 解析失敗、**靜默 fallback 成 open** —— 2026-08-30 的 status 掃描就因此多報了三條假的未結條目。
 > 粗體留給值後面的說明文字,不要套在 `狀態` 這兩個字或值本身上。
 
-## GAP-1(F001 / qa)
+## GAP-1(workspace/F001-hub-registry / qa)
 
 - **模糊點**:F001 的 LAW-17(c) 寫「**三個檔案**都不 import `Aapms.Store.Marker`」,但同一份 spec
   的「契約 C(只有型別宣告)」與「使用到的既有串接介面」表要求 `Types.hs` 的
@@ -30,8 +30,9 @@ parent: workspace
   而 `Types.hs` 只是引用型別、不呼叫 `readMarker`——若是,law 的措辭要改成針對 `readMarker` /
   `markerDir` 這幾個**函式**,而不是針對模組 import。)
 - 狀態:resolved(2026-08-29 WAVE-1 閘門裁決:LAW-17(c) 拆成 (c)+(d)——`Location.hs` / `Hub.hs` 完全不得 import `Aapms.Store.Marker`;`Types.hs` 的 import 行必須逐字是 `import Aapms.Store.Marker (VaultMarker)`,只拿型別、拿不到任何函式。spec 已改,qa 已補 (d) 的斷言)
+- 修訂:workspace/F001-hub-registry §Laws(2026-08-29);LAW-17(c) 拆成 (c)+(d),`Types.hs` 的逐字 import 約束寫進 (d)
 
-## GAP-2(F002 / impl)
+## GAP-2(workspace/F002-vault-discovery / impl)
 
 - **模糊點**:F002 的 LAW-18(b) 規定「若有對 `Aapms.Store.Marker` 的 import 行,它必須**逐字是**
   `import Aapms.Store.Marker (markerDir, readMarker)`」。但 LAW-12(c) 的 `readVaultRef` 與 LAW-14 的
@@ -48,8 +49,9 @@ parent: workspace
   `workspace/src/Aapms/Workspace/Types.hs:65` 是 `import Aapms.Store.Marker (VaultMarker)`。
   兩者合起來確認「Types 拿不到欄位存取子、也就轉不出去」這個前提成立。
 - 狀態:resolved(2026-08-29 WAVE-2 閘門裁決:逐字字串**收緊**成 `import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)` —— 只放行 `vmId` 一個欄位存取子,不是 `VaultMarker (..)`。這條 law 從此守的是「Discovery 只讀 id」:日後在本模組碰 `vmRefs`(#3)或 `vmKind` 會紅。spec 已改條文、紅綠預期與對照表(測試名同步改為 `test_discovery_marker_import_is_id_reader_only`);impl 已收窄 import 行;qa 已對齊期望值)
+- 修訂:workspace/F002-vault-discovery §Laws / 測試對照表(2026-08-29);逐字 import 字串收緊成只放行 `vmId`,測試名同步改名
 
-## GAP-3(F006 / impl)
+## GAP-3(workspace/F006-machine-tools / impl)
 
 - **模糊點**:F006 的「使用到的既有串接介面」表與 **LAW-15(f)** 都宣稱 `exeExtension :: String` 由
   `filepath` 的 `System.FilePath` 匯出;實測**它不在那裡**——本專案釘住的 `filepath-1.5.4.0` 的
@@ -72,8 +74,9 @@ parent: workspace
   真實簽名」列為**委派模式下品質的唯一防線**——這次是同一波另外兩個 impl 因為共用 build target
   而在幾分鐘內從外部撞出來的,不是防線自己接住的。
 - 狀態:resolved(2026-08-29 WAVE-4 閘門:spec 已把 `exeExtension` 從 LAW-15(f) 移到 LAW-15(d);編排者三處機械驗證一致——`Tools.hs` 從 `System.Directory` import、spec 的事實 5 與串接介面表已更正、`ToolsSpec` 的白名單斷言對齊,F006 的 34 條全綠)
+- 修訂:workspace/F006-machine-tools §Laws / 串接介面(2026-08-29);`exeExtension` 從 LAW-15(f) 移到 LAW-15(d),事實 5 與串接介面表一併更正
 
-## GAP-4(F004 / qa)
+## GAP-4(workspace/F004-vault-lifecycle / qa)
 
 - **模糊點**:F004 的 EX-18 原文「以固定時間 / 名稱造出撞號」假設 qa 能可控地讓兩次 `initVaultAt`
   呼叫產生同一個 id;但 `newId` 的演算法屬 graph-core 的**已凍結實作**,而 qa 依角色禁區**不得讀**。
@@ -83,8 +86,9 @@ parent: workspace
   **確定性重現撞號**的做法,或改變 EX-18 / EX-19 的觀察點。
 - **處置沿革**(2026-08-30 稍早的紀錄,已由下方狀態行結案):原裁決(2026-08-29 階段二閘門)是「把 `initVaultAt` 的時間提成明碼參數,與 `allocateId`(GAP-8)一致」,追蹤於 **`graph-core/E002`**。**E002 已於 2026-08-30 完成(`initVaultAtWith` 收明碼 `UTCTime`),但本條並未因此結案** —— 編排者在 E002 的 scope 討論中查出:EX-18 / EX-19 的建構是「學一個 id → 塞進中樞 → 呼叫 **workspace 的 `initVault`**」,而 `initVault` 內部**自己**取樣 `getCurrentTime` 再往下傳,測試控制不到那個值,兩次呼叫仍得到不同 id。**要關本條,接縫必須延伸到 `initVault` 自己**(workspace 契約 F 加一列,形狀比照 `initVaultAtWith`),那是 workspace 的 enhance,不是 graph-core 的。LAW-18 / LAW-19 / EX-18 / EX-19 維持 `pendingWith`
 - 狀態:resolved(2026-08-30)。接縫已由 **`workspace/E001`** 補上:`initVaultWith` 收明碼 `UTCTime`(契約 D),`initVault` 退成薄包裝、簽名一字未動。EX-18 / EX-19 的建構改成「用同一個 `t` 算出 `newId PVlt name t 0` → 塞進中樞 → 呼叫 `initVaultWith … t`」,撞號**決定性重現**,qa 全程不必讀 graph-core 的 `newId` 實作(期望值由公開純函式自己算)。對應 E001 的 LAW-4 / LAW-5 與 EX-5 / EX-6;`LifecycleSpec.hs` 的兩條 `pendingWith` 已轉成正式斷言。編排者在骨架快照(`initVaultWith = undefined`)上驗過:兩條在骨架上**紅**、impl 填完後**綠**,鑑別力成立
+- 修訂:workspace/E001-init-vault-explicit-time §Laws / Examples(2026-08-30);`initVaultWith` 收明碼 `UTCTime`,workspace/F004-vault-lifecycle 的 EX-18 / EX-19 改成決定性重現
 
-## GAP-5(F004 / qa)
+## GAP-5(workspace/F004-vault-lifecycle / qa)
 
 - **模糊點**:F004 的 EX-41 原文假設 `initVaultAt` 對檔案系統失敗會回 `Left`;但本機實測
   「vault 根目錄的父層被一個檔案佔住」這個建構,會讓 `initVaultAt` 內部的
@@ -98,3 +102,4 @@ parent: workspace
   裡幾乎觸發不到,於是那條驗收標準沒有人驗得了(ASM-9 可測性)。差別是 F006 那次能靠加一個明碼參數
   解決,這次牽涉的是 graph-core 的例外行為,選 (b) 等於在 workspace 這層補一道例外邊界。
 - 狀態:resolved(2026-08-30)。裁決(2026-08-29 階段二閘門):**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`,不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/B002`**,已於 2026-08-30 隨 E002 同一份 spec 完成(對應 E002 的 LAW-4 / LAW-5 / EX-5 / EX-6;`initVaultAt` 與 `initVaultAtWith` 對「父層被一般檔案佔住」都回 `Left (FileWriteFailed (markerDir root) msg)`,不拋例外)。**workspace 這一側還有一步**:`LifecycleSpec.hs:477-491` 的 LAW-44 / EX-41 目前仍是 `pendingWith`,要由 workspace 自己的一輪把它改成正式斷言(graph-core 的測試不會替它轉綠)。**該步已於 2026-08-30 由 `workspace/E001` 的 REG-5 完成**:`test_init_vault_init_failure_is_vault_init_failed` 現在是打 `initVault` 的正式斷言,編排者在骨架快照上驗過它**從第一天就綠**(回歸 law,現況程式碼本來就正確)。本條至此完全結案
+- 修訂:graph-core/B002-init-vault-at-leaks-io-exceptions §Laws / Examples(2026-08-30);`initVaultAt` 不再逸出 `IOException`,workspace/F004-vault-lifecycle 的 LAW-44 / EX-41 由 workspace/E001 的 REG-5 轉成正式斷言

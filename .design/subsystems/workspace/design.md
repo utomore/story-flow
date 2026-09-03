@@ -5,7 +5,7 @@ title: workspace
 description: 工具自己的狀態:中樞註冊表、vault 探測與作用範圍裁決、本機設定與外部工具
 status: active
 created: 2026-08-29
-updated: 2026-08-30
+updated: 2026-09-04
 parent: system
 related-adr: [ADR-008, ADR-014, ADR-017]
 code-paths: [workspace/src]
@@ -552,194 +552,26 @@ hubLocation → loadHub → hubTools
 中樞檔案);階段二結束時中樞可以由工具自己建立與維護,主架構 S3 的「舊 marker 探測、`doctor` 合一」
 兩條交付判準可驗。
 
-## 功能規劃
+## 功能總覽
 
-### 階段一:中樞與裁決
+<!-- BEGIN FEATURE INDEX:由 scan-status.mjs --write-index 產生,不要手改 -->
+| id | feature | 階段 | 模組 | 狀態 |
+|---|---|---|---|---|
+| F001 | hub-registry | S3 | Types、Location、Hub | done |
+| F002 | vault-discovery | S3 | Discovery | done |
+| F003 | scope-resolution | S3 | Scope | done |
+| F004 | vault-lifecycle | S3 | Lifecycle | done |
+| F005 | project-registry | S3 | Projects | done |
+| F006 | machine-tools | S3 | Tools | done |
+<!-- END FEATURE INDEX -->
 
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 1 | hub-registry | 中樞位置解析、`config.toml` 四段的讀寫與可手寫保留、載入失敗即失敗 | Types、Location、Hub | - | F001-hub-registry.md |
-| 2 | vault-discovery | 向上探測 `.aapms/`、selector 解析、重讀 marker 成 `VaultRef`、不可達降級 | Discovery | #1 | F002-vault-discovery.md |
-| 3 | scope-resolution | `resolveRead` / `resolveWrite` / `resolvePipeline`、`refs` 遞移展開與擋環、保序去重 | Scope | #2 | F003-scope-resolution.md |
+### 規劃註記(v1「功能規劃」小結原文搬移)
 
-### 階段二:生命週期與本機環境
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 4 | vault-lifecycle | `setupHub` / `initVault`(含 `AdoptExisting`)/ `addVault` / `forgetVault` / `checkVaults` / `syncHub` / `purge` | Lifecycle | #2 | F004-vault-lifecycle.md |
-| 5 | project-registry | `[[projects]]` 的註冊、移除、查詢與 `prj-` 配號 | Projects | #1 | F005-project-registry.md |
-| 6 | machine-tools | 7-Zip 的三層探測與 `ToolStatus` | Tools | #1 | F006-machine-tools.md |
+本節與各 feature 文檔內文出現的 `#n` 是 v1「功能規劃」表的列號,該表已在 v2 廢除。
+**列號與 feature 編號一對一**(`#3` 即 workspace/F003),照上方「功能總覽」表對回文檔全名。
 
 小結:共 **6 個 features、2 個階段**;全部完成即代表 `service` 拿得到「這次指令對哪些 vault 生效」、
 中樞可由 `workspace setup` 從零建立、`doctor` 報告得出中樞位置與外部工具狀態。
-
-## Feature 契約卡
-
-### hub-registry
-
-- **階段**:階段一
-- **負責模組**:Types(**一次寫齊**契約 A–F 的全部型別與 `WorkspaceError` 的全部建構子)、Location、Hub
-- **實作的 Level 2 介面**:契約 A 全部(`HubLocation` / `HubSource` / `Hub` / `hubLocation` /
-  `loadHub` / `saveHub`);契約 B 的 `VaultEntry` / `ProjectEntry` / `LlmSection` / `ToolsConfig` /
-  `hubVaults` / `hubProjects` / `hubLlm` / `hubTools` / `thumbCacheDir` / `thumbCachePath`;
-  **契約 C / D / E 的全部型別宣告**(`VaultRef` / `ScopeIssue` / `ReadScope` / `WriteScope` /
-  `PipelineScope` / `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` / `AdoptNotice` /
-  `PurgeReport` / `ToolOrigin` / `ToolStatus`——**只有型別,函式留給後續 feature**);
-  契約 F 全部(`WorkspaceError` 十七個建構子與 `renderWorkspaceError`(WAVE-3 閘門新增 `WriteTargetIdDrift`))
-- **資料流管線段落**:裁決管線的前兩步(`hubLocation` → `loadHub`),以及生命週期管線的最後一步
-  (`saveHub`)
-- **驗收標準**:
-  - `AAPMS_HOME` 設為非空字串時 `hlSource == FromEnv` 且 `hlPath` 等於該字串的絕對化;未設或空字串時
-    `hlSource == FromPlatformDefault` — 觀察點:契約 A 的 `hubLocation`
-  - 中樞檔案不存在時 `loadHub` 回 `HubNotFound` 且**不是**空的 `Hub` — 觀察點:契約 A 的 `loadHub`、
-    契約 F 的 `HubNotFound`
-  - TOML 解不開回 `HubUnreadable`、解得開但欄位不合規(`id` 缺、`kind` 不是 `asset` / `story`、
-    路徑非絕對)回 `HubMalformed`,兩者的訊息都含**檔案路徑** — 觀察點:契約 F 的
-    `renderWorkspaceError`
-  - 對任意合法中樞檔案,`loadHub` 後立刻 `saveHub` 再 `loadHub`,兩次的 `hubVaults` / `hubProjects` /
-    `hubLlm` / `hubTools` 逐欄相等,且**檔案中原有的註解與空白行逐字保留** — 觀察點:契約 A 的
-    `loadHub` / `saveHub` 與契約 B 的四個 getter
-  - `hubLlm` 對「整段缺席」回 `Nothing`、對「空的 `[llm]` 段」回 `Just` 空表,兩者可區分 —
-    觀察點:契約 B 的 `hubLlm`
-  - `thumbCachePath loc (Sha256 h)` 的結果一律是 `<hlPath>/cache/thumbs/<take 2 h>/<h>.png`,而且
-    以 `thumbCacheDir loc` 為前綴 — 觀察點:契約 B 的 `thumbCachePath` / `thumbCacheDir`
-  - `renderWorkspaceError` 對 `WorkspaceError` 的**每一個**建構子都回一段非空的繁中訊息,且訊息
-    含該建構子攜帶的路徑 / 名稱 / id(契約 F 逐條規定的那些值) — 觀察點:契約 F 的
-    `renderWorkspaceError`
-- **明確不做**:不建立任何目錄或檔案(那是 `setupHub`,#4);不解讀 `[llm]` 的任何鍵;
-  不驗證 `vePath` 指的目錄真的存在(那是 #2 的重讀 marker);**契約 C / D / E 的函式完全不在本
-  feature**——它們住在 Discovery / Scope / Lifecycle / Projects / Tools,那幾個模組由各自的 feature
-  建立,本 feature 只把它們會用到的**型別**一次宣告到位
-
-### vault-discovery
-
-- **階段**:階段一
-- **負責模組**:Discovery
-- **實作的 Level 2 介面**:契約 C 的 `VaultRef` / `ScopeIssue` / `detectVault` / `lookupSelector`;
-  契約 F 的 `VaultSelectorNotFound` / `VaultSelectorAmbiguous` / `MarkerUnreadable`;
-  模組間公開介面的 `readVaultRef`
-- **資料流管線段落**:裁決管線的第三、四步(selector 解析或向上探測 → 重讀 marker 取權威身分)
-- **驗收標準**:
-  - `detectVault` 從一個位於 vault 內任意深度的子目錄出發,回傳**含 `.aapms/` 的那一層**的絕對路徑;
-    從 vault 外任何目錄出發(一路到檔案系統根都沒有 marker)回 `Nothing` — 觀察點:契約 C 的
-    `detectVault`
-  - `lookupSelector` 先比 `veId` 的完整字串再比 `veName`:當某字串同時是甲的 id 與乙的 name 時,
-    回甲 — 觀察點:契約 C 的 `lookupSelector`
-  - 兩列 `VaultEntry` 同名時以該名稱查回 `VaultSelectorAmbiguous`,且其清單**含全部**撞名的列 —
-    觀察點:契約 C 的 `lookupSelector`、契約 F 的 `VaultSelectorAmbiguous`
-  - `readVaultRef` 回傳的 `vrMarker` 一律來自檔案:把中樞的 `veName` / `veKind` 改成與 marker 不同的
-    值後重跑,`vrMarker` 不變 — 觀察點:模組間公開介面的 `readVaultRef`、契約 C 的 `VaultRef`
-  - 路徑不存在 → `VaultPathMissing`;路徑在但 marker 解不開 → `VaultMarkerBroken` 且捧著
-    graph-core 的 `StoreError` 原件;marker 的 id 與中樞不符 → `VaultIdDrift` 帶兩個 id —
-    觀察點:契約 C 的 `ScopeIssue`
-- **明確不做**:不做 `refs` 展開、不決定範圍(那是 #3);不開索引;marker 的**寫入**不在這裡(#4)
-
-### scope-resolution
-
-- **階段**:階段一
-- **負責模組**:Scope
-- **實作的 Level 2 介面**:契約 C 的 `ReadScope` / `WriteScope` / `PipelineScope` / `resolveRead` /
-  `resolveWrite` / `resolvePipeline`;契約 F 的 `NoWriteTarget` / `VaultKindMismatch`;
-  使用 #2 的 `readVaultRef` / `detectVault` / `lookupSelector`(無新增)
-- **資料流管線段落**:裁決管線的第五、六步(`refs` 遞移展開 → 保序去重 → 三種 scope),到交還
-  `service` 為止
-- **驗收標準**:
-  - 對任意中樞,`resolveRead hub Nothing` 的 `rsVaults` 的 id 集合 = 全部**讀得到 marker 的**
-    已註冊 vault,且**與當前目錄無關**(在 vault 內外各跑一次結果相同) — 觀察點:契約 C 的
-    `resolveRead`
-  - 對任意 `X`,`resolveRead hub (Just X)` 的 id 集合 = `{X} ∪ refs*(X)`;`refs` 成環時仍終止且
-    結果是集合(不重複) — 觀察點:契約 C 的 `resolveRead`、`ReadScope`
-  - `resolveWrite` 的 `wsTarget` 恒**不**來自 `refs` 展開:對任意 `X`,`wsTarget` 的 id 恒等於
-    selector 指定或向上探測到的那一個 — 觀察點:契約 C 的 `WriteScope`
-  - 沒有 selector 且從起點一路向上都沒有 `.aapms/` 時 `resolveWrite` 回 `NoWriteTarget`,訊息含
-    **起點路徑** — 觀察點:契約 C 的 `resolveWrite`、契約 F 的 `renderWorkspaceError`
-  - `resolvePipeline` 無 selector 時 `psRuns` 只含 `vmKind` 相符者;有 selector 且 kind 不符時回
-    `VaultKindMismatch`,帶 vault id、要求的 kind、實際的 kind 三個值 — 觀察點:契約 C 的
-    `resolvePipeline`、契約 F 的 `VaultKindMismatch`
-  - 任一 vault 路徑不見或 marker 壞掉時,三個函式都仍回 `Right`,該 vault 不在結果集裡而在
-    `*Issues` 裡 — 觀察點:契約 C 的三個 scope 型別的 `*Issues` 欄位
-  - 三個結果清單都**保序去重**:同一個 vault 被 selector 與 `refs` 各帶進來一次時只出現一次,
-    且順序是第一次出現的位置 — 觀察點:契約 C 的 `rsVaults` / `wsRead` / `psRuns`
-- **明確不做**:不判斷 ATTACH 上限(graph-core 的 `maxAttachedVaults` / `TooManyVaults` 擁有它);
-  不開任何 vault;不決定「這個指令屬於讀還是寫」(呼叫端選函式)
-
-### vault-lifecycle
-
-- **階段**:階段二
-- **負責模組**:Lifecycle
-- **實作的 Level 2 介面**:契約 D 的 `InitMode` / `DeleteIndex` / `PurgeScope` / `SetupReport` /
-  `AdoptNotice` / `PurgeReport` / `setupHub` / `initVault` / `addVault` / `forgetVault` /
-  `checkVaults` / `syncHub` / `purge`;契約 F 的 `VaultAlreadyInitialized` / `VaultDirMissing` /
-  `VaultDirNotEmpty` / `VaultIdCollision` / `InvalidName`;使用契約 A 的 `saveHub` 與 #2 的
-  `readVaultRef`(無新增)
-- **資料流管線段落**:生命週期管線全段(前置檢查 → `initVaultAt` → 撞號檢查 → `AdoptNotice` →
-  `Hub` 追加 → `saveHub`),以及本機環境管線的 `checkVaults` / `syncHub` 那一段
-- **驗收標準**:
-  - `setupHub` 冪等:第一次跑後 `spHubCreated == True`,同一位置再跑一次 `spHubCreated == False`
-    且中樞內容逐欄不變 — 觀察點:契約 D 的 `setupHub` / `SetupReport`、契約 A 的 `loadHub`
-  - `initVault` 以 `FreshVault` 對非空目錄回 `VaultDirNotEmpty`;以 `AdoptExisting` 對不存在的目錄回
-    `VaultDirMissing`;對任何已有 `.aapms/` 的目錄一律回 `VaultAlreadyInitialized` 且**不覆寫**該檔
-    (前後位元組相同) — 觀察點:契約 D 的 `initVault`、契約 F 的三個建構子
-  - `AdoptExisting` 對含 `.assetdb/` 的目錄成功後:`anLegacyMarkers` 列出該路徑,而
-    `.assetdb/` **仍然存在**、目錄內其餘檔案位元組不變 — 觀察點:契約 D 的 `AdoptNotice`
-  - 名稱去空白後為空時回 `InvalidName`,不寫任何檔案 — 觀察點:契約 D 的 `initVault`、契約 F 的
-    `InvalidName`
-  - `forgetVault` 以 `KeepIndex` 執行後:中樞少一列,而 `<vault>/.aapms/config.toml` 與
-    `<vault>/.aapms/index.db` 都還在;以 `DeleteIndex` 執行後 `index.db` 不在、`config.toml` 還在 —
-    觀察點:契約 D 的 `forgetVault` / `DeleteIndex`
-  - `purge` 在任何 `PurgeScope` 下都不刪除任何 `library/` 下的檔案與任何 `.md`,`prVaultIndexesRemoved`
-    只列出 `index.db` 路徑 — 觀察點:契約 D 的 `purge` / `PurgeReport`
-  - `checkVaults` 不寫任何檔案(呼叫前後整棵中樞目錄的位元組相同);`syncHub` 只把
-    `veName` / `veKind` 的漂移回寫,`VaultPathMissing` 與 `VaultIdDrift` 仍原樣出現在回傳清單 —
-    觀察點:契約 D 的 `checkVaults` / `syncHub`
-  - `initVaultAt` 產生的 id 與中樞既有 `veId` 相同時回 `VaultIdCollision` 並帶兩個路徑 —
-    觀察點:契約 F 的 `VaultIdCollision`
-- **明確不做**:不解析 vault 內的任何 Markdown、不開索引、不重建索引;不刪除舊的 `.assetdb/` 或
-  `.storyflow/`(只報告);不做 `vault info` 的統計(那要索引,屬 `service` 組合)
-
-### project-registry
-
-- **階段**:階段二
-- **負責模組**:Projects
-- **實作的 Level 2 介面**:契約 B 的 `ProjectEntry` / `hubProjects`;契約 D 的 `registerProject` /
-  `forgetProject`;契約 F 的 `ProjectSelectorNotFound` / `ProjectPathMissing`;
-  模組間公開介面的 `newId PPrj` 用法(無新增)
-- **資料流管線段落**:生命週期管線的同一條路,節點型別換成專案(前置檢查 → 配號 → `Hub` 追加 →
-  `saveHub`)
-- **驗收標準**:
-  - `registerProject` 產生的 `peId` 前綴恒為 `prj-`,且與中樞既有的 `peId` 都不相同(撞號時以
-    salt 遞增重試,不靜默照發) — 觀察點:契約 B 的 `ProjectEntry`、契約 D 的 `registerProject`
-  - 同一個路徑註冊兩次得到**兩個不同的 `peId`**,或回一個明確的錯誤——二選一,但行為必須是
-    確定的且被斷言 — 觀察點:契約 D 的 `registerProject`、契約 B 的 `hubProjects`
-  - `forgetProject` 以名稱或 id 都找得到;都找不到回 `ProjectSelectorNotFound` — 觀察點:契約 D 的
-    `forgetProject`、契約 F 的 `ProjectSelectorNotFound`
-  - `forgetProject` 執行後專案目錄本身**完全未動**(位元組相同) — 觀察點:契約 D 的 `forgetProject`
-  - 註冊時路徑不存在回 `ProjectPathMissing`,訊息含專案名與路徑 — 觀察點:契約 F 的
-    `renderWorkspaceError`
-- **明確不做**:不讀 `assets/manifest.json` 或 `story/manifest.json`(那是 `project` 子系統的真相);
-  不產生、不同步、不驗證專案內容
-
-### machine-tools
-
-- **階段**:階段二
-- **負責模組**:Tools
-- **實作的 Level 2 介面**:契約 E 全部(`ToolOrigin` / `ToolStatus` / `detectSevenZip`);
-  使用契約 B 的 `hubTools` / `ToolsConfig`(無新增)
-- **資料流管線段落**:本機環境管線的 `detectSevenZip` 那一段(`[tools]` 覆寫 → PATH → 候選清單)
-- **驗收標準**:
-  - `tcSevenZip` 指向一個存在且可執行的檔案時,`tsPath` 等於它且 `tsOrigin == FromToolsConfig`,
-    **PATH 與候選清單都不被查**(`tsSearched` 只有那一個) — 觀察點:契約 E 的 `detectSevenZip` /
-    `ToolStatus`
-  - `tcSevenZip` 指向不存在的檔案時**不中止**,繼續往 PATH 與候選清單找,而該路徑仍出現在
-    `tsSearched` — 觀察點:契約 E 的 `tsSearched` / `tsOrigin`
-  - 三層都找不到時 `tsPath == Nothing`、`tsOrigin == NotFound`、`tsSearched` 非空,而且函式
-    **不回錯誤**(7-Zip 缺席不是失敗) — 觀察點:契約 E 的 `detectSevenZip`
-  - `tsPath` 為 `Just` 恰好對應 `tsOrigin /= NotFound`(兩者不可能不一致) — 觀察點:契約 E 的
-    `ToolStatus`
-  - 不論結果如何都**不執行**找到的檔案(可用一個會寫出標記檔的假執行檔驗證:跑完後標記檔不存在) —
-    觀察點:契約 E 的 `detectSevenZip`
-- **明確不做**:不查版本、不測試解壓能力(那是 `asset-ingest` 真的要用時的事);不探測 LLM 端點的
-  可達性(那是 `ai`——本子系統只捧著 `[llm]` 那張表);不把工具路徑寫回中樞
 
 ## 不可逆決定
 

@@ -5,10 +5,13 @@ title: project-registry
 description: "中樞 [[projects]] 的註冊、移除、selector 查詢與 prj- 配號"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
-depends-on: [F001]
+updated: 2026-09-04
+stage: S3
+modules: [Projects]
+depends-on: [workspace/F001]
 related-adr: [ADR-014, ADR-017]
 related-feature: []
+code-paths: [workspace/src/Aapms/Workspace/Projects.hs, workspace/test/Aapms/Workspace/ProjectsSpec.hs]
 ---
 
 # F005: 專案註冊表的增刪查與 `prj-` 配號(project-registry)
@@ -76,7 +79,19 @@ F001 交付的東西:`Hub` / `HubLocation` / `ProjectEntry` / `WorkspaceError` �
 `filepath` / `text` / `time` / `toml-reader` / `aapms-core` / `aapms-store` 覆蓋本 feature 全部所需
 (其中 `time` 在 WAVE-1–WAVE-3 都沒被用到,本 feature 是它的第一個消費者)。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:Projects
+- **驗收標準**(契約卡原文):- `registerProject` 產生的 `peId` 前綴恒為 `prj-`,且與中樞既有的 `peId` 都不相同(撞號時以
+    salt 遞增重試,不靜默照發) — 觀察點:契約 B 的 `ProjectEntry`、契約 D 的 `registerProject`
+  - 同一個路徑註冊兩次得到**兩個不同的 `peId`**,或回一個明確的錯誤——二選一,但行為必須是
+    確定的且被斷言 — 觀察點:契約 D 的 `registerProject`、契約 B 的 `hubProjects`
+  - `forgetProject` 以名稱或 id 都找得到;都找不到回 `ProjectSelectorNotFound` — 觀察點:契約 D 的
+    `forgetProject`、契約 F 的 `ProjectSelectorNotFound`
+  - `forgetProject` 執行後專案目錄本身**完全未動**(位元組相同) — 觀察點:契約 D 的 `forgetProject`
+  - 註冊時路徑不存在回 `ProjectPathMissing`,訊息含專案名與路徑 — 觀察點:契約 F 的
+    `renderWorkspaceError`
 
 ### 契約 D(本 feature 負責的三項)
 
@@ -169,6 +184,9 @@ design.md「模組間公開介面」與本 feature 有關的三列(前兩列經 
 >
 > 那個矛盾因此消解:「時間由呼叫端給」現在對得上一條真的有時間參數的簽名,而「唯一性由 Projects
 > 對中樞既有 `peId` 重試保證」有了一個可以直接斷言的落點(LAW-2 + LAW-4(a))。
+
+- **明確不做**(契約卡原文):不讀 `assets/manifest.json` 或 `story/manifest.json`(那是 `project` 子系統的真相);
+  不產生、不同步、不驗證專案內容
 
 ## 實作方式
 

@@ -5,7 +5,7 @@ title: shell
 description: 三個殼零業務邏輯:一份 servant 契約產出 CLI、HTTP 與 MCP 的一致行為
 status: active
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-04
 parent: system
 related-adr: [ADR-006, ADR-015, ADR-017]
 code-paths: [api/src, backend/src, cli/src, cli/app, server/src, server/app, mcp/src, mcp/app]
@@ -315,165 +315,26 @@ CRUD」「`--remote` 行為一致」「OpenAPI 輸出」。
 S4–S6 各領域接上時,本子系統的工作都是同一種形狀:`api` 加路由 → `cli` 加子指令 → `mcp` 自動
 多一個 tool,**不再改本文件的契約**。
 
-## 功能規劃
+## 功能總覽
 
-### 階段一:契約型別與分派
+<!-- BEGIN FEATURE INDEX:由 scan-status.mjs --write-index 產生,不要手改 -->
+| id | feature | 階段 | 模組 | 狀態 |
+|---|---|---|---|---|
+| F001 | api-types-and-openapi | S3 | Api.Routes、Api.Instances、Api.OpenApi | planned |
+| F002 | backend-dispatch | S3 | Backend | planned |
+| F003 | cli-options-and-envelope | S3 | Cli.Options、Cli.Envelope、Cli.Encoding | planned |
+| F004 | cli-render | S3 | Cli.Render | planned |
+| F005 | http-server | S3 | Server.Handlers、Server.State、Server.Auth、Server.Status | planned |
+| F006 | mcp-adapter | S3 | Mcp.Tools、Mcp.Rpc | planned |
+<!-- END FEATURE INDEX -->
 
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 1 | api-types-and-openapi | servant 路由型別、`HttpApiData`、`ToSchema`、OpenAPI 3 輸出、`ToJSON` ↔ `ToSchema` 逐欄對齊 | Api.Routes、Api.Instances、Api.OpenApi | - | - |
-| 2 | backend-dispatch | `Backend` 的兩個建構子與 `runOp`、`BackendError` 三分、重管線指令的遠端拒絕 | Backend | #1 | - |
+### 規劃註記(v1「功能規劃」小結原文搬移)
 
-### 階段二:三個殼
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 3 | cli-options-and-envelope | optparse 指令樹與全域旗標互斥、統一信封、exit code、輸出編碼 | Cli.Options、Cli.Envelope、Cli.Encoding | #2 | - |
-| 4 | cli-render | 唯一的人類可讀渲染器:作用中 vault 的開頭行、節點 / 清單 / 樹 / 搜尋結果、警告與 `ScopeIssue` | Cli.Render | #3 | - |
-| 5 | http-server | handler、`AppState`、token middleware 與啟動閘門、`code` → 狀態碼、warp、`--openapi` | Server.* | #1 | - |
-| 6 | mcp-adapter | stdio JSON-RPC、tool 映射與命名、雙模式 | Mcp.Tools、Mcp.Rpc | #2 | - |
+本節與各 feature 文檔內文出現的 `#n` 是 v1「功能規劃」表的列號,該表已在 v2 廢除。
+**列號與 feature 編號一對一**(`#3` 即 shell/F003),照上方「功能總覽」表對回文檔全名。
 
 小結:共 **6 個 features、2 個階段**;全部完成即主架構 S3 交付:兩種 vault 都能經統一外殼 CRUD、
 `search` 一次回兩種、`--remote` 與內嵌行為一致、`aapms-serve --openapi` 輸出得了 OpenAPI 3。
-
-## Feature 契約卡
-
-### api-types-and-openapi
-
-- **階段**:階段一
-- **負責模組**:Api.Routes、Api.Instances、Api.OpenApi
-- **實作的 Level 2 介面**:契約 C 的路由表全部條目與四個參數(`{ref}` / `{selector}` /
-  `revision` / `mode` / `{sha256}`);契約 C 的錯誤 body 形狀;使用 `service` 契約 B / C / D / E 的
-  View 與請求型別(無新增)
-- **資料流管線段落**:HTTP 管線的「servant 依 `Api.Routes` 解碼」那一段,以及 CLI 遠端路徑與
-  MCP tool 映射共用的型別來源
-- **驗收標準**:
-  - 路由表的**每一條**都對應到 `service` 的一個操作,且 `service` 契約 C / D / E 裡標了 REST 出口的
-    操作**每一個**都有路由(雙向無遺漏) — 觀察點:契約 C 的路由表
-  - 每個寫入 method 的 `revision` 是**必填** query 參數:缺它時 servant 解碼失敗而不是進 handler —
-    觀察點:契約 C 的 `revision`
-  - `{ref}` 的 `FromHttpApiData` 對 `<id>` 與 `<vault>:<id>` 都解得開,對其他形狀回解碼失敗;
-    `ToHttpApiData` 與它互為反函數 — 觀察點:契約 C 的 `{ref}`
-  - 對每個 View 型別,`ToJSON` 樣本值的鍵集合等於 `ToSchema` 的 `properties` 鍵集合 — 觀察點:
-    Api.Instances
-  - `--openapi` 產出的文件可被通用 OpenAPI 3 驗證器接受,且 `paths` 的數量等於路由表的條目數 —
-    觀察點:Api.OpenApi
-  - `aapms-api` 的 `build-depends` **不含** `servant-server` / `servant-client` / `warp` /
-    `aapms-store` / `aapms-workspace`;**含** `aapms-service`(View 與請求型別住在那裡,路由型別
-    必須引用它) — 觀察點:`CabalSpec`
-- **明確不做**:不含任何 handler 實作、不含 client 函式、不決定狀態碼(#5)
-
-### backend-dispatch
-
-- **階段**:階段一
-- **負責模組**:Backend
-- **實作的 Level 2 介面**:契約 E 全部(`Backend` / `BackendError` / `runOp` / `Op`)
-- **資料流管線段落**:CLI 與 MCP 管線的「`Backend.runOp` → 分派」那一段
-- **驗收標準**:
-  - 對每一個有 CLI 出口的 `service` 操作,`Embedded` 與 `Remote` 兩條路徑回傳的 View **逐欄相等**
-    (以同一個 vault 起一個本機伺服器對照) — 觀察點:契約 E 的 `runOp`
-  - 業務失敗時兩條路徑的 `BusinessError` 的 `code` 與 `message` **逐字相等** — 觀察點:契約 E 的
-    `BusinessError`、契約 A 的 `ErrorBody`
-  - `Remote` 下呼叫任一重管線指令回 `PipelineNotRemote` 並帶指令名,**不發出任何 HTTP 請求** —
-    觀察點:契約 E 的 `PipelineNotRemote`
-  - 連線失敗與非預期狀態碼回 `TransportError`,**不會**被誤包成 `BusinessError` — 觀察點:
-    契約 E 的 `BackendError`
-  - 指令層的型別看不見 `Embedded` / `Remote`:`Op` 的使用端不需要 case 兩個建構子 — 觀察點:
-    契約 E 的 `Op`
-  - `aapms-backend` 的 `build-depends` 不含 `optparse-applicative` / `warp` / `aapms-store` /
-    `aapms-workspace` — 觀察點:`CabalSpec`
-- **明確不做**:不解析參數(#3);不渲染(#4);不決定 exit code(#3)
-
-### cli-options-and-envelope
-
-- **階段**:階段二
-- **負責模組**:Cli.Options、Cli.Envelope、Cli.Encoding
-- **實作的 Level 2 介面**:契約 A 全部(`Envelope` / `ErrorBody` / `ExitKind` 與兩張表);
-  契約 B 全部(四個全域旗標);使用 #2 的 `runOp`(無新增)
-- **資料流管線段落**:CLI 管線自 argv 到 exit code,渲染那一格除外
-- **驗收標準**:
-  - `--json` 模式的 stdout **恰好是一行合法 JSON**,且成功時有 `data` 無 `error`、失敗時有 `error`
-    無 `data` — 觀察點:契約 A 的信封表
-  - `--json` 模式下**沒有任何**非 JSON 的行(含作用中 vault 的提示行) — 觀察點:契約 A、契約 B 的
-    `--json`
-  - exit code 三分正確:成功 `0`;`ServiceError` 或 `TransportError` → `1`;參數解析失敗、
-    `--vault` 與 `--remote` 同時給、`Remote` 下的重管線指令 → `2` — 觀察點:契約 A 的 exit code 表
-  - `error.code` 對業務失敗逐字等於 `service` 的 `errorCode`;用法錯誤固定 `usage_error` —
-    觀察點:契約 A 的信封表
-  - 指令樹的葉子子指令集合等於 `service` 契約裡標了 CLI 出口的操作集合(雙向無遺漏),且這個
-    數字**有測試釘住** — 觀察點:契約 B、`service` 契約 C / D / E 的出口欄
-  - 含中日文的輸出在 Windows 主控台不出現替換字元:設定編碼後寫出一段中文再讀回,位元組可還原 —
-    觀察點:Cli.Encoding
-  - `aapms-cli` 的 `build-depends` 不含 `aapms-store` / `aapms-workspace` / `aapms-server` / `warp` —
-    觀察點:`CabalSpec`
-- **明確不做**:不實作人類可讀的版面(#4);不含任何業務分支——旗標互斥是語法規則,不是業務
-
-### cli-render
-
-- **階段**:階段二
-- **負責模組**:Cli.Render
-- **實作的 Level 2 介面**:契約 B 的「非 `--json` 模式第一行是作用中的 vault」;使用 `service` 的
-  View 型別(無新增)
-- **資料流管線段落**:CLI 管線的最後一格(View → 人類可讀文字)
-- **驗收標準**:
-  - 非 `--json` 模式的**第一行**指出作用中的 vault:寫入類指令印寫入目標的名稱與路徑,查詢類指令
-    印涵蓋的 vault 數與名稱 — 觀察點:契約 B
-  - 跨 vault 的清單與搜尋結果**每一筆**都看得出來源 vault — 觀察點:`service` 契約 B 的 `nvVault`
-  - `service` 回的 `nvWarnings` 與範圍解析的 `ScopeIssue` 都被印出來,且**不影響 exit code**
-    (成功仍是 `0`) — 觀察點:`service` 契約 B 的 `nvWarnings`、契約 A 的 exit code 表
-  - Level 的樹以縮排呈現,層級與 `NodeTreeView` 的結構一致 — 觀察點:`service` 契約 B 的
-    `NodeTreeView`
-  - 渲染器是**唯一的一份**:內嵌與遠端兩條路徑的非 JSON 輸出逐字相等 — 觀察點:契約 E 的 `runOp`
-  - 渲染器不呼叫任何 `service` 操作(它只吃已經拿到的 View) — 觀察點:Cli.Render 的模組介面
-- **明確不做**:不決定 exit code(#3);不查型別註冊表決定怎麼印——要什麼欄位由 View 決定
-
-### http-server
-
-- **階段**:階段二
-- **負責模組**:Server.Handlers、Server.State、Server.Auth、Server.Status
-- **實作的 Level 2 介面**:契約 C 的狀態碼對照表與錯誤 body;`system.md` 對外介面第 2 節的繫結與
-  認證規則;使用 #1 的路由型別(無新增)
-- **資料流管線段落**:HTTP 管線全段
-- **驗收標準**:
-  - 每個 handler 只做一件事:收解碼後的請求型別、呼叫**一個** `service` 操作、回傳。
-    handler 內**沒有** `if` / `case` 的業務分支 — 觀察點:Server.Handlers 的模組介面
-  - 綁非回送位址且未設 token 時**拒絕啟動**(行程以非零碼結束並印出原因),不是印警告後照跑 —
-    觀察點:Server.Auth、`system.md` 對外介面第 2 節
-  - loopback 模式未設 token 時可用;設了 token 後,錯誤的 token 一律 401,而比較耗時**不隨
-    正確前綴長度變化** — 觀察點:Server.Auth
-  - 狀態碼由 `code` 字串分派:對照表裡的每個 `code` 都對到表列狀態碼,表外的 `code` 一律 500 —
-    觀察點:契約 C 的狀態碼表、Server.Status
-  - 錯誤 body 與 CLI 信封的 `error` 同形,且 `code` / `message` 逐字相同 — 觀察點:契約 A 的
-    `ErrorBody`、契約 C 的錯誤 body
-  - 在**沒有**目前 vault 的目錄裡啟動,`GET /vaults` 仍可服務 — 觀察點:Server.State、
-    `service` 契約 A 的「`openEnv` 不開任何索引」
-  - `/thumb/{sha256}` 命中時回檔案並帶 `immutable` 快取標頭、未命中回 404,**任何情況都不解碼影像** —
-    觀察點:契約 C 的 `/thumb/{sha256}`
-  - `aapms-server` 的 `build-depends` 不含 `aapms-archive` / `aapms-ingest` / `aapms-reorg` /
-    `aapms-store` / `aapms-workspace` / `JuicyPixels` — 觀察點:`CabalSpec`(硬規則 3)
-- **明確不做**:不暴露契約 C「不暴露的」那一組;不做任何業務判斷;不自己包一層 `MVar`
-  (互斥在 `service` 的 `Env`)
-
-### mcp-adapter
-
-- **階段**:階段二
-- **負責模組**:Mcp.Tools、Mcp.Rpc
-- **實作的 Level 2 介面**:契約 D 全部;使用 #1 的路由型別與 #2 的 `runOp`(無新增)
-- **資料流管線段落**:MCP 管線全段
-- **驗收標準**:
-  - `tools/list` 的 tool 集合由路由推導:與契約 C 路由表(扣掉「不暴露的」)**一一對應**,
-    沒有手寫的額外 tool — 觀察點:契約 D 的 tool 命名、契約 C 的路由表
-  - tool 名是 snake_case 且**不含產品前綴**;同一個路由在不同版本間名稱穩定 — 觀察點:契約 D
-  - 每個 tool 的參數 schema 與同一路由的 OpenAPI schema **逐欄相同** — 觀察點:契約 D 的參數 schema
-  - 不給 `--url` 時走內嵌:**沒有任何 HTTP 請求發出**,而且不需要有 `aapms-serve` 在跑 —
-    觀察點:契約 D 的傳輸、契約 E 的 `Backend`
-  - 給 `--url` 時走遠端,回傳與內嵌逐欄相等 — 觀察點:契約 E 的 `runOp`
-  - 失敗回 `{"code":…,"message":…}`,與 REST 錯誤 body 的 `error` 同形且逐字相同 — 觀察點:
-    契約 D 的回傳、契約 C 的錯誤 body
-  - `--version` 印一行後結束,**不進 JSON-RPC 迴圈**(stdin 不被讀取) — 觀察點:契約 D 的 `--version`
-  - `aapms-mcp` 的 `build-depends` 不含 `aapms-archive` / `aapms-ingest` / `aapms-reorg` /
-    `optparse-applicative` — 觀察點:`CabalSpec`
-- **明確不做**:不另立一套 tool 契約;不做 MCP 的資源(resources)與提示(prompts),本期只有 tools
 
 ## 不可逆決定
 

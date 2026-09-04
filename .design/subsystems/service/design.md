@@ -5,7 +5,7 @@ title: service
 description: 所有業務操作的唯一定義處:ServiceM、錯誤語彙、樂觀鎖與業務驗證的執行點
 status: active
 created: 2026-08-29
-updated: 2026-08-30
+updated: 2026-09-04
 parent: system
 related-adr: [ADR-006, ADR-013, ADR-014, ADR-015, ADR-017, ADR-022]
 code-paths: [service/src]
@@ -475,240 +475,28 @@ openEnv 已載入的中樞快照 + 註冊表來源
 節點都 CRUD 得動;階段三結束時 `search` 一次回兩種、索引重建報告得出來,主架構 S3 的交付判準
 在 `shell` 接上後可驗。
 
-## 功能規劃
+## 功能總覽
 
-### 階段一:骨幹
+<!-- BEGIN FEATURE INDEX:由 scan-status.mjs --write-index 產生,不要手改 -->
+| id | feature | 階段 | 模組 | 狀態 |
+|---|---|---|---|---|
+| F001 | service-env-and-scope | S3 | Types、Monad、Scope | done |
+| F002 | workspace-facade | S3 | Machine | done |
+| F003 | node-read | S3 | Read | planned |
+| F004 | node-write | S3 | Write、Validate | planned |
+| F005 | asset-naming | S3 | Write、Validate | planned |
+| F006 | level-and-node | S3 | Write、Read | planned |
+| F007 | search-facade | S3 | Read | planned |
+| F008 | index-ops | S3 | Machine、Scope | planned |
+<!-- END FEATURE INDEX -->
 
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 1 | service-env-and-scope | `Env`(中樞 + 註冊表 + handle 快取 + 鎖)、`openEnv` / `runService` / `closeEnv`、三個範圍取得、`ServiceError` / `errorCode` 骨架 | Types、Monad、Scope | - | F001-service-env-and-scope.md |
-| 2 | workspace-facade | vault 與專案生命週期、`workspace setup / doctor / tools / purge`、型別註冊表查詢 | Machine | #1 | F002-workspace-facade.md |
+### 規劃註記(v1「功能規劃」小結原文搬移)
 
-### 階段二:圖譜操作
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 3 | node-read | `getNode` / `listNodes` / `childrenOf` / `linksOf`;`AnyNode → NodeView` 投影、每筆帶 vault | Read | #1 | - |
-| 4 | node-write | 建立 / 片段 / 改寫 / 刪除、樂觀鎖、五條業務驗證 | Write、Validate | #3 | - |
-| 5 | asset-naming | `setAssetName` 的全域唯一、`updateAssetMeta`、`upsertLicense` | Write、Validate | #4 | - |
-| 6 | level-and-node | Level 與 Node 的建立 / 刪除、樹視圖 | Write、Read | #4 | - |
-
-### 階段三:檢索與索引
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 7 | search-facade | `search` 一次回 asset 與 entity 兩種、facet、每筆帶 vault | Read | #3 | - |
-| 8 | index-ops | `reindex` / `refreshIndex` / `IndexReport` | Machine、Scope | #3 | - |
+本節與各 feature 文檔內文出現的 `#n` 是 v1「功能規劃」表的列號,該表已在 v2 廢除。
+**列號與 feature 編號一對一**(`#3` 即 service/F003),照上方「功能總覽」表對回文檔全名。
 
 小結:共 **8 個 features、3 個階段**;全部完成即代表三個殼有一份完整的業務契約可包,主架構 S3
 的「兩種 vault 都能經統一外殼 CRUD、search 一次回兩種」在 `shell` 接上後可驗。
-
-## Feature 契約卡
-
-### service-env-and-scope
-
-- **階段**:階段一
-- **負責模組**:Types(建立骨架,後續 feature 各自擴充建構子)、Monad、Scope
-- **實作的 Level 2 介面**:契約 A 全部(`Env` / `ServiceM` / `openEnv` / `runService` / `closeEnv` /
-  `withEnv`);契約 F 的 `ServiceError` 骨架與 `errorCode` / `renderServiceError`,建構子先做
-  `StoreFailed` / `WorkspaceFailed` / `RegistryUnavailable` / `RegistryLoadFailed`;模組間公開介面的
-  `withRead` / `withWrite` / `withPipeline` / `handleFor`
-- **資料流管線段落**:三條管線共用的前段(`runService` → `Scope.with*` → 開好 handle 與 `VaultSet`),
-  到交給各操作為止
-- **驗收標準**:
-  - `openEnv` 成功回傳後**尚未開任何 vault 索引**(可觀察:任一 vault 的 `index.db` 檔案 mtime 不變,
-    且該 vault 的 `.aapms/` 沒有新增暫存檔) — 觀察點:契約 A 的 `openEnv`
-  - 中樞載不起來或型別註冊表載不起來時 `openEnv` 回 `Left`,**不回一個空的 `Env`**;錯誤分別是
-    `WorkspaceFailed` 與 `RegistryUnavailable` / `RegistryLoadFailed` — 觀察點:契約 A 的 `openEnv`、
-    契約 F 的四個建構子
-  - 同一個 `Env` 上對同一個 vault 連續兩次 `withRead`,第二次**不再呼叫 `openVault`**(可觀察:
-    索引檔的存取次數不增,或以一個只會成功一次的假路徑替換後第二次仍成功) — 觀察點:模組間公開
-    介面的 `handleFor`
-  - `closeEnv` 後所有開過的 handle 都被關閉:同一目錄可立即被另一個 `Env` 開啟且無鎖檔殘留 —
-    觀察點:契約 A 的 `closeEnv`
-  - 兩個並發的 `runService` 不會交錯:對同一個 `Env` 同時跑兩個寫入,最終 `revision` 恒為 +2 且
-    兩次都成功或其中一次回 `RevisionConflict`,**不會出現索引與檔案不一致** — 觀察點:契約 A 的
-    `runService`、契約 F 的 `RevisionConflict`
-  - `errorCode` 對每個建構子都回一個非空、snake_case、**不含產品前綴**的字串,且兩兩相異 —
-    觀察點:契約 F 的 `errorCode`
-  - `renderServiceError (StoreFailed e)` 逐字等於 graph-core 的 `renderStoreError e`;
-    `WorkspaceFailed` 同理委派 — 觀察點:契約 F 的 `renderServiceError`
-- **明確不做**:不實作任何業務操作(#2 起);不做業務驗證(#4);不決定 HTTP 狀態碼(`shell`)
-
-### workspace-facade
-
-- **階段**:階段一
-- **負責模組**:Machine
-- **實作的 Level 2 介面**:契約 C 全部(`workspaceSetup` / `workspaceDoctor` / `workspaceTools` /
-  `workspacePurge` / `vaultInit` / `vaultAdd` / `vaultList` / `vaultInfo` / `vaultForget` /
-  `vaultCheck` / `projectRegister` / `projectList` / `projectForget` / `listTypes` / `showType` / `thumbPath` /
-  `VaultView` / `VaultInfoView` / `DoctorView` / `ProjectView`);使用契約 A 與 #1 的
-  `withRead`(無新增)
-- **資料流管線段落**:本機管線全段(中樞快照 → workspace 的體檢與工具探測 → 需要節點數時才開索引 →
-  `DoctorView` / `VaultInfoView`)
-- **驗收標準**:
-  - `vaultList` 對每個中樞條目都回一筆,且 `vvReachable == False` 恰好對應 workspace 回報
-    `VaultPathMissing` 或 `VaultMarkerBroken` 的那些 — 觀察點:契約 C 的 `vaultList` / `VaultView`
-  - 在一個未註冊的 vault 目錄裡 `openEnv` 後,`workspaceDoctor` 的 `dvVaults` 含一筆
-    `vvRegistered == False` 的項目 — 觀察點:契約 C 的 `DoctorView` / `VaultView`
-  - `dvLlmConfigured` 只反映「中樞有沒有 `[llm]` 段」,而 `DoctorView` 的**任何欄位都不含**該段的
-    值(可觀察:把 `api_key` 設成一個特徵字串,整份報告序列化後不含它) — 觀察點:契約 C 的
-    `DoctorView`
-  - `workspaceDoctor` 與 `vaultCheck` 執行前後,中樞目錄與各 vault 的 `.aapms/` 位元組不變 —
-    觀察點:契約 C 的 `workspaceDoctor` / `vaultCheck`
-  - `vaultInfo` 的 `viCounts` 鍵集合是實際存在的 `IdPrefix` 文字表示,值等於該 vault 索引裡的節點數;
-    對一個剛 `vaultInit` 的空 vault 全部為 0 或鍵不出現 — 觀察點:契約 C 的 `VaultInfoView`
-  - `vaultInit` / `vaultAdd` / `vaultForget` / `projectRegister` / `projectForget` 之後,同一個 `Env`
-    的後續 `vaultList` / `projectList` **看得到變更**(中樞快照有被重新載入) — 觀察點:模組間公開
-    介面的 Machine → `aapms-workspace` 那一列、契約 C 的 `vaultList` / `projectList`
-  - `showType` 對註冊表沒有的鍵回 `UnknownType` — 觀察點:契約 C 的 `showType`、契約 F 的 `UnknownType`
-  - `thumbPath` 對快取裡存在的雜湊回 `Just p` 且 `p` 讀得到、對不存在的回 `Nothing`,而且 `p` 恒等於
-    `workspace` 的 `thumbCachePath`(不自己拼路徑) — 觀察點:契約 C 的 `thumbPath`
-- **明確不做**:不重新定義中樞的檔案格式、不自己拼 `.aapms/` 底下的路徑(一律用 workspace 與
-  graph-core 的函式);不把 7-Zip 缺席當錯誤;不上 REST 的那幾個操作不得出現在 `shell` 的路由需求裡
-
-### node-read
-
-- **階段**:階段二
-- **負責模組**:Read
-- **實作的 Level 2 介面**:契約 B 全部(`NodeView` / `NodeDetail` / `NodeTreeView`);契約 D 的
-  `getNode` / `listNodes` / `childrenOf` / `linksOf` / `Page` / `LinkReport`;契約 F 的
-  `NodeNotFound` / `AmbiguousRef`;使用 #1 的 `withRead`(無新增)
-- **資料流管線段落**:讀取管線自 `Scope.withRead` 之後到 `NodeView` 投影為止
-- **驗收標準**:
-  - 對讀取範圍內任一節點,`getNode` 回的 `nvVault` 等於它實際所在的 vault;跨 vault 查詢時
-    `listNodes` 的**每一筆**都有 `nvVault` — 觀察點:契約 B 的 `nvVault`、契約 D 的 `listNodes`
-  - `nvMeta` 與 graph-core 讀回的 `anyMeta` 逐欄相等(本層不改寫任何 `Meta` 欄位) — 觀察點:
-    契約 B 的 `NodeView`
-  - `nvDetail` 的建構子恒對應節點的 `IdPrefix`(`ast-` ⟺ `DAsset`,依此類推) — 觀察點:契約 B 的
-    `NodeDetail`
-  - `getNode` 第二參數為 `False` 時 Level 的 `dvTree == Nothing`;為 `True` 時 `dvTree` 的樹與
-    graph-core 的 `buildTree` 結果同構 — 觀察點:契約 D 的 `getNode`、契約 B 的 `dvTree`
-  - 不帶 vault 的 `Ref` 在讀取範圍內命中多個 vault 時回 `AmbiguousRef` 並列出全部候選;
-    一個都沒有時回 `NodeNotFound` — 觀察點:契約 F 的兩個建構子
-  - `listNodes` 的 `pgTotal` 是符合條件的**總數**而非本頁筆數:對任意 `limit`,
-    `pgTotal` 不隨 `limit` 改變 — 觀察點:契約 D 的 `Page`
-  - `linksOf` 的 `lrOut` 對解不到的目標回 `Nothing` 而**不是錯誤**(讀取不擋懸空) — 觀察點:
-    契約 D 的 `LinkReport`
-  - 範圍解析產生 `ScopeIssue` 時讀取操作仍成功 — 觀察點:契約 D 的四個讀取操作
-- **明確不做**:不做任何寫入;不擋懸空關聯(那是寫入路徑的事);不做全文檢索(#7)
-
-### node-write
-
-- **階段**:階段二
-- **負責模組**:Write、Validate
-- **實作的 Level 2 介面**:契約 E 的 `createEntity` / `addFragment` / `updateMeta` / `setBody` /
-  `deleteNode` / `addLink` / `removeLink` / `DeleteReport` 與請求型別;契約 F 的 `ValidationFailed` /
-  `UnknownType` / `DanglingLinkTarget` / `LinkTargetOutOfScope` / `LevelTreeInvalid` /
-  `RevisionConflict`;模組間公開介面的 `validateForWrite`
-- **資料流管線段落**:寫入管線自 `Scope.withWrite` 之後到新 `revision` 投影回 `NodeView` 為止
-- **驗收標準**:
-  - 沒有 `--vault` 且從 cwd 向上找不到 `.aapms/` 時,任一寫入操作都回
-    `WorkspaceFailed NoWriteTarget`,且**沒有任何檔案被建立或修改** — 觀察點:契約 E 的寫入組、
-    契約 F 的 `WorkspaceFailed`
-  - 寫入只落在 `wsTarget` 一個 vault:讀取範圍內其他 vault 的檔案與索引位元組不變 — 觀察點:
-    契約 E 的寫入組、契約 C 的 `vaultInfo`(節點數不變)
-  - 給出的 `revision` 不等於目標當前值時回 `RevisionConflict` 並同時列出期望與實際,且檔案未動 —
-    觀察點:契約 F 的 `RevisionConflict`
-  - 成功寫入後回的 `nvMeta` 的 `metaRevision` 恰好是原值 +1 — 觀察點:契約 B 的 `nvMeta`
-  - 建立時給註冊表沒有的型別回 `UnknownType`;必填欄位缺漏回 `ValidationFailed` 並帶那些警告,
-    而**非必填類的警告不擋**、只出現在成功結果的 `nvWarnings` — 觀察點:契約 F 的兩個建構子、
-    契約 B 的 `nvWarnings`
-  - 關聯目標的 vault 在讀取範圍內但節點不存在 → `DanglingLinkTarget`;目標 vault 不在讀取範圍內
-    → `LinkTargetOutOfScope`,且訊息含「加進 `refs`」或「用 `--vault` 展開」的下一步 — 觀察點:
-    契約 F 的兩個建構子與 `renderServiceError`
-  - 任一驗證失敗時**檔案與索引都未被修改**(先驗證後落地) — 觀察點:契約 E 的寫入組
-- **明確不做**:不碰 asset 專屬欄位與命名(#5);不碰 Level / Node(#6);不自己實作位元組保留的
-  寫回與樂觀鎖比對(那是 graph-core,本層只傳 `Revision` 並翻譯失敗)
-
-### asset-naming
-
-- **階段**:階段二
-- **負責模組**:Write、Validate
-- **實作的 Level 2 介面**:契約 E 的 `setAssetName` / `updateAssetMeta` / `upsertLicense`;
-  契約 F 的 `LogicalNameTaken`;使用 #1 的 `withRead` 取「全部已註冊」範圍(無新增)
-- **資料流管線段落**:寫入管線的驗證段多一條分支(`setAssetName` 另取全部已註冊範圍查
-  `lookupByName`),之後併回同一條落地路徑
-- **驗收標準**:
-  - 在 vault A 已有邏輯名稱 `N` 的情況下,於 vault B 用 `--vault B` 收窄執行 `setAssetName ... N`
-    **仍然**回 `LogicalNameTaken`,且錯誤帶 A 那筆的 `<vault>:<id>` — 觀察點:契約 E 的
-    `setAssetName`、契約 F 的 `LogicalNameTaken`
-  - 上述檢查涵蓋**全部已註冊 vault**,與本次 `--vault` / `refs` 的範圍無關:把 B 的 `refs` 清空後
-    重跑,結果不變 — 觀察點:契約 E 的 `setAssetName`
-  - 名稱不合命名文法(第一段不在該型別的 `name_kinds`、或分段規則不符)時回 `ValidationFailed`,
-    訊息來自 graph-core 的 `NameError` 而非本層自寫 — 觀察點:契約 F 的 `ValidationFailed` 與
-    `renderServiceError`
-  - `updateAssetMeta` 改寫 asset 專屬欄位後,同一節的**其他型別專屬條目與正文位元組不變**
-    (graph-core 的 `MetaExtras` 機制沒有被繞過) — 觀察點:契約 E 的 `updateAssetMeta`、
-    契約 B 的 `nvDetail`
-  - `upsertLicense` 對已存在的 `lic-` 節點是更新而非新增:節點數不變、`revision` +1 — 觀察點:
-    契約 E 的 `upsertLicense`、契約 C 的 `vaultInfo`
-  - 唯一性檢查失敗時檔案未動 — 觀察點:契約 E 的 `setAssetName`
-- **明確不做**:不推論名稱(叢集規則屬 `asset-ingest`);不判斷授權(閘門屬 `project`);
-  不定義命名文法本身(graph-core)
-
-### level-and-node
-
-- **階段**:階段二
-- **負責模組**:Write、Read
-- **實作的 Level 2 介面**:契約 E 的 `createLevel` / `deleteLevel` / `addNode` / `removeNode` 與
-  `NewLevelReq` / `NewNodeReq`;契約 B 的 `NodeTreeView` / `DLevel` / `DNode`;契約 F 的
-  `LevelTreeInvalid`;使用 #4 的驗證(無新增)
-- **資料流管線段落**:寫入管線,節點種類為 Level / Node 的那一支(多一次 `buildTree` 前置驗證)
-- **驗收標準**:
-  - 讓樹不合法的編輯(父節點不存在、跨 Level 的父子、成環)一律回 `LevelTreeInvalid` 並帶
-    graph-core 的 `TreeError` 清單,且**檔案未動** — 觀察點:契約 F 的 `LevelTreeInvalid`、
-    契約 E 的 `addNode` / `removeNode`
-  - `addNode` 插入後,重讀該 Level 的 `dvTree` 中新節點恰好是指定父節點的**最後一個子節點** —
-    觀察點:契約 B 的 `NodeTreeView`、契約 D 的 `getNode`
-  - `removeNode` 的 `drRemoved` 含被級聯刪掉的整棵子樹的 `Ref`,數量等於刪除前該子樹的節點數 —
-    觀察點:契約 E 的 `DeleteReport`
-  - `deleteLevel` 後該 Level 的全部 `nod-` 節點都不再出現在 `listNodes` — 觀察點:契約 E 的
-    `deleteLevel`、契約 D 的 `listNodes`
-  - Level 與 Node 的寫入同樣受樂觀鎖約束:`revision` 不符回 `RevisionConflict` — 觀察點:
-    契約 F 的 `RevisionConflict`
-- **明確不做**:不決定 Level 檔在磁碟上的分節形狀(graph-core);不做場景的業務語意(那是作者的事)
-
-### search-facade
-
-- **階段**:階段三
-- **負責模組**:Read
-- **實作的 Level 2 介面**:契約 D 的 `search` / `SearchView` / `SearchHitView`;使用 #3 的
-  `NodeView` 投影與 #1 的 `withRead`(無新增)
-- **資料流管線段落**:讀取管線的 `searchAcross` 那一支,到 `SearchView` 為止
-- **驗收標準**:
-  - 一次查詢的命中集合**同時可能含 asset 與 entity**:在同時有兩者命中的 fixture 上,
-    `svHits` 的 `nvDetail` 出現至少兩種建構子 — 觀察點:契約 D 的 `SearchView`、契約 B 的 `NodeDetail`
-  - 每一筆命中都帶 `nvVault`,且跨 vault 查詢時同一個查詢字串的結果是各 vault 結果的聯集 —
-    觀察點:契約 B 的 `nvVault`、契約 D 的 `search`
-  - `shvScore` 恒有值(不是 `Maybe`),且結果依它由大到小排序 — 觀察點:契約 D 的 `SearchHitView`
-  - 中文二字詞(如「藥水」)查得到:在含該詞的 fixture 上 `svTotal > 0` — 觀察點:契約 D 的 `search`
-  - `sqFacets` 為 `False` 時 `svFacets == Nothing`,為 `True` 時各 facet 的計數總和不小於
-    `svHits` 的長度 — 觀察點:契約 D 的 `SearchView`
-  - `svTotal` 是符合條件的總數,不隨分頁參數改變 — 觀察點:契約 D 的 `SearchView`
-- **明確不做**:不實作切詞與 bm25 合併(graph-core F007 / F009 已擁有);不做自然語句查詢規劃
-  (那是 `ai`)
-
-### index-ops
-
-- **階段**:階段三
-- **負責模組**:Machine、Scope
-- **實作的 Level 2 介面**:契約 E 的 `reindex` / `refreshIndex` / `IndexReport`;模組間公開介面的
-  `withPipeline`;使用 #1 的 `Env`(無新增)
-- **資料流管線段落**:管線範圍那一支(`resolvePipeline` → 對每個 vault 各跑一次 → 各自的
-  `IndexReport`)
-- **驗收標準**:
-  - `reindex` 對範圍內**每個** vault 各回一筆 `IndexReport`,`irVault` 兩兩相異 — 觀察點:
-    契約 E 的 `IndexReport`
-  - 刪掉某個 vault 的 `index.db` 後 `reindex`,該 vault 的 `listNodes` 結果與刪除前逐欄相等
-    (ADR-013:索引可丟) — 觀察點:契約 E 的 `reindex`、契約 D 的 `listNodes`
-  - 單一 vault 的解析失敗只讓該檔進 `irIssues`,**不中止整批**:其餘檔案仍被索引 — 觀察點:
-    契約 E 的 `IndexReport`
-  - 某個 vault 不可達時,它不出現在 `IndexReport` 清單裡,而其餘 vault 照跑 — 觀察點:契約 E 的
-    `reindex`、契約 C 的 `vaultCheck`
-  - `refreshIndex` 對沒有變動的 vault 回 `irFiles == 0` — 觀察點:契約 E 的 `IndexReport`
-- **明確不做**:不實作索引 schema 與重建邏輯(graph-core);不掃壓縮檔(`asset-ingest`);
-  管線範圍不接受「沒有寫入目標」以外的降級——`resolvePipeline` 回什麼就跑什麼
 
 ## 暫不定案的下游出口
 

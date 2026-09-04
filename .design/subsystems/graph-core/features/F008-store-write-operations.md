@@ -5,10 +5,13 @@ title: store-write-operations
 description: vault 的建檔、增節、改寫、刪除與短 id 配號,全部走樂觀鎖與原子寫入
 status: done
 created: 2026-08-24
-updated: 2026-08-25
-depends-on: [F004, F006]
+updated: 2026-09-04
+stage: S1
+modules: [Write]
+depends-on: [graph-core/F004, graph-core/F006]
 related-adr: [ADR-010, ADR-014, ADR-022]
 related-feature: []
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store/Create.hs, store/src/Aapms/Store/Node.hs, store/src/Aapms/Store/Write.hs, store/test/Aapms/Store/CreateSpec.hs, store/test/Aapms/Store/EditSpec.hs, store/test/Aapms/Store/NodeSpec2.hs, store/test/Aapms/Store/StoreErrorL15Spec.hs, store/test/Aapms/Store/WriteLockBudgetSpec.hs, store/test/Aapms/Store/WriteSpec.hs, store/test/Spec.hs]
 ---
 
 # F008: store 寫入操作
@@ -22,7 +25,15 @@ related-feature: []
 再更新索引)、**未修改的區塊逐字保留**(ADR-010,所以每次只重新序列化被改的那一段)、
 **寫交易的持有時間以毫秒計**(ADR-022,所以檔案 IO 與序列化一律在碰索引之前完成)。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段三
+- **負責模組**:Write(`aapms-store`)
+- **驗收標準**(契約卡原文):`createTopicFile` 依註冊表 `dir` 落檔;`createPackFile` 在指定目錄寫出 `pack.md`,
+  節的順序與給定順序相同;`writeAssetFields` 只改 `name` / `license` / `author` / `tags` 這些
+  人給欄位,**拒絕**改 `sha256` / `entry`(那是掃描器的事,要改走 `addSection` / `deleteNode`);
+  所有寫入比對 `revision`,不符回 `RevisionMismatch` 且檔案未動;`allocateId` 在人為製造碰撞時
+  以 salt 重試直到不撞;寫入後 `indexFile` 只重讀該檔;交易內無任何檔案 IO(寫鎖預算,ADR-022)
 
 | 契約 | 條目 | 本 feature 的落點 |
 |---|---|---|
@@ -42,6 +53,9 @@ related-feature: []
 2026-08-25 的閘門把 `createPackFile` 的第三參數、`addSection` 的落點參數與
 `allocateId` 的失敗通道都回寫進 design.md 契約 E;同日的 GAP-8 裁決再把 `allocateId` 的
 **`UTCTime` 明碼參數**回寫進去(`design.md:326`)。本文件與契約逐字一致。
+
+- **明確不做**(契約卡原文):不做跨 vault 寫入;不決定業務規則(名稱全域唯一由 `service` 先查);不產縮圖、
+  不算雜湊
 
 ## 數據
 

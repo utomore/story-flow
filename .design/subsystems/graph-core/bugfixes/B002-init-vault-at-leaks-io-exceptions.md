@@ -5,9 +5,10 @@ title: init-vault-at-leaks-io-exceptions
 description: initVaultAt 宣告回 Either StoreError 卻讓 IOException 逸出,型別在說謊
 status: done
 created: 2026-08-29
-updated: 2026-08-30
+updated: 2026-09-04
 parent: graph-core
 depends-on: []
+code-paths: [store/src/Aapms/Store/Marker.hs, store/test/Aapms/Store/MarkerSpec.hs]
 ---
 
 # B002:`initVaultAt` 讓 `IOException` 逸出

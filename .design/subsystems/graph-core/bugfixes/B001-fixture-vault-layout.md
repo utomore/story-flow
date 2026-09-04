@@ -5,10 +5,11 @@ title: fixture-vault-layout
 description: 測試 fixture 的 vault 目錄配置不符主架構,已擴散到三個測試檔
 status: done
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-09-04
 depends-on: []
 related-adr: [ADR-013]
-related-feature: [F006, F008, F009, F007]
+related-feature: [graph-core/F006, graph-core/F008, graph-core/F009, graph-core/F007]
+code-paths: [md/src/Aapms/Md/Error.hs, store/aapms-store.cabal, store/test/Aapms/Store/CreateSpec.hs, store/test/Aapms/Store/Fixtures.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/MultiVaultSpec.hs, store/test/Aapms/Store/SearchSpec.hs, store/test/Aapms/Store/VaultLayoutSpec.hs, store/test/Aapms/Store/WriteSpec.hs, store/test/Spec.hs]
 ---
 
 # B001: 測試 fixture 的 vault 目錄配置不符 `system.md:439`

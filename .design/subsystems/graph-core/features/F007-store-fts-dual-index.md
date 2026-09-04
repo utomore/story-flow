@@ -5,10 +5,13 @@ title: store-fts-dual-index
 description: FTS5 trigram 與 unicode61 雙索引、查詢路由、分數合併與 facet
 status: done
 created: 2026-08-24
-updated: 2026-08-25
-depends-on: [F001, F005, F006]
+updated: 2026-09-04
+stage: S1
+modules: [Tokenize, Query]
+depends-on: [graph-core/F001, graph-core/F005, graph-core/F006]
 related-adr: [ADR-013, ADR-016]
 related-feature: []
+code-paths: [md/aapms-md.cabal, store/src/Aapms/Store/Query.hs, store/src/Aapms/Store/Tokenize.hs, store/test/Aapms/Store/SearchSpec.hs, store/test/Aapms/Store/TokenizeSpec.hs]
 ---
 
 # F007: FTS5 雙索引與單一 vault 全文檢索
@@ -24,7 +27,17 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 本 feature 把這件事落成:一個純的切詞/路由模組、兩張表的 schema 與列維護、以及 `search` 這個查詢
 出口(含 facet)。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段三
+- **負責模組**:Tokenize、Query(`aapms-store`)
+- **驗收標準**(契約卡原文):「藥水」「琳達」(二字詞)命中且 `shScore > 0`;「travel-book」命中;三字以上中文
+  走 trigram 並有分數;同時含中英的查詢兩張表都查、結果以分數合併去重;`snippet` 回命中片段;
+  `sqFacets = True` 時 `FacetCounts` 五個維度都有;查詢只走 trigram / cjk 兩條 FTS 路徑
+  (由 `routeOf` 釘死),**沒有第三條比對路徑**(2026-08-24 改寫:原文是「`LIKE` 路徑在程式碼裡
+  不存在」,但用文字掃描斷言關鍵字不存在分不出註解與程式碼——要保證的是**可觀察行為**,不是原始碼字面);
+  索引體積對 6,783 筆 asset 在可接受範圍(記錄數字,不設硬上限)——**這一條等 S2 真資料進場再驗**,
+  S1 不合成大 fixture
 
 | 契約 | 條目 | 本文檔的處置 |
 |---|---|---|
@@ -37,6 +50,8 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 | G | 錯誤契約 | **不新增建構子**:`search` 不會失敗(索引是衍生物,查不到就是空結果) |
 
 未超出契約範圍。契約 E 的 `searchAcross` 與契約 G 的 `TooManyVaults` 屬 F009,本文檔不碰。
+
+- **明確不做**(契約卡原文):不引入 ICU / jieba;不做自然語句查詢(`ai`);不做跨 vault(#9)
 
 ## 數據
 

@@ -3,12 +3,13 @@ id: E002
 type: enhance
 title: init-vault-with-path-and-signature-coverage
 description: 補 initVaultWith 的 vePath 斷言,並修 LAW-3 不可滿足的措辭
-status: open
+status: planned
 created: 2026-08-30
-updated: 2026-08-30
-depends-on: [E001, F004]
+updated: 2026-09-04
+depends-on: [workspace/E001, workspace/F004]
 related-adr: [ADR-017]
-related-feature: [F004]
+related-feature: [workspace/F004]
+code-paths: []
 ---
 
 # E002:`initVaultWith` 的 `vePath` 覆蓋缺口,與 LAW-3 的措辭修正

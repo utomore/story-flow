@@ -1,17 +1,17 @@
 ---
-id: graph-core-spec-gaps
+id: graph-core-gaps
 type: spec-gaps
-title: graph-core-spec-gaps
+title: graph-core-gaps
 description: graph-core 委派過程中 qa / impl 撞到的 spec 缺口與裁決
-status: open
+status: done
 created: 2026-08-24
-updated: 2026-08-26
+updated: 2026-09-04
 parent: graph-core
 ---
 
 # graph-core spec 缺口
 
-## GAP-1(F004 / impl → F008 / spec)
+## GAP-1(graph-core/F004-md-unified-sections / impl → graph-core/F008-store-write-operations / spec)
 
 - **模糊點**:契約 E 的 `NewSection` 只有 `nsMeta :: MetaOverride` 一個管道寫節層欄位,而
   `MetaOverride`(`md/src/Aapms/Md/Inherit.hs:46-58`,13 個欄位)**沒有** asset 的 `sha256` /
@@ -24,8 +24,9 @@ parent: graph-core
   (`NewSectionPayload` = `NSFragment` / `NSAsset` / `NSLicense` / `NSNode`,封閉建構子),
   `addSection` 維持單一入口依 payload 分派。已回寫 `design.md` 契約 D;
   `createPackFile` 第三參數連帶由 `[NewAsset]` 改為 `[NewSection]`(契約 E)
+- 修訂:graph-core/F004-md-unified-sections §契約 D / 數據(2026-08-24);`NewSection` 改成依節點種類做 sum(`NewSectionPayload` 四個封閉建構子),`addSection` 維持單一入口;design.md 契約 D 與 graph-core/F008-store-write-operations 的 `createPackFile` 第三參數(契約 E)連帶回寫
 
-## GAP-2(F008 / spec)—— 已重現的資料遺失缺陷
+## GAP-2(graph-core/F008-store-write-operations / spec)—— 已重現的資料遺失缺陷
 
 - **模糊點**:不是 spec 模糊,是**已交付的程式碼有缺陷**。`Aapms.Md.Render.reserialize`
   (`md/src/Aapms/Md/Render.hs:98`)在 `updateSection` 時用 `renderMetaBlock`
@@ -43,8 +44,9 @@ parent: graph-core
 - 狀態:resolved (2026-08-24,F004 重跑完成並經編排者以原重現案例驗證:`SHA256_KEPT True` / `ENTRY_KEPT True` / `SUMMARY_NEW True`)。原處置:由 **F004 重跑**修復(2026-08-24 開發者裁決),與 GAP-1 同一個根
   (`MetaOverride` 是唯一管道),一併處理:`Render` 要支援 payload 專屬欄位的序列化,
   並新增 payload 保留的編輯路徑讓 `updateSection` 不再吃掉節專屬欄位
+- 修訂:graph-core/F004-md-unified-sections §Laws / Examples(2026-08-24);`Render` 補上 payload 專屬欄位的序列化、新增 payload 保留的編輯路徑,F004 重跑並以原重現案例驗過
 
-## GAP-3(F007 / qa)
+## GAP-3(graph-core/F007-store-fts-dual-index / qa)
 
 - 模糊點:LAW-23「`store/src` 底下所有 `.hs` 原始碼都不含 `LIKE` 這個 SQL 關鍵字(不分大小寫的
   獨立詞)」沒有說「原始碼」是否包含 Haddock 註解文字。字面讀法(掃描整個檔案的文字,不分
@@ -70,8 +72,9 @@ parent: graph-core
 - 狀態:resolved (2026-08-24 開發者裁決 → spec 已修訂):**LAW-23 撤銷**,F007 spec 的 Laws 段以刪除線
   保留原文並附撤銷理由,編號不重編;`Query.hs` 的模組 Haddock 改成引用 LAW-9 / LAW-10(「只有兩條路,沒有
   第三條」)。qa 不再需要 LAW-23 的測試,`TokenizeSpec.hs` / `SearchSpec.hs` 開頭關於 LAW-23 的說明可一併移除
+- 修訂:graph-core/F007-store-fts-dual-index §Laws(2026-08-24);LAW-23 撤銷,原文以刪除線保留並附撤銷理由,編號不重編
 
-## GAP-4(F007 / impl)
+## GAP-4(graph-core/F007-store-fts-dual-index / impl)
 
 - 模糊點:LAW-4「對所有 `t`,`desegmentCjk (cjkSegment t) == T.unwords (cjkRuns t)`」在 `cjkSegment`
   的既定輸出格式(「先所有 unigram、再所有 bigram,以單一空白分隔」,由「介面」段與
@@ -101,8 +104,9 @@ parent: graph-core
   snippet 這個唯一消費者後**整個從介面與骨架移除**(`Tokenize.hs` 的匯出與定義都已刪除,`cjkSegment`
   的 Haddock 加了「這個表示法是單向的,沒有反函式」的說明防止有人再加回去)。qa 要刪掉
   `TokenizeSpec.hs` 的 `prop_LAW4` 與對 `desegmentCjk` 的 import
+- 修訂:graph-core/F007-store-fts-dual-index §介面 / Laws(2026-08-24);LAW-4 撤銷,`desegmentCjk` 整個從介面與骨架移除
 
-## GAP-5(F007 / 編排者仲裁)—— 與 GAP-4 同一個根
+## GAP-5(graph-core/F007-store-fts-dual-index / 編排者仲裁)—— 與 GAP-4 同一個根
 
 - **模糊點**:ASM-3 要求「`fts_cjk` 命中時把 `snippet()` 的輸出經 `desegmentCjk` 還原成連續文字」,
   但 **LAW-4 只定義 `desegmentCjk` 在完整 `cjkSegment t` 輸出上的行為**。FTS5 的 `snippet()` 回的是
@@ -120,6 +124,7 @@ parent: graph-core
   所以 snippet 從 `fts_tri` 的內容取就是自然的連續文字,`desegmentCjk` 可以整個退出 snippet 路徑;
   LAW-4 則應改成有條件的 law 或直接撤掉
 - 狀態:resolved (2026-08-24 開發者裁決,見下)
+- 修訂:graph-core/F007-store-fts-dual-index §Laws(2026-08-24);與 GAP-4 同一次裁決,內容見本檔「2026-08-24 開發者裁決」一節
 
 ---
 
@@ -139,7 +144,7 @@ parent: graph-core
 
 **執行**:由 spec 角色修訂 F007 的 spec 與骨架,再重跑受影響的 qa 與 impl。
 
-## GAP-9(F008 / qa)
+## GAP-9(graph-core/F008-store-write-operations / qa)
 
 - **模糊點**:`Aapms.Store.Node.isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool`
   (骨架 `Node.hs:60`)__沒有任何 Law 或 Example 定義它的行為__。它的 haddock 只說「這個 id
@@ -152,8 +157,9 @@ parent: graph-core
   `headingDepthFor` / `subtreeAfter`(haddock 明說「節不存在時是空清單」)訂出對稱的規則,
   或者乾脆補一條 Law
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):`isRootNode` 對「id 不在 `doc` 裡」回 `Left (SectionMissing path id)`,與 `headingDepthFor`(LAW-21)對稱——「查無此節」與「這個節不是根」是兩件事,合一會讓錯誤往下游飄;F008 新增 **LAW-24**(三種結果)與 **EX-18**,`Node.hs:71` 的 haddock 已寫明,簽名不變
+- 修訂:graph-core/F008-store-write-operations §Laws / Examples(2026-08-25);新增 LAW-24(`isRootNode` 三種結果)與 EX-18,簽名不變
 
-## GAP-7(F008 / qa)—— 已縮小範圍:`SqliteError` 的既有訊息與 LAW-15 字面不符
+## GAP-7(graph-core/F008-store-write-operations / qa)—— 已縮小範圍:`SqliteError` 的既有訊息與 LAW-15 字面不符
 
 - **模糊點**:LAW-15 要求「`renderStoreError e` 非空,且含至少一個以『請』起頭的子句」,範圍是
   `StoreError` 的全部 21 個建構子,__含 F005 已實作的 6 個__(spec 明說這 6 個應為綠)。
@@ -172,8 +178,9 @@ parent: graph-core
   「……；請嘗試重新開啟 vault」)?這是文字選擇,但既然 LAW-15 把它寫成可機械驗證的斷言,誰改
   由開發者定
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**LAW-15 不放寬**(維持「含至少一個以『請』起頭的子句」),改的是訊息文字——`SqliteError` 改成 `"索引操作失敗 —— " <> msg <> ";請嘗試重新開啟 vault"`,**由 impl 這一輪改**(F005 其餘 5 則不得更動);理由是 21 則訊息只有一種形狀,放寬成四選一日後只要戴個「可以」就混得過去。F008 已補「`SqliteError` 的訊息要改」一節與 **EX-17**
+- 修訂:graph-core/F008-store-write-operations §實作備註 / Examples(2026-08-25);LAW-15 不放寬,改的是 `SqliteError` 的訊息文字,補「`SqliteError` 的訊息要改」一節與 EX-17
 
-## GAP-8(F008 / qa)
+## GAP-8(graph-core/F008-store-write-operations / qa)
 
 - **模糊點**:EX-6「人為製造碰撞」的情境是「索引裡已存在 `newId p c t 0` 與 `newId p c t 1`
   兩個 id;`allocateId vh p c` 回 `Right i`,且 `i` 與那兩個都不同(實作上即 salt = 2 的
@@ -190,8 +197,9 @@ parent: graph-core
   管道(例如帶一個 `UTCTime` 參數的內部變體,契約 E 的 `allocateId` 只是取現在時間再呼叫它)?
   或者 EX-6 改成只斷言「碰撞後 salt 會遞增」這個性質、不要求可從外部精確重現特定的碰撞情境?
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):`allocateId` 收**明碼 `UTCTime`**(`VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)`,契約 E 已回寫 `design.md:326`)——藏在內部取樣就永遠測不到 salt 重試迴圈;F008 的介面表、LAW-14(收緊成「同一個 `t` 連續呼叫 n 次」)、L14b、EX-6(重寫成可精確構造)、EX-15 已改,骨架 `Write.hs:179` 已改簽名,四個 create 函式對外簽名不變(自己取時間再傳入)
+- 修訂:graph-core/F008-store-write-operations §介面 / Laws / Examples(2026-08-25);`allocateId` 收明碼 `UTCTime`,介面表、LAW-14、L14b、EX-6、EX-15 已改,design.md 契約 E 回寫
 
-## GAP-12(F008 / qa)
+## GAP-12(graph-core/F008-store-write-operations / qa)
 
 - **模糊點**:LAW-17 第三個子句要求「所有檔案 IO(`readTextFile` / `atomicWriteText` /
   `removeFile` / `createDirectoryIfMissing`)與所有 md 序列化都不在任何 SQLite 呼叫的括號內」。
@@ -210,8 +218,9 @@ parent: graph-core
   不落在那組函式的原始碼範圍內——這仍然是文字掃描,但至少把「巢狀」換成「是否在同一個具名定義
   的範圍內」,少了括號配對的模糊地帶)?
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**第三個子句從 LAW-17 移除**,降級為 `/arch-audit subsys graph-core` 在階段閘門的人工檢查項(寫進 F008 的「實作備註」);LAW-17 只保留兩個機械可判定的子句,`WriteLockBudgetSpec` 現有的涵蓋範圍就是完整範圍。理由:ADR-022 把 code review 與靜態檢測並列,而「X 是否巢狀在 Y 的括號內」是語法樹層級的問題,文字掃描會製造偽陽性與偽陰性(與 F007 的 GAP-3 同一個根)
+- 修訂:graph-core/F008-store-write-operations §Laws / 實作備註(2026-08-25);LAW-17 第三個子句移除,降級為階段閘門的人工檢查項
 
-## GAP-6(F004 / qa)
+## GAP-6(graph-core/F004-md-unified-sections / qa)
 
 - 模糊點:F004 spec(2026-08-25 追加段)在多處敘述「既有 14 個建構子」(`MdErrorKind` 扣掉新增的
   `HeadingTooDeep` 之後),包括 LAW-39「既有 14 個建構子的訊息逐字不變(回歸 law)」與 EX-22「既有 14 個
@@ -230,8 +239,9 @@ parent: graph-core
   `renderMdErrorKind`;LAW-39 的回歸半句(既有建構子訊息不變)由 EX-22 覆蓋,不受此計數誤差影響
   (LAW-39 前半句——`HeadingTooDeep` 訊息本身——單獨有測試覆蓋,見同檔 LAW-39)
 - 狀態:resolved (2026-08-25,spec 措辭修正:既有建構子數 14 → 15)
+- 修訂:graph-core/F004-md-unified-sections §數據(2026-08-25);措辭修正,既有建構子數 14 → 15
 
-## GAP-13(F008 / impl)—— `sanitizeFileName` 的 LAW-20 與 EX-11 對同一件事給出不同答案
+## GAP-13(graph-core/F008-store-write-operations / impl)—— `sanitizeFileName` 的 LAW-20 與 EX-11 對同一件事給出不同答案
 
 - **模糊點**:LAW-20「t 被清空時結果等於 fb」與 EX-11「`sanitizeFileName "第一章: 序幕 " fb` ==
   `"第一章- 序幕"`(冒號換成 `-`)」隱含兩種互斥的清理策略。EX-11 要求非法字元被**替換**成
@@ -246,8 +256,9 @@ parent: graph-core
   讀法)還是**整個移除**(LAW-20 property test 的讀法)?兩者只有「純非法字元輸入」時行為不同,
   但那正是這條 law 在測的情境
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**替換**。EX-11 的逐字例子是權威(逐字例子是最難被誤讀的一種 spec),`sanitizeFileName` 維持「非法字元換成 `-`」;改的是 **LAW-20 的措辭**——「被清空」只指「去掉頭尾空白與 `.` 之後為空」,**不含**「輸入只由非法字元組成」。機械定義:`t` 的每一個字元都是空白或 `.`(空字串亦然)才算被清空。所以 `"<"` 的正確結果是 `"-"`、`"   "` 與 `"..."` 才回 `fb`;qa 的 `genOnlyStrippable` 要改成只產生空白與 `.`。F008 已改寫 LAW-20(四條子句)並新增 **EX-19**(全空白 / 全 `.` → `fb`)、**EX-20**(`"<"` → `"-"`、`"<>?"` → `"---"`)、**EX-21**(合法字元原樣回傳)
+- 修訂:graph-core/F008-store-write-operations §Laws / Examples(2026-08-25);LAW-20 改寫成四條子句,新增 EX-19 / EX-20 / EX-21
 
-## GAP-14(F008 / impl)—— L12a / L12b 的「前面節位元組不變」與 `appendSection` / `insertSection`
+## GAP-14(graph-core/F008-store-write-operations / impl)—— L12a / L12b 的「前面節位元組不變」與 `appendSection` / `insertSection`
   自身文件明載的行為衝突
 
 - **模糊點**:L12a「addSection vh i AtEnd s 成功之後前 n 節的 renderSection 位元組不變」與
@@ -266,8 +277,9 @@ parent: graph-core
   前一節的空行補齊」排除在「位元組不變」的斷言之外(即「不變」只保證**除插入點外**的節,
   且插入點前一節僅允許『補齊到剛好一個空行』這一種變化)?
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂):**是**,L12a / L12b 照 F004 的 ASM-10 收窄措辭改(同一個根,同一次裁決)。新措辭:插入一節之後其餘每一節位元組不變——**唯一的例外是插入點之前那一段的行尾**:它還沒有以空行結尾時會被補齊(`blankTail` 冪等,已經是空行結尾就原樣不動),`appendSection` 走同一條規則;被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010。F008 的 L12a / L12b 已改寫並新增「插入點行尾的但書」(附兩個機械可判定的推論供 qa 寫斷言:原本就以空行結尾 → 全檔不變;否則差異只允許在尾端、`T.stripEnd` 後逐位元組相同),EX-12 補註「`nod-b` 在插入點之後,不受但書影響」。**LAW-3 / LAW-6 / LAW-16 不走插入路徑,那裡的「位元組不變」仍是無條件的**(已 grep 全文 `位元組` 逐處確認)
+- 修訂:graph-core/F008-store-write-operations §Laws / Examples(2026-08-25);L12a / L12b 收窄並補「插入點行尾的但書」,EX-12 補註
 
-## GAP-15(F008 / impl)—— `Aapms.Store.Node` 的「新增的依賴邊」清單漏列 `validateLevelDoc`
+## GAP-15(graph-core/F008-store-write-operations / impl)—— `Aapms.Store.Node` 的「新增的依賴邊」清單漏列 `validateLevelDoc`
   需要的兩條邊
 
 - **模糊點**:F008 的「新增的依賴邊」逐條列出四個模組本次會新增的 import,對
@@ -289,8 +301,9 @@ parent: graph-core
 - **需要 spec 回答什麼**:請把這兩條邊回寫進 design.md 的「新增的依賴邊」清單,補上
   `Aapms.Store.Node → Aapms.Md.Parse(僅 toLevel)、Aapms.Core.Tree(僅 buildTree)`
 - 狀態:resolved (2026-08-25 編排者回寫 design.md):**不照字面登記每一條 import**——逐條列 `import Aapms.Core.Entity` 之類屬 Level 3 實作細節,`conventions.md` 的抽象邊界規範明文禁止寫進 Level 2 文檔。改為登記這兩條**確實屬於 Level 2、而 design.md 原本漏掉**的事實:① 寫入管線補上「寫檔前驗證(Level 檔):`toLevel` + `buildTree`,樹不合法即 `TreeInvalidOnWrite` 中止,檔案未動」一段;② 模組間公開介面的 `aapms-store → aapms-md` 列補「**並反向用 `to*` 讀回目標目前的 `Meta`**」(樂觀鎖來源是重讀的檔案而非索引),`→ aapms-core` 列補「`buildTree` 另在寫入路徑被呼叫一次」。impl 把共用的 `currentMetaAt` / `currentAssetAt` 集中放進 `Edit.hs` 屬實作自主權,編排者不介入。
+- 修訂:graph-core/F008-store-write-operations §新增的依賴邊(2026-08-25);裁決為不逐條登記 import,改回寫 graph-core/design.md 的「資料流管線」與「模組間公開介面」兩處
 
-## GAP-16(F008 / impl)—— `Aapms.Store.Write` / `Aapms.Store.Create` 需要的
+## GAP-16(graph-core/F008-store-write-operations / impl)—— `Aapms.Store.Write` / `Aapms.Store.Create` 需要的
   `Aapms.Core.{Entity,Level,Pack}` 依賴邊未列在「新增的依賴邊」
 
 - **模糊點**:`writeMeta` / `writeBody` / `addLink` / `removeLink` 的 haddock 都明說「節與
@@ -313,8 +326,9 @@ parent: graph-core
   `Edit.hs`(例如希望 `Write` / `Create` 各自 import),也請一併定調,impl 目前的擺放只是
   「同一段邏輯只寫一份」的實作自主權選擇,不是契約要求
 - 狀態:resolved (2026-08-25 編排者回寫 design.md):**不照字面登記每一條 import**——逐條列 `import Aapms.Core.Entity` 之類屬 Level 3 實作細節,`conventions.md` 的抽象邊界規範明文禁止寫進 Level 2 文檔。改為登記這兩條**確實屬於 Level 2、而 design.md 原本漏掉**的事實:① 寫入管線補上「寫檔前驗證(Level 檔):`toLevel` + `buildTree`,樹不合法即 `TreeInvalidOnWrite` 中止,檔案未動」一段;② 模組間公開介面的 `aapms-store → aapms-md` 列補「**並反向用 `to*` 讀回目標目前的 `Meta`**」(樂觀鎖來源是重讀的檔案而非索引),`→ aapms-core` 列補「`buildTree` 另在寫入路徑被呼叫一次」。impl 把共用的 `currentMetaAt` / `currentAssetAt` 集中放進 `Edit.hs` 屬實作自主權,編排者不介入。
+- 修訂:graph-core/F008-store-write-operations §新增的依賴邊(2026-08-25);與 GAP-15 同一次裁決,同樣改回寫 graph-core/design.md 的兩處事實
 
-## GAP-17(F008 / impl)—— `createPackFile` 寫不出 Pack 專屬的 frontmatter 欄位
+## GAP-17(graph-core/F008-store-write-operations / impl)—— `createPackFile` 寫不出 Pack 專屬的 frontmatter 欄位
 
 - **模糊點**:`Aapms.Core.Json` 的 `FromJSON Pack` / `ToJSON Pack` 實例(`toPack` 實際依賴的
   解碼路徑)把 `vendor` / `archive` / `sha256` / `license` / `author` / `source_url` /
@@ -335,6 +349,7 @@ parent: graph-core
   之後用另一條路徑補寫)?若需要,請對 `aapms-md` 開一個 feature/enhancement 補上檔案層
   extras 的寫入管道
 - 狀態:resolved (2026-08-25 開發者裁決 → spec 已修訂,**實作待 F004**):`createPackFile` **本來就該**負責這七個欄位。**重新打開 F004**,替 `aapms-md` 補上**檔案層 extras** 的寫入管道(對稱節層的 `MetaExtras`),F008 的 `createPackFile` 接上它。F008 新增 **LAW-25**(`createPackFile` 之後重讀,`toPack` 解出的 `Pack` 在 `pckVendor` / `pckArchive` / `pckSha256` / `pckLicense` / `pckAuthor` / `pckSourceUrl` / `pckAiDisclosure` 七欄逐欄等於傳入的 `NewPack`)與 **EX-22**(七欄全給非預設值),並在「實作備註 → 阻塞:LAW-25 / EX-22 依賴 F004 的檔案層 extras」寫明:**這條 law 現在會紅,而且要一直紅到 F004 那一半落地為止,紅燈就是它的工作**;不得為了轉綠而寫弱、標 pending 或在 store 側手拼 frontmatter。編排者在 F004 交付後再委派一輪 F008 impl 接上
+- 修訂:graph-core/F004-md-unified-sections §介面 / Laws(2026-08-25);重新打開 F004 補上檔案層 extras 的寫入管道,graph-core/F008-store-write-operations 新增 LAW-25 讓 `createPackFile` 接上
 - **impl 接上完成**(2026-08-25,第二輪委派):`aapms-md` 落地 `newDocumentWith` /
   `packFrontExtras` / `NewPackFront` 之後,`createPackFile`(`Create.hs`)改用
   `newDocumentWith PackDoc meta (packFrontExtras front) npBody` 取代原本的 `newDocument`;
@@ -342,7 +357,7 @@ parent: graph-core
   沒有在 store 側自己拼任何 frontmatter 字串。`cabal test aapms-store` 連跑三次皆
   **208 examples, 0 failures**,LAW-25 / EX-22 轉綠,其餘 207 條維持全綠
 
-## GAP-18(F009 / qa)—— EX-2 第二次呼叫的期望值,是否也隱含「只看 ent- 的部分」
+## GAP-18(graph-core/F009-store-multi-vault-read / qa)—— EX-2 第二次呼叫的期望值,是否也隱含「只看 ent- 的部分」
 
 - **模糊點**:EX-2 原文「`listAcross vsAB emptyNodeFilter { nfLimit = 10 }`,再取
   `listAcross vsAB emptyNodeFilter { nfOffset = 1, nfLimit = 2 }`」,預期輸出寫
@@ -369,8 +384,9 @@ parent: graph-core
 - **需要 spec 回答什麼**:EX-2 第二次呼叫的期望值,是對「只看 ent- 的部分」的子集切窗,
   還是對完整 `listAcross` 結果切窗(兩者在目前 fixture 下不等價)?
 - 狀態:resolved (2026-08-26 開發者裁決 → spec 已修訂):兩者皆非——「只看 ent-」寫進**過濾器本身**,EX-2 的兩次呼叫都改成 `emptyNodeFilter { nfPrefixes = [PEnt], … }`,散文的括號限定語刪除;理由是留在測試端過濾會讓 `nfOffset` / `nfLimit` 根本沒被驗到,而契約卡驗收 2 要驗的就是分頁
+- 修訂:graph-core/F009-store-multi-vault-read §Examples(2026-08-26);EX-2 的兩次呼叫改成帶 `nfPrefixes = [PEnt]` 的過濾器,散文括號限定語刪除
 
-## GAP-19(F009 / impl)—— F-A/F-B fixture 的實際資料似乎比 spec 的 fixture-note 更寬,讓四條斷言的「窄命中」前提不成立
+## GAP-19(graph-core/F009-store-multi-vault-read / impl)—— F-A/F-B fixture 的實際資料似乎比 spec 的 fixture-note 更寬,讓四條斷言的「窄命中」前提不成立
 
 - **模糊點**:F009 spec 的 fixture-note(EX-1–EX-12 共用)只講了「F-A 的 `ent-00000001` 帶
   `metaTags = ["琳達", "canon"]`」與「F-B 的 `ast-00000002`(metaTitle = 魔法藥水瓶)」,
@@ -420,8 +436,9 @@ parent: graph-core
      `vlt-bbbb0002` 計數 1 這兩個期望值需要改成 3 筆/計數 2;若不該命中,fixture 的
      `pck-00000001` 標題需要改掉
 - 狀態:resolved (2026-08-26 開發者裁決 → spec 已修訂):qa 的 fixture 設計失誤,不是實作錯誤(LAW-8 已證明合併邏輯正確)——law 與 example 的期望值一條不改,改的是 F009「Examples → fixture 前提」新增兩條約束:**區辨用標籤必須放節層**(檔案層的 `tags` 依節層繼承規則聯集去重被同檔每一個節繼承)、**窄命中的查詢字串不得出現在同 vault 其他節點的標題或正文**;LAW-4 非退化子句與 EX-1 / EX-12 / EX-17 一併補上這兩個前提的措辭,fixture 那一側由 qa 修
+- 修訂:graph-core/F009-store-multi-vault-read §Examples(2026-08-26);「Examples → fixture 前提」新增兩條約束,law 與 example 的期望值一條不改
 
-## GAP-20(E001 / qa,編排者歸因)—— `statOf` 回傳的 tuple 順序,spec 自己前後矛盾
+## GAP-20(graph-core/E001-store-internal-module-boundary / qa,編排者歸因)—— `statOf` 回傳的 tuple 順序,spec 自己前後矛盾
 
 - 模糊點:E001 對同一件事給了兩個互相衝突的答案。
   1. **「數據與介面變動」表的語意欄**寫 `statOf` 是「回傳檔案的 **(size, mtime)** 供過時偵測」;
@@ -465,3 +482,4 @@ parent: graph-core
   必須在語意欄與 law 裡寫成機械可判定的句子,不能只給一個 `(a, b)` 讓讀者自己對。
   順帶查出:搬移前的原始 haddock **從頭到尾沒寫過順序**(只說「過時偵測的兩個依據」),
   順序只存在於函式本體那一行——這正是第一版 spec 會寫反的直接原因。
+- 修訂:graph-core/E001-store-internal-module-boundary §數據與介面變動 / Laws(2026-08-27);`statOf` 的 tuple 順序在 spec 內統一成 `(mtime, size)`,只改 spec 文字不動實作

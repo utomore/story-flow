@@ -5,10 +5,13 @@ title: store-unified-index
 description: 一份 SQLite schema、files 過時偵測、整檔替換、rebuildIndex 與單 vault 查詢
 status: done
 created: 2026-08-23
-updated: 2026-08-24
-depends-on: [F001, F004, F005]
+updated: 2026-09-04
+stage: S1
+modules: [Schema, Index, Query]
+depends-on: [graph-core/F001, graph-core/F004, graph-core/F005]
 related-adr: [ADR-002, ADR-013, ADR-022]
 related-feature: []
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store.hs, store/src/Aapms/Store/Index.hs, store/src/Aapms/Store/Query.hs, store/src/Aapms/Store/Row.hs, store/src/Aapms/Store/Schema.hs, store/test/Aapms/Store/Fixtures.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/MarkerSpec.hs, store/test/Aapms/Store/NodeSpec.hs, store/test/Aapms/Store/QuerySpec.hs, store/test/Aapms/Store/RebuildSpec.hs, store/test/Aapms/Store/RowSpec.hs, store/test/Aapms/Store/SchemaSpec.hs, store/test/Aapms/Store/StaleSpec.hs, store/test/Aapms/StoreSpec.hs, store/test/Spec.hs]
 ---
 
 # F006: 一份 schema、`rebuildIndex`、單 vault 查詢(store-unified-index)
@@ -65,7 +68,16 @@ build-depends 就叫得動,`vhRegistry` 由呼叫端(F005 的 `openVault`)先載
 `store-fts-dual-index`(#7)、`store-write-operations`(#8)、`store-multi-vault-read`(#9)依賴
 本 feature,但本 feature 不依賴它們。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:Schema、Index、Query(`aapms-store`)
+- **驗收標準**(契約卡原文):對 story vault 與 asset vault 各一個測試 fixture,`rebuildIndex` 兩次結果相同;
+  `rm index.db` 後 `openVault` + `rebuildIndex` 與刪除前的 `listNodes` / `linksFrom` 結果相同
+  (S0 契約測試);`childrenOf pck` 回該 pack 全部 asset、`childrenOf ent`(主體)回其片段;
+  `files` 表以 mtime / size 偵測外部改動並只重讀那個檔;`checkMeta` 的警告與 `buildTree` 的錯誤
+  進 `IndexIssue`,不中斷整批;單一 vault 內 `assets.name` 重複是 `IndexIssue` 錯誤;
+  `pack.md` 條目為 `missing` 狀態的 asset 仍在索引、`listNodes` 預設不回
 
 實作 design.md「對外契約」契約 E 的 `rebuildIndex` / `refreshStale` / `indexFile` /
 `unindexFile` / `lookupNode` / `lookupByName` / `listNodes` / `childrenOf` / `linksFrom` /
@@ -78,6 +90,8 @@ FTS 表與 `fts_map` 之外全部);資料流管線「讀取」段落從「files 
 ——這些是 F005 已交付的契約 E 子集,本 feature 只讀不改。
 
 **不做**(契約卡逐字):不建 FTS 表、不做全文檢索(#7);不做任何寫入(#8);不跨 vault(#9)。
+
+- **明確不做**(契約卡原文):不建 FTS 表、不做全文檢索(#7);不做任何寫入(#8);不跨 vault(#9)
 
 ## 實作方式
 

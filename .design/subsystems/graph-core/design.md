@@ -5,7 +5,7 @@ title: graph-core
 description: 統一片段圖譜核心:型別、註冊表、兩種 Markdown 格式與可丟棄的索引
 status: active
 created: 2026-08-23
-updated: 2026-08-30
+updated: 2026-09-04
 parent: system
 related-adr: [ADR-002, ADR-005, ADR-009, ADR-010, ADR-012, ADR-013, ADR-014, ADR-016, ADR-017, ADR-019, ADR-022]
 code-paths: [core/src, types/src, types/registry, md/src, store/src]
@@ -670,168 +670,26 @@ fts_map(rowid PK, node_id)
 本子系統的每個 feature 都必須讓它們維持綠燈。內部里程碑即下方三個階段;階段二結束時
 `rebuildIndex` 已能對兩種 vault 跑,階段三結束時主架構 S1 的三條交付判準全部可驗。
 
-## 功能規劃
+## 功能總覽
 
-### 階段一:純層
+<!-- BEGIN FEATURE INDEX:由 scan-status.mjs --write-index 產生,不要手改 -->
+| id | feature | 階段 | 模組 | 狀態 |
+|---|---|---|---|---|
+| F001 | core-unified-meta | S1 | Meta 與節點型別、Id、Tree、Json | done |
+| F002 | registry-family-and-naming | S1 | Registry 載入、Registry 純驗證、Naming | done |
+| F003 | manifest-schema-v2 | S1 | Manifest | done |
+| F004 | md-unified-sections | S1 | 分節引擎、文件轉換 | done |
+| F005 | store-vault-handle | S1 | Marker、Atomic、Schema | done |
+| F006 | store-unified-index | S1 | Schema、Index、Query | done |
+| F007 | store-fts-dual-index | S1 | Tokenize、Query | done |
+| F008 | store-write-operations | S1 | Write | done |
+| F009 | store-multi-vault-read | S1 | MultiVault | done |
+<!-- END FEATURE INDEX -->
 
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 1 | core-unified-meta | 統一 `Meta`、`Asset` / `Pack` / `License` / `AnyNode` 型別、八種 id prefix、`Ref`、`uses` / `depicts`、aeson 編碼規則 | Meta 與節點型別、Id、Tree、Json | - | F001-core-unified-meta.md |
-| 2 | registry-family-and-naming | 註冊表 `family`、asset 族八項、`naming.toml` 詞彙、`name_kinds`;命名文法改吃注入詞彙;`checkMeta` 涵蓋 asset | Registry 載入、Registry 純驗證、Naming | #1 | F002-registry-family-and-naming.md |
-| 3 | manifest-schema-v2 | `Manifest` v2 與 `StoryManifest` 型別、JSON 編碼、`AssetKey`、kind 專屬 meta 型別化 | Manifest | #1, #2 | F003-manifest-schema-v2.md |
+### 規劃註記(v1「功能規劃」小結原文搬移)
 
-### 階段二:解析與落地
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 4 | md-unified-sections | 分節引擎改接統一 `Meta`;`PackDoc` / `LicenseDoc` 的解析與寫回;四種文件的繼承規則 | 分節引擎、文件轉換 | #1, #2 | F004-md-unified-sections.md |
-| 5 | store-vault-handle | marker 讀寫、`initVaultAt` / `openVault` / `closeVault`,schema 不符重建、過時刷新 | Marker、Atomic、Schema | #1 | F005-store-vault-handle.md |
-| 6 | store-unified-index | 一份 schema(`nodes` + 專屬表 + `owner`)、`files` 過時偵測、整檔替換、`rebuildIndex`、單 vault 查詢(不含 FTS) | Schema、Index、Query | #1, #4, #5 | F006-store-unified-index.md |
-
-### 階段三:檢索與寫入
-
-| # | feature | 一句話說明 | 模組 | 依賴 | doc |
-|---|---------|-----------|------|------|-----|
-| 7 | store-fts-dual-index | `fts_tri` + `fts_cjk`、預切、查詢路由、bm25 合併、`search` 與 facet、`LIKE` 退場 | Tokenize、Query | #6 | F007-store-fts-dual-index.md |
-| 8 | store-write-operations | 建檔 / 增節 / 改寫 / 刪除 / Node / License 的寫入改接統一 `Meta`;`AssetPatch`;樂觀鎖;`allocateId` | Write | #4, #6 | F008-store-write-operations.md |
-| 9 | store-multi-vault-read | `VaultSet`:ATTACH、`*Across`、`lookupRef`、`TooManyVaults`、`checkReferences` | MultiVault | #7 | F009-store-multi-vault-read.md |
+本節與各 feature 文檔內文出現的 `#n` 是 v1「功能規劃」表的列號,該表已在 v2 廢除。
+**列號與 feature 編號一對一**(`#3` 即 graph-core/F003),照上方「功能總覽」表對回文檔全名。
 
 小結:共 **9 個 features、3 個階段**;全部完成即主架構 S1 交付:`rm index.db` → rebuild 兩種
 vault 都等價、「藥水」搜得到、`aapms-core` 零重量級相依。
-
-## Feature 契約卡
-
-### core-unified-meta
-
-- **階段**:階段一
-- **負責模組**:Meta 與節點型別、Id、Tree、Json(`aapms-core`)
-- **實作的 Level 2 介面**:契約 A 全部;契約 B 的 `newId` / `parseId` / `parseRef` / `renderRef` /
-  `prefixOf` / `buildTree`;契約 G 的 `IdError`
-- **資料流管線段落**:不走管線;它是三條管線共用的型別層
-- **驗收標準**:六種節點共用同一個 `Meta` 型別;`Status` / `Source` / `LinkKind` 的 JSON 與文字表示
-  是穩定小寫且只有一份;`parseRef` 接受 `ent-7f3b2a91` 與 `vlt-a0c4e1f8:ent-7f3b2a91` 兩種寫法;
-  `newId` 對同一輸入不同 salt 產生不同 id;`buildTree` 拒絕成環、跳級、多重父節點;
-  `aapms-core` 的 `build-depends` 不含任何 IO / SQLite / 壓縮 / 影像套件(`CabalSpec` 斷言)
-- **明確不做**:不讀檔、不解析 Markdown、不碰註冊表載入;不定義命名文法(那是 #2);
-  不定義 Manifest(#3)
-
-### registry-family-and-naming
-
-- **階段**:階段一
-- **負責模組**:Registry 載入(`aapms-types`)、Registry 純驗證、Naming(`aapms-core`)
-- **實作的 Level 2 介面**:契約 C 全部;契約 B 的 `checkMeta` / `mkLogicalName` / `parseLogicalName` /
-  `validateLogicalName`;契約 G 的 `RegistryError` / `NameError`
-- **資料流管線段落**:讀取管線的前置(註冊表載入)與「`aapms-core` 純驗證」一段
-- **驗收標準**:`types/registry/` 含原五種 entity 族 + 八種 asset 族 + `naming.toml`;`asset-pack` /
-  `asset-license` / `level` 出現在註冊表是載入錯誤;載入失敗程序失敗、不退回空註冊表;
-  `checkMeta` 對 asset 檢查 `name` 第一段在該型別的 `name_kinds` 內、關聯在 `allowed_links` 內,
-  只回警告;`validateLogicalName` 對 `ui_gui_travel-book-frame_001` 通過、對非 ASCII / 超過 64 字元 /
-  少於三段拒絕;`defaultVocab` 與 DB `naming_vocab` 表都不存在
-- **明確不做**:不決定警告要不要擋;不做叢集推論(`asset-ingest`);不改 `dir` / `owner_type` 語意
-
-### manifest-schema-v2
-
-- **階段**:階段一
-- **負責模組**:Manifest(`aapms-core`)
-- **實作的 Level 2 介面**:契約 B 的 `Manifest` / `StoryManifest` / `AssetKey` / `manifestIndex`,
-  以及 `imageMeta` / `audioMeta` 型別化讀取
-- **資料流管線段落**:不走管線;它是 `project` 產出與遊戲本體之間的契約,住在這裡是因為遊戲本體
-  只能 import `aapms-core`
-- **驗收標準**:`schemaVersion = 2`,每筆 asset 帶 `id`(短 id)/ `key`(邏輯名稱)/ `path` / `type` /
-  `sha256` / `vault`(來源 vault id)/ `pack` / `license`;`StoryManifest` 每筆帶 `ref`(`<vault>:<id>`)/
-  `title` / `summary` / `purpose` / `revision`;`FromJSON` 對 `schemaVersion = 1` 回明確錯誤「請重新產生」
-  而不是靜默解析;golden file roundtrip 測試
-- **明確不做**:不產生 manifest(`project`);不產生 `Assets.hs`(`project`);不做授權判斷
-
-### md-unified-sections
-
-- **階段**:階段二
-- **負責模組**:分節引擎、文件轉換(`aapms-md`)
-- **實作的 Level 2 介面**:契約 D 全部;「模組間公開介面」的 `aapms-md` ↔ `aapms-core`(含 `MetaOverride`);
-  契約 G 的 `MdError`
-- **資料流管線段落**:讀取管線的「parseDocument → docKind → to*」一段;寫入管線的「md 寫回」一段
-- **驗收標準**:四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同(S0 契約測試
-  持續綠);繼承規則照本文件表格——pack.md 的節層 `type` 不繼承且缺漏是錯誤;
-  `toPack` 把檔案層轉成 `Pack`、每節轉成 `Asset`;`toLicenses` 每節一個 `License`,八個維度缺漏為
-  `Nothing` 而非錯誤(`commercial` 與 `attribution_required` 除外,缺漏是錯誤);`appendSection`
-  在 1,693 節的文件末尾追加一節,前面 1,693 節位元組不變;`insertSection` 在中間插一節,
-  其餘每一節位元組不變——**唯一的例外是插入點之前那一段的行尾**:它還沒有以空行結尾時會被補齊
-  (`blankTail` 冪等,已經是空行結尾就原樣不動),`appendSection` 走的是同一條規則,
-  被動到的是插入點而不是「未經修改的區塊」,不違反 ADR-010;`MdError` 指出行號
-- **明確不做**:不碰檔案系統與索引;不驗證關聯目標;不算 sha256(`asset-ingest` 給)
-
-### store-vault-handle
-
-- **階段**:階段二
-- **負責模組**:Marker、Atomic、Schema(`aapms-store`)
-- **實作的 Level 2 介面**:契約 E 的 `VaultKind` / `VaultMarker` / `VaultHandle` / `readMarker` /
-  `initVaultAt` / `openVault` / `closeVault`;契約 G 的 `StoreError` 骨架
-- **資料流管線段落**:讀取管線的「openVault:讀 marker → 開索引 → schema 判斷」一段
-- **驗收標準**:`initVaultAt` 寫出 `.aapms/config.toml`(含新發的 `vlt-` id 與 kind)與空索引;
-  對已有 marker 的目錄再 `initVaultAt` 是錯誤;`openVault` 對 marker 損壞回指出欄位的錯誤,不自動
-  建檔;`schema_version` 不符時整庫重建並在 `IndexIssue` 回報;原子寫入在 Windows 上能覆蓋既有檔案;
-  沒有任何程式路徑讀 `%APPDATA%` 或向上探測——那是 `workspace`
-- **明確不做**:不探測 vault、不讀中樞註冊表、不處理 `--vault`;不做 `migrate`(`workspace`);
-  不建任何業務表(#6)
-
-### store-unified-index
-
-- **階段**:階段二
-- **負責模組**:Schema、Index、Query(`aapms-store`)
-- **實作的 Level 2 介面**:契約 E 的 `rebuildIndex` / `refreshStale` / `indexFile` / `unindexFile` /
-  `lookupNode` / `lookupByName` / `listNodes` / `childrenOf` / `linksFrom` / `linksTo` / `loadLinkGraph`;
-  契約 F 的 `NodeFilter`;「模組間公開介面」的索引結構(不含兩張 FTS 表)
-- **資料流管線段落**:讀取管線從「files 表比對」到「整檔替換進索引」,以及查詢出口的非全文部分
-- **驗收標準**:對 story vault 與 asset vault 各一個測試 fixture,`rebuildIndex` 兩次結果相同;
-  `rm index.db` 後 `openVault` + `rebuildIndex` 與刪除前的 `listNodes` / `linksFrom` 結果相同
-  (S0 契約測試);`childrenOf pck` 回該 pack 全部 asset、`childrenOf ent`(主體)回其片段;
-  `files` 表以 mtime / size 偵測外部改動並只重讀那個檔;`checkMeta` 的警告與 `buildTree` 的錯誤
-  進 `IndexIssue`,不中斷整批;單一 vault 內 `assets.name` 重複是 `IndexIssue` 錯誤;
-  `pack.md` 條目為 `missing` 狀態的 asset 仍在索引、`listNodes` 預設不回
-- **明確不做**:不建 FTS 表、不做全文檢索(#7);不做任何寫入(#8);不跨 vault(#9)
-
-### store-fts-dual-index
-
-- **階段**:階段三
-- **負責模組**:Tokenize、Query(`aapms-store`)
-- **實作的 Level 2 介面**:契約 E 的 `search`;契約 F 的 `SearchQuery` / `SearchHit` / `FacetCounts` /
-  `SearchResult`;「模組間公開介面」的 Index → Tokenize、Query → Tokenize
-- **資料流管線段落**:讀取管線「整檔替換進索引」的 FTS 寫入部分,與查詢出口的全文部分
-- **驗收標準**:「藥水」「琳達」(二字詞)命中且 `shScore > 0`;「travel-book」命中;三字以上中文
-  走 trigram 並有分數;同時含中英的查詢兩張表都查、結果以分數合併去重;`snippet` 回命中片段;
-  `sqFacets = True` 時 `FacetCounts` 五個維度都有;查詢只走 trigram / cjk 兩條 FTS 路徑
-  (由 `routeOf` 釘死),**沒有第三條比對路徑**(2026-08-24 改寫:原文是「`LIKE` 路徑在程式碼裡
-  不存在」,但用文字掃描斷言關鍵字不存在分不出註解與程式碼——要保證的是**可觀察行為**,不是原始碼字面);
-  索引體積對 6,783 筆 asset 在可接受範圍(記錄數字,不設硬上限)——**這一條等 S2 真資料進場再驗**,
-  S1 不合成大 fixture
-- **明確不做**:不引入 ICU / jieba;不做自然語句查詢(`ai`);不做跨 vault(#9)
-
-### store-write-operations
-
-- **階段**:階段三
-- **負責模組**:Write(`aapms-store`)
-- **實作的 Level 2 介面**:契約 E 的 `createTopicFile` / `createLevelFile` / `createPackFile` /
-  `addSection` / `writeMeta` / `writeAssetFields` / `writeBody` / `addLink` / `removeLink` /
-  `upsertLicense` / `deleteNode` / `allocateId`
-- **資料流管線段落**:寫入管線全段
-- **驗收標準**:`createTopicFile` 依註冊表 `dir` 落檔;`createPackFile` 在指定目錄寫出 `pack.md`,
-  節的順序與給定順序相同;`writeAssetFields` 只改 `name` / `license` / `author` / `tags` 這些
-  人給欄位,**拒絕**改 `sha256` / `entry`(那是掃描器的事,要改走 `addSection` / `deleteNode`);
-  所有寫入比對 `revision`,不符回 `RevisionMismatch` 且檔案未動;`allocateId` 在人為製造碰撞時
-  以 salt 重試直到不撞;寫入後 `indexFile` 只重讀該檔;交易內無任何檔案 IO(寫鎖預算,ADR-022)
-- **明確不做**:不做跨 vault 寫入;不決定業務規則(名稱全域唯一由 `service` 先查);不產縮圖、
-  不算雜湊
-
-### store-multi-vault-read
-
-- **階段**:階段三
-- **負責模組**:MultiVault(`aapms-store`)
-- **實作的 Level 2 介面**:契約 E 的 `VaultSet` / `openVaultSet` / `lookupRef` / `listAcross` /
-  `searchAcross` / `checkReferences`;契約 G 的 `TooManyVaults`;「模組間公開介面」的 MultiVault → Query
-- **資料流管線段落**:跨 vault 讀管線全段
-- **驗收標準**:兩個 fixture vault(一 story 一 asset)`searchAcross` 一次回兩種、每筆 `shVault` 正確;
-  排序與分頁跨 vault 正確(不是各自排完再接);`lookupRef` 對不帶 vault 的 `Ref` 以呼叫端指定的
-  預設 vault 解析;第 11 個 vault 回 `TooManyVaults` 並列出 10;`checkReferences` 找出指向不存在
-  節點與不存在 vault 的兩種懸空;`VaultSet` 只開讀取,任何寫入函式不接受它
-- **明確不做**:不決定「本次生效哪些 vault」(`workspace`);不做超過上限的分批查詢(Level 3 之後
-  視需要開 E);不做跨 vault 寫入

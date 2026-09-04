@@ -5,10 +5,13 @@ title: machine-tools
 description: "7-Zip 的三層探測([tools] 覆寫 → PATH → 內建候選清單)與 ToolStatus"
 status: done
 created: 2026-08-29
-updated: 2026-08-29
-depends-on: [F001]
+updated: 2026-09-04
+stage: S3
+modules: [Tools]
+depends-on: [workspace/F001]
 related-adr: [ADR-017, ADR-020]
 related-feature: []
+code-paths: [workspace/src/Aapms/Workspace/Tools.hs, workspace/test/Aapms/Workspace/ToolsSpec.hs]
 ---
 
 # F006: 7-Zip 的三層探測與 ToolStatus(machine-tools)
@@ -66,7 +69,21 @@ F001 交付的東西:`ToolsConfig` / `ToolOrigin` / `ToolStatus` 三個型別(�
 **特別是不需要 `process` / `typed-process`**——legacy 的 `Sidecar.hs` 需要它是因為它還負責**執行**
 7-Zip,而本 feature **只探測不執行**。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:Tools
+- **驗收標準**(契約卡原文):- `tcSevenZip` 指向一個存在且可執行的檔案時,`tsPath` 等於它且 `tsOrigin == FromToolsConfig`,
+    **PATH 與候選清單都不被查**(`tsSearched` 只有那一個) — 觀察點:契約 E 的 `detectSevenZip` /
+    `ToolStatus`
+  - `tcSevenZip` 指向不存在的檔案時**不中止**,繼續往 PATH 與候選清單找,而該路徑仍出現在
+    `tsSearched` — 觀察點:契約 E 的 `tsSearched` / `tsOrigin`
+  - 三層都找不到時 `tsPath == Nothing`、`tsOrigin == NotFound`、`tsSearched` 非空,而且函式
+    **不回錯誤**(7-Zip 缺席不是失敗) — 觀察點:契約 E 的 `detectSevenZip`
+  - `tsPath` 為 `Just` 恰好對應 `tsOrigin /= NotFound`(兩者不可能不一致) — 觀察點:契約 E 的
+    `ToolStatus`
+  - 不論結果如何都**不執行**找到的檔案(可用一個會寫出標記檔的假執行檔驗證:跑完後標記檔不存在) —
+    觀察點:契約 E 的 `detectSevenZip`
 
 ### 契約 E(本 feature 負責的全部五項)
 
@@ -111,6 +128,9 @@ ToolsConfig` 一列,那描述的是**資料流向**(Tools 讀的是 `ToolsConfig
 `ToolsConfig` 由呼叫端傳入**。骨架因此沒有 `import Aapms.Workspace.Hub`;LAW-15(a) 仍**允許**它
 出現(只放行 `hubTools` 一個名字),不把這條表列的邊禁掉。**2026-08-29 WAVE-4 閘門裁決:design.md
 那一列不改**(要改是 `service` 設計時的事)。
+
+- **明確不做**(契約卡原文):不查版本、不測試解壓能力(那是 `asset-ingest` 真的要用時的事);不探測 LLM 端點的
+  可達性(那是 `ai`——本子系統只捧著 `[llm]` 那張表);不把工具路徑寫回中樞
 
 ## 實作方式
 

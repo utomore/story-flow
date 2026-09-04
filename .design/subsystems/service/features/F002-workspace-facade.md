@@ -5,10 +5,13 @@ title: workspace-facade
 description: "vault 與專案生命週期、workspace setup / doctor / tools / purge、型別註冊表查詢與縮圖路徑;十五個 ServiceM 動作加一個先於環境的 workspaceSetup"
 status: done
 created: 2026-08-30
-updated: 2026-08-30
-depends-on: [F001, graph-core/F001, graph-core/F002, graph-core/F005, graph-core/F006, workspace/F001, workspace/F002, workspace/F004, workspace/F005, workspace/F006]
+updated: 2026-09-04
+stage: S3
+modules: [Machine]
+depends-on: [service/F001, graph-core/F001, graph-core/F002, graph-core/F005, graph-core/F006, workspace/F001, workspace/F002, workspace/F004, workspace/F005, workspace/F006]
 related-adr: [ADR-006, ADR-013, ADR-015, ADR-017]
 related-feature: []
+code-paths: [service/aapms-service.cabal, service/src/Aapms/Service/Machine.hs, service/src/Aapms/Service/Types.hs, service/test/Aapms/Service/Fixtures.hs, service/test/Aapms/Service/MachineDoctorSpec.hs, service/test/Aapms/Service/MachineRegistrySpec.hs, service/test/Aapms/Service/MachineSetupPurgeSpec.hs, service/test/Aapms/Service/MachineVaultInfoSpec.hs, service/test/Aapms/Service/MachineVaultSpec.hs, service/test/Aapms/Service/MachineWriteOpsSpec.hs, service/test/Aapms/Service/NestedRunServiceSpec.hs, service/test/Aapms/Service/PathLiteralSpec.hs, service/test/Aapms/Service/TypesSpec.hs, service/test/Spec.hs]
 ---
 
 # F002: 本機與註冊表門面(workspace-facade)
@@ -81,7 +84,27 @@ related-feature: []
 
 本子系統內:F008(index-ops)的負責模組同樣含 Machine,會落在同一個檔案上;F003–F007 不依賴本 feature。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Machine
+- **驗收標準**(契約卡原文):- `vaultList` 對每個中樞條目都回一筆,且 `vvReachable == False` 恰好對應 workspace 回報
+    `VaultPathMissing` 或 `VaultMarkerBroken` 的那些 — 觀察點:契約 C 的 `vaultList` / `VaultView`
+  - 在一個未註冊的 vault 目錄裡 `openEnv` 後,`workspaceDoctor` 的 `dvVaults` 含一筆
+    `vvRegistered == False` 的項目 — 觀察點:契約 C 的 `DoctorView` / `VaultView`
+  - `dvLlmConfigured` 只反映「中樞有沒有 `[llm]` 段」,而 `DoctorView` 的**任何欄位都不含**該段的
+    值(可觀察:把 `api_key` 設成一個特徵字串,整份報告序列化後不含它) — 觀察點:契約 C 的
+    `DoctorView`
+  - `workspaceDoctor` 與 `vaultCheck` 執行前後,中樞目錄與各 vault 的 `.aapms/` 位元組不變 —
+    觀察點:契約 C 的 `workspaceDoctor` / `vaultCheck`
+  - `vaultInfo` 的 `viCounts` 鍵集合是實際存在的 `IdPrefix` 文字表示,值等於該 vault 索引裡的節點數;
+    對一個剛 `vaultInit` 的空 vault 全部為 0 或鍵不出現 — 觀察點:契約 C 的 `VaultInfoView`
+  - `vaultInit` / `vaultAdd` / `vaultForget` / `projectRegister` / `projectForget` 之後,同一個 `Env`
+    的後續 `vaultList` / `projectList` **看得到變更**(中樞快照有被重新載入) — 觀察點:模組間公開
+    介面的 Machine → `aapms-workspace` 那一列、契約 C 的 `vaultList` / `projectList`
+  - `showType` 對註冊表沒有的鍵回 `UnknownType` — 觀察點:契約 C 的 `showType`、契約 F 的 `UnknownType`
+  - `thumbPath` 對快取裡存在的雜湊回 `Just p` 且 `p` 讀得到、對不存在的回 `Nothing`,而且 `p` 恒等於
+    `workspace` 的 `thumbCachePath`(不自己拼路徑) — 觀察點:契約 C 的 `thumbPath`
 
 ### 契約 C(全部十六個函式 + 六個型別)
 
@@ -143,6 +166,9 @@ re-export:design.md「內部模組劃分」的 Types 列已寫明「**全部 Vie
 **本 feature 不再新增任何表上沒有的邊**:原本標為「新增」的 `Machine → aapms-store` 已由編排者
 在 WAVE-2 閘門補進 design.md「模組間公開介面」,`Machine → Monad: handleFor` 同樣已補;兩者都列在
 下面的「依賴方向」段對帳。
+
+- **明確不做**(契約卡原文):不重新定義中樞的檔案格式、不自己拼 `.aapms/` 底下的路徑(一律用 workspace 與
+  graph-core 的函式);不把 7-Zip 缺席當錯誤;不上 REST 的那幾個操作不得出現在 `shell` 的路由需求裡
 
 ## 實作方式
 

@@ -5,10 +5,13 @@ title: store-multi-vault-read
 description: 以 VaultSet 接起多個 vault 的索引,跨 vault 列舉、檢索與懸空引用檢查
 status: done
 created: 2026-08-25
-updated: 2026-08-26
-depends-on: [F001, F005, F006, F007]
+updated: 2026-09-04
+stage: S1
+modules: [MultiVault]
+depends-on: [graph-core/F001, graph-core/F005, graph-core/F006, graph-core/F007]
 related-adr: [ADR-014, ADR-017, ADR-022]
 related-feature: []
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store.hs, store/src/Aapms/Store/Error.hs, store/src/Aapms/Store/MultiVault.hs, store/src/Aapms/Store/Query.hs, store/test/Aapms/Store/MultiVaultSpec.hs, store/test/Spec.hs]
 ---
 
 # F009: 跨 vault 讀(`VaultSet`)
@@ -25,7 +28,14 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 正常。跨 vault 的身分一律是 `(VaultId, Id)` 這一對——本文檔的 LAW-5 / LAW-7 / LAW-11 / LAW-13 就是為了讓這件事
 在測試裡被抓到而寫的。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段三
+- **負責模組**:MultiVault(`aapms-store`)
+- **驗收標準**(契約卡原文):兩個 fixture vault(一 story 一 asset)`searchAcross` 一次回兩種、每筆 `shVault` 正確;
+  排序與分頁跨 vault 正確(不是各自排完再接);`lookupRef` 對不帶 vault 的 `Ref` 以呼叫端指定的
+  預設 vault 解析;第 11 個 vault 回 `TooManyVaults` 並列出 10;`checkReferences` 找出指向不存在
+  節點與不存在 vault 的兩種懸空;`VaultSet` 只開讀取,任何寫入函式不接受它
 
 | 契約 | 條目 | 本文檔的處置 |
 |---|---|---|
@@ -47,6 +57,9 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 `renderDanglingRef` 是契約 E 之外唯一新增的一條,比照 `renderIndexIssue`(見「自裁」與 DEC-4)。
 
 未超出契約範圍:本文檔不碰任何寫入函式、不新增任何查詢 DTO。
+
+- **明確不做**(契約卡原文):不決定「本次生效哪些 vault」(`workspace`);不做超過上限的分批查詢(Level 3 之後
+  視需要開 E);不做跨 vault 寫入
 
 ## 數據
 

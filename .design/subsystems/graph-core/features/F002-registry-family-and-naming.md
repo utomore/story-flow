@@ -5,10 +5,13 @@ title: registry-family-and-naming
 description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙(kinds/domains/states)、命名文法改吃注入詞彙並語意區分 variant/state
 status: done
 created: 2026-08-23
-updated: 2026-08-23
-depends-on: [F001]
+updated: 2026-09-04
+stage: S1
+modules: ["Registry 載入", "Registry 純驗證", Naming]
+depends-on: [graph-core/F001]
 related-adr: [ADR-005, ADR-019]
 related-feature: []
+code-paths: [core/aapms-core.cabal, core/src/Aapms/Core/Naming.hs, core/src/Aapms/Core/Registry.hs, core/test/Aapms/Core/CabalSpec.hs, core/test/Aapms/Core/NamingCasesSpec.hs, core/test/Aapms/Core/NamingSpec.hs, core/test/Aapms/Core/RegistrySpec.hs, core/test/Spec.hs, types/src/Aapms/Types/Loader.hs, types/test/Aapms/Types/LoaderSpec.hs, types/test/Spec.hs]
 ---
 
 # F002: 註冊表 `family` 與命名文法(registry-family-and-naming)
@@ -45,7 +48,15 @@ related-feature: []
 DEC-1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` / `cli` / … 舊碼仍 import 舊
 `Aapms.Core.Registry` 與 `Aapms.Types.Loader`)一律不碰、不考慮相容。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段一
+- **負責模組**:Registry 載入(`aapms-types`)、Registry 純驗證、Naming(`aapms-core`)
+- **驗收標準**(契約卡原文):`types/registry/` 含原五種 entity 族 + 八種 asset 族 + `naming.toml`;`asset-pack` /
+  `asset-license` / `level` 出現在註冊表是載入錯誤;載入失敗程序失敗、不退回空註冊表;
+  `checkMeta` 對 asset 檢查 `name` 第一段在該型別的 `name_kinds` 內、關聯在 `allowed_links` 內,
+  只回警告;`validateLogicalName` 對 `ui_gui_travel-book-frame_001` 通過、對非 ASCII / 超過 64 字元 /
+  少於三段拒絕;`defaultVocab` 與 DB `naming_vocab` 表都不存在
 
 ### 契約 C(全部,套件歸屬依 2026-08-23 DEC-7 裁決)
 
@@ -81,6 +92,8 @@ DEC-1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` /
 ### 明確不做(契約卡逐字)
 
 不決定警告要不要擋;不做叢集推論(`asset-ingest`);不改 `dir` / `owner_type` 語意。
+
+- **明確不做**(契約卡原文):不決定警告要不要擋;不做叢集推論(`asset-ingest`);不改 `dir` / `owner_type` 語意
 
 ## 相依性查證
 

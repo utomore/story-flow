@@ -5,10 +5,13 @@ title: vault-lifecycle
 description: "中樞建立、vault 的 init/adopt/add/forget、體檢與回寫、purge 清理"
 status: done
 created: 2026-08-29
-updated: 2026-08-30
-depends-on: [F001, F002]
+updated: 2026-09-04
+stage: S3
+modules: [Lifecycle]
+depends-on: [workspace/F001, workspace/F002]
 related-adr: [ADR-008, ADR-014, ADR-017]
 related-feature: []
+code-paths: [workspace/src/Aapms/Workspace/Lifecycle.hs, workspace/test/Aapms/Workspace/LifecycleSpec.hs]
 ---
 
 # F004: 中樞建立、vault 生命週期、體檢與清理(vault-lifecycle)
@@ -95,7 +98,29 @@ Lifecycle 擁有的唯一事實是 **「撤除的分層界線」**——什麼�
 與本 feature **無任何呼叫關係**,可完全平行。三者共讀的 `Types.hs` / `Hub.hs` / `Location.hs` /
 `Discovery.hs` 都只讀不寫。
 
-## 對應的 Level 2 契約
+## 契約
+
+- **階段**:階段二
+- **負責模組**:Lifecycle
+- **驗收標準**(契約卡原文):- `setupHub` 冪等:第一次跑後 `spHubCreated == True`,同一位置再跑一次 `spHubCreated == False`
+    且中樞內容逐欄不變 — 觀察點:契約 D 的 `setupHub` / `SetupReport`、契約 A 的 `loadHub`
+  - `initVault` 以 `FreshVault` 對非空目錄回 `VaultDirNotEmpty`;以 `AdoptExisting` 對不存在的目錄回
+    `VaultDirMissing`;對任何已有 `.aapms/` 的目錄一律回 `VaultAlreadyInitialized` 且**不覆寫**該檔
+    (前後位元組相同) — 觀察點:契約 D 的 `initVault`、契約 F 的三個建構子
+  - `AdoptExisting` 對含 `.assetdb/` 的目錄成功後:`anLegacyMarkers` 列出該路徑,而
+    `.assetdb/` **仍然存在**、目錄內其餘檔案位元組不變 — 觀察點:契約 D 的 `AdoptNotice`
+  - 名稱去空白後為空時回 `InvalidName`,不寫任何檔案 — 觀察點:契約 D 的 `initVault`、契約 F 的
+    `InvalidName`
+  - `forgetVault` 以 `KeepIndex` 執行後:中樞少一列,而 `<vault>/.aapms/config.toml` 與
+    `<vault>/.aapms/index.db` 都還在;以 `DeleteIndex` 執行後 `index.db` 不在、`config.toml` 還在 —
+    觀察點:契約 D 的 `forgetVault` / `DeleteIndex`
+  - `purge` 在任何 `PurgeScope` 下都不刪除任何 `library/` 下的檔案與任何 `.md`,`prVaultIndexesRemoved`
+    只列出 `index.db` 路徑 — 觀察點:契約 D 的 `purge` / `PurgeReport`
+  - `checkVaults` 不寫任何檔案(呼叫前後整棵中樞目錄的位元組相同);`syncHub` 只把
+    `veName` / `veKind` 的漂移回寫,`VaultPathMissing` 與 `VaultIdDrift` 仍原樣出現在回傳清單 —
+    觀察點:契約 D 的 `checkVaults` / `syncHub`
+  - `initVaultAt` 產生的 id 與中樞既有 `veId` 相同時回 `VaultIdCollision` 並帶兩個路徑 —
+    觀察點:契約 F 的 `VaultIdCollision`
 
 ### 契約 D(本 feature 負責的七個函式與六個 DTO)
 
@@ -180,6 +205,9 @@ Lifecycle → Discovery     AdoptExisting 與 addVault 時讀既有 marker 取 i
 > `ScopeIssue`**——`VaultPathMissing` 與 `VaultMarkerBroken` 在這條路徑上要走的是「照刪」而不是
 > 「降級紀錄」,折過一次反而要再拆開。直接用 `readMarker` 拿三態(讀不到 / id 相符 / id 不符)
 > 最貼合裁決 B 的三個分支。兩處都**不動任何對外契約**。
+
+- **明確不做**(契約卡原文):不解析 vault 內的任何 Markdown、不開索引、不重建索引;不刪除舊的 `.assetdb/` 或
+  `.storyflow/`(只報告);不做 `vault info` 的統計(那要索引,屬 `service` 組合)
 
 ## 實作方式
 

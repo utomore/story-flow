@@ -5,10 +5,11 @@ title: init-vault-at-explicit-time
 description: initVaultAt 的時間提成明碼參數,並讓它不再逸出 IOException
 status: done
 created: 2026-08-29
-updated: 2026-08-30
-depends-on: [F001, F005]
+updated: 2026-09-04
+depends-on: [graph-core/F001, graph-core/F005]
 related-adr: [ADR-013, ADR-017]
-related-feature: [F005]
+related-feature: [graph-core/F005]
+code-paths: [store/src/Aapms/Store/Marker.hs, store/test/Aapms/Store/MarkerSpec.hs]
 ---
 
 # E002:`initVaultAt` 的明碼時間版本,兼修 `IOException` 逸出

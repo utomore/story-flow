@@ -5,10 +5,11 @@ title: store-internal-module-boundary
 description: 把 aapms-store 的內部模組界線從註解收進 cabal,由編譯器守
 status: done
 created: 2026-08-26
-updated: 2026-08-27
+updated: 2026-09-04
 depends-on: []
 related-adr: []
-related-feature: [F006, F008]
+related-feature: [graph-core/F006, graph-core/F008]
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store/Index.hs, store/src/Aapms/Store/Walk.hs, store/test/Aapms/Store/BoundarySpec.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/WalkSpec.hs, store/test/Spec.hs]
 ---
 
 # E001: 收攏 `aapms-store` 的內部模組界線
@@ -113,42 +114,93 @@ Haskell 的標準做法,型別照樣可用可命名。`Create.hs:6-7` 對 `Aapms
 
 | 項目 | 動作 | 簽名 / 定義 | 語意(做什麼) | 受影響呼叫端 | 骨架位置 |
 |---|---|---|---|---|---|
-| `Aapms.Store.Edit` | 改可見度 | 整個模組:`exposed-modules` → `other-modules` | 不再是 `aapms-store` 的對外承諾;套件外 import 即編譯失敗 | 套件內 `Create.hs:100`、`Write.hs:65` 不受影響(同套件);套件外只有凍結的 `Service.hs:130`,本次不動 | `store/aapms-store.cabal:25-40` |
-| `Aapms.Store.Node` | 改可見度 | 同上 | 同上 | 套件內 `Create.hs:114`;套件外無 | `store/aapms-store.cabal:25-40` |
-| `Aapms.Store.Row` | 改可見度 | 同上 | 同上 | 套件內 `Index.hs:66`、`MultiVault.hs:92`、`Query.hs:89`;套件外無 | `store/aapms-store.cabal:25-40` |
-| `Aapms.Store.Walk` | 新增(內部模組) | `vaultMarkdownFiles :: FilePath -> IO [FilePath]` | 回傳 vault 底下全部 Markdown 檔的相對路徑,已排序;略過 `.` 開頭目錄與非 `.md` 檔 | 新:`Index.hs` 改為 import 本模組;`IndexSpec.hs` 的 STEP-3 改指本模組 | `store/src/Aapms/Store/Walk.hs:40` |
-| `Aapms.Store.Walk` | 新增(內部模組) | `statOf :: FilePath -> IO (Either StoreError (Int64, Int64))` | 回傳過時偵測的兩個依據,順序是 **`(mtime, size)`**——第一個分量是修改時間(奈秒),第二個是位元組數;讀不到檔案回 `StoreError`,不拋例外 | 新:`Index.hs:127`、`Index.hs:410` 改呼叫本模組 | `store/src/Aapms/Store/Walk.hs:69` |
-| `Aapms.Store.Index` 匯出清單 | 移除兩項 | 拿掉 `vaultMarkdownFiles`、`statOf` 與「內部(測試用)」那一段 | `Index` 不再對外暴露檔案走訪與 stat(`Index` 本身仍是公開模組,所以這一步是 LAW-4 而不是 LAW-1 在守) | `IndexSpec.hs:14` 的開放式 `import Aapms.Store.Index` | `store/src/Aapms/Store/Index.hs:35-37` |
-| `WriteResult` | **不動** | `data WriteResult` 仍定義在 `Edit.hs:96` | 由公開的 `Write.hs:3` 原樣 re-export,門面路徑與今天完全相同 | 無 | `store/src/Aapms/Store/Edit.hs:96`(不動) |
+| `Aapms.Store.Edit` | 改可見度 | 整個模組:`exposed-modules` → `other-modules` | 不再是 `aapms-store` 的對外承諾;套件外 import 即編譯失敗 | 套件內 `Create.hs:100`、`Write.hs:65` 不受影響(同套件);套件外只有凍結的 `Service.hs:130`,本次不動 | `store/aapms-store.cabal#Aapms.Store.Edit` |
+| `Aapms.Store.Node` | 改可見度 | 同上 | 同上 | 套件內 `Create.hs:114`;套件外無 | `store/aapms-store.cabal#Aapms.Store.Node` |
+| `Aapms.Store.Row` | 改可見度 | 同上 | 同上 | 套件內 `Index.hs:66`、`MultiVault.hs:92`、`Query.hs:89`;套件外無 | `store/aapms-store.cabal#Aapms.Store.Row` |
+| `vaultMarkdownFiles`(移進新的內部模組 `Aapms.Store.Walk`) | 新增 | `vaultMarkdownFiles :: FilePath -> IO [FilePath]` | 回傳 vault 底下全部 Markdown 檔的相對路徑,已排序;略過 `.` 開頭目錄與非 `.md` 檔 | 新:`Index.hs` 改為 import 本模組;`IndexSpec.hs` 的 STEP-3 改指本模組 | `store/src/Aapms/Store/Walk.hs#vaultMarkdownFiles` |
+| `statOf`(移進新的內部模組 `Aapms.Store.Walk`) | 新增 | `statOf :: FilePath -> IO (Either StoreError (Int64, Int64))` | 回傳過時偵測的兩個依據,順序是 **`(mtime, size)`**——第一個分量是修改時間(奈秒),第二個是位元組數;讀不到檔案回 `StoreError`,不拋例外 | 新:`Index.hs:127`、`Index.hs:410` 改呼叫本模組 | `store/src/Aapms/Store/Walk.hs#statOf` |
+| `Aapms.Store.Index` 匯出清單 | 移除兩項 | 拿掉 `vaultMarkdownFiles`、`statOf` 與「內部(測試用)」那一段 | `Index` 不再對外暴露檔案走訪與 stat(`Index` 本身仍是公開模組,所以這一步是 LAW-4 而不是 LAW-1 在守) | `IndexSpec.hs:14` 的開放式 `import Aapms.Store.Index` | `store/src/Aapms/Store/Index.hs#Aapms.Store.Index` |
+| `WriteResult` | **不動** | `data WriteResult` 仍定義在 `Edit.hs:96` | 由公開的 `Write.hs:3` 原樣 re-export,門面路徑與今天完全相同 | 無 | `store/src/Aapms/Store/Edit.hs#WriteResult` |
 
 ## Laws(行為性質)
+
+每條 law 底下的四格(量詞 / 定義域 / 前提 / 觀察點)是 2026-09-04 依 dev-flow v2 的
+`spec-design` 模板補上的**格式補寫**:法條本文一字未改,四格只是把當初翻成測試時實際用到的
+量化方式、產生器、前提與斷言點寫明,讓 `lint-laws.mjs` 查得到。
 
 **回歸 law(改完必須一模一樣的現有行為)**
 
 - REG-1: 只 `import Aapms.Store`(不 import 任何 `Aapms.Store.*` 子模組)就取得到契約 E 的每一個公開
   符號——vault 把手組、索引維護組、單一 vault 查詢組、跨 vault 讀組、寫入組、錯誤組。這條由
   「能不能編譯」證明:少 re-export 任何一項,測試模組就編不過
+  - 量詞:對所有 s
+  - 定義域:s ∈ 契約 E 的公開符號集合(六組,見法條本文)
+  - 前提:測試模組的 import 區只有 `import Aapms.Store`,不出現任何 `Aapms.Store.*` 子模組
+  - 觀察點:該測試模組**編譯通過**;`Aapms.Store.Edit` / `Aapms.Store.Node` / `Aapms.Store.Row`
+    移進內部之後,門面少 re-export 任何一項就編不過(EX-2)
 - REG-2: `WriteResult` 經 `Aapms.Store` 取得的,與經 `Aapms.Store.Write` 取得的是**同一個型別**,
   四個欄位 `wrId` / `wrPath` / `wrRevision` / `wrIssues` 都存取得到
+  - 量詞:對所有 w
+  - 定義域:w ∈ 任意 `WriteResult` 值(由寫入操作產生或直接建構)
+  - 前提:同一個測試模組同時經門面與經 `Write` 兩條路徑取用該型別
+  - 觀察點:`WriteResult` 的四個欄位存取子在兩條路徑下都套用得上而且編譯通過——型別不合一時
+    這一步就編不過
 - REG-3: 對任意 vault 目錄,`vaultMarkdownFiles` 回傳的清單與搬模組前**逐項相同且順序相同**
   (仍然略過 `.` 開頭目錄與非 `.md` 檔,仍然回相對路徑,仍然已排序)
+  - 量詞:對所有 d
+  - 定義域:d ∈ 任意 vault 目錄(含空目錄、含 `.` 開頭子目錄、含非 `.md` 檔)
+  - 前提:無(無條件成立)
+  - 觀察點:`vaultMarkdownFiles d` 的回傳清單,與搬模組前記錄的基準線逐項相同且順序相同
+    (EX-3 / EX-4)
 - REG-4: 對任意路徑,`statOf` 的結果與搬模組前相同;檔案不存在時仍回 `Left`,不拋例外。
   **回傳的 tuple 是 `(mtime, size)`**:對任意位元組內容 `bs`,把 `bs` 寫進一個檔再 `statOf` 它,
   **第二個**分量等於 `bs` 的長度;第一個分量是奈秒級的修改時間,不等於長度(除非長度碰巧相同,
   斷言請只釘第二分量)。同一個未變動的檔案連續 `statOf` 兩次,兩次結果完全相同
+  - 量詞:對所有 bs
+  - 定義域:bs ∈ 任意位元組內容(含空內容);另加「不存在的路徑」這一組退化輸入
+  - 前提:把 bs 寫成一個檔後,該檔在兩次觀察之間未被改動
+  - 觀察點:`statOf` 回傳的 `Right (mtime, size)` 的**第二個**分量等於 `bs` 的長度;路徑不存在時
+    回 `Left`,呼叫過程不拋例外;連續兩次呼叫結果完全相同(EX-5 / EX-6)
 - REG-5: `aapms-store` 既有的 260 條測試維持全綠——本次不得產生任何可觀察的行為差異
+  - 量詞:對所有 t
+  - 定義域:t ∈ `aapms-store-test` 既有的 260 條測試
+  - 前提:模組可見度與 `hs-source-dirs` 依「遷移約束」改完之後
+  - 觀察點:`aapms-store-test` 全數通過,失敗數為 0
 - REG-6: 索引重建等價不變:`rm index.db` → `rebuildIndex` 後的查詢結果與重建前相同(ADR-013)
+  - 量詞:對所有 v
+  - 定義域:v ∈ 任意 vault(兩種 vault kind 各取樣)
+  - 前提:重建前後 vault 的 Markdown 檔案內容完全相同
+  - 觀察點:刪除索引再經 `Aapms.Store.Index` 重建後,同一組查詢的結果與重建前相同
 
 **新 law(這次優化才成立的性質)**
 
 - LAW-1: `aapms-store.cabal` 的 library `exposed-modules` **不含** `Aapms.Store.Edit`、
   `Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Walk`
+  - 量詞:對所有 m
+  - 定義域:m ∈ {`Aapms.Store.Edit`, `Aapms.Store.Node`, `Aapms.Store.Row`, `Aapms.Store.Walk`}
+  - 前提:無(無條件成立)
+  - 觀察點:`aapms-store.cabal` library stanza 的 `exposed-modules` 清單裡找不到 m(以原始檔
+    文字斷言,EX-1)
 - LAW-2: 上述四個模組**都出現在** library 的 `other-modules`
+  - 量詞:對所有 m
+  - 定義域:m ∈ 與 LAW-1 相同的四個模組
+  - 前提:無(無條件成立)
+  - 觀察點:`aapms-store.cabal` library stanza 的 `other-modules` 清單裡找得到 m;與 LAW-1 合起來
+    是 11 + 4 = 15 的對帳(EX-1)
 - LAW-3: `aapms-store-test` 的 `build-depends` **不含** `aapms-store`,且它的 `hs-source-dirs`
   同時含 `src` 與 `test`(兩者只做一半會編出兩份模組實體,型別不合一——見「遷移約束」)
+  - 量詞:對所有 f
+  - 定義域:f ∈ {`build-depends` 這一欄, `hs-source-dirs` 這一欄}
+  - 前提:讀的是 `aapms-store-test` 這個 stanza,不是 library stanza
+  - 觀察點:`aapms-store-test` 的 `build-depends` 不出現 `aapms-store`;`hs-source-dirs` 同時
+    出現 `src` 與 `test`(以原始檔文字斷言)
 - LAW-4: `store/src/Aapms/Store/Index.hs` 的模組匯出清單**不含** `vaultMarkdownFiles` 與 `statOf`
   ——`Index` 仍是公開模組,所以光靠 LAW-1 / LAW-2 擋不住它;這兩個符號必須從它的匯出清單消失,
   才算真的離開 `aapms-store` 的公開介面。與 LAW-1 / LAW-2 同樣以原始檔文字斷言
+  - 量詞:對所有 x
+  - 定義域:x ∈ {`vaultMarkdownFiles`, `statOf`}
+  - 前提:`Aapms.Store.Index` 本身仍列在 `exposed-modules`(它是公開模組)
+  - 觀察點:`Aapms.Store.Index` 的模組匯出清單(`Index.hs` 檔頭那一段)裡找不到 x
 
 ## Examples
 

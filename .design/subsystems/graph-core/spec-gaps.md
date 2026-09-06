@@ -5,7 +5,7 @@ title: graph-core-gaps
 description: graph-core 委派過程中 qa / impl 撞到的 spec 缺口與裁決
 status: done
 created: 2026-08-24
-updated: 2026-09-04
+updated: 2026-09-05
 parent: graph-core
 ---
 
@@ -482,4 +482,4 @@ parent: graph-core
   必須在語意欄與 law 裡寫成機械可判定的句子,不能只給一個 `(a, b)` 讓讀者自己對。
   順帶查出:搬移前的原始 haddock **從頭到尾沒寫過順序**(只說「過時偵測的兩個依據」),
   順序只存在於函式本體那一行——這正是第一版 spec 會寫反的直接原因。
-- 修訂:graph-core/E001-store-internal-module-boundary §數據與介面變動 / Laws(2026-08-27);`statOf` 的 tuple 順序在 spec 內統一成 `(mtime, size)`,只改 spec 文字不動實作
+- 修訂:graph-core/F006-store-unified-index REV-1 §新增的介面 / Laws(原記於 graph-core/E001-store-internal-module-boundary,2026-08-27 修訂,2026-09-05 摺回 F006、原檔進 archive);`statOf` 的 tuple 順序在 spec 內統一成 `(mtime, size)`,只改 spec 文字不動實作

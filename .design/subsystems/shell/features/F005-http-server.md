@@ -4,6 +4,7 @@ type: feature
 title: http-server
 description: handler、`AppState`、token middleware 與啟動閘門、`code` → 狀態碼、warp、`--openapi`
 status: planned
+rev: 0
 stage: S3
 modules: [Server.Handlers, Server.State, Server.Auth, Server.Status]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「統一信封、exit code、錯誤格式(本份是 `code` → HTTP 狀態碼那一段)」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段二
 - **負責模組**:Server.Handlers、Server.State、Server.Auth、Server.Status
 - **實作的 Level 2 介面**:契約 C 的狀態碼對照表與錯誤 body;`system.md` 對外介面第 2 節的繫結與

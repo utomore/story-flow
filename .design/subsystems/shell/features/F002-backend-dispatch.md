@@ -4,6 +4,7 @@ type: feature
 title: backend-dispatch
 description: `Backend` 的兩個建構子與 `runOp`、`BackendError` 三分、重管線指令的遠端拒絕
 status: planned
+rev: 0
 stage: S3
 modules: [Backend]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「`--vault` / `--remote` 解析」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段一
 - **負責模組**:Backend
 - **實作的 Level 2 介面**:契約 E 全部(`Backend` / `BackendError` / `runOp` / `Op`)

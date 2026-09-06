@@ -4,6 +4,7 @@ type: feature
 title: asset-naming
 description: `setAssetName` 的全域唯一、`updateAssetMeta`、`upsertLicense`
 status: planned
+rev: 0
 stage: S3
 modules: [Write, Validate]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 …… asset …… 的全部操作(本份是素材命名與授權那一組)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段二
 - **負責模組**:Write、Validate
 - **實作的 Level 2 介面**:契約 E 的 `setAssetName` / `updateAssetMeta` / `upsertLicense`;

@@ -4,6 +4,7 @@ type: feature
 title: store-write-operations
 description: vault 的建檔、增節、改寫、刪除與短 id 配號,全部走樂觀鎖與原子寫入
 status: done
+rev: 0
 created: 2026-08-24
 updated: 2026-09-04
 stage: S1
@@ -27,6 +28,7 @@ code-paths: [store/aapms-store.cabal, store/src/Aapms/Store/Create.hs, store/src
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「兩種 vault 的 Markdown 解析與寫回」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段三
 - **負責模組**:Write(`aapms-store`)
 - **驗收標準**(契約卡原文):`createTopicFile` 依註冊表 `dir` 落檔;`createPackFile` 在指定目錄寫出 `pack.md`,

@@ -4,14 +4,15 @@ type: feature
 title: store-unified-index
 description: 一份 SQLite schema、files 過時偵測、整檔替換、rebuildIndex 與單 vault 查詢
 status: done
+rev: 1
 created: 2026-08-23
-updated: 2026-09-04
+updated: 2026-09-05
 stage: S1
 modules: [Schema, Index, Query]
 depends-on: [graph-core/F001, graph-core/F004, graph-core/F005]
 related-adr: [ADR-002, ADR-013, ADR-022]
 related-feature: []
-code-paths: [store/aapms-store.cabal, store/src/Aapms/Store.hs, store/src/Aapms/Store/Index.hs, store/src/Aapms/Store/Query.hs, store/src/Aapms/Store/Row.hs, store/src/Aapms/Store/Schema.hs, store/test/Aapms/Store/Fixtures.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/MarkerSpec.hs, store/test/Aapms/Store/NodeSpec.hs, store/test/Aapms/Store/QuerySpec.hs, store/test/Aapms/Store/RebuildSpec.hs, store/test/Aapms/Store/RowSpec.hs, store/test/Aapms/Store/SchemaSpec.hs, store/test/Aapms/Store/StaleSpec.hs, store/test/Aapms/StoreSpec.hs, store/test/Spec.hs]
+code-paths: [store/aapms-store.cabal, store/src/Aapms/Store.hs, store/src/Aapms/Store/Index.hs, store/src/Aapms/Store/Query.hs, store/src/Aapms/Store/Row.hs, store/src/Aapms/Store/Schema.hs, store/test/Aapms/Store/Fixtures.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/MarkerSpec.hs, store/test/Aapms/Store/NodeSpec.hs, store/test/Aapms/Store/QuerySpec.hs, store/test/Aapms/Store/RebuildSpec.hs, store/test/Aapms/Store/RowSpec.hs, store/test/Aapms/Store/SchemaSpec.hs, store/test/Aapms/Store/StaleSpec.hs, store/src/Aapms/Store/Walk.hs, store/test/Aapms/Store/BoundarySpec.hs, store/test/Aapms/Store/WalkSpec.hs, store/test/Aapms/StoreSpec.hs, store/test/Spec.hs]
 ---
 
 # F006: 一份 schema、`rebuildIndex`、單 vault 查詢(store-unified-index)
@@ -70,6 +71,7 @@ build-depends 就叫得動,`vhRegistry` 由呼叫端(F005 的 `openVault`)先載
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「索引建立、過時偵測與重建」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段二
 - **負責模組**:Schema、Index、Query(`aapms-store`)
 - **驗收標準**(契約卡原文):對 story vault 與 asset vault 各一個測試 fixture,`rebuildIndex` 兩次結果相同;
@@ -432,6 +434,107 @@ module Aapms.Store
 `Aapms.Store.Row` **不**加進門面——它是內部列轉換,`service`/`asset-ingest` 不應該直接碰
 `SQLData`/`FromRow` 這層,只透過 `Index`/`Query` 的函式互動。
 
+### REV-1 併入:模組可見度與 `Aapms.Store.Walk`(遷移自 graph-core/E001-store-internal-module-boundary)
+
+| 項目 | 動作 | 簽名 / 定義 | 語意 | 骨架位置 |
+|---|---|---|---|---|
+| `Aapms.Store.Edit` / `.Node` / `.Row` | 改可見度 | 整個模組:`exposed-modules` → `other-modules` | 不再是 `aapms-store` 的對外承諾;套件外 import 即編譯失敗(LAW-1 / LAW-2 在守) | `store/aapms-store.cabal#Aapms.Store.Edit` |
+| `vaultMarkdownFiles` | 新增(移進內部模組 `Aapms.Store.Walk`) | `vaultMarkdownFiles :: FilePath -> IO [FilePath]` | 回傳 vault 底下全部 Markdown 檔的相對路徑,已排序;略過 `.` 開頭目錄與非 `.md` 檔 | `store/src/Aapms/Store/Walk.hs#vaultMarkdownFiles` |
+| `statOf` | 新增(移進內部模組 `Aapms.Store.Walk`) | `statOf :: FilePath -> IO (Either StoreError (Int64, Int64))` | 回傳過時偵測的兩個依據,順序是 **`(mtime, size)`**;讀不到檔案回 `StoreError`,不拋例外 | `store/src/Aapms/Store/Walk.hs#statOf` |
+| `Aapms.Store.Index` 匯出清單 | 移除兩項 | 拿掉 `vaultMarkdownFiles`、`statOf` 與「內部(測試用)」那一段 | `Index` 仍是公開模組,所以這一步由 LAW-4 守,不是 LAW-1 | `store/src/Aapms/Store/Index.hs#Aapms.Store.Index` |
+| `WriteResult` | 不動 | `data WriteResult` 仍定義在 `Edit.hs` | 由公開的 `Write.hs` 原樣 re-export,門面路徑不變(REG-2 在守) | `store/src/Aapms/Store/Edit.hs#WriteResult` |
+
+## Laws(行為性質)
+
+> REV-1(2026-09-05)遷移自 graph-core/E001-store-internal-module-boundary。本檔原為 dev-flow v2
+> 之前的模板,行為性質記在「1-to-1 測試對照表」的具名測試裡;下列 LAW / REG 是 E001 那一輪
+> 為「內部模組界線由編譯器守」寫的十條,編號沿用 E001 原文(本檔原先沒有 LAW- / REG- 編號,不衝突)。
+
+**回歸 law(改完必須一模一樣的現有行為)**
+
+- REG-1: 只 `import Aapms.Store`(不 import 任何 `Aapms.Store.*` 子模組)就取得到契約 E 的每一個公開
+  符號——vault 把手組、索引維護組、單一 vault 查詢組、跨 vault 讀組、寫入組、錯誤組。這條由
+  「能不能編譯」證明:少 re-export 任何一項,測試模組就編不過
+  - 量詞:對所有 s
+  - 定義域:s ∈ 契約 E 的公開符號集合(六組,見法條本文)
+  - 前提:測試模組的 import 區只有 `import Aapms.Store`,不出現任何 `Aapms.Store.*` 子模組
+  - 觀察點:該測試模組**編譯通過**;`Aapms.Store.Edit` / `Aapms.Store.Node` / `Aapms.Store.Row`
+    移進內部之後,門面少 re-export 任何一項就編不過(EX-2)
+- REG-2: `WriteResult` 經 `Aapms.Store` 取得的,與經 `Aapms.Store.Write` 取得的是**同一個型別**,
+  四個欄位 `wrId` / `wrPath` / `wrRevision` / `wrIssues` 都存取得到
+  - 量詞:對所有 w
+  - 定義域:w ∈ 任意 `WriteResult` 值(由寫入操作產生或直接建構)
+  - 前提:同一個測試模組同時經門面與經 `Write` 兩條路徑取用該型別
+  - 觀察點:`WriteResult` 的四個欄位存取子在兩條路徑下都套用得上而且編譯通過——型別不合一時
+    這一步就編不過
+- REG-3: 對任意 vault 目錄,`vaultMarkdownFiles` 回傳的清單與搬模組前**逐項相同且順序相同**
+  (仍然略過 `.` 開頭目錄與非 `.md` 檔,仍然回相對路徑,仍然已排序)
+  - 量詞:對所有 d
+  - 定義域:d ∈ 任意 vault 目錄(含空目錄、含 `.` 開頭子目錄、含非 `.md` 檔)
+  - 前提:無(無條件成立)
+  - 觀察點:`vaultMarkdownFiles d` 的回傳清單,與搬模組前記錄的基準線逐項相同且順序相同
+    (EX-3 / EX-4)
+- REG-4: 對任意路徑,`statOf` 的結果與搬模組前相同;檔案不存在時仍回 `Left`,不拋例外。
+  **回傳的 tuple 是 `(mtime, size)`**:對任意位元組內容 `bs`,把 `bs` 寫進一個檔再 `statOf` 它,
+  **第二個**分量等於 `bs` 的長度;第一個分量是奈秒級的修改時間,不等於長度(除非長度碰巧相同,
+  斷言請只釘第二分量)。同一個未變動的檔案連續 `statOf` 兩次,兩次結果完全相同
+  - 量詞:對所有 bs
+  - 定義域:bs ∈ 任意位元組內容(含空內容);另加「不存在的路徑」這一組退化輸入
+  - 前提:把 bs 寫成一個檔後,該檔在兩次觀察之間未被改動
+  - 觀察點:`statOf` 回傳的 `Right (mtime, size)` 的**第二個**分量等於 `bs` 的長度;路徑不存在時
+    回 `Left`,呼叫過程不拋例外;連續兩次呼叫結果完全相同(EX-5 / EX-6)
+- REG-5: `aapms-store` 既有的 260 條測試維持全綠——本次不得產生任何可觀察的行為差異
+  - 量詞:對所有 t
+  - 定義域:t ∈ `aapms-store-test` 既有的 260 條測試
+  - 前提:模組可見度與 `hs-source-dirs` 依「遷移約束」改完之後
+  - 觀察點:`aapms-store-test` 全數通過,失敗數為 0
+- REG-6: 索引重建等價不變:`rm index.db` → `rebuildIndex` 後的查詢結果與重建前相同(ADR-013)
+  - 量詞:對所有 v
+  - 定義域:v ∈ 任意 vault(兩種 vault kind 各取樣)
+  - 前提:重建前後 vault 的 Markdown 檔案內容完全相同
+  - 觀察點:刪除索引再經 `Aapms.Store.Index` 重建後,同一組查詢的結果與重建前相同
+
+**新 law(這次優化才成立的性質)**
+
+- LAW-1: `aapms-store.cabal` 的 library `exposed-modules` **不含** `Aapms.Store.Edit`、
+  `Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Walk`
+  - 量詞:對所有 m
+  - 定義域:m ∈ {`Aapms.Store.Edit`, `Aapms.Store.Node`, `Aapms.Store.Row`, `Aapms.Store.Walk`}
+  - 前提:無(無條件成立)
+  - 觀察點:`aapms-store.cabal` library stanza 的 `exposed-modules` 清單裡找不到 m(以原始檔
+    文字斷言,EX-1)
+- LAW-2: 上述四個模組**都出現在** library 的 `other-modules`
+  - 量詞:對所有 m
+  - 定義域:m ∈ 與 LAW-1 相同的四個模組
+  - 前提:無(無條件成立)
+  - 觀察點:`aapms-store.cabal` library stanza 的 `other-modules` 清單裡找得到 m;與 LAW-1 合起來
+    是 11 + 4 = 15 的對帳(EX-1)
+- LAW-3: `aapms-store-test` 的 `build-depends` **不含** `aapms-store`,且它的 `hs-source-dirs`
+  同時含 `src` 與 `test`(兩者只做一半會編出兩份模組實體,型別不合一——見「遷移約束」)
+  - 量詞:對所有 f
+  - 定義域:f ∈ {`build-depends` 這一欄, `hs-source-dirs` 這一欄}
+  - 前提:讀的是 `aapms-store-test` 這個 stanza,不是 library stanza
+  - 觀察點:`aapms-store-test` 的 `build-depends` 不出現 `aapms-store`;`hs-source-dirs` 同時
+    出現 `src` 與 `test`(以原始檔文字斷言)
+- LAW-4: `store/src/Aapms/Store/Index.hs` 的模組匯出清單**不含** `vaultMarkdownFiles` 與 `statOf`
+  ——`Index` 仍是公開模組,所以光靠 LAW-1 / LAW-2 擋不住它;這兩個符號必須從它的匯出清單消失,
+  才算真的離開 `aapms-store` 的公開介面。與 LAW-1 / LAW-2 同樣以原始檔文字斷言
+  - 量詞:對所有 x
+  - 定義域:x ∈ {`vaultMarkdownFiles`, `statOf`}
+  - 前提:`Aapms.Store.Index` 本身仍列在 `exposed-modules`(它是公開模組)
+  - 觀察點:`Aapms.Store.Index` 的模組匯出清單(`Index.hs` 檔頭那一段)裡找不到 x
+
+## Examples
+
+| # | 輸入 | 預期輸出 | 覆蓋的邊界 |
+|---|---|---|---|
+| EX-1 | 讀 `aapms-store.cabal` 的 library stanza | `exposed-modules` 含 `Aapms.Store` / `.Atomic` / `.Create` / `.Error` / `.Index` / `.Marker` / `.MultiVault` / `.Query` / `.Schema` / `.Tokenize` / `.Write` 共 11 項;`other-modules` 含 `.Edit` / `.Node` / `.Row` / `.Walk` 共 4 項 | LAW-1 / LAW-2 的具體形狀;11 + 4 = 15,對帳用 |
+| EX-2 | 一個測試模組只寫 `import Aapms.Store (...)`,列出契約 E 的全部符號並各引用一次 | 編譯通過 | REG-1(門面完整性) |
+| EX-3 | vault 目錄含 `.aapms/config.toml`、`.git/HEAD`、`foo.txt`、`bar.md` | `vaultMarkdownFiles` 回 `["bar.md"]` **= 現況**(即今天 `IndexSpec.hs:22-31` STEP-3 的斷言) | REG-3:`.` 開頭目錄與非 `.md` 都要略過 |
+| EX-4 | 完全空的 vault 目錄 | `vaultMarkdownFiles` 回 `[]` **= 現況** | REG-3 退化邊界 |
+| EX-5 | 不存在的檔案路徑 | `statOf` 回 `Left` 的 `StoreError`,不拋例外 **= 現況** | REG-4 錯誤路徑 |
+| EX-6 | 寫一個內容恰為 5 個位元組的檔,對它 `statOf` | 回 `Right (m, 5)`——**第二個**分量是 `5`;第一個分量 `m` 是奈秒時間戳,遠大於 5 **= 現況** | REG-4 的 tuple 順序(GAP-20 的回歸點:順序寫反時這條會紅,而簽名比對抓不到) |
+
 ## TodoList
 
 - [x] STEP-1: `Aapms.Store.Schema` 擴充:`indexTables`/`schemaDDL` 加 11 張業務表(含 `ON DELETE
@@ -630,3 +733,10 @@ module Aapms.Store
 
 **未實作\/延後項目**:無。TodoList 17 項全數完成,契約卡兩條驗收標準(`checkMeta` 警告與
 `buildTree` 錯誤都進 `IndexIssue`)均已落地並有對應測試。
+
+## 修訂記錄
+- REV-1(2026-09-05,依 遷移自 graph-core/E001-store-internal-module-boundary):把 aapms-store 的內部模組界線從註解收進 cabal,由編譯器守
+  - 動到:新增「## Laws(行為性質)」與「## Examples」兩節(併入 REG-1–REG-6、LAW-1–LAW-4、EX-1–EX-6,編號沿用 E001 原文;本檔原為 dev-flow v2 之前的模板,沒有 LAW- / REG- / EX- 編號,不衝突);「## 新增的介面」增一小節「REV-1 併入:模組可見度與 Aapms.Store.Walk」(移除 1:`Aapms.Store.Index` 匯出清單的 `vaultMarkdownFiles` / `statOf`;新增 2:`Aapms.Store.Walk` 的同兩個函式)
+  - 保護:REG-1–REG-6 —— 門面完整性(只 import `Aapms.Store` 就取得到契約 E 全部公開符號)、`WriteResult` 經兩條路徑取得是同一型別、`vaultMarkdownFiles` 與 `statOf` 的行為與 tuple 順序不變、`aapms-store` 既有 260 條測試全綠、索引重建等價(ADR-013)
+  - 重委派:無 —— graph-core/E001-store-internal-module-boundary 已於 2026-08-30 交付且全綠,本次只把文字搬進本檔,程式碼與測試一行未動
+  - 連動:已點名並對帳,四份都不需改——graph-core/F007-store-fts-dual-index(不引用本次動到的任何符號)、graph-core/F008-store-write-operations 與 graph-core/F009-store-multi-vault-read(有引用 `Aapms.Store.Edit` / `.Node` / `.Row`,但三者與它們同屬 `aapms-store` 套件內,改成 `other-modules` 不影響套件內 import)、service/F002-workspace-facade(不引用)。本次只把 graph-core/E001-store-internal-module-boundary 的文字搬進本檔,程式碼與介面一行未動,下游沒有東西要跟著改

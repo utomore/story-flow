@@ -4,6 +4,7 @@ type: feature
 title: manifest-schema-v2
 description: 兩份 manifest(assets/story)的 schema 2 型別、JSON 編碼與 kind 專屬型別化讀取
 status: done
+rev: 0
 created: 2026-08-23
 updated: 2026-09-04
 stage: S1
@@ -59,6 +60,7 @@ DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,`service` / 
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「統一 `Meta` 與核心型別的純函式」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段一
 - **負責模組**:Manifest(`aapms-core`)
 - **驗收標準**(契約卡原文):`schemaVersion = 2`,每筆 asset 帶 `id`(短 id)/ `key`(邏輯名稱)/ `path` / `type` /

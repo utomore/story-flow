@@ -4,6 +4,7 @@ type: feature
 title: workspace-facade
 description: "vault 與專案生命週期、workspace setup / doctor / tools / purge、型別註冊表查詢與縮圖路徑;十五個 ServiceM 動作加一個先於環境的 workspaceSetup"
 status: done
+rev: 0
 created: 2026-08-30
 updated: 2026-09-04
 stage: S3
@@ -86,6 +87,7 @@ code-paths: [service/aapms-service.cabal, service/src/Aapms/Service/Machine.hs, 
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 vault …… 註冊的全部操作(本份是 vault 與專案那一組)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段一
 - **負責模組**:Machine
 - **驗收標準**(契約卡原文):- `vaultList` 對每個中樞條目都回一筆,且 `vvReachable == False` 恰好對應 workspace 回報

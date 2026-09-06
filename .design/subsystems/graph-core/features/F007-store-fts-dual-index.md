@@ -4,6 +4,7 @@ type: feature
 title: store-fts-dual-index
 description: FTS5 trigram 與 unicode61 雙索引、查詢路由、分數合併與 facet
 status: done
+rev: 0
 created: 2026-08-24
 updated: 2026-09-04
 stage: S1
@@ -29,6 +30,7 @@ unigram + bigram)負責一、二字元的中日韓查詢;兩條路都給得出 b
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「檢索與 facet」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段三
 - **負責模組**:Tokenize、Query(`aapms-store`)
 - **驗收標準**(契約卡原文):「藥水」「琳達」(二字詞)命中且 `shScore > 0`;「travel-book」命中;三字以上中文

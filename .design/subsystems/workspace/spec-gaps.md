@@ -5,7 +5,7 @@ title: workspace-gaps
 description: workspace 委派過程中 qa / impl 撞到的 spec 缺口與裁決
 status: done
 created: 2026-08-29
-updated: 2026-09-04
+updated: 2026-09-05
 parent: workspace
 ---
 
@@ -86,7 +86,7 @@ parent: workspace
   **確定性重現撞號**的做法,或改變 EX-18 / EX-19 的觀察點。
 - **處置沿革**(2026-08-30 稍早的紀錄,已由下方狀態行結案):原裁決(2026-08-29 階段二閘門)是「把 `initVaultAt` 的時間提成明碼參數,與 `allocateId`(GAP-8)一致」,追蹤於 **`graph-core/E002`**。**E002 已於 2026-08-30 完成(`initVaultAtWith` 收明碼 `UTCTime`),但本條並未因此結案** —— 編排者在 E002 的 scope 討論中查出:EX-18 / EX-19 的建構是「學一個 id → 塞進中樞 → 呼叫 **workspace 的 `initVault`**」,而 `initVault` 內部**自己**取樣 `getCurrentTime` 再往下傳,測試控制不到那個值,兩次呼叫仍得到不同 id。**要關本條,接縫必須延伸到 `initVault` 自己**(workspace 契約 F 加一列,形狀比照 `initVaultAtWith`),那是 workspace 的 enhance,不是 graph-core 的。LAW-18 / LAW-19 / EX-18 / EX-19 維持 `pendingWith`
 - 狀態:resolved(2026-08-30)。接縫已由 **`workspace/E001`** 補上:`initVaultWith` 收明碼 `UTCTime`(契約 D),`initVault` 退成薄包裝、簽名一字未動。EX-18 / EX-19 的建構改成「用同一個 `t` 算出 `newId PVlt name t 0` → 塞進中樞 → 呼叫 `initVaultWith … t`」,撞號**決定性重現**,qa 全程不必讀 graph-core 的 `newId` 實作(期望值由公開純函式自己算)。對應 E001 的 LAW-4 / LAW-5 與 EX-5 / EX-6;`LifecycleSpec.hs` 的兩條 `pendingWith` 已轉成正式斷言。編排者在骨架快照(`initVaultWith = undefined`)上驗過:兩條在骨架上**紅**、impl 填完後**綠**,鑑別力成立
-- 修訂:workspace/E001-init-vault-explicit-time §Laws / Examples(2026-08-30);`initVaultWith` 收明碼 `UTCTime`,workspace/F004-vault-lifecycle 的 EX-18 / EX-19 改成決定性重現
+- 修訂:workspace/F004-vault-lifecycle REV-1 §Laws / Examples(原記於 workspace/E001-init-vault-explicit-time,2026-08-30 交付,2026-09-05 摺回 F004、原檔進 archive);`initVaultWith` 收明碼 `UTCTime`,workspace/F004-vault-lifecycle 的 EX-18 / EX-19 改成決定性重現
 
 ## GAP-5(workspace/F004-vault-lifecycle / qa)
 
@@ -103,3 +103,51 @@ parent: workspace
   解決,這次牽涉的是 graph-core 的例外行為,選 (b) 等於在 workspace 這層補一道例外邊界。
 - 狀態:resolved(2026-08-30)。裁決(2026-08-29 階段二閘門):**修 graph-core**,讓 `initVaultAt` 不逸出 `IOException`,不在 workspace 這層補例外邊界 → 追蹤於 **`graph-core/B002`**,已於 2026-08-30 隨 E002 同一份 spec 完成(對應 E002 的 LAW-4 / LAW-5 / EX-5 / EX-6;`initVaultAt` 與 `initVaultAtWith` 對「父層被一般檔案佔住」都回 `Left (FileWriteFailed (markerDir root) msg)`,不拋例外)。**workspace 這一側還有一步**:`LifecycleSpec.hs:477-491` 的 LAW-44 / EX-41 目前仍是 `pendingWith`,要由 workspace 自己的一輪把它改成正式斷言(graph-core 的測試不會替它轉綠)。**該步已於 2026-08-30 由 `workspace/E001` 的 REG-5 完成**:`test_init_vault_init_failure_is_vault_init_failed` 現在是打 `initVault` 的正式斷言,編排者在骨架快照上驗過它**從第一天就綠**(回歸 law,現況程式碼本來就正確)。本條至此完全結案
 - 修訂:graph-core/B002-init-vault-at-leaks-io-exceptions §Laws / Examples(2026-08-30);`initVaultAt` 不再逸出 `IOException`,workspace/F004-vault-lifecycle 的 LAW-44 / EX-41 由 workspace/E001 的 REG-5 轉成正式斷言
+
+## GAP-6(workspace/F004-vault-lifecycle / arch-audit)
+
+- **模糊點**:F004 的 LAW-50(薄包裝等價,隨 workspace/E001-init-vault-explicit-time 於 REV-1 併入,原 E001 的 LAW-3)
+  原文要求「`initVault loc hub d kind name mode` 的結果,除了 `veId` 之外,與
+  `initVaultWith loc hub d kind name mode t` 逐欄相同」,其中包含 `vePath`。**這個情境不可達**:
+  兩次呼叫用同一個 `d`,第一次會建出 `.aapms/`,第二次必然回 `VaultAlreadyInitialized`,
+  那正是同一份 spec 的 REG-2 規定的行為。字面要求的「兩個 `Right` 逐欄比較」永遠取不到。
+- **卡住的項目**:`initVaultWith` 這個入口的 `vePath` **零斷言**。qa 當時改用兩個不同目錄
+  `d1` / `d2`,比較的元組是 `(veName e, veKind e, notice, length (hubVaults hub'), files)`,
+  把 `vePath` 排除在外(`workspace/test/Aapms/Workspace/LifecycleSpec.hs:674-694`)。
+  測試名逐字寫著「除 `veId` / `vePath` 外逐欄相同」,不算隱瞞,但依 spec-roles.md 的
+  spec-gaps 協議,spec 內部矛盾時 qa 應停下該項並記一條 gap,而不是自行改寫 law 的內容。
+- **為什麼要緊**:`vePath` 的正規化方式是 2026-08-29 WAVE-2 閘門論證過的不可逆決定
+  ——`design.md` 契約 B 明訂它等於 `System.Directory.canonicalizePath`,閘門**特意否決**了
+  `makeAbsolute`(純字串、不解 symlink、不還原 Windows 8.3 短檔名)。`initVault` 這個入口有斷言
+  (`LifecycleSpec.hs:605`、`:430`),`initVaultWith` 沒有。**目前沒有壞**,因為
+  `Lifecycle.hs:188` 的 `dir' <- canonicalizePath dir` 住在 `initVaultWith` 裡、兩個入口共用;
+  但它是靠實作剛好對守著,不是靠斷言守著,日後有人改成 `makeAbsolute` 整套測試不會紅。
+- **需要 spec 回答什麼**:三個備選,要開發者選一個——(a) LAW-50 改寫成兩個**相異**目錄的等價性,
+  並明列比較欄位,把 `vePath` 從「一致」改成「各自等於自己的正規化路徑」;(b) 只補一條
+  `initVaultWith` 的 `vePath` 斷言,形狀比照 `LifecycleSpec.hs:605`;(c) 把「`vePath` 一律等於
+  `canonicalizePath` 的結果」提成一條獨立的 law,讓兩個入口共用——這比在兩處各寫一條更貼近
+  「契約 B 的那一欄只有一種正規化」。
+- **來歷**:2026-08-30 `/arch-audit feature workspace/E001` 的發現一(中)。原記於
+  `workspace/E002-init-vault-with-path-and-signature-coverage`,該檔自宣「只記錄發現與依據,
+  不是 spec」;2026-09-05 依 dev-flow 2.2.1「既有功能的問題開 GAP,不開 E」搬來本檔。
+- 狀態:open
+
+## GAP-7(workspace/F004-vault-lifecycle / arch-audit)
+
+- **模糊點**:F004 的 REG-1(隨 workspace/E001-init-vault-explicit-time 於 REV-1 併入,編號未變)要求
+  `initVault` 的型別簽名**逐字等於**
+  `initVault :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))`,
+  而 qa 的對照表(`LifecycleSpec.hs:112`)填的驗證手段是「由既有呼叫端持續以 6 參數呼叫
+  `initVault` 編譯通過保證」。**條文寫得比驗證強**。
+- **卡住的項目**:無項目被擋,但 REG-1 目前守不到它字面宣稱的東西。Haskell 的
+  `type FilePath = String`,把簽名裡的 `FilePath` 換成 `String`,編譯結果完全一樣、所有呼叫端
+  照過,而「逐字」已經被違反。
+- **需要 spec 回答什麼**:二擇一——(a) 補一條逐字比對 `initVault` 簽名行的測試,比照本子系統
+  既有的 `lifecycleImportLines` / LAW-42 手法(`LifecycleSpec.hs:1146` 附近),比對前去除行尾 `\r`;
+  或 (b) 把 REG-1 的措辭從「逐字等於」放寬成「arity 與參數型別不變」。重點是條文與驗證手段一致。
+- **實際風險**:低。`design.md` 契約 D 也釘著這條簽名,而且 `/arch-audit` 的「骨架符合度」檢查
+  會比對簽名原文(2026-08-30 那次就是這樣驗過的)。
+- **來歷**:2026-08-30 `/arch-audit feature workspace/E001` 的發現二(低)。原記於
+  `workspace/E002-init-vault-with-path-and-signature-coverage`,2026-09-05 依 dev-flow 2.2.1
+  搬來本檔。
+- 狀態:open

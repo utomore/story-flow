@@ -4,6 +4,7 @@ type: feature
 title: project-registry
 description: "中樞 [[projects]] 的註冊、移除、selector 查詢與 prj- 配號"
 status: done
+rev: 0
 created: 2026-08-29
 updated: 2026-09-04
 stage: S3
@@ -81,6 +82,7 @@ F001 交付的東西:`Hub` / `HubLocation` / `ProjectEntry` / `WorkspaceError` �
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「中樞註冊表讀寫」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段二
 - **負責模組**:Projects
 - **驗收標準**(契約卡原文):- `registerProject` 產生的 `peId` 前綴恒為 `prj-`,且與中樞既有的 `peId` 都不相同(撞號時以

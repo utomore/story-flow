@@ -4,6 +4,7 @@ type: feature
 title: store-multi-vault-read
 description: 以 VaultSet 接起多個 vault 的索引,跨 vault 列舉、檢索與懸空引用檢查
 status: done
+rev: 0
 created: 2026-08-25
 updated: 2026-09-04
 stage: S1
@@ -30,6 +31,7 @@ ADR-017 第三條把範圍切成兩半:**查詢跨全部生效的 vault,寫入�
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「檢索與 facet」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段三
 - **負責模組**:MultiVault(`aapms-store`)
 - **驗收標準**(契約卡原文):兩個 fixture vault(一 story 一 asset)`searchAcross` 一次回兩種、每筆 `shVault` 正確;

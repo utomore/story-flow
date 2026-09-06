@@ -4,8 +4,9 @@ type: feature
 title: store-vault-handle
 description: "aapms-store 的 vault marker 讀寫、initVaultAt / openVault / closeVault、schema 骨架"
 status: done
+rev: 1
 created: 2026-08-23
-updated: 2026-09-04
+updated: 2026-09-05
 stage: S1
 modules: [Marker, Atomic, Schema]
 depends-on: [graph-core/F001]
@@ -56,6 +57,7 @@ Schema 三個(`aapms-store`)。
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「索引建立、過時偵測與重建」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段二
 - **負責模組**:Marker、Atomic、Schema(`aapms-store`)
 - **驗收標準**(契約卡原文):`initVaultAt` 寫出 `.aapms/config.toml`(含新發的 `vlt-` id 與 kind)與空索引;
@@ -347,6 +349,62 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
 真正需要時再由那個 feature 加回來,現在留著只是死碼(而且部分已經編不過,如
 `RegistryDirUnknown` 相依的 `Aapms.Core.Registry` API 已改)。
 
+### REV-1 併入:`initVaultAtWith`(遷移自 graph-core/E002-init-vault-at-explicit-time)
+
+| 項目 | 動作 | 簽名 / 定義 | 語意 | 骨架位置 |
+|---|---|---|---|---|
+| `initVaultAtWith` | 新增 | `initVaultAtWith :: FilePath -> VaultKind -> Text -> UTCTime -> IO (Either StoreError VaultMarker)` | 建立 vault 骨架(發 id、寫 marker、建空索引),**id 由呼叫端給的時間決定**;檔案系統失敗一律回 `Left`,不拋例外 | `store/src/Aapms/Store/Marker.hs#initVaultAtWith` |
+| `initVaultAt` | 修改(簽名逐字不變) | `initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)` | 取當下時間後轉呼 `initVaultAtWith`;對外行為除了「不再逸出 `IOException`」以外完全不變。15 處呼叫端一行未改 | `store/src/Aapms/Store/Marker.hs#initVaultAt` |
+| `Aapms.Store.Marker` 匯出清單 | 修改 | 「讀寫」段新增 `initVaultAtWith` | 隨 `Aapms.Store` 門面的整模組 re-export 自動進契約 E | `store/src/Aapms/Store/Marker.hs#Aapms.Store.Marker` |
+
+## Laws(行為性質)
+
+> REV-1(2026-09-05)遷移自 graph-core/E002-init-vault-at-explicit-time。本檔原為 dev-flow v2
+> 之前的模板,行為性質記在「1-to-1 測試對照表」的具名測試裡;下列 LAW / REG 是 E002 那一輪
+> 為「時間提成明碼參數」與「`IOException` 不逸出」寫的十條,編號沿用 E002 原文(本檔原先沒有
+> LAW- / REG- 編號,不衝突)。這十條**尚未補上 dev-flow v2 的四格**(量詞 / 定義域 / 前提 /
+> 觀察點),依 system.md 註記 ③「兩類 v1 spec 不回頭改寫」維持原樣——事後補四格等於替已交付
+> 並驗過的規格重新編造量化條件。2026-09-05 實跑 `lint-laws.mjs`:它不報這一份(現行 parser 只
+> 認得不帶粗體的 `- LAW-n:` 形式),整份 `.design` exit 0。
+
+**回歸 law(改完必須一模一樣的現有行為)**
+
+- **REG-1**:對任意空目錄 `d`、任意 `kind`、任意非空 `name`,`initVaultAt d kind name` 成功後
+  `d/.aapms/config.toml` 解析出的 `VaultMarker` 四欄為:`vmId` 符合 `vlt-<8 個小寫十六進位>`、
+  `vmKind == kind`、`vmName == name`、`vmRefs == []`
+- **REG-2**:對**已經有** `.aapms/config.toml` 的目錄呼叫 `initVaultAt` 或 `initVaultAtWith`,一律回
+  `Left (VaultAlreadyInitialized root)`(`root` 是絕對路徑),且該目錄底下**每一個檔案逐位元組不變**
+- **REG-3**:`initVaultAt` 成功後 `d/.aapms/index.db` 存在,且 `openVault` 開得起來
+- **REG-4**:`initVaultAt` 的型別簽名逐字等於
+  `initVaultAt :: FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)`
+- **REG-5**:`initVaultAt` 對同一個 `name` 連續兩次呼叫(不同的空目錄)產生**不同**的 `vmId`
+  —— 薄包裝仍然每次取當下時間,這條防止實作把時間改成常數來湊 LAW-1
+
+**新 law(這次優化才成立的性質)**
+
+- **LAW-1(決定性)**:對任意 `kind`、任意非空 `name`、任意 `t`,與任意兩個各自為空且互不相同的目錄
+  `d1` / `d2`,兩次 `initVaultAtWith` 成功時 `vmId` **相同**
+- **LAW-2(id 的來源逐字可算)**:`initVaultAtWith d kind name t` 成功時,
+  `vmId == VaultId (renderId (newId PVlt name t 0))`。`newId` 是契約 B 的公開純函式,呼叫端算得出期望值
+- **LAW-3(薄包裝等價)**:`initVaultAt d kind name` 的結果,除了 `vmId` 之外,與
+  `initVaultAtWith d kind name t`(任意 `t`)逐欄相同:`vmKind` / `vmName` / `vmRefs` 一致,
+  落地的檔案集合一致
+- **LAW-4(不逸出)**:對**任意**輸入(含不存在的路徑、父層被佔、名稱含非法字元),`initVaultAt` 與
+  `initVaultAtWith` 都不拋 `IOException` —— 失敗一律以 `Left` 回傳
+- **LAW-5(建目錄失敗的錯誤值)**:vault 根目錄的父層被一個**一般檔案**佔住時,回
+  `Left (FileWriteFailed (markerDir root) msg)`,且 `msg` 非空
+
+## Examples
+
+| # | 輸入 | 預期輸出 | 覆蓋的邊界 |
+|---|---|---|---|
+| EX-1 | 空目錄 `d`、`AssetVault`、`"alchbees-assets"`,呼叫 `initVaultAt` | `Right m`;`d/.aapms/config.toml` 的四欄如 REG-1;`d/.aapms/index.db` 存在 | REG-1, REG-3(**= 現況**) |
+| EX-2 | 兩個空目錄 `d1` ≠ `d2`,同樣 `StoryVault` / `"liftgame"` / 同一個 `t`,各呼叫一次 `initVaultAtWith` | 兩次都 `Right`,且 `vmId` **相同** | LAW-1(撞號可重現) |
+| EX-3 | 空目錄 `d`、`StoryVault`、`"liftgame"`、`t`,呼叫 `initVaultAtWith` | `vmId == VaultId (renderId (newId PVlt "liftgame" t 0))` | LAW-2(期望值可獨立算出) |
+| EX-4 | 對 EX-1 產生的 `d` 再呼叫一次 `initVaultAt`(換一個名字) | `Left (VaultAlreadyInitialized <d 的絕對路徑>)`;`config.toml` 逐位元組不變 | REG-2(**= 現況**) |
+| EX-5 | `blocker` 是一個**一般檔案**,對 `blocker/sub` 呼叫 `initVaultAt` | `Left (FileWriteFailed …)`,**不拋例外**;`msg` 非空 | LAW-4, LAW-5(B002 的重現) |
+| EX-6 | 同 EX-5,改呼叫 `initVaultAtWith … t` | 與 EX-5 逐欄相同的 `Left` | LAW-3, LAW-4(兩個入口同一條錯誤路徑) |
+
 ## TodoList
 
 - [x] STEP-1: `store/aapms-store.cabal`:library `exposed-modules` 與 test-suite `other-modules`
@@ -518,3 +576,10 @@ feature 移除的 12 個舊建構子(`VaultNotFound`/`VaultConfigInvalid`/`Vault
   驗證過(拿得到、放得回去)
 - **範圍界線**:`vhRegistry` 目前__只是存放__,`Marker` 模組沒有任何函式讀取或使用它——
   `checkMeta` 的呼叫點在索引管線(F006),不在本 feature
+
+## 修訂記錄
+- REV-1(2026-09-05,依 遷移自 graph-core/E002-init-vault-at-explicit-time):initVaultAt 的時間提成明碼參數,並讓它不再逸出 IOException
+  - 動到:新增「## Laws(行為性質)」與「## Examples」兩節(併入 REG-1–REG-5、LAW-1–LAW-5、EX-1–EX-6,編號沿用 E002 原文;本檔原為 dev-flow v2 之前的模板,沒有 LAW- / REG- / EX- 編號,不衝突);「## 新增的介面」增一小節「REV-1 併入:initVaultAtWith」(新增 1:`initVaultAtWith`;修改 2:`initVaultAt` 退成薄包裝且不再逸出 `IOException`、`Aapms.Store.Marker` 匯出清單)
+  - 保護:REG-1–REG-5 —— marker 四欄的形狀、已初始化目錄回 `VaultAlreadyInitialized` 且檔案逐位元組不變、`index.db` 建得起來且 `openVault` 開得起來、`initVaultAt` 簽名逐字不變、`initVaultAt` 對同名連續兩次仍產生不同 `vmId`(防止實作把時間改成常數來湊 LAW-1)
+  - 重委派:無 —— graph-core/E002-init-vault-at-explicit-time 已於 2026-08-30 交付且全綠,本次只把文字搬進本檔,程式碼與測試一行未動。併入的十條 law 是 v1 的粗體散文式(沒有「量詞 / 定義域 / 前提 / 觀察點」四格),依 system.md 註記 ③ 不回頭補寫;2026-09-05 實跑 `lint-laws.mjs` 確認它不報這一份(現行 parser 只認得不帶粗體的 `- LAW-n:` 形式),整份 `.design` exit 0
+  - 連動:已點名並對帳,四份都不需改——graph-core/F007-store-fts-dual-index、graph-core/F009-store-multi-vault-read、service/F001-service-env-and-scope、service/F002-workspace-facade 都不引用 `initVaultAt` / `initVaultAtWith`。本次只把 graph-core/E002-init-vault-at-explicit-time 的文字搬進本檔,程式碼與介面一行未動

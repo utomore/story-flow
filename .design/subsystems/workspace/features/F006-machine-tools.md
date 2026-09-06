@@ -4,6 +4,7 @@ type: feature
 title: machine-tools
 description: "7-Zip 的三層探測([tools] 覆寫 → PATH → 內建候選清單)與 ToolStatus"
 status: done
+rev: 0
 created: 2026-08-29
 updated: 2026-09-04
 stage: S3
@@ -71,6 +72,7 @@ F001 交付的東西:`ToolsConfig` / `ToolOrigin` / `ToolStatus` 三個型別(�
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「本機設定(`[llm]` 原樣捧出、`[tools]`)與外部工具探測」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段二
 - **負責模組**:Tools
 - **驗收標準**(契約卡原文):- `tcSevenZip` 指向一個存在且可執行的檔案時,`tsPath` 等於它且 `tsOrigin == FromToolsConfig`,

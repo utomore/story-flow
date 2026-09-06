@@ -1,16 +1,19 @@
 ---
 id: E001
-type: enhance
+type: archive
 title: store-internal-module-boundary
 description: 把 aapms-store 的內部模組界線從註解收進 cabal,由編譯器守
 status: done
+parent: graph-core
 created: 2026-08-26
-updated: 2026-09-04
+updated: 2026-09-05
 depends-on: []
 related-adr: []
 related-feature: [graph-core/F006, graph-core/F008]
 code-paths: [store/aapms-store.cabal, store/src/Aapms/Store/Index.hs, store/src/Aapms/Store/Walk.hs, store/test/Aapms/Store/BoundarySpec.hs, store/test/Aapms/Store/IndexSpec.hs, store/test/Aapms/Store/WalkSpec.hs, store/test/Spec.hs]
 ---
+
+> 2.2.1 遷移:本檔已摺回 graph-core/F006-store-unified-index(REV-1),號 E001 永久空缺。留在 archive 只為查「當初怎麼寫的」。
 
 # E001: 收攏 `aapms-store` 的內部模組界線
 

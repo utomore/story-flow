@@ -15,7 +15,7 @@ updated: 2026-09-06
 | 1 | `hubPath :: HubFile :> es => Eff es HubLocation` | 中樞在哪 | `Aapms.Workspace.Effect.HubFile`(願望,見 P-004-vault-scope) | effects |
 | 2 | `hubExists :: HubFile :> es => Eff es Bool` | config.toml 存不存在(setup 不解析既有檔) | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
 | 3 | `writeHub :: HubFile :> es => Text -> Eff es (Either WorkspaceError ())` | 原子寫回 config.toml | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
-| 4 | `ensureCacheDir :: HubFile :> es => Eff es Bool` | 建 cache/thumbs,回有沒有真的建 | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
+| 4 | `ensureCacheDir :: HubFile :> es => Eff es (Either WorkspaceError Bool)` | 建 cache/thumbs,回有沒有真的建;建不出來回 `HubWriteFailed`(真解譯器),純解譯器恆 `Right` | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
 | 5 | `purgeHubFiles :: HubFile :> es => Eff es (Bool, Int)` | 刪 config.toml 與縮圖快取,回刪了沒、刪幾張 | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
 | 6 | `canonicalPath :: Markers :> es => FilePath -> Eff es FilePath` | 正規化目錄 | `Aapms.Workspace.Effect.Markers`(願望,見 P-029-scope-resolve) | effects |
 | 7 | `dirExists :: Markers :> es => FilePath -> Eff es Bool` | 目錄存不存在 | `Aapms.Workspace.Effect.Markers`(願望,見 P-029-scope-resolve) | effects |
@@ -186,3 +186,7 @@ updated: 2026-09-06
   - 動到:Stages 第 15 列、LAW-3 / LAW-5 / LAW-6 的 forall(呼叫式補 d)、EX-15
   - 保護:LAW-1、LAW-2、LAW-4 到 LAW-20、其餘 EX
   - 重委派:impl(`checkInit` 與 `applyLifecycle` 的呼叫點);qa(LAW-3、EX-15、EX-20 的世界、LAW-20 的 cover)
+- REV-3(2026-09-06,依 shell 波 impl 提問 GAP-2「`ensureCacheDir` 沒有失敗通道,真解譯器建目錄失敗只能讓例外逸出」):第 4 列改成 `Eff es (Either WorkspaceError Bool)`;`SetupHub` 路徑上 `Left` 就是整條的錯誤(與 `writeHub` 同形)
+  - 動到:Stages 第 4 列
+  - 保護:LAW-1 到 LAW-20、全部 EX(沒有 law 直接引用 `ensureCacheDir`)
+  - 重委派:impl(`HubFile` 的 op、兩個解譯器、`applyLifecycle` 的 SetupHub);qa 無

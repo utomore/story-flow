@@ -13,7 +13,7 @@ updated: 2026-09-06
 | # | 簽名 | 做什麼 | 模組 | 層 |
 |---|---|---|---|---|
 | 1 | `hubPath :: HubFile :> es => Eff es HubLocation` | AAPMS_HOME 或平台預設,記下來源 | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
-| 2 | `readHub :: HubFile :> es => FilePath -> Eff es (Either WorkspaceError Text)` | 讀中樞檔全文;不存在回 HubNotFound | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
+| 2 | `readHub :: HubFile :> es => Eff es (Either WorkspaceError Text)` | 讀這個效果所綁的中樞檔全文;不存在回 `HubNotFound`,路徑是 `hubConfigPath` 算出的 config.toml | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
 | 3 | `parseHubText :: FilePath -> Text -> Either WorkspaceError Hub` | TOML 文字解析成 Hub,格式錯即失敗 | `Aapms.Workspace.Hub`(願望,見 P-028-hub-config) | pure |
 | 4 | `locateRegistryDir :: RegistryFs :> es => Eff es (Either RegistryError (FilePath, RegistrySource))` | 環境變數 → 執行檔旁 → cabal data-files,取第一個存在的 | `Aapms.Types.Effect.RegistryFs`(願望) | effects |
 | 5 | `readRegistryFiles :: RegistryFs :> es => FilePath -> Eff es (Either RegistryError [(FilePath, Text)])` | 讀目錄下全部 TOML(含 naming.toml) | `Aapms.Types.Effect.RegistryFs`(願望) | effects |
@@ -27,6 +27,7 @@ updated: 2026-09-06
 | o | `simulateSession :: HubWorld -> RegistryWorld -> Eff '[HubFile, RegistryFs] a -> a` | 觀察:兩個純解譯器跑到底 | `Aapms.Service.Session.Internal`(願望) | pure |
 | o | `hubTextIn :: HubWorld -> Maybe Text` | 觀察:世界裡有沒有中樞文字 | `Aapms.Workspace.Types`(願望) | types |
 | o | `hubLocationIn :: HubWorld -> HubLocation` | 觀察:世界裡的中樞位置 | `Aapms.Workspace.Types`(願望) | types |
+| o | `hubConfigPath :: HubLocation -> FilePath` | 觀察:中樞位置底下的 config.toml 路徑(`hlPath </> "config.toml"`);純與真解譯器的 `HubNotFound` 都印它 | `Aapms.Workspace.Types`(願望) | types |
 | o | `cacheDirIn :: HubWorld -> Bool` | 觀察:世界裡縮圖快取目錄存不存在;`ensureCacheDir` 的純語意(不在就建、回有沒有建) | `Aapms.Workspace.Types`(願望) | types |
 | o | `thumbsIn :: HubWorld -> [FilePath]` | 觀察:世界裡快取目錄下的縮圖檔;`purgeHubFiles` 的純語意(刪中樞檔與全部縮圖,回 (中樞檔本來在不在, 縮圖張數)) | `Aapms.Workspace.Types`(願望) | types |
 | o | `registryDirIn :: RegistryWorld -> Maybe (FilePath, RegistrySource)` | 觀察:三層裡第一個存在的 | `Aapms.Types.Source`(願望) | types |
@@ -46,7 +47,7 @@ updated: 2026-09-06
 - LAW-1 [relation] 中樞載不起來即失敗,不退回空中樞
   - forall hw in HubWorld, rw in RegistryWorld, sel in Maybe Text, cwd in FilePath
   - given isNothing (hubTextIn hw)
-  - |- simulateSession hw rw (openSession sel cwd) == Left (WorkspaceFailed (HubNotFound (hlPath (hubLocationIn hw))))
+  - |- simulateSession hw rw (openSession sel cwd) == Left (WorkspaceFailed (HubNotFound (hubConfigPath (hubLocationIn hw))))
 - LAW-2 [relation] 中樞格式錯即失敗,錯誤原樣包成 WorkspaceFailed
   - forall hw in HubWorld, rw in RegistryWorld, sel in Maybe Text, cwd in FilePath, txt in maybe [] pure (hubTextIn hw), err in lefts [parseHubText (hlPath (hubLocationIn hw)) txt]
   - |- simulateSession hw rw (openSession sel cwd) == Left (WorkspaceFailed err)
@@ -99,3 +100,7 @@ updated: 2026-09-06
   - 動到:觀察點 `cacheDirIn`、`thumbsIn`(新增);`HubWorld` 的形狀
   - 保護:LAW-1 到 LAW-7
   - 重委派:impl(`runHubFilePure` 兩個 op);qa(`HubWorld` 產生器跟著型別走)
+- REV-3(2026-09-06,依 shell 波 impl 提問 GAP-1「`readHub` 的路徑參數在純解譯器裡只是 `HubNotFound` 的標籤,`openSession` 傳的是 `hlPath`(中樞根目錄),真實的檔是 `hlPath </> config.toml`,兩種讀法對不起來」):`readHub` 拿掉路徑參數——`HubFile` 效果綁的就是一個中樞,讀哪個檔由它的資源決定;`HubNotFound` 兩邊都印 `hubConfigPath`(新觀察點,types)
+  - 動到:Stages 第 2 列、觀察點 `hubConfigPath`(新增)、LAW-1 的 `|-`
+  - 保護:LAW-2 到 LAW-7
+  - 重委派:impl(`HubFile` 效果的 op、兩個解譯器、`openSession` 的呼叫點);qa(LAW-1)

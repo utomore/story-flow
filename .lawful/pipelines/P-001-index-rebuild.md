@@ -1,7 +1,7 @@
 ---
 id: P-001
 description: vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
-status: frozen
+status: ready
 updated: 2026-09-06
 ---
 # P-001-index-rebuild:vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
@@ -44,6 +44,7 @@ updated: 2026-09-06
 | o | `clashesEarlier :: TypeRegistry -> VaultId -> VaultFiles -> FilePath -> Bool` | 觀察:這個檔某個已命名 asset 的邏輯名稱,已被路徑字母序更前、純核心成功的檔用掉(撞名回滾的判準) | `Aapms.Store.Indexing.Internal`(願望) | pure |
 | = | `rebuild :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> Eff es (Either StoreError [IndexIssue])` | 純的整條:清空索引,1 → 對每個路徑 16,收集 issues | `Aapms.Store.Indexing`(願望) | pure |
 | ! | `rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])` | 進入點:以 handle 的根目錄與連線跑真解譯器(directory、sqlite) | `Aapms.Store.Index` | shell |
+| ! | `refreshIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])` | 進入點:以 handle 的根目錄與連線跑真解譯器,走 17(過時刷新)而不是全量;開 vault 時用它 | `Aapms.Store.Index` | shell |
 
 ## Laws
 - LAW-1 [identity] 重建冪等:對已重建的索引再重建,結果與索引都不變
@@ -120,3 +121,7 @@ updated: 2026-09-06
   - 動到:EX-3
   - 保護:LAW-1 到 LAW-12、其餘 EX
   - 重委派:qa(EX-3)
+- REV-3(2026-09-06,依 store shell 波與 P-003 波之後的盤點:第 17 列 `refresh` 只有純的整條,沒有 shell 進入點,開 vault 時的過時刷新仍走舊 `Aapms.Store.Index.refreshStale` 的直接 IO 路徑,等於同一件事兩份實作):加 `!` 列 `refreshIndex`,接到第 17 列;舊路徑退場
+  - 動到:Stages 加一列 `!`(`refreshIndex`)
+  - 保護:LAW-1 到 LAW-12、全部 EX
+  - 重委派:impl(`refreshIndex` 與呼叫端改接);qa 無(`!` 列不入 law)

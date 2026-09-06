@@ -42,6 +42,13 @@
 -- * 編輯:'updateFrontmatter' 保住專屬那一半、'updateFrontmatterExtras' 保住
 --   'Meta' 那一半(對稱 'updateSection' \/ 'updateSectionExtras')
 -- * 產生:'packFrontExtras'(對稱 'payloadExtras')
+--
+-- == 型別住哪裡
+--
+-- 上面提到的每一個__型別__('NewSection' \/ 'NewSectionPayload' \/ 'NewAsset' \/
+-- 'NewLicense' \/ 'NewNode' \/ 'MetaExtras' \/ 'FrontExtras' \/ 'NewPackFront',
+-- 連同 @FromJSON@ 實例)的宣告住 "Aapms.Md.Section";本模組只有讀 \/ 合併 \/
+-- 攤成行的__轉換__。本模組原樣 re-export 它們,匯出清單與呼叫端逐字不變。
 module Aapms.Md.Render
   ( -- * 寫回
     renderDocument
@@ -97,7 +104,7 @@ module Aapms.Md.Render
   , mergeExtras
   ) where
 
-import Data.Aeson (FromJSON (..), Value (..), encode, toJSON, withObject, (.!=), (.:), (.:?))
+import Data.Aeson (Value (..), encode, toJSON)
 import Data.Char (isDigit, isSpace)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -106,15 +113,16 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Time (Day)
 import Aapms.Core.Asset (LogicalName (..), Sha256 (..))
-import Aapms.Core.Id (Id, Ref, VaultId (..), renderId, renderRef)
-import Aapms.Core.Level (NodeKind, renderNodeKind)
+import Aapms.Core.Id (Id, VaultId (..), renderId, renderRef)
+import Aapms.Core.Level (renderNodeKind)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta
-import Aapms.Core.Pack (AiDisclosure (..), Author)
+import Aapms.Core.Pack (AiDisclosure (..))
 import Aapms.Md.Document
 import Aapms.Md.Error
 import Aapms.Md.Inherit
 import Aapms.Md.Lexer (lineContent, lineTerm, metaBlockYaml, splitLinesKeep)
+import Aapms.Md.Section
 import Aapms.Md.Yaml (decodeFrontmatter, decodeMeta)
 
 -- | 逐字重組。未經修改的 'Document' 保證
@@ -183,20 +191,6 @@ leadingBlanks raw = T.concat (takeWhile isBlankLine' (splitLinesKeep raw))
 
 -- meta 區塊的型別專屬那一半 ---------------------------------------------------
 
--- | @```meta@ 區塊裡__鍵不在 'metaFieldOrder' 中__的頂層條目,以原始行保存。
---
--- 每個元素是一行,__不含行尾字元__(行尾由 'renderMetaBlock' 依 'LineEnding'
--- 補);一個「頂層條目」是「第 0 欄起的 @key:@ 那一行」加上其後所有縮排行與
--- 空行,因此 @meta:@ 這種區塊風格的巢狀值也整段留得住。
---
--- 為什麼是原始行而不是解過的 'Data.Aeson.Value':ADR-010 保護的是作者手寫的
--- 位元組,而解碼再編碼一定會動到引號、數字格式與縮排。這一半我們不需要理解
--- 它的語意,只需要不弄丟它。
-newtype MetaExtras = MetaExtras
-  { extraLines :: [Text]
-  }
-  deriving stock (Show, Eq)
-
 -- | 從一個節現有的 @```meta@ 區塊取出型別專屬條目。
 --
 -- 沒有 meta 區塊、或區塊裡每個頂層條目的鍵都在 'metaFieldOrder' 裡時,回
@@ -263,109 +257,6 @@ updateSectionExtras i f doc@Document {..} = case sectionById i doc of
     Right doc {docSections = map (\x -> if secId x == i then s' else x) docSections}
 
 -- 新節的建構 DTO --------------------------------------------------------------
-
--- | 新節的建構 DTO(graph-core/F004,取代舊 @insertSection@ 直接吃 'Section')。
---
--- @nsId@ 由呼叫端(@aapms-store@ 的 @allocateId@)先配好再傳進來——本套件不
--- 知道怎麼配 id。
-data NewSection = NewSection
-  { nsId :: Id
-  , nsLevel :: Int
-  , nsTitle :: Text
-  , nsBody :: Text
-  , nsPayload :: NewSectionPayload
-  }
-  deriving stock (Show, Eq)
-
--- | 節的內容,__對節點種類做 sum__(design.md 契約 D,2026-08-24 GAP-1 裁決)。
---
--- 每個建構子都帶一個 'MetaOverride'(四種文件共用的 'Aapms.Core.Meta.Meta'
--- 那一半),外加該種節點自己的專屬欄位。
---
--- __不採__「把 asset \/ license 欄位塞進 'MetaOverride'」:那個型別是 md 與
--- store 共用的節層繼承 DTO,污染它會動到 ADR-010 位元組保留所依賴的繼承規則。
--- 封閉 sum 的好處與契約 A 的 @AnyNode@ 相同:新增節點種類時編譯器會列出所有
--- 待處理處,而 'appendSection' 維持單一入口。
-data NewSectionPayload
-  = -- | 主題檔的片段:沒有專屬欄位
-    NSFragment MetaOverride
-  | -- | @pack.md@ 的一筆 asset
-    NSAsset MetaOverride NewAsset
-  | -- | @licenses.md@ 的一種授權
-    NSLicense MetaOverride NewLicense
-  | -- | Level 檔的一個節點
-    NSNode MetaOverride NewNode
-  deriving stock (Show, Eq)
-
--- | asset 的專屬欄位,與 'Aapms.Core.Asset.Asset' 逐欄對應(扣掉
--- 'Aapms.Core.Meta.Meta' 與正文)。
---
--- @sha256@ \/ @entry@ 是必填而非 'Maybe':'Aapms.Core.Asset.Asset' 的對應欄位
--- 就不是 'Maybe',寫不出這兩欄的節 'Aapms.Md.Parse.toPack' 一定解不回來。
-data NewAsset = NewAsset
-  { naName :: Maybe LogicalName
-  , naSha256 :: Sha256
-  , naEntry :: Text
-  , naExt :: Maybe Text
-  , naKindMeta :: Value
-  -- ^ kind 專屬 JSON(@image@ 的寬高、@audio@ 的長度……)。'Null' = 不寫這一欄
-  , naLicense :: Maybe Ref
-  , naAuthor :: Maybe Text
-  }
-  deriving stock (Show, Eq)
-
--- | 節層 meta 直接管的授權維度,與 'Aapms.Core.License.License' 對應(扣掉
--- 'Aapms.Core.Meta.Meta' 與 @full_text@ —— @licenses.md@ 的節不重複貼授權全文)。
---
--- @commercial@ 與 @attribution_required@ 是 'Bool' 而非 @'Maybe' 'Bool'@:
--- 它們缺漏是錯誤(design.md 契約卡),其餘六項缺漏為 'Nothing'。
-data NewLicense = NewLicense
-  { nlcCommercial :: Bool
-  , nlcAttributionRequired :: Bool
-  , nlcCreditText :: Maybe Text
-  , nlcModificationAllowed :: Maybe Bool
-  , nlcRedistributionAllowed :: Maybe Bool
-  , nlcResaleAllowed :: Maybe Bool
-  , nlcNftAllowed :: Maybe Bool
-  , nlcSourceUrl :: Maybe Text
-  }
-  deriving stock (Show, Eq)
-
--- | Level 檔的一個節點的專屬欄位。
---
--- 只有 @kind@ 一欄:@parent@ 與 @order@ 由標題階層推導(ADR-009),
--- 'Aapms.Core.Level.nodEntities' 由 @involves@ \/ @references@ 兩種關聯推導,
--- 兩者都不該由呼叫端重複指定 —— 指定了就會有兩個真相來源。
-newtype NewNode = NewNode
-  { nnKind :: NodeKind
-  }
-  deriving stock (Show, Eq)
-
--- | 解碼規則與舊 @AssetFields@ 完全相同(原樣搬過來):@sha256@ \/ @entry@ 用
--- @.:@,其餘用 @.:?@,與 "Aapms.Core.Json" 的 @FromJSON Asset@ 一致。
-instance FromJSON NewAsset where
-  parseJSON = withObject "NewAsset" $ \o ->
-    NewAsset
-      <$> o .:? "name"
-      <*> o .: "sha256"
-      <*> o .: "entry"
-      <*> o .:? "ext"
-      <*> o .:? "meta" .!= Null
-      <*> o .:? "license"
-      <*> o .:? "author"
-
--- | 解碼規則與舊 @LicenseFields@ 完全相同(原樣搬過來)。
-instance FromJSON NewLicense where
-  parseJSON = withObject "NewLicense" $ \o ->
-    NewLicense
-      <$> o .: "commercial"
-      <*> o .: "attribution_required"
-      <*> o .:? "credit_text"
-      <*> o .:? "modification_allowed"
-      <*> o .:? "redistribution_allowed"
-      <*> o .:? "resale_allowed"
-      <*> o .:? "nft_allowed"
-      <*> o .:? "source_url"
 
 -- | payload 的 'Aapms.Core.Meta.Meta' 那一半。
 --
@@ -742,24 +633,6 @@ renderFrontmatter m le = renderFrontmatterWith m (FrontExtras (MetaExtras [])) l
 
 -- 檔案層 frontmatter 的型別專屬那一半(graph-core/F004 重跑,GAP-17)------------
 
--- | 檔案層的型別專屬條目。__'MetaExtras' 的 newtype,不是別名__
--- (2026-08-25 開發者裁決 ASM-11)。
---
--- 底層表示與節層__完全相同__(就是「一組原始行」),所以 'splitEntries' \/
--- 'entryKey' \/ 'mergeExtras' 那一組機制__一份就夠__,本型別只在邊界拆包
--- ('unFrontExtras',或 @Data.Coerce.coerce@)——__不得__另寫第二份切段與取鍵
--- 的邏輯,那條規則正是 GAP-2 \/ GAP-17 的判準本身,兩份實作遲早分歧。
---
--- 那為什麼還要包一層:兩層的__鍵清單不同__(節層是 'metaFieldOrder'、檔案層是
--- 'frontmatterFieldOrder'),混用時 'Aapms.Md.Parse.toPack' 照樣解得回來(多餘
--- 的鍵一律忽略),症狀是__安靜的髒資料而不是編譯錯誤__。本子系統已經被
--- 「安靜的資料遺失」咬過兩次(GAP-2 在節層、GAP-17 在檔案層),__兩次都不是測試抓到
--- 的,是人讀出來的__;能用型別擋掉的第三次就不該留給人讀。
-newtype FrontExtras = FrontExtras
-  { unFrontExtras :: MetaExtras
-  }
-  deriving stock (Show, Eq)
-
 -- | frontmatter 裡__鍵不在 'frontmatterFieldOrder' 中__的頂層條目,以原始行
 -- 保存。與節層的 'extrasOf' __同一條規則__(同一個「頂層條目」定義、同一組
 -- 切段與取鍵的邏輯),只是欄位清單換成 'frontmatterFieldOrder'。
@@ -874,31 +747,6 @@ updateFrontmatterExtras g doc@Document {..} = case decodeFrontmatter docFrontRaw
         { docFrontRaw =
             frontLead docEnding docFrontRaw <> renderFrontmatterWith meta (g (frontExtrasOf doc)) docEnding
         }
-
--- | @pack.md@ 檔案層的專屬欄位,與 'Aapms.Core.Pack.Pack' 逐欄對應(扣掉
--- 'Aapms.Core.Meta.Meta' 與正文)。'NewAsset' \/ 'NewLicense' 在檔案層的對應物。
---
--- __只有寫方向__:讀方向是 "Aapms.Core.Json" 的 @FromJSON Pack@,那是全系統
--- 唯一的解碼規則(F001),md 不得再定義第二份。兩者對得上不靠型別,靠 F004 的
--- __往返 law__ LAW-44 —— GAP-17 之所以能潛伏,正是因為以前沒有任何 law 測這個往返。
---
--- 欄位名前綴用 @npf@ 而不是 @aapms-store@ 的 @NewPack@ 那組 @np@:兩者是
--- __不同的 DTO__(store 的 'NewPack' 還帶 @npDir@ \/ @npTitle@ \/ @npTags@ 等
--- 建 'Meta' 與路徑要用的欄位),同名欄位選擇器會在 store 一旦
--- @import Aapms.Md@ 時互相衝突。
-data NewPackFront = NewPackFront
-  { npfVendor :: Maybe Text
-  , npfArchive :: Maybe FilePath
-  -- ^ @'Nothing'@ = 散檔目錄,此時各 asset 的 @entry@ 是相對該目錄的路徑
-  , npfSha256 :: Maybe Sha256
-  , npfLicense :: Maybe Ref
-  , npfAuthor :: Maybe Author
-  , npfSourceUrl :: Maybe Text
-  , npfAiDisclosure :: AiDisclosure
-  -- ^ @'Aapms.Core.Pack.AiUnknown'@ = 不寫這一欄(@FromJSON Pack@ 的
-  -- @.:? \"ai_disclosure\" .!= AiUnknown@ 會解回同一個值)
-  }
-  deriving stock (Show, Eq)
 
 -- | 檔案層專屬欄位 → 'FrontExtras' 的行。'payloadExtras' 在檔案層的對應物。
 --

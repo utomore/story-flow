@@ -30,6 +30,7 @@ library
         Aapms.Md.Lexer
         Aapms.Md.Parse
         Aapms.Md.Render
+        Aapms.Md.Section
         Aapms.Md.Yaml
     build-depends:
         , aeson

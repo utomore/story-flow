@@ -26,8 +26,12 @@
 -- 'Aapms.Store.Index'\/'Aapms.Store.Query' 的函式互動,不直接碰
 -- @SQLData@\/@FromRow@ 這層。同理 'Aapms.Store.Edit'(寫入紀律)與
 -- 'Aapms.Store.Node'(Level 樹的純推導)是 graph-core\/F008 的內部模組,不進門面;
--- 它們的結果型別 'Aapms.Store.Edit.WriteResult' 由 'Aapms.Store.Write' 帶進來
+-- 它們的結果型別 'Aapms.Store.Types.WriteResult' 由 'Aapms.Store.Write' 帶進來
 -- ——契約 E 的寫入組回的就是它,門面少了它等於少一半簽名。
+--
+-- 'Aapms.Store.Types'(本套件全部對外型別的宣告)也 re-export:各功能模組
+-- 本來就把自己那一份原樣帶出來,門面收下整個模組讓「只要型別」的消費端
+-- (@workspace@ \/ @service@ 的 Types)有一個不碰 IO 的 import 目標。
 module Aapms.Store
   ( module Aapms.Store.Atomic
   , module Aapms.Store.Create
@@ -37,6 +41,7 @@ module Aapms.Store
   , module Aapms.Store.MultiVault
   , module Aapms.Store.Query
   , module Aapms.Store.Schema
+  , module Aapms.Store.Types
   , module Aapms.Store.Write
   ) where
 
@@ -48,4 +53,5 @@ import Aapms.Store.Marker
 import Aapms.Store.MultiVault
 import Aapms.Store.Query
 import Aapms.Store.Schema
+import Aapms.Store.Types
 import Aapms.Store.Write

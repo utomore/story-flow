@@ -31,14 +31,14 @@ import Aapms.Core.Id (Id)
 import Aapms.Core.Tree (buildTree)
 import Aapms.Md.Document (Document (..), Section (..), sectionById)
 import Aapms.Md.Parse (toLevel)
-import Aapms.Store.Error (StoreError (..))
+import Aapms.Store.Types (StoreError (..))
 
 -- 層級 ------------------------------------------------------------------------
 
 -- | 在指定父節點底下新增一個子節點時,新節該用第幾級標題(父節點層級 + 1)。
 --
--- 父節點不在文件裡回 'Aapms.Store.Error.SectionMissing';算出來超過六級回
--- 'Aapms.Store.Error.NodeDepthExceeded' —— Markdown 只有六級標題,再深就沒有
+-- 父節點不在文件裡回 'Aapms.Store.Types.SectionMissing';算出來超過六級回
+-- 'Aapms.Store.Types.NodeDepthExceeded' —— Markdown 只有六級標題,再深就沒有
 -- 合法的表示法。
 headingDepthFor :: FilePath -> Document -> Id -> Either StoreError Int
 headingDepthFor path doc pid = case sectionById pid doc of
@@ -72,10 +72,10 @@ subtreeIds doc i = i : map secId (subtreeAfter doc i)
 --
 -- * @id@ 在 @doc@ 裡且就是該 Level 檔的根 → @'Right' 'True'@
 -- * @id@ 在 @doc@ 裡但不是根 → @'Right' 'False'@
--- * @id@ __不在__ @doc@ 裡 → @'Left' ('Aapms.Store.Error.SectionMissing' path id)@
+-- * @id@ __不在__ @doc@ 裡 → @'Left' ('Aapms.Store.Types.SectionMissing' path id)@
 --
 -- 最後一種__不是__ @'Right' 'False'@:與同模組的 'headingDepthFor' 對稱(父節點不在
--- 文件裡時它回 'Aapms.Store.Error.SectionMissing')。「查無此節」與「這個節不是根」
+-- 文件裡時它回 'Aapms.Store.Types.SectionMissing')。「查無此節」與「這個節不是根」
 -- 是兩件不同的事,合一會讓呼叫端分不出來 ——'Aapms.Store.Create.deleteNode' 會把
 -- 一個根本不存在的 id 當成「可以刪的非根節點」繼續往下走,錯誤就往下游飄。
 isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool
@@ -89,8 +89,8 @@ isRootNode path doc i = case sectionById i doc of
 
 -- | 編輯後的 Level 檔仍然合法嗎。__在寫檔之前__呼叫。
 --
--- 解析失敗回 'Aapms.Store.Error.MdWriteFailed',樹不合法回
--- 'Aapms.Store.Error.TreeInvalidOnWrite'。
+-- 解析失敗回 'Aapms.Store.Types.MdWriteFailed',樹不合法回
+-- 'Aapms.Store.Types.TreeInvalidOnWrite'。
 validateLevelDoc :: FilePath -> Document -> Either StoreError ()
 validateLevelDoc path doc = case toLevel doc of
   Left e -> Left (MdWriteFailed path e)

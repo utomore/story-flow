@@ -7,6 +7,11 @@
 -- 做法是把全部純型別與錯誤型別收在這裡,它只依賴 @aapms-core@ 與 @aapms-store@
 -- 的型別,其餘六個模組全部往這裡依賴,型別歸屬圖因此是一棵樹。
 --
+-- 「只依賴型別」這句話現在由 import 行本身守住:@aapms-store@ 那一邊統一走
+-- "Aapms.Store.Types"(該套件全部對外型別的宣告處,零 IO),不再 import
+-- "Aapms.Store.Error" \/ "Aapms.Store.Marker" \/ "Aapms.Store.Schema" ——那三個模組
+-- 各自帶著 sqlite 與檔案系統,拿一個型別要付整條 IO 相依鏈。
+--
 -- __一次寫齊,不由各 feature 逐波擴充__(build-log DEC-2):契約 A–F 的型別與
 -- 'WorkspaceError' 的全部建構子都在 F001 寫完。階段二的三個 feature 平行執行,
 -- 若各自往本檔加建構子,那是同一個檔案的併發寫入——互蓋當下不會有任何錯誤訊息。
@@ -61,9 +66,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Aapms.Core.Id (Id, VaultId (..), renderId)
-import Aapms.Store.Error (StoreError, renderStoreError)
-import Aapms.Store.Marker (VaultMarker)
-import Aapms.Store.Schema (VaultKind, renderVaultKind)
+import Aapms.Store.Types (StoreError, VaultKind, VaultMarker, renderStoreError, renderVaultKind)
 import qualified TOML
 
 -- 契約 A:中樞位置與載入 -------------------------------------------------------

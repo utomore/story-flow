@@ -33,9 +33,11 @@ library
         Aapms.Core.Link
         Aapms.Core.Manifest
         Aapms.Core.Meta
+        Aapms.Core.Name
         Aapms.Core.Naming
         Aapms.Core.Pack
         Aapms.Core.Registry
+        Aapms.Core.Registry.Build
         Aapms.Core.Tree
     build-depends:
         , aeson

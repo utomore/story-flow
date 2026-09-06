@@ -21,6 +21,10 @@
 -- 'shSnippet' __一律取自 @fts_tri@ 的原文__,與這一筆命中來自哪張表無關
 -- (graph-core\/F007 的不可逆決定 DEC-6):@fts_cjk@ 存的是預切後的 n-gram 串,
 -- 它的視窗片段不是原文的子字串,不能給人看。
+--
+-- 本模組的__型別__('NodeFilter' \/ 'SearchQuery' \/ 'SearchHit' \/ 'FacetCounts' \/
+-- 'SearchResult' 與兩個 @empty*@ 預設值)宣告在 "Aapms.Store.Types",這裡只有
+-- 查詢函式與 SQL 片段組裝;匯出清單原樣 re-export 它們,呼叫端逐字不變。
 module Aapms.Store.Query
   ( -- * 過濾條件
     NodeFilter (..)
@@ -85,8 +89,18 @@ import Aapms.Core.Pack (Pack (..))
 import Aapms.Md.Document (Document, docKind, DocKind (..))
 import Aapms.Md.Parse (parseDocument, toPack, toTopic)
 import Aapms.Store.Atomic (readTextFile)
-import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
+import Aapms.Store.Marker (VaultHandle (..))
 import Aapms.Store.Row
+import Aapms.Store.Types
+  ( FacetCounts (..)
+  , NodeFilter (..)
+  , SearchHit (..)
+  , SearchQuery (..)
+  , SearchResult (..)
+  , VaultMarker (..)
+  , emptyNodeFilter
+  , emptySearchQuery
+  )
 import Aapms.Store.Tokenize
   ( cjkMatchExpr
   , routeOf
@@ -95,41 +109,6 @@ import Aapms.Store.Tokenize
   , usesTrigram
   )
 import System.FilePath ((</>))
-
---------------------------------------------------------------------------------
--- 過濾條件(契約 F)
-
-data NodeFilter = NodeFilter
-  { nfPrefixes :: [IdPrefix]
-  , nfTypes :: [TypeKey]
-  , nfStatus :: [Status]
-  , nfTags :: [Text]
-  , nfOwner :: Maybe Id
-  , nfLicense :: Maybe Ref
-  , nfNamedOnly :: Bool
-  , nfIncludeReference :: Bool
-  , nfLimit :: Int
-  , nfOffset :: Int
-  }
-  deriving stock (Show, Eq)
-
--- | 全部欄位取最寬鬆的預設值(待確認假設 ASM-9:'nfLimit' 給一個大但有限的值,
--- 契約 F 沒有逐字列出這個輔助值,比照 F005 對 'Aapms.Store.Schema.IndexIssue'
--- 「契約給骨架、由後續 feature 依需要擴充」的精神補上)。
-emptyNodeFilter :: NodeFilter
-emptyNodeFilter =
-  NodeFilter
-    { nfPrefixes = []
-    , nfTypes = []
-    , nfStatus = []
-    , nfTags = []
-    , nfOwner = Nothing
-    , nfLicense = Nothing
-    , nfNamedOnly = False
-    , nfIncludeReference = False
-    , nfLimit = 1000
-    , nfOffset = 0
-    }
 
 --------------------------------------------------------------------------------
 -- WHERE 子句組裝
@@ -531,58 +510,6 @@ loadLinkGraph vh = do
 
 --------------------------------------------------------------------------------
 -- 全文檢索(契約 F,graph-core/F007)
-
--- | 一次檢索:文字條件(可無)+ 結構條件 + 要不要順便算 facet。
-data SearchQuery = SearchQuery
-  { sqText :: Maybe Text
-  -- ^ 全文條件。'Nothing' 或去掉頭尾空白後為空字串時__不__走 FTS,退化成
-  -- 純結構查詢(等同 'listNodes')。
-  , sqFilter :: NodeFilter
-  -- ^ 結構條件,語意與 'listNodes' 完全相同(含 'nfLimit' \/ 'nfOffset')。
-  , sqFacets :: Bool
-  -- ^ 'True' 時 'srFacets' 為 'Just',否則為 'Nothing'。
-  }
-  deriving stock (Show, Eq)
-
--- | 沒有文字條件、最寬鬆的結構條件、不算 facet。
-emptySearchQuery :: SearchQuery
-emptySearchQuery =
-  SearchQuery
-    { sqText = Nothing
-    , sqFilter = emptyNodeFilter
-    , sqFacets = False
-    }
-
--- | 一筆命中。'shVault' 讓跨 vault 的 @searchAcross@(graph-core\/F009)與單一
--- vault 的 'search' 回同一種形狀。
-data SearchHit = SearchHit
-  { shVault :: VaultId
-  , shMeta :: Meta
-  , shSnippet :: Text
-  -- ^ 命中片段的純文字,不含任何標記;沒有文字條件時為空字串。
-  , shScore :: Double
-  -- ^ 相關度,愈大愈相關。有文字條件時恆 @> 0@;沒有文字條件時恆 @0@。
-  }
-  deriving stock (Show, Eq)
-
--- | 五個維度的分面計數。每個維度都是(值, 筆數),計數遞減、同計數以值遞增;
--- 值為 NULL 或計數為 0 的不出現。
-data FacetCounts = FacetCounts
-  { fcTypes :: [(Text, Int)]
-  , fcVaults :: [(Text, Int)]
-  , fcTags :: [(Text, Int)]
-  , fcOwners :: [(Text, Int)]
-  , fcLicenses :: [(Text, Int)]
-  }
-  deriving stock (Show, Eq)
-
--- | 'srTotal' 是套用全部條件、__未__套用 'nfLimit' \/ 'nfOffset' 的總筆數。
-data SearchResult = SearchResult
-  { srHits :: [SearchHit]
-  , srTotal :: Int
-  , srFacets :: Maybe FacetCounts
-  }
-  deriving stock (Show, Eq)
 
 -- | 單一 vault 的全文檢索出口(契約 E)。
 --

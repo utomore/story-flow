@@ -10,7 +10,7 @@
 -- LAW-2  上述四個模組都在 other-modules                                             -> test_LAW2
 -- LAW-3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_LAW3
 -- LAW-4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_LAW4
--- EX-1  exposed-modules 11 項 + other-modules 4 項 = 15,對帳                       -> test_EX1
+-- EX-1  exposed-modules 12 項 + other-modules 4 項 = 16,對帳                       -> test_EX1
 -- EX-2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_EX2 / _contractEFunctions / ContractETypesCheck
 -- @
 --
@@ -106,13 +106,13 @@ spec = describe "graph-core/E001 cabal 可見度界線" $ do
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "EX-1: exposed-modules 11 項 + other-modules 4 項 = 15,對帳" $ do
+    it "EX-1: exposed-modules 12 項 + other-modules 4 項 = 16,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort exposed `shouldBe` sort expectedExposed
       sort other `shouldBe` sort movedModules
-      (length exposed + length other) `shouldBe` 15
+      (length exposed + length other) `shouldBe` 16
 
   describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
@@ -211,6 +211,11 @@ type ContractETypesCheck =
 movedModules :: [String]
 movedModules = ["Aapms.Store.Edit", "Aapms.Store.Node", "Aapms.Store.Row", "Aapms.Store.Walk"]
 
+-- | 2026-09-06 型別層重構:@aapms-store@ 全部對外型別的宣告集中到新的
+-- 'Aapms.Store.Types',它是門面 re-export 的一員也是消費端(@workspace@ \/
+-- @service@ 的 Types)唯一該 import 的 store 模組,因此__必須__ exposed。
+-- 清單因此從 11 項長成 12 項;E001 的四個內部模組(Edit \/ Node \/ Row \/ Walk)
+-- 一項未動,LAW-1 \/ LAW-2 的判準不受影響。
 expectedExposed :: [String]
 expectedExposed =
   [ "Aapms.Store"
@@ -223,6 +228,7 @@ expectedExposed =
   , "Aapms.Store.Query"
   , "Aapms.Store.Schema"
   , "Aapms.Store.Tokenize"
+  , "Aapms.Store.Types"
   , "Aapms.Store.Write"
   ]
 

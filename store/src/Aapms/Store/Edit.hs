@@ -30,6 +30,8 @@
 --
 -- 殘留競態見 "Aapms.Store.Atomic":重讀與 rename 之間的毫秒級窗口是 F005 明確
 -- 接受的風險,本 feature 沿用同一個結論。
+-- 'WriteResult' 的宣告住 "Aapms.Store.Types"(型別層);本模組原樣 re-export,
+-- 匯出清單與呼叫端逐字不變。
 module Aapms.Store.Edit
   ( -- * 結果
     WriteResult (..)
@@ -85,23 +87,7 @@ import Aapms.Store.Atomic (atomicWriteText, readTextFile)
 import Aapms.Store.Error (StoreError (..), renderStoreError, trySqlite)
 import Aapms.Store.Index (indexFile, unindexFile)
 import Aapms.Store.Marker (VaultHandle (..))
-import Aapms.Store.Schema (IndexIssue)
-
--- 結果 ------------------------------------------------------------------------
-
--- | 一次成功寫入的結果。
---
--- @wrIssues@ 是寫入後 'Aapms.Store.Index.indexFile' 對__該檔__回報的問題
--- (@checkMeta@ 警告等);它不是失敗,是附帶回報,由 @service@ 決定怎麼辦。
-data WriteResult = WriteResult
-  { wrId :: Id
-  , wrPath :: FilePath
-  -- ^ Vault 相對路徑,與索引裡存的形式一致
-  , wrRevision :: Revision
-  -- ^ 寫入後的新 revision(= 傳入的 expected + 1)
-  , wrIssues :: [IndexIssue]
-  }
-  deriving stock (Show, Eq)
+import Aapms.Store.Types (WriteResult (..))
 
 -- 短路組合 ---------------------------------------------------------------------
 

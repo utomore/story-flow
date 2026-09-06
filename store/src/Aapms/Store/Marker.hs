@@ -3,6 +3,10 @@
 -- 一個 vault = 一個目錄 + @.aapms\/@ marker。本模組只負責「已知根目錄之後」
 -- 的讀寫;__不探測、不讀中樞註冊表、不處理 @--vault@__——那些是 @workspace@
 -- 子系統的職責(S3),本模組刻意不 import 任何會做這些事的東西。
+--
+-- 'VaultMarker'(marker 檔的內容,純資料)的宣告住 "Aapms.Store.Types",本模組
+-- 原樣 re-export。'VaultHandle' __留在這裡__:它捧著一個已開的 @Connection@,
+-- 那是 IO 的東西,型別層放不下。
 module Aapms.Store.Marker
   ( -- * 型別
     VaultMarker (..)
@@ -30,12 +34,12 @@ import Database.SQLite.Simple (Connection)
 import Aapms.Core.Id (IdPrefix (PVlt), VaultId (..), newId, parseId, renderId)
 import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Store.Atomic (atomicWriteText, readTextFile)
-import Aapms.Store.Error (StoreError (..))
-import Aapms.Store.Schema
+import Aapms.Store.Schema (closeIndex, openIndexAt)
+import Aapms.Store.Types
   ( IndexIssue
+  , StoreError (..)
   , VaultKind (..)
-  , closeIndex
-  , openIndexAt
+  , VaultMarker (..)
   , parseVaultKind
   , renderVaultKind
   )
@@ -56,17 +60,10 @@ indexDbPath root = markerDir root </> "index.db"
 
 -- 型別 ------------------------------------------------------------------------
 
-data VaultMarker = VaultMarker
-  { vmId :: VaultId
-  , vmKind :: VaultKind
-  , vmName :: Text
-  , vmRefs :: [VaultId]
-  }
-  deriving stock (Show, Eq)
-
 -- | 含 marker、根目錄、已開的索引連線、型別註冊表。欄位全部匯出:
 -- graph-core\/F006 起的查詢\/寫入函式都要能直接拿 'vhConn' 操作索引、拿
--- 'vhRoot' 組出檔案的絕對路徑、拿 'vhRegistry' 跑 'Aapms.Core.Registry.checkMeta'。
+-- 'vhRoot' 組出檔案的絕對路徑、拿 'vhRegistry' 跑
+-- 'Aapms.Core.Registry.Build.checkMeta'。
 --
 -- 註冊表併入 'VaultHandle'(DEC-9,取代原本「各索引函式加一個參數」的方案):
 -- @openVault@ 自己就要做過時刷新(graph-core\/F006),那條路徑同樣需要註冊表,

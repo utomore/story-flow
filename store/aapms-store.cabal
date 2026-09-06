@@ -33,6 +33,7 @@ library
         Aapms.Store.Query
         Aapms.Store.Schema
         Aapms.Store.Tokenize
+        Aapms.Store.Types
         Aapms.Store.Write
     other-modules:
         Aapms.Store.Edit

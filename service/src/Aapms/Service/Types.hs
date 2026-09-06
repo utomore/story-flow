@@ -17,6 +17,14 @@
 -- 兩處就是相依環。本模組只依賴 @aapms-core@ \/ @aapms-store@ \/ @aapms-types@ \/
 -- @aapms-workspace@ 的型別。
 --
+-- 「只依賴型別」由 import 行本身守住:@aapms-store@ 走 "Aapms.Store.Types"、
+-- 'RegistrySource' 走 "Aapms.Types.Source"、@aapms-core@ 的註冊表走
+-- "Aapms.Core.Registry"(純模型與它的 smart constructor;節點檢查在
+-- "Aapms.Core.Registry.Build")——
+-- 三者都是零 IO 的型別層模組。原本的 "Aapms.Store.Error" \/ "Aapms.Store.Schema" \/
+-- "Aapms.Types.Loader" 各自帶著 sqlite、檔案系統與環境變數,為了一個型別把整條
+-- IO 相依鏈掛上來,正是這個模組宣稱不做的事。
+--
 -- __建構子逐波擴充__(build-log DEC-1 \/ 配號表):F001 只寫契約 F 的前四個建構子
 -- (執行環境開得起來所需的那些);'UnknownType' 由 F002 加入(@showType@ 的失敗
 -- 路徑);'ValidationFailed' 起的其餘建構子屬 F003–F006 的範圍,由編排者在該波的
@@ -42,9 +50,8 @@ import Data.Text (Text)
 
 import Aapms.Core.Id (Id, VaultId)
 import Aapms.Core.Registry (RegistryError, renderRegistryError)
-import Aapms.Store.Error (StoreError, renderStoreError)
-import Aapms.Store.Schema (IndexIssue, VaultKind)
-import Aapms.Types.Loader (RegistrySource)
+import Aapms.Store.Types (IndexIssue, StoreError, VaultKind, renderStoreError)
+import Aapms.Types.Source (RegistrySource)
 import Aapms.Workspace.Types
   ( HubSource
   , ScopeIssue

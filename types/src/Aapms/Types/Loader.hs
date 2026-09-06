@@ -10,8 +10,12 @@
 --
 -- __套件歸屬__(design.md 契約 C,2026-08-23 釐清):純型別('Family' /
 -- 'TypeDecl' / 'TypeRegistry' / 'NamingVocab' / 'lookupType' 與純驗證錯誤)定義
--- 在 "Aapms.Core.Registry" / "Aapms.Core.Naming",本模組只有 'locateRegistry' \/
--- 'loadRegistry' 兩個 IO 入口與 TOML 解析,並 re-export 上述型別。
+-- 在 "Aapms.Core.Registry" / "Aapms.Core.Registry.Build" / "Aapms.Core.Naming",
+-- 本模組只有 'locateRegistry' \/ 'loadRegistry' 兩個 IO 入口與 TOML 解析,
+-- 並 re-export 上述型別。
+--
+-- 'RegistrySource' 同理搬到 "Aapms.Types.Source"(型別層的模組不該為了一個列舉
+-- 依賴本模組的 IO),本模組 import 後原樣 re-export,匯出清單逐字不變。
 module Aapms.Types.Loader
   ( -- * 執行期定位
     RegistrySource (..)
@@ -27,6 +31,7 @@ module Aapms.Types.Loader
 
     -- * re-export:aapms-core 的純型別與純驗證(契約 C)
   , module Aapms.Core.Registry
+  , module Aapms.Core.Registry.Build
   , module Aapms.Core.Naming
   ) where
 
@@ -34,6 +39,8 @@ import Aapms.Core.Link (LinkKind (Depicts), parseLinkKind)
 import Aapms.Core.Meta (TypeKey (..))
 import Aapms.Core.Naming
 import Aapms.Core.Registry
+import Aapms.Core.Registry.Build
+import Aapms.Types.Source (RegistrySource (..))
 import Control.Exception (IOException, try)
 import qualified Data.ByteString as BS
 import Data.Either (partitionEithers)
@@ -60,18 +67,6 @@ import Paths_aapms_types (getDataDir)
 -- 依 ADR-017 改的執行期名稱,graph-core 不碰。
 registryEnvVar :: String
 registryEnvVar = "STORYFLOW_REGISTRY"
-
--- | 註冊表是從哪一層找到的。
---
--- @doctor@ 要說得出來,找不到時的錯誤訊息也要列得出找過哪裡(G-E002)。
-data RegistrySource
-  = -- | 'registryEnvVar' 指到的目錄
-    FromEnv
-  | -- | 執行檔所在目錄底下的 @registry\/@ ——zip 解開就能跑靠的是這一層
-    BesideExecutable
-  | -- | cabal 的 @data-files@,@cabal install@ 之後才存在
-    FromDataDir
-  deriving stock (Show, Eq)
 
 -- | 型別註冊表在執行期的目錄,連同它是從哪一層找到的。
 --

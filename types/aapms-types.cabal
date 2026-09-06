@@ -28,6 +28,7 @@ library
     hs-source-dirs:   src
     exposed-modules:
         Aapms.Types.Loader
+        Aapms.Types.Source
     other-modules:
         Paths_aapms_types
     autogen-modules:

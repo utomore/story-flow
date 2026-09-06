@@ -1,10 +1,10 @@
 # 模組表
 | 模組 | 層 |
 |---|---|
-| `Aapms.Core.AnyNode`、`Aapms.Core.Asset`、`Aapms.Core.Entity`、`Aapms.Core.Id`、`Aapms.Core.Json`、`Aapms.Core.Level`、`Aapms.Core.License`、`Aapms.Core.Link`、`Aapms.Core.Manifest`、`Aapms.Core.Meta`、`Aapms.Core.Pack` | types |
-| `Aapms.Md.Document`、`Aapms.Md.Error` | types |
-| `Aapms.Workspace.Types`、`Aapms.Service.Types` | types |
-| `Aapms.Core.Naming`、`Aapms.Core.Registry`、`Aapms.Core.Tree` | pure |
+| `Aapms.Core.AnyNode`、`Aapms.Core.Asset`、`Aapms.Core.Entity`、`Aapms.Core.Id`、`Aapms.Core.Json`、`Aapms.Core.Level`、`Aapms.Core.License`、`Aapms.Core.Link`、`Aapms.Core.Manifest`、`Aapms.Core.Meta`、`Aapms.Core.Name`、`Aapms.Core.Pack`、`Aapms.Core.Registry` | types |
+| `Aapms.Md.Document`、`Aapms.Md.Error`、`Aapms.Md.Section` | types |
+| `Aapms.Store.Types`、`Aapms.Types.Source`、`Aapms.Workspace.Types`、`Aapms.Service.Types` | types |
+| `Aapms.Core.Naming`、`Aapms.Core.Registry.Build`、`Aapms.Core.Tree` | pure |
 | `Aapms.Md`、`Aapms.Md.Lexer`、`Aapms.Md.Yaml`、`Aapms.Md.Parse`、`Aapms.Md.Inherit`、`Aapms.Md.Render` | pure |
 | `Aapms.Store.Tokenize`、`Aapms.Store.Node` | pure |
 | `Aapms.Types.Loader` | shell |

@@ -16,8 +16,16 @@
 -- @kind@ 從封閉列舉 'AssetDB.Types.KindPrefix' 改成一般 'Segment',合法值改由
 -- 外部注入的 'NamingVocab' 的 'nvKinds' 檢查。拆解只查一張表('nvStates'),
 -- variant 天生開放,見 'parseLogicalName' 的文件。
+--
+-- == 資料層與文法層分家
+--
+-- 'Segment' \/ 'NameParts' \/ 'NamingVocab' \/ 'NameError' 這一組__純資料__(連同
+-- 它們的 smart constructor 與 'renderNameError')住 "Aapms.Core.Name",本模組只
+-- 留文法演算法(組合 \/ 解析 \/ 驗證)並__原樣 re-export__ 那些名字:註冊表宣告
+-- ('Aapms.Core.Registry.TypeDecl' 的 @tdNameKinds@)只需要那組資料,不該為此
+-- 依賴一個做推導的模組。匯出清單與既有呼叫端因此逐字不變。
 module Aapms.Core.Naming
-  ( -- * 型別
+  ( -- * 型別(re-export 自 "Aapms.Core.Name")
     Segment
   , segmentText
   , mkSegment
@@ -32,144 +40,20 @@ module Aapms.Core.Naming
   , validateLogicalName
   , renderParts
 
-    -- * 數字部位
+    -- * 數字部位(re-export 自 "Aapms.Core.Name")
   , indexSegment
   , isIndexShaped
 
-    -- * 常數
+    -- * 常數(re-export 自 "Aapms.Core.Name")
   , maxLogicalNameLength
   ) where
 
 import Aapms.Core.Asset (LogicalName (..))
 import Aapms.Core.Meta (TypeKey)
-import Data.Char (digitToInt, isAscii, isAsciiLower, isDigit)
+import Aapms.Core.Name
+import Data.Char (digitToInt, isAscii)
 import Data.Text (Text)
 import qualified Data.Text as T
-
---------------------------------------------------------------------------------
--- Segment
-
--- | 一個名稱分段,已保證符合 @^[a-z0-9]+(-[a-z0-9]+)*$@。
---
--- 建構子不外露——拿到 'Segment' 就代表已經驗證過,下游不需要再檢查一次。
-newtype Segment = Segment Text
-  deriving newtype (Eq, Ord)
-
-instance Show Segment where
-  show (Segment t) = show t
-
-segmentText :: Segment -> Text
-segmentText (Segment t) = t
-
-mkSegment :: Text -> Either NameError Segment
-mkSegment t
-  | T.null t = Left EmptySegment
-  | isValidSegment t = Right (Segment t)
-  | otherwise = Left (BadSegment t)
-
-isValidSegment :: Text -> Bool
-isValidSegment t =
-  not (T.null t) && all validPart (T.splitOn "-" t)
-  where
-    -- 空的 part 代表出現了開頭、結尾或連續的 '-'
-    validPart p = not (T.null p) && T.all isSegChar p
-    isSegChar c = isAsciiLower c || isDigit c
-
---------------------------------------------------------------------------------
--- NameParts
-
--- | 拆解後的各部位(design.md「命名文法的拆解規則」段落,2026-08-23 階段一
--- 閘門定案)。__形狀沿用 legacy__:'npVariant' 與 'npState' 語意分開,不是
--- 位置式的清單。
-data NameParts = NameParts
-  { npKind :: Segment
-  -- ^ 封閉,必須在 'nvKinds' 內。
-  , npDomain :: Segment
-  -- ^ 用途領域。刻意不比對任何詞彙表(ADR-019):加一種素材領域連資料都
-  -- 不必動。
-  , npSubject :: Segment
-  , npVariant :: Maybe Segment
-  -- ^ 開放,不查詞彙表——任何合法 'Segment' 都收(@01a@、@blue@、
-  -- @attack-01@、@v2@……)。
-  , npState :: Maybe Segment
-  -- ^ 封閉,必須在 'nvStates' 內(@up@\/@down@\/@hover@\/@pressed@……)。
-  , npIndex :: Maybe Int
-  -- ^ 數字序號,渲染時補零到三位。尾端三位純數字,純語法判斷,不查表。
-  }
-  deriving stock (Eq, Show)
-
---------------------------------------------------------------------------------
--- 詞彙表(契約 C)
-
--- | 命名文法的詞彙表,由註冊表載入層(@aapms-types@)從 @naming.toml@ 注入。
--- __程式碼裡不得有 @defaultVocab@__,三組詞彙全部住 @naming.toml@。
---
--- * 'nvKinds' ——__強制__。'mkLogicalName' \/ 'validateLogicalName' 檢查
---   'npKind' 是否為成員,不是就回 'UnknownKindPrefix'(ADR-019:「kind 是封閉
---   列舉」)。
--- * 'nvDomains' ——__不強制__(ADR-019:「domain 根本不比對詞彙表」),只是
---   型別上與 'nvKinds' 對稱,供未來使用。
--- * 'nvStates' ——__強制、封閉__。'parseLogicalName' 拆解時唯一查的表:候選
---   段落在表內才歸類成 'npState',不在表內就落回 'npVariant'(開放全收)。
---   'mkLogicalName' 額外驗證手工建構的 'npState'(若為 @Just@)必須是成員,
---   不是就回 'UnknownState'。
-data NamingVocab = NamingVocab
-  { nvKinds :: [Segment]
-  , nvDomains :: [Segment]
-  , nvStates :: [Segment]
-  }
-  deriving stock (Show, Eq)
-
---------------------------------------------------------------------------------
--- 錯誤
-
-data NameError
-  = EmptySegment
-  | BadSegment Text
-  | NoAsciiContent Text
-  | TooLong Int Text
-  | UnknownKindPrefix Text
-  | UnknownState Text
-  | TooFewSegments Int Text
-  | AmbiguousTrailing [Text] Text
-  | IndexOutOfRange Int
-  deriving stock (Eq, Show)
-
-renderNameError :: NameError -> Text
-renderNameError = \case
-  EmptySegment -> "名稱分段不可為空"
-  BadSegment t ->
-    "分段 " <> tshow t <> " 不合法,只允許 ^[a-z0-9]+(-[a-z0-9]+)*$"
-  NoAsciiContent t ->
-    "「" <> t <> "」含非 ASCII 內容,請手動指定名稱"
-  TooLong n t ->
-    "名稱長度 " <> tshow n <> " 超過上限 " <> tshow maxLogicalNameLength <> ":" <> t
-  UnknownKindPrefix t -> "未知的 kind 前綴 " <> tshow t
-  UnknownState t -> "未知的 state 詞 " <> tshow t
-  TooFewSegments n t ->
-    "名稱至少需要 3 段(kind_domain_subject),只有 " <> tshow n <> " 段:" <> t
-  AmbiguousTrailing rest t ->
-    "主體位置剩下多段 " <> tshow rest <> ",無法判斷哪段是修飾詞:" <> t
-  IndexOutOfRange n -> "序號 " <> tshow n <> " 超出範圍 0..999"
-  where
-    tshow :: Show a => a -> Text
-    tshow = T.pack . show
-
---------------------------------------------------------------------------------
--- 常數與數字部位
-
--- | 上限 64 是為了留給專案端的路徑深度。
-maxLogicalNameLength :: Int
-maxLogicalNameLength = 64
-
--- | 剛好三位數字,如 @000@、@100@。
-isIndexShaped :: Text -> Bool
-isIndexShaped t = T.length t == 3 && T.all isDigit t
-
-indexSegment :: Int -> Either NameError Segment
-indexSegment n
-  | n < 0 || n > 999 = Left (IndexOutOfRange n)
-  | otherwise = Right (Segment (T.justifyRight 3 '0' (T.pack (show n))))
 
 --------------------------------------------------------------------------------
 -- 建構

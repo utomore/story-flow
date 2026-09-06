@@ -65,6 +65,11 @@ import Aapms.Md.Render
   , updateSectionExtras
   )
 import Aapms.Md.Parse (toLicenses)
+import Effectful (runEff)
+import Aapms.Store.Editing (applyWrite)
+import Aapms.Store.Effect.Clock.IO (runClockIO)
+import Aapms.Store.Effect.Index.Sqlite (runIndexSqlite)
+import Aapms.Store.Effect.VaultFs.IO (runVaultFsIO)
 import Aapms.Store.Edit
   ( checkRevision
   , commit
@@ -421,5 +426,22 @@ allocateId vh p c t = tryAlloc 0
 -- 'Aapms.Store.Editing.applyWrite' 的三個真解譯器(@directory@、@sqlite@、
 -- 系統時鐘)。本模組原本的十二個 @IO@ 函數(上面那些)在 P-003 落地後退成
 -- 它的薄包裝。
+--
+-- 形狀照 'Aapms.Store.Index.rebuildIndex':整段 'Effectful.runEff' 包在
+-- 'Aapms.Store.Error.trySqlite' 裡,SQLite 例外收斂成
+-- 'Aapms.Store.Error.SqliteError',內層自己回的 'Left' 以 @flatten@ 攤平。
 applyWriteIO :: VaultHandle -> WriteOp -> IO (Either StoreError WriteOutcome)
-applyWriteIO _vh _op = error "P-003#applyWriteIO stub"
+applyWriteIO vh op =
+  flatten
+    <$> trySqlite
+      ( runEff
+          ( runVaultFsIO
+              (vhRoot vh)
+              ( runIndexSqlite
+                  (vhConn vh)
+                  (runClockIO (applyWrite (vhRegistry vh) (vmId (vhMarker vh)) op))
+              )
+          )
+      )
+  where
+    flatten = either Left id

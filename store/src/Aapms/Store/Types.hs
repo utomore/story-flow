@@ -126,20 +126,26 @@ module Aapms.Store.Types
   ) where
 
 import Data.Int (Int64)
+import Data.List (find)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time (UTCTime (..), fromGregorian)
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
 import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256)
-import Aapms.Core.Id (Id, IdPrefix, Ref, VaultId (..), renderId, renderRef)
-import Aapms.Core.Level (Level, Node, NodeKind, TreeError, renderTreeError)
-import Aapms.Core.License (License)
+import Aapms.Core.Entity (Entity (..))
+import Aapms.Core.Id (Id, IdPrefix (..), Ref, VaultId (..), newId, renderId, renderRef)
+import Aapms.Core.Level (Level (..), Node (..), NodeKind, TreeError, renderTreeError)
+import Aapms.Core.License (License (..))
 import Aapms.Core.Link (Link (..), renderLinkKind)
-import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..), metaId)
-import Aapms.Core.Pack (AiDisclosure, Author, Pack)
-import Aapms.Md.Document (DocKind (..), Document)
+import Aapms.Core.Meta (Meta (..), MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..))
+import Aapms.Core.Pack (AiDisclosure, Author, Pack (..))
+import Aapms.Md.Document (DocKind (..), Document (..), Section (..))
 import Aapms.Md.Error (MdError, renderMdError)
+import Aapms.Md.Parse (parseDocument, toLevel, toLicenses, toPack, toTopic)
+import Aapms.Md.Render (renderSection)
 import Aapms.Md.Section (MetaOverride, NewSection)
 
 --------------------------------------------------------------------------------
@@ -871,100 +877,224 @@ data PackFields = PackFields
 
 -- | 請求要動的既有節點(建檔類為 'Nothing')。
 opTarget :: WriteOp -> Maybe Id
-opTarget _op = error "P-003#opTarget stub"
+opTarget = \case
+  CreateTopic _ -> Nothing
+  CreateLevel _ -> Nothing
+  CreatePack _ _ -> Nothing
+  AddSection i _ _ -> Just i
+  DeleteNode i _ _ -> Just i
+  WriteMeta i _ _ -> Just i
+  WriteAssetFields i _ _ -> Just i
+  WriteBody i _ _ -> Just i
+  AddLink i _ _ -> Just i
+  RemoveLink i _ _ -> Just i
+  UpsertLicense l -> Just (metaId (licMeta l))
 
 -- | 請求帶的 expected revision。
+--
+-- 逐字照建構子:帶 'Revision' 的請求回它,'UpsertLicense' 回傳入 'License'
+-- 自己的 'metaRevision'(P-003 的決定),建檔與增節沒有 expected revision。
 opRevision :: WriteOp -> Maybe Revision
-opRevision _op = error "P-003#opRevision stub"
+opRevision = \case
+  CreateTopic _ -> Nothing
+  CreateLevel _ -> Nothing
+  CreatePack _ _ -> Nothing
+  AddSection {} -> Nothing
+  DeleteNode _ r _ -> Just r
+  WriteMeta _ r _ -> Just r
+  WriteAssetFields _ r _ -> Just r
+  WriteBody _ r _ -> Just r
+  AddLink _ r _ -> Just r
+  RemoveLink _ r _ -> Just r
+  UpsertLicense l -> Just (metaRevision (licMeta l))
 
 -- | 是不是會插入新節的請求(增節、建檔)。
+--
+-- 'UpsertLicense' __也算__:同 id 的節不存在時它會在 @licenses.md@ 檔尾追加一節,
+-- 而追加會把插入點前一段的行尾補齊('Aapms.Md.Render' 的 @blankTail@)。
+-- LAW-3 拿這個判定排除「會挪動別節位元組」的請求,漏掉它就漏掉一種挪動。
 isInsertOp :: WriteOp -> Bool
-isInsertOp _op = error "P-003#isInsertOp stub"
+isInsertOp = \case
+  CreateTopic _ -> True
+  CreateLevel _ -> True
+  CreatePack _ _ -> True
+  AddSection {} -> True
+  UpsertLicense _ -> True
+  _ -> False
 
 -- | 是不是會刪掉節的請求(刪節,含 DeleteForce 連子樹一起刪)。
 isDeleteOp :: WriteOp -> Bool
-isDeleteOp _op = error "P-003#isDeleteOp stub"
+isDeleteOp = \case
+  DeleteNode {} -> True
+  _ -> False
 
 -- | 結果的新 revision。
+--
+-- 'Deleted' 沒有新 revision('DeleteResult' 沒有這個欄位——被刪的節點不再有
+-- 版本),回 @'Revision' 0@ 當中性值。
 outcomeRevision :: WriteOutcome -> Revision
-outcomeRevision _o = error "P-003#outcomeRevision stub"
+outcomeRevision = \case
+  Created cr -> crRevision cr
+  Written wr -> wrRevision wr
+  Deleted _ -> Revision 0
 
 -- | 結果落地的檔。
 outcomePath :: WriteOutcome -> FilePath
-outcomePath _o = error "P-003#outcomePath stub"
+outcomePath = \case
+  Created cr -> crPath cr
+  Written wr -> wrPath wr
+  Deleted dr -> drPath dr
 
 -- | 結果的節點 id(建檔為新檔主體)。
 outcomeId :: WriteOutcome -> Id
-outcomeId _o = error "P-003#outcomeId stub"
+outcomeId = \case
+  Created cr -> crId cr
+  Written wr -> wrId wr
+  Deleted dr -> fromMaybe neutralId (listToMaybe (drRemovedIds dr))
+
+-- | 'outcomeId' 對「一個 id 都沒刪掉的 'DeleteResult'」的中性值。
+--
+-- 寫入路徑產生的 'DeleteResult' 恆有至少一個消失的 id,所以這個值不會被觀察到;
+-- 它存在只是為了讓觀察點是全函數(不拋例外)。
+neutralId :: Id
+neutralId = newId PEnt "" (UTCTime (fromGregorian 1970 1 1) 0) 0
 
 -- | 刪除結果消失的 id。
 removedIds :: WriteOutcome -> [Id]
-removedIds _o = error "P-003#removedIds stub"
+removedIds = \case
+  Deleted dr -> drRemovedIds dr
+  _ -> []
 
 -- | 刪除結果列出的斷點。
 brokenLinks :: WriteOutcome -> [(Id, Link)]
-brokenLinks _o = error "P-003#brokenLinks stub"
+brokenLinks = \case
+  Deleted dr -> drBrokenLinks dr
+  _ -> []
 
 -- | 記憶體 vault 裡某檔解析後的文件。
 --
--- 本模組是型別層,不得 import pure 層的 "Aapms.Md.Parse";這一列與
--- 'metaAt' \/ 'assetAt' \/ 'licensesAt' \/ 'assetIdsAt' \/ 'packAt' \/ 'levelAt' \/
--- 'sectionBytes' \/ 'levelOf' 同屬「要解析才算得出來」的觀察點。
+-- 這一列與 'metaAt' \/ 'assetAt' \/ 'licensesAt' \/ 'assetIdsAt' \/ 'packAt' \/
+-- 'levelAt' \/ 'sectionBytes' \/ 'levelOf' 同屬「要解析才算得出來」的觀察點,
+-- 所以本模組 import "Aapms.Md.Parse" \/ "Aapms.Md.Render"(見 P-003 回報的
+-- GAP:這兩個模組在模組表是 pure 層,而本模組是 types 層)。
 documentAt :: VaultFiles -> FilePath -> Maybe Document
-documentAt _vf _p = error "P-003#documentAt stub"
+documentAt vf p = do
+  (_, txt) <- Map.lookup p vf
+  hush (parseDocument txt)
+
+-- | 'Either' 丟掉錯誤。本模組私有。
+hush :: Either e a -> Maybe a
+hush = either (const Nothing) Just
+
+-- | 一份文件裡每一個節點的 'Meta',檔案層主體在前;解析失敗回空清單。本模組私有。
+metasOf :: Document -> [Meta]
+metasOf d = case docKind d of
+  TopicDoc -> either (const []) (\(mainE, frags) -> entMeta mainE : map entMeta frags) (toTopic d)
+  LevelDoc -> either (const []) (\(lvl, ns) -> lvlMeta lvl : map nodMeta ns) (toLevel d)
+  PackDoc -> either (const []) (\(pck, as) -> pckMeta pck : map astMeta as) (toPack d)
+  LicenseDoc -> either (const []) (map licMeta) (toLicenses d)
 
 -- | 某檔每一節渲染後的位元組。
 sectionBytes :: VaultFiles -> FilePath -> [(Id, Text)]
-sectionBytes _vf _p = error "P-003#sectionBytes stub"
+sectionBytes vf p =
+  maybe [] (map (\s -> (secId s, renderSection s)) . docSections) (documentAt vf p)
 
 -- | 索引裡節點所在檔。
 locatedFile :: IndexState -> Id -> Maybe FilePath
-locatedFile _ix _i = error "P-003#locatedFile stub"
+locatedFile (IndexState m) i =
+  listToMaybe
+    [ fiPath fi
+    | fi <- Map.elems m
+    , any ((== i) . metaId . anyMeta . inNode) (fiNodes fi)
+    ]
 
 -- | 從檔案重讀節點目前的 'Meta'。
 metaAt :: VaultFiles -> IndexState -> Id -> Maybe Meta
-metaAt _vf _ix _i = error "P-003#metaAt stub"
+metaAt vf ix i = do
+  p <- locatedFile ix i
+  d <- documentAt vf p
+  find ((== i) . metaId) (metasOf d)
 
 -- | 從 pack 檔重讀 asset 目前的欄位。
 assetAt :: VaultFiles -> IndexState -> Id -> Maybe Asset
-assetAt _vf _ix _i = error "P-003#assetAt stub"
+assetAt vf ix i = do
+  p <- locatedFile ix i
+  d <- documentAt vf p
+  (_, assets) <- hush (toPack d)
+  find ((== i) . metaId . astMeta) assets
 
 -- | @licenses.md@ 解出的授權清單。
+--
+-- 記憶體 vault 裡__每一份__ @LicenseDoc@ 都算(路徑遞增),不寫死
+-- @library\/licenses.md@ ——這個觀察點的簽名沒有路徑參數。
 licensesAt :: VaultFiles -> [License]
-licensesAt _vf = error "P-003#licensesAt stub"
+licensesAt vf =
+  concat
+    [ either (const []) id (toLicenses d)
+    | p <- Map.keys vf
+    , d <- maybe [] pure (documentAt vf p)
+    , docKind d == LicenseDoc
+    ]
 
 -- | 某 pack 檔的 asset id 依文件順序。
 assetIdsAt :: VaultFiles -> FilePath -> [Id]
-assetIdsAt _vf _p = error "P-003#assetIdsAt stub"
+assetIdsAt vf p =
+  maybe [] (either (const []) (map (metaId . astMeta) . snd) . toPack) (documentAt vf p)
 
 -- | 某 pack 檔的檔案層 'Aapms.Core.Pack.Pack'。
 packAt :: VaultFiles -> FilePath -> Maybe Pack
-packAt _vf _p = error "P-003#packAt stub"
+packAt vf p = documentAt vf p >>= fmap fst . hush . toPack
 
 -- | 某 Level 檔解出的場景與節點。
 levelAt :: VaultFiles -> FilePath -> Maybe (Level, [Node])
-levelAt _vf _p = error "P-003#levelAt stub"
+levelAt vf p = documentAt vf p >>= levelOf
 
 -- | pack 七個專屬欄位。
 packFields :: Pack -> PackFields
-packFields _p = error "P-003#packFields stub"
+packFields p =
+  PackFields
+    { pfVendor = pckVendor p
+    , pfArchive = pckArchive p
+    , pfSha256 = pckSha256 p
+    , pfLicense = pckLicense p
+    , pfAuthor = pckAuthor p
+    , pfSourceUrl = pckSourceUrl p
+    , pfAiDisclosure = pckAiDisclosure p
+    }
 
 -- | 請求裡的同七欄。
 newPackFields :: NewPack -> PackFields
-newPackFields _np = error "P-003#newPackFields stub"
+newPackFields np =
+  PackFields
+    { pfVendor = npVendor np
+    , pfArchive = npArchive np
+    , pfSha256 = npSha256 np
+    , pfLicense = npLicense np
+    , pfAuthor = npAuthor np
+    , pfSourceUrl = npSourceUrl np
+    , pfAiDisclosure = npAiDisclosure np
+    }
 
--- | 三態補丁套在舊值上。
+-- | 三態補丁套在舊值上:@Nothing@ 不動、@Just v@ 設成 @v@。
 patchedName :: AssetPatch -> Maybe LogicalName -> Maybe LogicalName
-patchedName _patch _old = error "P-003#patchedName stub"
+patchedName patch old = fromMaybe old (apName patch)
 
--- | 索引記錄的每檔指紋。
+-- | 索引記錄的每檔指紋,路徑遞增。
 fileStatsOf :: IndexState -> [(FilePath, FileStat)]
-fileStatsOf _ix = error "P-003#fileStatsOf stub"
+fileStatsOf (IndexState m) = [(fiPath fi, fiStat fi) | fi <- Map.elems m]
 
 -- | 去掉 revision 與 updated 兩行。
+--
+-- frontmatter 與節的 @```meta@ 區塊都適用:判準是「這一行去掉前導空白之後以
+-- @revision:@ 或 @updated:@ 起頭」。行尾一律正規化成 @\\n@ ——比較兩份文字時
+-- 兩邊都經過同一次正規化。
 stripStamps :: Text -> Text
-stripStamps _t = error "P-003#stripStamps stub"
+stripStamps = T.unlines . filter (not . isStamp) . T.lines
+  where
+    isStamp l =
+      let s = T.stripStart l
+       in "revision:" `T.isPrefixOf` s || "updated:" `T.isPrefixOf` s
 
 -- | Level 檔文件解出的場景與節點。
 levelOf :: Document -> Maybe (Level, [Node])
-levelOf _d = error "P-003#levelOf stub"
+levelOf = hush . toLevel

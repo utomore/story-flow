@@ -21,6 +21,7 @@ module Aapms.Store.Effect.Clock
 
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect_)
 
 -- | 只有一個操作。
@@ -33,5 +34,9 @@ makeEffect_ ''Clock
 now :: Clock :> es => Eff es UTCTime
 
 -- | 觀察:固定時間的純解譯器。
+--
+-- 每一次 @Now@ 都回同一個時刻:law 要的是可重現(同一段寫入程式跑兩次得到
+-- 逐位元組相同的檔案),不是「時間會走」——後者是真解譯器
+-- ('Aapms.Store.Effect.Clock.IO.runClockIO')的事。
 runClockPure :: UTCTime -> Eff (Clock : es) a -> Eff es a
-runClockPure _t _act = error "P-003#runClockPure stub"
+runClockPure t = interpret $ \_ Now -> pure t

@@ -26,7 +26,7 @@ updated: 2026-09-06
 | 12 | `removeMarkerDir :: VaultDir :> es => FilePath -> Eff es ()` | 撞號回滾:刪掉剛建的 `.aapms/` | `Aapms.Workspace.Effect.VaultDir`(願望) | effects |
 | 13 | `removeIndexDb :: VaultDir :> es => FilePath -> Eff es Bool` | 刪 index.db,本來就沒有回 False 不算失敗 | `Aapms.Workspace.Effect.VaultDir`(願望) | effects |
 | 14 | `now :: Clock :> es => Eff es UTCTime` | 配號的時間 | `Aapms.Store.Effect.Clock`(願望,見 P-003-node-write) | effects |
-| 15 | `checkInit :: Text -> InitMode -> Bool -> Bool -> [FilePath] -> Either WorkspaceError Text` | 前置檢查依序:名稱去空白非空 → `.aapms` 未被佔用 → Fresh 要空、Adopt 要存在;通過回去空白後的名稱 | `Aapms.Workspace.Lifecycle.Plan`(願望) | pure |
+| 15 | `checkInit :: Text -> InitMode -> FilePath -> Bool -> Bool -> [FilePath] -> Either WorkspaceError Text` | 前置檢查依序:名稱去空白非空 → `.aapms` 未被佔用 → Fresh 要空、Adopt 要存在;通過回去空白後的名稱 | `Aapms.Workspace.Lifecycle.Plan`(願望) | pure |
 | 16 | `legacyMarkers :: FilePath -> [FilePath] -> [FilePath]` | 目錄第一層裡的 `.assetdb` / `.storyflow`,固定順序,不遞迴 | `Aapms.Workspace.Lifecycle.Plan`(願望) | pure |
 | 17 | `collisionOf :: Hub -> VaultMarker -> FilePath -> Maybe WorkspaceError` | 新 marker 的 id 撞到中樞既有列(路徑不同)就是 VaultIdCollision 三個值 | `Aapms.Workspace.Lifecycle.Plan`(願望) | pure |
 | 18 | `entryOf :: VaultMarker -> FilePath -> VaultEntry` | marker 投影成中樞的一列 | `Aapms.Workspace.Lifecycle.Plan`(願望) | pure |
@@ -78,7 +78,7 @@ updated: 2026-09-06
   - given isJust (hubTextIn hw)
   - |- lcHubText run == hubTextIn hw and isRight (lcResult run)
 - LAW-3 [relation] init 的前置檢查順序固定(名稱 → 已佔用 → 目錄狀態),任一失敗結果就是 checkInit 的錯誤,且零副作用
-  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), err in lefts [checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)]
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), err in lefts [checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)]
   - |- lcResult run == Left err and lcHubText run == hubTextIn hw and lcVaults run == vw
 - LAW-4 [relation] init 成功:marker 讀回的 id / kind / 去空白的 name 就是回傳那一列,索引已建,中樞只多這一列
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), o in rights [lcResult run], e in maybe [] pure (outcomeEntry o), h2 in maybe [] pure (outcomeHub o), m in rights (maybe [] pure (vwMarker (lcVaults run) d))
@@ -152,7 +152,7 @@ updated: 2026-09-06
 | EX-12 | 三列中間那列 forget,KeepIndex 與 DeleteIndex 各一次;第三次 index.db 事先不在 | Keep:中樞剩兩列順序不變、index.db 還在;Delete:index.db 不在、config.toml 與 library 不變;第三次仍 Right | LAW-9、LAW-10 |
 | EX-13 | 三列:正常、路徑不見、id 漂移;`CheckVaults` | `[VaultPathMissing e2 p2, VaultIdDrift e3 id]`,順序同中樞;refs 指向未註冊者不產生 RefVaultNotRegistered | LAW-11 |
 | EX-14 | 某列 name stale / kind story,marker 是 real / asset;`SyncHub`;另一組全一致 | 該列變 real / asset,id 與 path 不變;全一致時中樞文字不變、issues 空 | LAW-12 |
-| EX-15 | 中樞列兩個 vault,H 有 config.toml、兩張縮圖、notes.txt;`Purge PurgeHubOnly` 與 `PurgeAllVaults`;再各跑一次 | HubOnly:`PurgeReport True 2 []`,vault 不動;AllVaults:`prVaultIndexesRemoved` 兩個 index.db,library 與 .md 不變;第二次 `PurgeReport False 0 []` | LAW-13 |
+| EX-15 | 中樞列兩個 vault,H 有 config.toml、兩張縮圖、notes.txt;`Purge PurgeHubOnly` 與 `PurgeAllVaults`;再各跑一次 | HubOnly:`PurgeReport True 2 []`,vault 不動;AllVaults:`prVaultIndexesRemoved` 是兩個 `<vault 根>/.aapms/index.db`(graph-core 的 `indexDbPath`),library 與 .md 不變;第二次 `PurgeReport False 0 []` | LAW-13 |
 | EX-16 | `RegisterProject P "demo"`;再 `RegisterProject P "demo2"`;`RegisterProject Q "x"`(Q 不存在);`RegisterProject P "  "` | 第一次成功多一列;第二次 `Left (ProjectAlreadyRegistered id P)`;第三次 `Left (ProjectPathMissing "x" Q)`;第四次 `Left (InvalidName "  ")` | LAW-14 |
 | EX-17 | `allocateProjectId [] "demo" t`;既有列含它的結果再算一次 | `prj-` 加八位十六進位;第二次不等於第一次 | LAW-15 |
 | EX-18 | `ForgetProject "demo"`、`ForgetProject "nope"`、兩列同名時 `ForgetProject "dup"` | 依序成功少一列、NotFound、Ambiguous;專案目錄不動 | LAW-16 |
@@ -182,3 +182,7 @@ updated: 2026-09-06
   - 動到:LAW-13 的 forall、觀察點 `cacheDirIn` / `thumbsIn`(引用)
   - 保護:LAW-1 到 LAW-12、LAW-14 到 LAW-20、全部 EX
   - 重委派:qa(LAW-13、EX-15、`HubWorld` 產生器);impl 尚未派
+- REV-2(2026-09-06,依 impl 提問 GAP-1「`checkInit` 收不到 vault 根目錄,但它要回的 `VaultAlreadyInitialized` / `VaultDirNotEmpty` / `VaultDirMissing` 都捧著那個路徑;第五個參數是第一層裸名還原不出路徑,而 LAW-3 要求整條結果逐值等於它的錯誤」與「EX-15 的 `prVaultIndexesRemoved` 路徑形狀原文沒定」):第 15 列 `checkInit` 在 `InitMode` 之後加 `FilePath`(vault 根目錄);LAW-3 的呼叫式同步;EX-15 明寫 `<vault 根>/.aapms/index.db`。另 qa 重派時一併處理:EX-20 的世界要用絕對路徑(P-028-hub-config 的 `parseHubText` 只收絕對 `path`),LAW-20 的 `cover` 門檻貼著實測值會隨種子翻紅
+  - 動到:Stages 第 15 列、LAW-3 的 forall、EX-15
+  - 保護:LAW-1、LAW-2、LAW-4 到 LAW-20、其餘 EX
+  - 重委派:impl(`checkInit` 與 `applyLifecycle` 的呼叫點);qa(LAW-3、EX-15、EX-20 的世界、LAW-20 的 cover)

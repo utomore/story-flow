@@ -100,6 +100,7 @@ module Aapms.Workspace.Types
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -657,29 +658,41 @@ data VaultWorld = VaultWorld
   }
   deriving stock (Show, Eq)
 
--- | 觀察:目錄第一層的名字。
+-- | 觀察:目錄第一層的名字。__不在表上的路徑回空清單__(它不是既存目錄,
+-- 「第一層有什麼」的答案與空目錄一樣是「什麼都沒有」;要分辨兩者問
+-- 'vwDirExists')。
 vwEntries :: VaultWorld -> FilePath -> [FilePath]
-vwEntries _vw _d = error "P-005#vwEntries stub"
+vwEntries vw d = Map.findWithDefault [] d (vwTree vw)
 
 -- | 觀察:@.aapms@ 路徑被佔用。
 vwMarkerDir :: VaultWorld -> FilePath -> Bool
-vwMarkerDir _vw _d = error "P-005#vwMarkerDir stub"
+vwMarkerDir vw d = Set.member d (vwMarkerDirs vw)
 
--- | 觀察:marker 讀數。
+-- | 觀察:marker 讀數;@Nothing@ = 那個路徑上讀不到任何 marker。
 vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
-vwMarker _vw _d = error "P-005#vwMarker stub"
+vwMarker vw d = Map.lookup d (vwMarkers vw)
 
 -- | 觀察:@index.db@ 在不在。
 vwHasIndex :: VaultWorld -> FilePath -> Bool
-vwHasIndex _vw _d = error "P-005#vwHasIndex stub"
+vwHasIndex vw d = Set.member d (vwIndexDbs vw)
 
--- | 觀察:目錄在不在。
+-- | 觀察:目錄在不在(等價於「它在 'vwTree' 上」)。
 vwDirExists :: VaultWorld -> FilePath -> Bool
-vwDirExists _vw _d = error "P-005#vwDirExists stub"
+vwDirExists vw d = Map.member d (vwTree vw)
 
 -- | 觀察:拿掉這些路徑後的目錄樹(比較「其餘不動」用)。
+--
+-- 四張表全部以同一組路徑為鍵刪除:一個 vault 根目錄在世界裡的全部足跡(第一層
+-- 的名字、marker 讀數、@.aapms@ 佔用、@index.db@)因此一起消失,剩下的就是
+-- 「其餘」。
 vwWithout :: [FilePath] -> VaultWorld -> VaultWorld
-vwWithout _ps _vw = error "P-005#vwWithout stub"
+vwWithout ps vw =
+  VaultWorld
+    { vwTree = foldr Map.delete (vwTree vw) ps
+    , vwMarkers = foldr Map.delete (vwMarkers vw) ps
+    , vwMarkerDirs = foldr Set.delete (vwMarkerDirs vw) ps
+    , vwIndexDbs = foldr Set.delete (vwIndexDbs vw) ps
+    }
 
 -- | 一次 'LifecycleOp' 在純世界裡跑完之後看得到的三件事。
 data LifecycleRun a = LifecycleRun

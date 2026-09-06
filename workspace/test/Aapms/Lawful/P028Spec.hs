@@ -539,6 +539,15 @@ examplesSpec = do
           renderHub h `shouldBe` ex26Text
           map veId (hubVaults h) `shouldBe` [vid7f3b]
 
+  describe "P-028#EX-27" $
+    it "刪掉再新增回來的 project id,渲染再解析後順序與清單相同,不是原檔位置" $ do
+      let h0 = removeProject pid91c0 ex8Hub
+          h1 = upsertProject (ProjectEntry pid0000 "Circle" "D:/circle") h0
+          h2 = upsertProject (ProjectEntry pid91c0 "Circle" "D:/circle") h1
+      case parseHubText exFp (renderHub h2) of
+        Left e -> expectationFailure ("預期 Right,實際:" <> show e)
+        Right h3 -> map peId (hubProjects h3) `shouldBe` [pid0000, pid91c0]
+
 --------------------------------------------------------------------------------
 -- Example 的斷言輔助
 --------------------------------------------------------------------------------

@@ -10,7 +10,7 @@
 -- LAW-2  上述五個模組都在 other-modules                                             -> test_LAW2
 -- LAW-3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_LAW3
 -- LAW-4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_LAW4
--- EX-1  exposed-modules 24 項 + other-modules 5 項 = 29,對帳                       -> test_EX1
+-- EX-1  exposed-modules 25 項 + other-modules 5 項 = 30,對帳                       -> test_EX1
 -- EX-2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_EX2 / _contractEFunctions / ContractETypesCheck
 -- @
 --
@@ -106,13 +106,13 @@ spec = describe "graph-core/E001 cabal 可見度界線" $ do
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "EX-1: exposed-modules 24 項 + other-modules 5 項 = 29,對帳" $ do
+    it "EX-1: exposed-modules 25 項 + other-modules 5 項 = 30,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort exposed `shouldBe` sort expectedExposed
       sort other `shouldBe` sort movedModules
-      (length exposed + length other) `shouldBe` 29
+      (length exposed + length other) `shouldBe` 30
 
   describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
@@ -230,6 +230,11 @@ movedModules =
 -- 'Aapms.Store.Editing'(純層模組),它與 'Aapms.Store.Types' 同樣是消費端
 -- (含 @service@ 與其他純層模組)該 import 的目標,因此__必須__ exposed;
 -- 清單再從 12 項長成 13 項。
+--
+-- 2026-09-06 P-002-search REV-2:兩個純解譯器('runIndexPure' \/ 'runVaultsPure')
+-- 從 @Aapms.Store.Effect.*@ 搬到新的 @Aapms.Store.Simulate@(pure 層),它是 law 的
+-- 觀察點、測試要 import,因此__必須__ exposed;清單長一項、對帳總數 29 → 30。
+-- E001 的四個內部模組一項未動,LAW-1 \/ LAW-2 的判準不受影響。
 expectedExposed :: [String]
 expectedExposed =
   [ "Aapms.Store"
@@ -252,6 +257,7 @@ expectedExposed =
   , "Aapms.Store.Schema"
   , "Aapms.Store.Search"
   , "Aapms.Store.Search.Internal"
+  , "Aapms.Store.Simulate"
   , "Aapms.Store.Tokenize"
   , "Aapms.Store.Tokenize.Internal"
   , "Aapms.Store.Types"

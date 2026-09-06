@@ -19,6 +19,8 @@ import qualified Aapms.Service.MonadSpec
 import qualified Aapms.Service.NestedRunServiceSpec
 import qualified Aapms.Service.PathLiteralSpec
 import qualified Aapms.Service.ScopeSpec
+import qualified Aapms.Lawful.P004Spec
+import qualified Aapms.Lawful.P006Spec
 import qualified Aapms.Service.TypesSpec
 import System.IO
 import Test.Hspec
@@ -28,6 +30,8 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
+    describe "lawful P004" Aapms.Lawful.P004Spec.spec
+    describe "lawful P006" Aapms.Lawful.P006Spec.spec
     -- service/F001
     Aapms.Service.TypesSpec.spec
     Aapms.Service.MonadSpec.spec

@@ -63,6 +63,8 @@ test-suite aapms-service-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P004Spec
+        Aapms.Lawful.P006Spec
         Aapms.Service.Types
         Aapms.Service.Monad
         Aapms.Service.Scope

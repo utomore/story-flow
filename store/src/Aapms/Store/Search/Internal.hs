@@ -19,10 +19,10 @@ import Effectful (Eff, runPureEff)
 import Aapms.Core.AnyNode (AnyNode, anyMeta)
 import Aapms.Core.Id (Id, VaultId)
 import Aapms.Core.Meta (Meta (..))
-import Aapms.Store.Effect.Index (runIndexPure)
-import Aapms.Store.Effect.Vaults (Vaults, runVaultsPure)
+import Aapms.Store.Effect.Vaults (Vaults)
 import Aapms.Store.Filter (passesFilter)
 import Aapms.Store.Search (searchVault)
+import Aapms.Store.Simulate (runIndexPure, runVaultsPure)
 import Aapms.Store.Types
   ( FileIndex (..)
   , IndexState (..)
@@ -33,7 +33,7 @@ import Aapms.Store.Types
   , SearchResult (..)
   )
 
--- | 觀察:'Aapms.Store.Effect.Vaults.runVaultsPure' 跑到底。
+-- | 觀察:'Aapms.Store.Simulate.runVaultsPure' 跑到底。
 simulateVaults :: Map VaultId IndexState -> Eff '[Vaults] a -> a
 simulateVaults m act = runPureEff (runVaultsPure m act)
 
@@ -52,7 +52,7 @@ structuralKeys m nf = [(v, metaId (anyMeta n)) | (v, n) <- visibleNodes nf m]
 -- | 觀察:記憶體索引集合裡逐檔逐節點以 'Aapms.Store.Filter.passesFilter'
 -- 判定後留下的節點(含 owner 與 reference 條件)。
 --
--- 與 'Aapms.Store.Effect.Index.runIndexPure' 一樣,同一個 vault 內一個 id
+-- 與 'Aapms.Store.Simulate.runIndexPure' 一樣,同一個 vault 內一個 id
 -- 只算一列(真索引的 @nodes.id@ 是主鍵),否則同一個節點被兩個檔記到時
 -- 這個參考量會比命中多出一筆。
 visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]

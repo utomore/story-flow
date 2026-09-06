@@ -70,6 +70,8 @@ test-suite aapms-workspace-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P029Spec
+        Aapms.Lawful.P005Spec
         Aapms.Lawful.P028Spec
         Aapms.Workspace.Fixtures
         Aapms.Workspace.TypesSpec

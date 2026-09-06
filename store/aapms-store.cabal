@@ -43,6 +43,7 @@ library
         Aapms.Store.Schema
         Aapms.Store.Search
         Aapms.Store.Search.Internal
+        Aapms.Store.Simulate
         Aapms.Store.Tokenize
         Aapms.Store.Tokenize.Internal
         Aapms.Store.Types

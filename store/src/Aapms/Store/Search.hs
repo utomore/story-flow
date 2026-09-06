@@ -28,7 +28,7 @@ import Effectful (Eff, (:>))
 
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
 import Aapms.Core.Asset (Asset (..))
-import Aapms.Core.Id (Id, Ref, VaultId (..), renderRef)
+import Aapms.Core.Id (Id, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Meta (Meta (..), TypeKey (..))
 import Aapms.Core.Pack (Pack (..))
 import Aapms.Store.Effect.Index (Index, filterNodes, ftsMatch)
@@ -36,6 +36,7 @@ import Aapms.Store.Effect.Vaults (Vaults, inVault, vaultIds)
 import Aapms.Store.Tokenize (FtsText (..), rawFtsText, routeOf)
 import Aapms.Store.Types
   ( FacetCounts (..)
+  , IndexedNode (..)
   , NodeFilter (..)
   , SearchHit (..)
   , SearchQuery (..)
@@ -146,6 +147,9 @@ tally xs = tallyOf (Map.toList (Map.fromListWith (+) [(x, 1 :: Int) | x <- xs]))
 -- 其他 tag,否則使用者換不掉(LAW-11 \/ LAW-12)。@fcVaults@ 是唯一套用
 -- __完整__條件的維度——它就是這個 vault 的總數,加總起來要等於 @srTotal@
 -- (LAW-10)。
+--
+-- @fcOwners@ 的值是 owner 的 id 文字('inOwner' 經 'renderId'),對照 SQL 側
+-- 拿 @n.owner@ 這一欄分組;沒有 owner 的節點不計(SQL 側是 NULL 不計)。
 facetsIn :: Index :> es => VaultId -> SearchQuery -> Eff es FacetCounts
 facetsIn vid q = do
   let nf = sqFilter q
@@ -153,15 +157,16 @@ facetsIn vid q = do
   full <- candidateNodes textM nf
   typeNs <- candidateNodes textM nf {nfTypes = []}
   tagNs <- candidateNodes textM nf {nfTags = []}
+  ownerNs <- candidateNodes textM nf {nfOwner = Nothing}
   licNs <- candidateNodes textM nf {nfLicense = Nothing}
   let VaultId vidText = vid
   pure
     FacetCounts
-      { fcTypes = tally [t | n <- typeNs, let TypeKey t = metaType (anyMeta n)]
+      { fcTypes = tally [t | n <- typeNs, let TypeKey t = metaType (anyMeta (inNode n))]
       , fcVaults = tallyOf [(vidText, length full)]
-      , fcTags = tally (concatMap (metaTags . anyMeta) tagNs)
-      , fcOwners = []
-      , fcLicenses = tally [renderRef r | n <- licNs, Just r <- [licenseRefOf n]]
+      , fcTags = tally (concatMap (metaTags . anyMeta . inNode) tagNs)
+      , fcOwners = tally [renderId o | n <- ownerNs, Just o <- [inOwner n]]
+      , fcLicenses = tally [renderRef r | n <- licNs, Just r <- [licenseRefOf (inNode n)]]
       }
 
 -- | 單 vault 整條:路由 → 查 FTS 與結構條件 → 合併 → 片段 → 排序 → 切窗。
@@ -177,8 +182,8 @@ searchVault vid q = do
   let hits =
         [ SearchHit
             { shVault = vid
-            , shMeta = (anyMeta n) {metaVault = vid}
-            , shSnippet = maybe "" (\t -> snippetFrom t (ftsColumns n)) textM
+            , shMeta = (anyMeta (inNode n)) {metaVault = vid}
+            , shSnippet = maybe "" (\t -> snippetFrom t (ftsColumns (inNode n))) textM
             , shScore = score
             }
         | (n, score) <- matched
@@ -231,7 +236,7 @@ normalizeText mt = case T.strip <$> mt of
 -- 取大去重(P-002-search 的決定:不相加)。@ftsMatch@ 只回 @(Id, 分數)@,
 -- 'Meta' 與片段原文要另外拿——結構條件已經套在 @ftsMatch@ 上,命中必定是
 -- 'filterNodes' 的子集。
-matchedNodes :: Index :> es => Maybe Text -> NodeFilter -> Eff es [(AnyNode, Double)]
+matchedNodes :: Index :> es => Maybe Text -> NodeFilter -> Eff es [(IndexedNode, Double)]
 matchedNodes Nothing nf = do
   ns <- filterNodes nf
   pure [(n, 0) | n <- ns]
@@ -240,11 +245,11 @@ matchedNodes (Just t) nf = do
   tri <- if usesTrigram route then ftsMatch TrigramOnly t nf else pure []
   cjk <- if usesCjk route then ftsMatch CjkOnly t nf else pure []
   ns <- filterNodes nf
-  let byId = Map.fromList [(metaId (anyMeta n), n) | n <- ns]
+  let byId = Map.fromList [(metaId (anyMeta (inNode n)), n) | n <- ns]
   pure [(n, score) | (i, score) <- mergeScores tri cjk, Just n <- [Map.lookup i byId]]
 
 -- | 'matchedNodes' 只要節點:facet 的候選集。
-candidateNodes :: Index :> es => Maybe Text -> NodeFilter -> Eff es [AnyNode]
+candidateNodes :: Index :> es => Maybe Text -> NodeFilter -> Eff es [IndexedNode]
 candidateNodes textM nf = map fst <$> matchedNodes textM nf
 
 -- | 一個節點在 @fts_tri@ 的六欄原文,順序同

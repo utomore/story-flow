@@ -18,7 +18,7 @@ import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Store.Types (IndexState, VaultFiles)
 
 -- | 觀察:'Aapms.Store.Effect.VaultFs.runVaultFsPure' 與
--- 'Aapms.Store.Effect.Index.runIndexPure' 串起來跑到底,回結果與最終索引。
+-- 'Aapms.Store.Simulate.runIndexPure' 串起來跑到底,回結果與最終索引。
 simulate :: VaultFiles -> IndexState -> Eff '[VaultFs, Index] a -> (a, IndexState)
 simulate _vf _ix _act = error "P-001#simulate stub"
 

@@ -81,7 +81,7 @@ import Aapms.Md.Render (newDocument, renderDocument, renderMetaBlock)
 import Aapms.Md.Section (MetaExtras (..), MetaOverride (..), emptyOverride)
 
 import Aapms.Store.Indexing (indexDocument, indexPath, rebuild, refresh, staleFiles)
-import Aapms.Store.Indexing.Internal (simulate)
+import Aapms.Store.Indexing.Internal (clashesEarlier, simulate)
 import Aapms.Store.Types
   ( FileIndex (..)
   , FileStat (..)
@@ -91,6 +91,7 @@ import Aapms.Store.Types
   , VaultFiles
   , assetNames
   , emptyIndex
+  , fileAt
   , indexedIds
   , indexedNodes
   , indexedPaths
@@ -616,8 +617,23 @@ laws = do
           === snd (simulate vf2 emptyIndex (rebuild reg vid))
 
   describe "P-001#LAW-6" $
-    it "relation:一個檔在不在索引裡只由它自己的純核心成敗決定" $
-      pendingWith "GAP 本次-1"
+    it "relation:一個檔在不在索引裡,由它自己的純核心成敗與邏輯名稱有沒有被字母序更前的檔佔走決定" $
+      hedgehog $ do
+        vf <- forAll genVaultFiles
+        rp <- forAll genRegPick
+        vid <- forAll genVaultId
+        let reg = regOf rp
+            (_r, ix) = simulate vf emptyIndex (rebuild reg vid)
+        -- forall p in vaultPaths vf, (st, txt) in fileAt vf p
+        mapM_
+          ( \p ->
+              let (st, txt) = fileAt vf p
+               in (p `elem` indexedPaths ix)
+                    === ( isRight (indexDocument reg vid p st txt)
+                            && not (clashesEarlier reg vid vf p)
+                        )
+          )
+          (vaultPaths vf)
 
   describe "P-001#LAW-7" $
     it "invariant:索引裡每個節點的 vault 欄等於重建時給的 vault id" $
@@ -739,8 +755,15 @@ examples = do
       staleFiles diskEx7 recEx7 `shouldBe` (["b.md", "c.md"], ["d.md"])
 
   describe "P-001#EX-8" $
-    it "解析不開的文字回 Left,不拋例外" $
-      pendingWith "GAP 本次-2"
+    it "解析不開的文字回 Left (ParseFailed …),不拋例外" $ do
+      let out = indexDocument regFull vaultA "x.md" (statOf brokenMd) brokenMd
+      -- 不拋例外:先求值到正規形(@show@ 走遍整個結構)。
+      _ <- evaluate (length (show out))
+      case out of
+        Left (ParseFailed p _) -> p `shouldBe` "x.md"
+        other ->
+          expectationFailure
+            ("P-001#EX-8 期望 Left (ParseFailed …),實得 " <> show other)
 
   describe "P-001#EX-9" $
     it "檔案裡寫的 vault 不算數,索引裡的節點一律是重建時給的 vault id" $ do

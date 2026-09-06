@@ -8,6 +8,8 @@ import qualified Aapms.Workspace.ProjectsSpec
 import qualified Aapms.Workspace.ScopeSpec
 import qualified Aapms.Workspace.TypesSpec
 import qualified Aapms.Workspace.ToolsSpec
+import qualified Aapms.Lawful.P029Spec
+import qualified Aapms.Lawful.P005Spec
 import qualified Aapms.Lawful.P028Spec
 import System.IO
 import Test.Hspec
@@ -17,6 +19,8 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
+    describe "lawful P029" Aapms.Lawful.P029Spec.spec
+    describe "lawful P005" Aapms.Lawful.P005Spec.spec
     describe "lawful P028" Aapms.Lawful.P028Spec.spec
     -- workspace/F001
     Aapms.Workspace.TypesSpec.spec

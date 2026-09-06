@@ -1,0 +1,63 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-contract-0.1.0.0 (test:aapms-contract-rules-test) (additional components to build)
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (additional components to build)
+ - aapms-md-0.1.0.0 (test:aapms-md-test) (additional components to build)
+ - aapms-service-0.1.0.0 (test:aapms-service-test) (additional components to build)
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (file test\Aapms\Store\Fixtures.hs changed)
+ - aapms-types-0.1.0.0 (test:aapms-types-test) (additional components to build)
+ - aapms-workspace-0.1.0.0 (test:aapms-workspace-test) (additional components to build)
+Preprocessing test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Building test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Preprocessing test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Preprocessing test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Building test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Building test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Building test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[15 of 43] Compiling Aapms.Store.Fixtures ( test\Aapms\Store\Fixtures.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Fixtures.o ) [Source file changed]
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[44 of 44] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test.exe [Objects changed]

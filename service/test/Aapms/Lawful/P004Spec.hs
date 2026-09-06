@@ -66,6 +66,7 @@ import Aapms.Workspace.Types
   , ToolsConfig (..)
   , VaultEntry (..)
   , WorkspaceError (..)
+  , hubConfigPath
   , hubVaults
   , mkHub
   )
@@ -106,7 +107,7 @@ lawsSpec = do
         -- 前提由產生器直接建構,在這裡斷言出來,property 才不會恆真。
         assert (isNothing (hubTextIn hw))
         simulateSession hw rw (openSession sel cwd)
-          === Left (WorkspaceFailed (HubNotFound (hlPath (hubLocationIn hw))))
+          === Left (WorkspaceFailed (HubNotFound (hubConfigPath (hubLocationIn hw))))
 
   describe "P-004#LAW-2" $
     it "relation:中樞格式錯時,parseHubText 回的錯誤原樣包成 WorkspaceFailed" $
@@ -232,9 +233,9 @@ lawsSpec = do
 examplesSpec :: Spec
 examplesSpec = do
   describe "P-004#EX-1" $
-    it "世界裡沒有中樞檔:回 HubNotFound,路徑就是中樞位置" $
+    it "世界裡沒有中樞檔:回 HubNotFound,路徑是中樞位置底下的 config.toml" $
       simulateSession ex1HubWorld exRegistryWorldOk (openSession Nothing exCwd)
-        `shouldBe` Left (WorkspaceFailed (HubNotFound ex1HubPath))
+        `shouldBe` Left (WorkspaceFailed (HubNotFound (hubConfigPath (hubLocationIn ex1HubWorld))))
 
   describe "P-004#EX-2" $
     it "中樞文字的 id 不是字串:HubMalformed,與 parseHubText 回的逐欄相同" $ do
@@ -306,15 +307,17 @@ evaluateFully (hw, rw, sel, cwd) = do
 -- Example 的固定值
 --------------------------------------------------------------------------------
 
+-- | 中樞__根目錄__(不是 config.toml 的路徑);'hlPath' 就是這一段。
 exHubPath :: FilePath
-exHubPath = "C:/aapms/config.toml"
+exHubPath = "C:/aapms"
 
--- | EX-1 的 @%APPDATA%\/aapms\/config.toml@。
-ex1HubPath :: FilePath
-ex1HubPath = "C:/Users/u/AppData/Roaming/aapms/config.toml"
+-- | EX-1 的中樞根目錄 @%APPDATA%\/aapms@;實際被讀的檔是它底下的
+-- @config.toml@('hubConfigPath')。
+ex1HubRoot :: FilePath
+ex1HubRoot = "C:/Users/u/AppData/Roaming/aapms"
 
 ex1HubWorld :: HubWorld
-ex1HubWorld = HubWorld Nothing (HubLocation ex1HubPath FromPlatformDefault) False []
+ex1HubWorld = HubWorld Nothing (HubLocation ex1HubRoot FromPlatformDefault) False []
 
 exCwd :: FilePath
 exCwd = "T/x"
@@ -506,13 +509,15 @@ brokenBlocks =
 genJunkText :: Gen Text
 genJunkText = Gen.text (Range.linear 0 maxJunkTextLen) Gen.unicode
 
+-- | 中樞__根目錄__(不是 config.toml 的路徑);'hlPath' 就是這一段,實際被讀的
+-- 檔是它底下的 @config.toml@('hubConfigPath')。
 genHubLocation :: Gen HubLocation
 genHubLocation =
   HubLocation
     <$> Gen.element
-      [ "C:/aapms/config.toml"
-      , "D:/somewhere/else/config.toml"
-      , "C:/使用者/中樞/config.toml"
+      [ "C:/aapms"
+      , "D:/somewhere/else"
+      , "C:/使用者/中樞"
       ]
     <*> Gen.element [FromEnv, FromPlatformDefault]
 

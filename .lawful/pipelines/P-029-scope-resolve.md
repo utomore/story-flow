@@ -1,7 +1,7 @@
 ---
 id: P-029
 description: Hub、selector、各 marker 的讀數與 cwd 經純裁決得到 ReadScope / WriteScope / PipelineScope 與 ScopeIssue
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-029-scope-resolve:Hub、selector、各 marker 的讀數與 cwd 經純裁決得到 ReadScope / WriteScope / PipelineScope 與 ScopeIssue

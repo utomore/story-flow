@@ -1,7 +1,7 @@
 ---
 id: P-006
 description: 中樞快照、marker 重讀、外部工具探測與 [llm] 有無組成 DoctorView;syncHub 才回寫漂移
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-006-workspace-doctor:中樞快照、marker 重讀、外部工具探測與 [llm] 有無組成 DoctorView;syncHub 才回寫漂移

@@ -1,7 +1,7 @@
 ---
 id: P-004
 description: 中樞 config.toml、型別註冊表、--vault 旗標與起點目錄經探測與裁決得到本次生效的讀 / 寫 / 管線 vault 集合
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-004-vault-scope:中樞 config.toml、型別註冊表、--vault 旗標與起點目錄經探測與裁決得到本次生效的讀 / 寫 / 管線 vault 集合

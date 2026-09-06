@@ -1,7 +1,7 @@
 ---
 id: P-005
 description: init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-005-vault-lifecycle:init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry

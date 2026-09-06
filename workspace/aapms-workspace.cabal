@@ -43,6 +43,7 @@ library
         Aapms.Workspace.Effect.Markers
         Aapms.Workspace.Effect.Markers.IO
         Aapms.Workspace.Effect.ToolProbe
+        Aapms.Workspace.Effect.ToolProbe.IO
         Aapms.Workspace.Effect.VaultDir
         Aapms.Workspace.Effect.VaultDir.IO
         Aapms.Workspace.Resolve
@@ -96,6 +97,7 @@ test-suite aapms-workspace-test
         Aapms.Workspace.Effect.Markers
         Aapms.Workspace.Effect.Markers.IO
         Aapms.Workspace.Effect.ToolProbe
+        Aapms.Workspace.Effect.ToolProbe.IO
         Aapms.Workspace.Effect.VaultDir
         Aapms.Workspace.Effect.VaultDir.IO
         Aapms.Workspace.Resolve

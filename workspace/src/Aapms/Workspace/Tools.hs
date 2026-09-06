@@ -30,6 +30,9 @@ module Aapms.Workspace.Tools
     -- (型別定義搬到 "Aapms.Workspace.Types",此處原地 re-export)
   , ToolSearchPlan (..)
   , detectSevenZipIn
+
+    -- * P-006-workspace-doctor:平台事實組成的搜尋計畫
+  , defaultToolSearchPlan
   ) where
 
 import Aapms.Workspace.Types
@@ -60,9 +63,22 @@ import System.FilePath (splitSearchPath, (<.>), (</>))
 -- 地方」是必要資訊。
 detectSevenZip :: ToolsConfig -> IO ToolStatus
 detectSevenZip cfg = do
+  plan <- defaultToolSearchPlan
+  detectSevenZipIn plan cfg
+
+-- | 這台機器的三個平台事實組成的 'ToolSearchPlan':可執行檔副檔名
+-- ('System.Directory.exeExtension')、@PATH@ 拆開後的目錄清單(未設時是空清單)、
+-- 內建候選清單。
+--
+-- 它們__只有 shell 知道__(P-006-workspace-doctor 的決定:@tspExeExtension@ 由
+-- @!@ 列填,純層的 'Aapms.Workspace.Tools.Plan.probes' 只拿它拼路徑),所以
+-- 'Aapms.Service.Machine.workspaceDoctor' 與 'detectSevenZip' 共用這一個來源,
+-- 不各自拼一份。
+defaultToolSearchPlan :: IO ToolSearchPlan
+defaultToolSearchPlan = do
   pathEnv <- lookupEnv "PATH"
   let dirs = maybe [] splitSearchPath pathEnv
-  detectSevenZipIn (ToolSearchPlan exeExtension dirs sevenZipCandidates) cfg
+  pure (ToolSearchPlan exeExtension dirs sevenZipCandidates)
 
 -- | 'detectSevenZip' 的可注入版本:@PATH@ 目錄與候選清單都由呼叫端給。
 --

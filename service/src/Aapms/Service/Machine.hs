@@ -103,6 +103,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import Effectful (runEff)
 
 import Aapms.Core.Asset (Sha256)
 import Aapms.Core.Id (VaultId, idPrefix, renderIdPrefix)
@@ -113,11 +114,12 @@ import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName))
 import Aapms.Store.Query (NodeFilter (..), emptyNodeFilter, listNodes)
 import Aapms.Store.Schema (IndexIssue (..), VaultKind (..))
 import Aapms.Workspace.Discovery
-  ( detectVault
-  , lookupSelector
+  ( lookupSelector
   , readVaultRef
   , readVaultRefAt
   )
+import Aapms.Workspace.Effect.Markers.IO (runMarkersIO)
+import Aapms.Workspace.Effect.ToolProbe.IO (runToolProbeIO)
 import Aapms.Workspace.Lifecycle
   ( addVault
   , checkVaults
@@ -129,7 +131,7 @@ import Aapms.Workspace.Lifecycle
 import Aapms.Workspace.Hub.File (hubLocation)
 import Aapms.Workspace.Location (thumbCachePath)
 import Aapms.Workspace.Projects (forgetProject, registerProject)
-import Aapms.Workspace.Tools (detectSevenZip)
+import Aapms.Workspace.Tools (defaultToolSearchPlan, detectSevenZip)
 import Aapms.Workspace.Types
   ( AdoptNotice (..)
   , DeleteIndex (..)
@@ -153,13 +155,13 @@ import Aapms.Workspace.Types
   )
 import System.Directory (doesDirectoryExist, doesFileExist)
 
+import Aapms.Service.Machine.View (doctor)
 import Aapms.Service.Monad
   ( ServiceM
-  , askCwd
   , askHub
   , askHubLocation
   , askRegistry
-  , askRegistrySource
+  , askSession
   , handleFor
   , indexIssuesFor
   , liftWorkspace
@@ -201,26 +203,18 @@ workspaceSetup _sel _cwd = do
 -- 的那個未註冊 vault)、範圍降級紀錄、外部工具、以及中樞有沒有 @[llm]@ 段。
 --
 -- __不寫任何檔案__。
+-- __投影不住這裡__:六欄怎麼來、一個 vault 什麼時候算可達、起點探測到未註冊的
+-- vault 就多一筆,全在 P-006-workspace-doctor 的純整條
+-- 'Aapms.Service.Machine.View.doctor'。本函式只做兩件 shell 的事——把
+-- 'Aapms.Service.Monad.Env' 的快照與這台機器的
+-- 'Aapms.Workspace.Types.ToolSearchPlan' 湊齊,然後在真解譯器
+-- ('Aapms.Workspace.Effect.Markers.IO.runMarkersIO' \/
+-- 'Aapms.Workspace.Effect.ToolProbe.IO.runToolProbeIO')上跑它。
 workspaceDoctor :: ServiceM DoctorView
 workspaceDoctor = do
-  loc <- askHubLocation
-  hub <- askHub
-  regSrc <- askRegistrySource
-  issues <- liftIO (checkVaults hub)
-  let registered = map (vaultViewOf issues) (hubVaults hub)
-  cwd <- askCwd
-  extra <- liftIO (unregisteredVaultView hub cwd)
-  tools <- workspaceTools
-  pure
-    DoctorView
-      { dvHubPath = hlPath loc
-      , dvHubSource = hlSource loc
-      , dvRegistry = regSrc
-      , dvVaults = registered ++ maybe [] (: []) extra
-      , dvScopeIssues = issues
-      , dvTools = tools
-      , dvLlmConfigured = maybe False (const True) (hubLlm hub)
-      }
+  s <- askSession
+  plan <- liftIO defaultToolSearchPlan
+  liftIO (runEff (runMarkersIO (runToolProbeIO (doctor s plan))))
 
 -- | 探測這台機器上的外部工具。7-Zip 缺席__不是錯誤__。
 workspaceTools :: ServiceM [ToolStatus]
@@ -429,30 +423,6 @@ registeredView e =
     , vvKind = veKind e
     , vvPath = vePath e
     , vvRegistered = True
-    , vvReachable = True
-    }
-
--- | @doctor@ 向上探測到的那一筆未註冊 vault(LAW-7):探測不到、或 marker 讀不開
--- 時回 'Nothing';探測到但其實已註冊時也回 'Nothing'。
-unregisteredVaultView :: Hub -> FilePath -> IO (Maybe VaultView)
-unregisteredVaultView hub cwd = do
-  mRoot <- detectVault cwd
-  case mRoot of
-    Nothing -> pure Nothing
-    Just root -> do
-      refR <- readVaultRefAt hub root
-      pure $ case refR of
-        Right ref@VaultRef {vrEntry = Nothing} -> Just (unregisteredView ref)
-        _ -> Nothing
-
-unregisteredView :: VaultRef -> VaultView
-unregisteredView VaultRef {vrPath = p, vrMarker = m} =
-  VaultView
-    { vvId = vmId m
-    , vvName = vmName m
-    , vvKind = vmKind m
-    , vvPath = p
-    , vvRegistered = False
     , vvReachable = True
     }
 

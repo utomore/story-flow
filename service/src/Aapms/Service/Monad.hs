@@ -40,6 +40,7 @@ module Aapms.Service.Monad
   , withEnv
 
     -- * 'Env' 內容的存取(模組間公開介面:Scope \/ Machine \/ Read \/ Write → Monad)
+  , askSession
   , askHubLocation
   , askHub
   , reloadHub
@@ -71,6 +72,7 @@ import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import Effectful (runEff)
 
 import Aapms.Core.Id (VaultId)
 import Aapms.Core.Naming (NamingVocab)
@@ -78,11 +80,14 @@ import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Store.Error (StoreError)
 import Aapms.Store.Marker (VaultHandle, VaultMarker (vmId), closeVault, openVault)
 import Aapms.Store.Schema (IndexIssue)
-import Aapms.Types.Loader (RegistrySource, loadRegistry, locateRegistry)
+import Aapms.Types.Effect.RegistryFs.IO (runRegistryFsIO)
+import Aapms.Types.Loader (RegistrySource)
+import Aapms.Workspace.Effect.HubFile.IO (runHubFileIO)
 import Aapms.Workspace.Hub.File (hubLocation, loadHub)
 import Aapms.Workspace.Types (Hub, HubLocation, VaultRef (vrMarker, vrPath), WorkspaceError)
 
-import Aapms.Service.Types (ServiceError (..))
+import Aapms.Service.Session (openSession)
+import Aapms.Service.Types (ServiceError (..), Session (..))
 
 -- | 一次執行期間的全部資源:中樞快照 + 型別註冊表 + selector + 起點目錄 +
 -- handle 快取 + 全域鎖(design.md 契約 A)。
@@ -151,39 +156,38 @@ askEnv = ServiceM ask
 --
 -- 中樞載不起來或註冊表載不起來時回 @Left@,__不退回一個空的 'Env'__
 -- (system.md 全域錯誤策略第 3 條)。
+--
+-- __開場的順序與失敗語彙不住這裡__:那是 P-004-vault-scope 的純整條
+-- 'Aapms.Service.Session.openSession'。本函式只做兩件 shell 的事——把中樞位置
+-- 解析一次('Aapms.Workspace.Hub.File.hubLocation'),然後在真解譯器
+-- ('Aapms.Workspace.Effect.HubFile.IO.runHubFileIO' \/
+-- 'Aapms.Types.Effect.RegistryFs.IO.runRegistryFsIO')上跑那條整條,再把回來的
+-- 'Session' 加上 handle 快取與全域鎖。
 openEnv :: Maybe Text -> FilePath -> IO (Either ServiceError Env)
 openEnv sel cwd = do
   loc <- hubLocation
-  hubR <- loadHub loc
-  case hubR of
-    Left e -> pure (Left (WorkspaceFailed e))
-    Right hub -> do
-      locR <- locateRegistry
-      case locR of
-        Left e -> pure (Left (RegistryUnavailable e))
-        Right (dir, src) -> do
-          regR <- loadRegistry dir
-          case regR of
-            Left e -> pure (Left (RegistryLoadFailed e))
-            Right (registry, naming) -> do
-              hubRef <- newIORef hub
-              handlesRef <- newIORef Map.empty
-              issuesRef <- newIORef Map.empty
-              lock <- newMVar ()
-              pure $
-                Right
-                  Env
-                    { envHubLocation = loc
-                    , envHubRef = hubRef
-                    , envRegistry = registry
-                    , envNaming = naming
-                    , envRegistrySource = src
-                    , envSelector = sel
-                    , envCwd = cwd
-                    , envHandles = handlesRef
-                    , envIndexIssues = issuesRef
-                    , envLock = lock
-                    }
+  sessionR <- runEff (runRegistryFsIO (runHubFileIO loc (openSession sel cwd)))
+  case sessionR of
+    Left e -> pure (Left e)
+    Right s -> do
+      hubRef <- newIORef (sessionHub s)
+      handlesRef <- newIORef Map.empty
+      issuesRef <- newIORef Map.empty
+      lock <- newMVar ()
+      pure $
+        Right
+          Env
+            { envHubLocation = sessionLocation s
+            , envHubRef = hubRef
+            , envRegistry = sessionRegistry s
+            , envNaming = sessionNaming s
+            , envRegistrySource = sessionSource s
+            , envSelector = sessionSelector s
+            , envCwd = sessionCwd s
+            , envHandles = handlesRef
+            , envIndexIssues = issuesRef
+            , envLock = lock
+            }
 
 -- | 在一個 'Env' 上跑一段業務操作,__全程持有 'envLock'__。
 --
@@ -217,6 +221,27 @@ withEnv sel cwd f = do
   case envR of
     Left e -> pure (Left e)
     Right env -> Right <$> (f env `finally` closeEnv env)
+
+-- | 這一次執行的開場快照(P-004-vault-scope 的 'Session')。
+--
+-- 'Env' __是__ 'Session' 加上 handle 快取與全域鎖,所以這裡不另存一份:七欄逐一
+-- 從 'Env' 取,中樞那一欄取的是__目前__的快照('askHub'),'reloadHub' 之後拿到的
+-- 就是新的那一份。純的整條(P-006-workspace-doctor 的 'Aapms.Service.Machine.View.doctor'
+-- 等)吃 'Session',shell 的進入點靠本函式把 'Env' 交出去。
+askSession :: ServiceM Session
+askSession = do
+  env <- askEnv
+  hub <- askHub
+  pure
+    Session
+      { sessionHub = hub
+      , sessionLocation = envHubLocation env
+      , sessionRegistry = envRegistry env
+      , sessionNaming = envNaming env
+      , sessionSource = envRegistrySource env
+      , sessionSelector = envSelector env
+      , sessionCwd = envCwd env
+      }
 
 -- | 中樞根目錄與它的來源。一次執行期間不變。
 askHubLocation :: ServiceM HubLocation

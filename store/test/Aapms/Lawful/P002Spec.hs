@@ -14,8 +14,8 @@
 -- @modifyMaxSuccess (const 100)@ 包住整個模組(見 'spec')。
 --
 -- __尺寸__:全部 'Range' 上限都是常數 —— 最多 3 個 vault、每個 vault 最多 4
--- 個節點(id 取自固定的 'nodeSeeds',同一個 vault 內不重複),文字欄位取自
--- 固定字彙池,不產生無界結構。
+-- 個節點(id 取自固定的 'nodeSeeds',同一個 vault 內不重複)再加最多一個
+-- pack 檔的檔案層主體,文字欄位取自固定字彙池,不產生無界結構。
 --
 -- __timeout__:整個模組經 'around_' 對每個 example 套 60 秒上限。
 module Aapms.Lawful.P002Spec (spec) where
@@ -47,12 +47,17 @@ import Aapms.Core.Meta
   , Status (..)
   , TypeKey (..)
   )
+import Aapms.Core.Pack (AiDisclosure (..), Pack (..))
 import Aapms.Md.Document (DocKind (..))
 
 import Aapms.Store.Effect.Vaults (inVault)
-import Aapms.Store.Filter (passesFilter)
 import Aapms.Store.Search (rankHits, searchVaults)
-import Aapms.Store.Search.Internal (hitsPerVault, simulateVaults, structuralKeys)
+import Aapms.Store.Search.Internal
+  ( hitsPerVault
+  , simulateVaults
+  , structuralKeys
+  , visibleNodes
+  )
 import Aapms.Store.Tokenize (matchesQuery)
 import Aapms.Store.Types
   ( FileIndex (..)
@@ -64,7 +69,6 @@ import Aapms.Store.Types
   , SearchQuery (..)
   , SearchResult (..)
   , FacetCounts (..)
-  , allNodesIn
   , emptyNodeFilter
   , emptySearchQuery
   , hitKey
@@ -217,25 +221,68 @@ genNode v (p, hex) = do
       pure (assetOf m nm body)
     _ -> pure (entityOf m body)
 
+-- | pack 檔的檔案層主體。id 與 'nodeSeeds' 的四個都不同,同一個 vault 內仍然
+-- 不重複。文字欄位一律空,它不會意外命中 'queryTextPool' 裡的任何一段文字。
+packSeed :: Text
+packSeed = "00000005"
+
+packId :: Id
+packId = mkId PPck packSeed
+
+packNodeAt :: VaultId -> AnyNode
+packNodeAt v =
+  NPack
+    Pack
+      { pckMeta = (baseMeta v PPck packSeed) {metaType = TypeKey "asset-pack"}
+      , pckVendor = Nothing
+      , pckArchive = Nothing
+      , pckSha256 = Nothing
+      , pckLicense = Nothing
+      , pckAuthor = Nothing
+      , pckSourceUrl = Nothing
+      , pckAiDisclosure = AiUnknown
+      , pckBody = ""
+      }
+
 -- | 一份記憶體索引:entity 放主題檔、asset 放 pack 檔。
 --
--- @fiReference@ 一律 'False':pipeline 檔沒有任何觀察點把「這一檔是不是
--- reference」交給 'passesFilter'(它只吃 'NodeFilter' 與 'AnyNode'),
--- 因此 @nfIncludeReference@ 對 LAW-2 \/ LAW-4 的參考側是觀察不到的。
-mkIndexState :: [AnyNode] -> IndexState
-mkIndexState ns = IndexState (Map.fromList (topics <> packs))
+-- @refTopics@ \/ @refPack@ 是兩個檔的 @fiReference@;@owner@ 是 pack 檔要不要
+-- 有檔案層主體 —— 'Just' 時該檔多一個 'packNodeAt'(它自己的 @inOwner@ 是
+-- 'Nothing',見 'IndexedNode' 的「檔案層主體為 Nothing」),同檔其餘 asset 的
+-- @inOwner@ 指向它。P-002 REV-1 之後 'Aapms.Store.Filter.passesFilter' 吃得到
+-- 這兩件事,所以它們是 LAW-2 \/ LAW-4 定義域的一部分。
+mkIndexStateWith :: Bool -> Bool -> Maybe VaultId -> [AnyNode] -> IndexState
+mkIndexStateWith refTopics refPack owner ns =
+  IndexState (Map.fromList (topics <> packs))
   where
     ents = [n | n@(NEntity _) <- ns]
     asts = [n | n@(NAsset _) <- ns]
-    wrap n = IndexedNode {inNode = n, inOwner = Nothing}
+    free n = IndexedNode {inNode = n, inOwner = Nothing}
+    owned n = IndexedNode {inNode = n, inOwner = Just packId}
+    packRows = case owner of
+      Nothing -> map free asts
+      Just v -> free (packNodeAt v) : map owned asts
     topics =
-      [ ("topics.md", FileIndex "topics.md" TopicDoc fixedStat False (map wrap ents))
+      [ ("topics.md", FileIndex "topics.md" TopicDoc fixedStat refTopics (map free ents))
       | not (null ents)
       ]
     packs =
-      [ ("pack/pack.md", FileIndex "pack/pack.md" PackDoc fixedStat False (map wrap asts))
+      [ ("pack/pack.md", FileIndex "pack/pack.md" PackDoc fixedStat refPack packRows)
       | not (null asts)
       ]
+
+-- | example 用的固定索引:兩個檔都不是 reference,每個節點都是檔案層主體。
+mkIndexState :: [AnyNode] -> IndexState
+mkIndexState = mkIndexStateWith False False Nothing
+
+-- | 產生器側的一份索引。REV-1 放開的兩個維度都隨機:每個檔的 @fiReference@
+-- 各自取 'True' \/ 'False',pack 檔的 asset 各半有無 @inOwner@。
+genIndexState :: VaultId -> [AnyNode] -> Gen IndexState
+genIndexState v ns = do
+  refTopics <- Gen.bool
+  refPack <- Gen.bool
+  hasOwner <- Gen.bool
+  pure (mkIndexStateWith refTopics refPack (if hasOwner then Just v else Nothing) ns)
 
 genIndexMap :: Gen (Map VaultId IndexState)
 genIndexMap = do
@@ -245,11 +292,16 @@ genIndexMap = do
       ( \v -> do
           seeds <- Gen.subsequence nodeSeeds
           ns <- mapM (genNode v) seeds
-          pure (v, mkIndexState ns)
+          st <- genIndexState v ns
+          pure (v, st)
       )
       vs
   pure (Map.fromList entries)
 
+-- | @nfOwner@ 取 'Nothing' 或 'packId':'genIndexState' 產生的 asset 有一半
+-- @inOwner@ 指向同檔的 @pck-00000005@,兩邊對得上,'passesFilter' 的 owner
+-- 分支才在 LAW-2 \/ LAW-4 觀察得到(@nfOwner@ 恆為 'Nothing' 時它對任何
+-- @inOwner@ 都放行)。
 genNodeFilter :: Gen NodeFilter
 genNodeFilter = do
   prefixes <- Gen.subsequence [PEnt, PAst]
@@ -258,6 +310,7 @@ genNodeFilter = do
   tags <- Gen.subsequence ["canon", "角色"]
   named <- Gen.bool
   incRef <- Gen.bool
+  owner <- Gen.element [Nothing, Just packId]
   lim <- Gen.int (Range.linear 0 8)
   off <- Gen.int (Range.linear 0 4)
   pure
@@ -266,6 +319,7 @@ genNodeFilter = do
       , nfTypes = types
       , nfStatus = status
       , nfTags = tags
+      , nfOwner = owner
       , nfNamedOnly = named
       , nfIncludeReference = incRef
       , nfLimit = lim
@@ -466,10 +520,7 @@ laws = do
           === sort
             ( map
                 nodeKey
-                ( filter
-                    (passesFilter (sqFilter q) . snd)
-                    (filter (matchesQuery t . snd) (allNodesIn m))
-                )
+                (filter (matchesQuery t . snd) (visibleNodes (sqFilter q) m))
             )
 
   describe "P-002#LAW-5" $

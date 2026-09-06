@@ -40,6 +40,7 @@ import Aapms.Core.Meta
   , Status (..)
   , Timeline (..)
   , TypeKey (..)
+  , mkSourceName
   )
 import Aapms.Core.Pack (AiDisclosure (..), Author (..), Pack (..))
 import Aapms.Md.Document
@@ -140,9 +141,13 @@ genDay =
 genStatus :: Gen Status
 genStatus = Gen.element [Draft, Canon, Deprecated, Missing]
 
+-- | 'SourceName' 的建構子不匯出(P-025-md-document 的 REV-1),只能走
+-- 'mkSourceName';'genWord' 保證非空,所以 'Gen.mapMaybe' 不會空轉。
 genSource :: Gen Source
 genSource =
-  Gen.choice [pure Human, pure Scan, Agent <$> genWord, Workshop <$> genWord, Ai <$> genWord]
+  Gen.choice [pure Human, pure Scan, Agent <$> n, Workshop <$> n, Ai <$> n]
+  where
+    n = Gen.mapMaybe mkSourceName genWord
 
 genTimeline :: Gen Timeline
 genTimeline =

@@ -1,7 +1,7 @@
 ---
 id: P-026
 description: Document 上的更新、插入、附加、移除節與 frontmatter 改寫,其餘節位元組不變
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-026-md-edit:Document 上的更新、插入、附加、移除節與 frontmatter 改寫,其餘節位元組不變

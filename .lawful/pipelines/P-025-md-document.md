@@ -1,7 +1,7 @@
 ---
 id: P-025
 description: Markdown 文字解析成分節 Document 並渲染回去,未改區塊逐位元組相同;節層繼承檔案層
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-025-md-document:Markdown 文字解析成分節 Document 並渲染回去,未改區塊逐位元組相同;節層繼承檔案層
@@ -140,7 +140,7 @@ updated: 2026-09-06
 - **`Source` 的 payload 是非空的 `SourceName`,非法狀態不可表達。** 否決:LAW-9 加 given「payload 非空」;`parseSource` 接受空 payload。理由:型別留下的自由度該用型別收掉,而且沒有任何生產碼在建構這三個建構子,現在改代價最低;「沒名字的 agent」成為合法檔案內容語意可疑(GAP-2 裁決,2026-09-06)。
 
 ## 修訂記錄
-- REV-1(2026-09-06,依 impl 提問 GAP-1「`quote` 只跳脫 `"` `\` `\n` `\r` `\t`,其他 C0 控制字元與 U+2028 / U+2029 原樣輸出」與 GAP-2「`Agent ""` 渲染成 `source: "agent:"` 之後讀不回來」;開發者裁決兩條都收在程式碼側,LAW-9 的域不動):`quote` 把所有 C0 / C1 控制字元、DEL、U+2028 / U+2029 跳脫成 `\xNN` / `\uNNNN`;`Source` 的 payload 由裸 `Text` 收成非空的 `SourceName`(smart constructor `mkSourceName`),`Agent ""` 寫不出來
+- REV-1(2026-09-06,依 impl 提問 GAP-1「`quote` 只跳脫 `"` `\` `\n` `\r` `\t`,其他 C0 控制字元與 U+2028 / U+2029 原樣輸出」與 GAP-2「`Agent ""` 渲染成 `source: "agent:"` 之後讀不回來」;開發者裁決兩條都收在程式碼側,LAW-9 的域不動):`quote` 把所有 C0 / C1 控制字元、DEL、U+2028 / U+2029,以及 impl 全 BMP 掃描實測 HsYAML 讀不回來的 U+FEFF / U+FFFE / U+FFFF 跳脫成 `\xNN` / `\uNNNN`;`Source` 的 payload 由裸 `Text` 收成非空的 `SourceName`(smart constructor `mkSourceName`),`Agent ""` 寫不出來
   - 動到:無(簽名與 law 都不變;變的是 `Aapms.Md.Render` 的 `quote` 本體與 types 層 `Aapms.Core.Meta` 的 `Source` 形狀)
   - 保護:LAW-1 到 LAW-21 全部
   - 重委派:impl(`quote`、`Source`);qa(LAW-9 的 `Meta` 產生器要蓋到控制字元與 `SourceName`)

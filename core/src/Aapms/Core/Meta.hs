@@ -15,6 +15,9 @@ module Aapms.Core.Meta
 
     -- * 來源
   , Source (..)
+  , SourceName
+  , mkSourceName
+  , sourceNameText
   , renderSource
   , parseSource
 
@@ -34,6 +37,7 @@ module Aapms.Core.Meta
   , MetaError (..)
   ) where
 
+import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (Day)
@@ -76,34 +80,60 @@ parseStatus t = case t of
   "missing" -> Right Missing
   _ -> Left (UnknownStatus t)
 
+-- | 帶 payload 的 'Source' 的名字部分:__非空__的文字。
+--
+-- 建構子不匯出,唯一的檢查入口是 'mkSourceName'(字面值另有 'IsString')。
+-- 空名字寫出去是 @source: \"agent:\"@,而 'parseSource' 不接受它——非法狀態
+-- 由型別擋掉,不留給序列化往返(P-025-md-document 的 REV-1)。
+--
+-- 判定與 'parseSource' 一致:只拒絕空字串,不拒絕全空白。
+newtype SourceName = SourceName Text
+  deriving stock (Show, Eq, Ord)
+
+-- | 非空才是 'Just'。
+mkSourceName :: Text -> Maybe SourceName
+mkSourceName t
+  | T.null t = Nothing
+  | otherwise = Just (SourceName t)
+
+sourceNameText :: SourceName -> Text
+sourceNameText (SourceName t) = t
+
+-- | __只給字面值用__。@fromString ""@ 會 'error'——編譯期寫得出來的常數不該
+-- 逼呼叫端拆 'Maybe';執行期來的文字一律走 'mkSourceName'。
+instance IsString SourceName where
+  fromString s = case mkSourceName (T.pack s) of
+    Just n -> n
+    Nothing -> error "Aapms.Core.Meta.SourceName: 空字串不是合法的 source 名字"
+
 -- | 誰寫的。追溯用,也是工作坊、AI Agent 與掃描器產出的區分依據。
 data Source
   = Human
   | -- | @agent:claude-code@ / @agent:codex@
-    Agent Text
+    Agent SourceName
   | -- | @workshop:character@
-    Workshop Text
+    Workshop SourceName
   | -- | 由掃描器發現(assetdb 匯入的素材大多是這個)
     Scan
   | -- | @ai:\<model\>@,AI 直接產出而非經 Agent 工具鏈
-    Ai Text
+    Ai SourceName
   deriving stock (Show, Eq, Ord)
 
 renderSource :: Source -> Text
 renderSource = \case
   Human -> "human"
-  Agent t -> "agent:" <> t
-  Workshop t -> "workshop:" <> t
+  Agent t -> "agent:" <> sourceNameText t
+  Workshop t -> "workshop:" <> sourceNameText t
   Scan -> "scan"
-  Ai t -> "ai:" <> t
+  Ai t -> "ai:" <> sourceNameText t
 
 parseSource :: Text -> Either MetaError Source
 parseSource t
   | t == "human" = Right Human
   | t == "scan" = Right Scan
-  | Just rest <- T.stripPrefix "agent:" t, not (T.null rest) = Right (Agent rest)
-  | Just rest <- T.stripPrefix "workshop:" t, not (T.null rest) = Right (Workshop rest)
-  | Just rest <- T.stripPrefix "ai:" t, not (T.null rest) = Right (Ai rest)
+  | Just rest <- T.stripPrefix "agent:" t, Just n <- mkSourceName rest = Right (Agent n)
+  | Just rest <- T.stripPrefix "workshop:" t, Just n <- mkSourceName rest = Right (Workshop n)
+  | Just rest <- T.stripPrefix "ai:" t, Just n <- mkSourceName rest = Right (Ai n)
   | otherwise = Left (BadSource t)
 
 -- | 故事內時間點。字串可模糊(「崩塌前後」),選配的整數供排序與時序過濾。

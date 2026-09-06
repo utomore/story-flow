@@ -88,7 +88,6 @@ module Aapms.Store.Types
     -- * 搜尋的觀察點(P-002-search)
   , hitKey
   , nodeKey
-  , allNodesIn
   , keysOf
   , wide
   , page
@@ -780,9 +779,6 @@ hitKey _h = error "P-002#hitKey stub"
 nodeKey :: (VaultId, AnyNode) -> (VaultId, Id)
 nodeKey _n = error "P-002#nodeKey stub"
 
--- | 記憶體索引集合裡全部節點。
-allNodesIn :: Map VaultId IndexState -> [(VaultId, AnyNode)]
-allNodesIn _m = error "P-002#allNodesIn stub"
 
 -- | 記憶體索引集合裡的 vault id。
 keysOf :: Map VaultId IndexState -> [VaultId]

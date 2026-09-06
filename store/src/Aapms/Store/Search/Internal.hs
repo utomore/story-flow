@@ -8,11 +8,13 @@ module Aapms.Store.Search.Internal
   ( simulateVaults
   , hitsPerVault
   , structuralKeys
+  , visibleNodes
   ) where
 
 import Data.Map.Strict (Map)
 import Effectful (Eff)
 
+import Aapms.Core.AnyNode (AnyNode)
 import Aapms.Core.Id (Id, VaultId)
 import Aapms.Store.Effect.Vaults (Vaults)
 import Aapms.Store.Types (IndexState, NodeFilter, SearchHit, SearchQuery)
@@ -28,3 +30,8 @@ hitsPerVault _m _q = error "P-002#hitsPerVault stub"
 -- | 觀察:逐 vault 用 'Aapms.Store.Filter.passesFilter' 篩出的 (vault, id)。
 structuralKeys :: Map VaultId IndexState -> NodeFilter -> [(VaultId, Id)]
 structuralKeys _m _nf = error "P-002#structuralKeys stub"
+
+-- | 觀察:記憶體索引集合裡逐檔逐節點以 'Aapms.Store.Filter.passesFilter'
+-- 判定後留下的節點(含 owner 與 reference 條件)。
+visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]
+visibleNodes _nf _m = error "P-002#visibleNodes stub"

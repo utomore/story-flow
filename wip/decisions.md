@@ -9,3 +9,6 @@
 - D4(2026-09-06)簽名:**程式碼為準,全部逐字抄**。零真差異。抄寫規則:註解不抄、撞名寫全名模組、record 欄位寫存取子型別。`commit` 可見度隨 node-write 重切處理。`desegmentCjk` 已撤除,無 stage。
 - D5(2026-09-06)待確認假設:**A、40 條全部追認現況**。17 條行為判斷寫進對應 pipeline「決定」(粗體結論 + 理由 + 否決的替代);23 條結構/流程類隨重構消失。workspace GAP-6 → vault-lifecycle 寫成 `vePath == canonicalizePath` 獨立 law;GAP-7 由 lint sig 逐字對帳取代。
 - D6(2026-09-06)planned 12 份:**A、併入既定里程碑**。service F003/F007 → graph-read;F004/F005/F006 → graph-write(寫入請求收成一個 ADT);F008 → index-rebuild 的 shell 步驟;shell F001/F005 → http-shell;F002/F003/F004 → cli-shell(mcp-shell 註「見」);F006 → mcp-shell。
+
+## 備忘(2026-09-06,P-025 REV-1 impl 提)
+- 凍結中的 `workshop/` 套件(`cabal.project` 註解掉,不在建置範圍)在 `Aapms.Workshop.Emit` 用執行期值 `Workshop (wsType session)` 建構 `Source`;`SourceName` 收成非空後這裡要走 `mkSourceName`,`Nothing` 分支走哪條錯誤是 P-018-workshop 解凍時的契約決定,現在不決。

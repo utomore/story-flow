@@ -105,13 +105,14 @@ module Aapms.Md.Render
   ) where
 
 import Data.Aeson (Value (..), encode, toJSON)
-import Data.Char (isDigit, isSpace)
+import Data.Char (isDigit, isSpace, ord)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Time (Day)
+import Numeric (showHex)
 import Aapms.Core.Asset (LogicalName (..), Sha256 (..))
 import Aapms.Core.Id (Id, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (renderNodeKind)
@@ -895,7 +896,9 @@ flowIndicators = ",{}[]"
 --    @Expected start of line@。@:@ 後面接別的字元(@https:\/\/x@、
 --    @source: agent:claude-code@)才是純量的一部分,不加引號
 -- 5. __空白之後接 @#@__:YAML 的行內註解起點,純量會被從那裡截斷
--- 6. __含換行、tab 或 CR__('quote' 會把這三個跳脫掉)
+-- 6. __含 'mustEscape' 的字元__(控制字元、DEL、C1、U+2028 \/ U+2029、BOM 與
+--    兩個非字元;換行、tab 與 CR 是其中三個)——plain scalar 寫不出跳脫序列,
+--    只有 'quote' 寫得出來
 -- 7. __整串看起來像 bool \/ null__(含 YAML 1.1 的 @yes@ \/ @no@ \/ @on@ \/
 --    @off@,大小寫不拘)
 -- 8. __整串看起來像數字__,含 @.inf@ \/ @.nan@ 這類特殊浮點字面值
@@ -906,7 +909,7 @@ needsQuote t =
     || maybe False (`elem` indicatorChars) (fst <$> T.uncons t)
     || colonNotInline t
     || hashAfterSpace t
-    || T.any (`elem` ("\n\t\r" :: String)) t
+    || T.any mustEscape t
     || T.toLower t `elem` plainLiterals
     || looksNumeric t
 
@@ -958,7 +961,11 @@ looksNumeric t = case T.uncons t of
     (isDigit c || c == '+' || c == '-' || c == '.')
       && T.all (\x -> isDigit x || x `elem` ("+-.eExXoObB_aAcCdDfF" :: String)) t
 
--- | 雙引號字串。YAML 的雙引號風格支援反斜線跳脫。
+-- | 雙引號字串。YAML 的雙引號風格支援反斜線跳脫,序列化器對__任意__ 'Text'
+-- 負責:'mustEscape' 的字元一律寫成跳脫序列,逐字讀得回來(P-025-md-document
+-- 的 LAW-9 與 REV-1)。
+--
+-- @\\n@ \/ @\\r@ \/ @\\t@ 用可讀的短形式,其餘走 'escapeHex'。
 quote :: Text -> Text
 quote t = "\"" <> foldl' esc "" (T.unpack t) <> "\""
   where
@@ -968,4 +975,49 @@ quote t = "\"" <> foldl' esc "" (T.unpack t) <> "\""
       '\n' -> "\\n"
       '\r' -> "\\r"
       '\t' -> "\\t"
-      _ -> T.singleton c
+      _
+        | mustEscape c -> escapeHex c
+        | otherwise -> T.singleton c
+
+-- | 這些字元寫成裸字元不是失真就是解析端讀不回來,雙引號字串裡一律跳脫:
+--
+-- * C0 控制字元(U+0000–U+001F)、DEL(U+007F)、C1 控制字元(U+0080–U+009F)
+-- * 行分隔 U+2028 與段分隔 U+2029
+-- * BOM U+FEFF 與兩個非字元 U+FFFE \/ U+FFFF
+--
+-- C1 與 U+2028 \/ U+2029 在 YAML 1.2 裡是合法的可列印字元,但它們是「換行」的
+-- 一種:寫成裸字元會被解析端當成斷行處理,往返就不逐字相同了。
+--
+-- 最後三個不在 P-025-md-document REV-1 點名的清單裡,是實測補上的:HsYAML 對
+-- 裸的 U+FEFF \/ U+FFFE \/ U+FFFF 一律回 @Expected start of line@(BOM 偵測與
+-- 非字元檢查),跳脫之後才讀得回來。把整個 BMP 逐碼位跑過一次,現在 LAW-9 對
+-- __任何__ 'Text' 都成立。
+mustEscape :: Char -> Bool
+mustEscape c =
+  n <= 0x1F
+    || n == 0x7F
+    || (n >= 0x80 && n <= 0x9F)
+    || n == 0x2028
+    || n == 0x2029
+    || n == 0xFEFF
+    || n == 0xFFFE
+    || n == 0xFFFF
+  where
+    n = ord c
+
+-- | @\\xNN@(< U+0100)或 @\\uNNNN@(其餘)。小寫十六進位;HsYAML 兩種大小寫
+-- 都吃,已在 repl 上對 @\\x01@ @\\x7f@ @\\x85@ @\\u2028@ 逐一驗過解回原字元。
+--
+-- 'mustEscape' 的字元都 < U+2030,四位數的 @\\u@ 一定夠,不需要 @\\UNNNNNNNN@。
+escapeHex :: Char -> Text
+escapeHex c
+  | n < 0x100 = "\\x" <> hexPad 2 n
+  | otherwise = "\\u" <> hexPad 4 n
+  where
+    n = ord c
+
+-- | 補零到指定寬度的小寫十六進位。
+hexPad :: Int -> Int -> Text
+hexPad w n = T.pack (replicate (w - length s) '0' <> s)
+  where
+    s = showHex n ""

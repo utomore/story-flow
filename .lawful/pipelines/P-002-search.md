@@ -14,7 +14,7 @@ updated: 2026-09-06
 |---|---|---|---|---|
 | 1 | `routeOf :: Text -> SearchRoute` | 查詢字串走 trigram、CJK 或兩張表 | `Aapms.Store.Tokenize`(見 P-027-fts-tokenize) | pure |
 | 2 | `matchesQuery :: Text -> AnyNode -> Bool` | 純參考:這段文字在同一套路由規則下命不命中這個節點 | `Aapms.Store.Tokenize`(願望,見 P-027-fts-tokenize) | pure |
-| 3 | `passesFilter :: NodeFilter -> AnyNode -> Bool` | 結構條件的純判定:prefix、type、status、tags 全部命中、owner、license、只要已命名、reference 預設不列 | `Aapms.Store.Filter`(願望) | pure |
+| 3 | `passesFilter :: NodeFilter -> FileIndex -> IndexedNode -> Bool` | 結構條件的純判定,吃節點所在的檔與索引節點:prefix、type、status、tags 全部命中、owner(`inOwner`)、license、只要已命名、reference(`fiReference`)預設不列 | `Aapms.Store.Filter`(願望) | pure |
 | 4 | `ftsMatch :: Index :> es => SearchRoute -> Text -> NodeFilter -> Eff es [(Id, Double)]` | 一個 vault 內依路由查雙 FTS,結構條件同時套用,回命中與正分數;純解譯器以 2 與 3 判定、分數 1.0 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 5 | `filterNodes :: Index :> es => NodeFilter -> Eff es [AnyNode]` | 一個 vault 內符合結構條件的全部節點,不分頁 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 6 | `mergeScores :: [(Id, Double)] -> [(Id, Double)] -> [(Id, Double)]` | 兩張表都命中時取分數較大者,去重 | `Aapms.Store.Search`(願望) | pure |
@@ -32,7 +32,7 @@ updated: 2026-09-06
 | o | `structuralKeys :: Map VaultId IndexState -> NodeFilter -> [(VaultId, Id)]` | 觀察:逐 vault 用 passesFilter 篩出的 (vault, id) | `Aapms.Store.Search.Internal`(願望) | pure |
 | o | `hitKey :: SearchHit -> (VaultId, Id)` | 觀察:命中的 (vault, id) | `Aapms.Store.Types`(願望) | types |
 | o | `nodeKey :: (VaultId, AnyNode) -> (VaultId, Id)` | 觀察:節點的 (vault, id) | `Aapms.Store.Types`(願望) | types |
-| o | `allNodesIn :: Map VaultId IndexState -> [(VaultId, AnyNode)]` | 觀察:記憶體索引集合裡全部節點 | `Aapms.Store.Types`(願望) | types |
+| o | `visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]` | 觀察:記憶體索引集合裡逐檔逐節點以 passesFilter 判定後留下的節點 | `Aapms.Store.Search.Internal`(願望) | pure |
 | o | `keysOf :: Map VaultId IndexState -> [VaultId]` | 觀察:記憶體索引集合裡的 vault id | `Aapms.Store.Types`(願望) | types |
 | o | `wide :: SearchQuery -> SearchQuery` | 觀察:拿掉分頁(offset 0、limit 大於任何樣本總數) | `Aapms.Store.Types`(願望) | types |
 | o | `page :: Int -> Int -> SearchQuery -> SearchQuery` | 觀察:設 offset j、limit k | `Aapms.Store.Types`(願望) | types |
@@ -56,7 +56,7 @@ updated: 2026-09-06
 - LAW-4 [equiv] 有文字條件時,命中集合等於逐節點以 matchesQuery 與 passesFilter 判定的純參考
   - forall m in Map VaultId IndexState, q in SearchQuery, t in Text, hits in srHits (simulateVaults m (searchVaults (wide q)))
   - given sqText q == Just t and not (null (words t))
-  - |- sort (map hitKey hits) == sort (map nodeKey (filter (passesFilter (sqFilter q) . snd) (filter (matchesQuery t . snd) (allNodesIn m))))
+  - |- sort (map hitKey hits) == sort (map nodeKey (filter (matchesQuery t . snd) (visibleNodes (sqFilter q) m)))
 - LAW-5 [invariant] 命中的 (vault, id) 兩兩相異
   - forall m in Map VaultId IndexState, q in SearchQuery, hits in srHits (simulateVaults m (searchVaults q))
   - |- nub (map hitKey hits) == map hitKey hits
@@ -120,4 +120,7 @@ updated: 2026-09-06
 - **索引更新後搜尋不留重複列、卸載檔案後其節點不再命中、schema 改版整庫重建後結果不變,由 P-001-index-rebuild 的 LAW-1 / LAW-2 與 `Index` 效果的狀態模型承接,本條不重複寫。** 否決:在這裡再寫三條 IO law(原 F007 LAW-20 / 21 / 22)。理由:它們講的是索引狀態,不是查詢
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 qa 提問 GAP-1「`passesFilter` 的簽名只吃 `NodeFilter` 與 `AnyNode`,而 `AnyNode` / `Meta` 上沒有任何 reference 標記」;開發者裁決結構條件的純判定吃完整上下文):第 3 列改成 `passesFilter :: NodeFilter -> FileIndex -> IndexedNode -> Bool`,owner 看 `inOwner`、reference 看 `fiReference`;觀察點 `allNodesIn` 換成 `visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]`(pure,`Aapms.Store.Search.Internal`);LAW-4 的 `|-` 改用 `visibleNodes`;LAW-2 文字不變但定義域放開(`fiReference` 不再固定 False)
+  - 動到:Stages 第 3 列、觀察點 `allNodesIn` → `visibleNodes`、LAW-4
+  - 保護:LAW-1、LAW-3、LAW-5 到 LAW-13
+  - 重委派:qa(LAW-2、LAW-4);骨架的簽名由 conductor 同步改,impl 尚未派

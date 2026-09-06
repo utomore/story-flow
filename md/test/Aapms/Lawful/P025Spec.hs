@@ -39,10 +39,13 @@ import Aapms.Core.Meta
   ( Meta (..)
   , Revision (..)
   , Source (..)
+  , SourceName
   , Status (..)
   , Timeline (..)
   , TypeKey (..)
   , metaFieldNames
+  , mkSourceName
+  , sourceNameText
   )
 import Aapms.Md.Document
 import Aapms.Md.Error (MdError (..), MdErrorKind (..))
@@ -154,15 +157,22 @@ genTypeKey =
 genStatus :: Gen Status
 genStatus = Gen.element [Draft, Canon, Deprecated, Missing]
 
+-- | 'SourceName' 的建構子不匯出(P-025 的 REV-1:非空由型別擋),產生器只能
+-- 走 'mkSourceName' 這個 smart constructor。
+genSourceName :: Gen Text -> Gen SourceName
+genSourceName = Gen.mapMaybe mkSourceName
+
 genSource :: Gen Source
 genSource =
   Gen.choice
     [ pure Human
     , pure Scan
-    , Agent <$> Gen.text (Range.linear 1 8) Gen.alphaNum
-    , Workshop <$> Gen.text (Range.linear 1 8) Gen.alphaNum
-    , Ai <$> Gen.text (Range.linear 1 8) Gen.alphaNum
+    , Agent <$> plain
+    , Workshop <$> plain
+    , Ai <$> plain
     ]
+  where
+    plain = genSourceName (Gen.text (Range.linear 1 8) Gen.alphaNum)
 
 genDay :: Gen Day
 genDay =
@@ -217,6 +227,99 @@ genMeta = do
   p <- Gen.element [PEnt, PAst, PLvl, PNod, PPck, PLic]
   tk <- genTypeKey
   genMetaFor p tk
+
+--------------------------------------------------------------------------------
+-- LAW-9 的定義域:@forall m in Meta@ 就是任意文字,不是「乾淨的」文字。
+--
+-- P-025 的「決定」寫死了「渲染器對任意 'Text' 負責:控制字元由 @quote@ 跳脫,
+-- 不把限制推給 'Meta' 的欄位」,REV-1 又把 @quote@ 的責任範圍列了出來。下面這組
+-- 產生器就是照那份清單造的:C0(含 @\\x00@)、DEL、C1、U+2028 / U+2029、
+-- U+FEFF / U+FFFE / U+FFFF,外加一般 unicode('Gen.unicodeAll',含非 BMP)。
+-- 只有 LAW-9 用它;別的 law 的定義域另有形狀限制(節標題、id 屬性、fence),
+-- 沿用原本的保守字集。
+
+-- | REV-1 逐條點名的危險碼位。
+wildSpecials :: [Char]
+wildSpecials =
+  ['\x00' .. '\x1f'] -- C0(含 NUL / TAB / LF / CR)
+    ++ ['\x7f'] -- DEL
+    ++ ['\x80' .. '\x9f'] -- C1
+    ++ ['\x2028', '\x2029'] -- 行分隔 / 段分隔
+    ++ ['\xfeff', '\xfffe', '\xffff'] -- BOM 與兩個非字元
+
+-- | 上面那組碼位的判定式(標覆蓋率用)。
+isWildChar :: Char -> Bool
+isWildChar c =
+  c < '\x20'
+    || (c >= '\x7f' && c <= '\x9f')
+    || c == '\x2028'
+    || c == '\x2029'
+    || c == '\xfeff'
+    || c == '\xfffe'
+    || c == '\xffff'
+
+-- | 一般字元排前面:縮小時往 alphaNum 收,反例才讀得出「是哪一個碼位出事」。
+genWildChar :: Gen Char
+genWildChar =
+  Gen.frequency
+    [ (2, Gen.alphaNum)
+    , (1, Gen.element cjkPool)
+    , (2, pure '\x00')
+    , (3, Gen.element wildSpecials)
+    , (2, Gen.unicodeAll)
+    ]
+
+-- | 不做 'T.strip':前後空白也在 LAW-9 的定義域裡。
+genWildText :: Range.Range Int -> Gen Text
+genWildText r = Gen.text r genWildChar
+
+genWildSource :: Gen Source
+genWildSource =
+  Gen.choice
+    [ pure Human
+    , pure Scan
+    , Agent <$> wild
+    , Workshop <$> wild
+    , Ai <$> wild
+    ]
+  where
+    wild = genSourceName (genWildText (Range.linear 1 8))
+
+-- | 與 'genMetaFor' 同形狀,只有 REV-1 點名的文字欄位(title / summary / tags /
+-- aliases 與 'SourceName' 的 payload)換成 'genWildText'。
+genWildMeta :: Gen Meta
+genWildMeta = do
+  p <- Gen.element [PEnt, PAst, PLvl, PNod, PPck, PLic]
+  tk <- genTypeKey
+  Meta
+    <$> genId p
+    <*> genVaultId
+    <*> pure tk
+    <*> genWildText (Range.linear 1 10)
+    <*> genWildText (Range.linear 0 16)
+    <*> Gen.list (Range.linear 0 3) (genWildText (Range.linear 1 6))
+    <*> genStatus
+    <*> Gen.maybe genTimeline
+    <*> Gen.list (Range.linear 0 2) (genWildText (Range.linear 1 6))
+    <*> Gen.list (Range.linear 0 2) genLink
+    <*> genWildSource
+    <*> (Revision <$> Gen.int (Range.linear 1 99))
+    <*> genDay
+    <*> genDay
+
+-- | 'Source' 的 payload;'Human' 與 'Scan' 沒有 payload。
+sourceNameOf :: Source -> Text
+sourceNameOf = \case
+  Agent n -> sourceNameText n
+  Workshop n -> sourceNameText n
+  Ai n -> sourceNameText n
+  Human -> ""
+  Scan -> ""
+
+-- | 這份 'Meta' 的文字欄位裡有沒有 REV-1 點名的碼位。
+metaTextFields :: Meta -> [Text]
+metaTextFields m =
+  metaTitle m : metaSummary m : sourceNameOf (metaSource m) : metaTags m ++ metaAliases m
 
 genOverride :: Gen MetaOverride
 genOverride =
@@ -602,8 +705,18 @@ laws = do
   describe "P-025#LAW-9" $
     it "frontmatter 序列化再解回來不失真" $
       hedgehog $ do
-        m <- forAll genMeta
+        m <- forAll genWildMeta
         le <- forAll genLineEnding
+        let fields = metaTextFields m
+            anyWild = any (T.any isWildChar) fields
+            anyNul = any (T.any (== '\x00')) fields
+            srcWild = T.any isWildChar (sourceNameOf (metaSource m))
+        classify "文字欄位含 REV-1 點名的碼位" anyWild
+        classify "文字欄位含 NUL(U+0000)" anyNul
+        classify "SourceName 的 payload 含 REV-1 點名的碼位" srcWild
+        cover 50 "文字欄位含 REV-1 點名的碼位" anyWild
+        cover 20 "文字欄位含 NUL(U+0000)" anyNul
+        cover 15 "SourceName 的 payload 含 REV-1 點名的碼位" srcWild
         decodeFrontmatter (renderFrontmatter m le) === Right m
 
   describe "P-025#LAW-10" $

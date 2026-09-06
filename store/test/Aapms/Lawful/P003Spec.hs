@@ -92,7 +92,7 @@ import Aapms.Core.Registry
   , buildRegistry
   , lookupDir
   )
-import Aapms.Core.Tree (buildTree)
+import Aapms.Core.Tree (TreeError (..), buildTree)
 import Aapms.Md.Document
   ( DocKind (..)
   , Document
@@ -369,6 +369,25 @@ levelNoNodeText =
     ["root: " <> renderId idNodRoot]
     "沒有任何 Node,frontmatter 宣告的 root 不存在。\n"
     []
+
+-- | REV-1:EX-20 的輸入。兩個最淺層級的節同層(@nod-a@ 與 @nod-b@ 都是第 2
+-- 級標題,彼此不是對方的子樹)—— 'structure'(P-025)不會回報 'HeadingSkip'
+-- 或 'HeadingAboveRoot',兩節都解出 @nodParent = Nothing@;'buildTree' 因此
+-- 看到兩個根,回 'MultipleRoots'。這一份與 GAP 本次-1 裡「成環」那種建構不出來
+-- 的輸入不同:兩個最淺層級節不需要重複 id,'parseDocument' 解得開。只給
+-- 'EX-20' 用,不進 'docPool'(LAW-22 \/ LAW-23 \/ LAW-24 的定義域不受影響)。
+-- 合法 Markdown 仍由既有 helper('fileTextOf' \/ 'nodeSection',P-025-md-document
+-- 的 stage 反向產)組出。
+levelTwoRootsText :: Text
+levelTwoRootsText =
+  fileTextOf
+    LevelDoc
+    (metaOf PLvl "00000005" tyLevel "教室" 2)
+    ["root: " <> renderId idNodA]
+    "兩個最淺層級的節,兩個根。\n"
+    [ nodeSection 2 idNodA "A 段"
+    , nodeSection 2 idNodB "B 段"
+    ]
 
 packText :: Text
 packText =
@@ -857,6 +876,23 @@ genNonInsertOpAt t r =
   where
     i = tId t
 
+-- | REV-1(LAW-3 專用):既不插入也不刪除節的請求 —— @not (isInsertOp op)@ 與
+-- @not (isDeleteOp op)@ 都由建構滿足。與 'genNonInsertOpAt' 同一套建構方式,
+-- 差別只在選項清單裡__不放__ 'DeleteNode':不呼叫 'isDeleteOp'(它在 types 層還是
+-- stub),直接把刪節類請求排除在產生器的值域之外。'genNonInsertOpAt' 本身給
+-- LAW-1 \/ LAW-2 用,兩條不受 REV-1 影響,原樣不動。
+genNonInsertNonDeleteOpAt :: Target -> Revision -> Gen WriteOp
+genNonInsertNonDeleteOpAt t r =
+  Gen.choice $
+    [ WriteMeta i r <$> genMetaOverride
+    , WriteBody i r <$> genBody
+    , AddLink i r <$> genLink
+    , RemoveLink i r <$> genLink
+    ]
+      <> [WriteAssetFields i r <$> genAssetPatch | tIsAsset t]
+  where
+    i = tId t
+
 -- | 會插入新節的請求。
 genInsertOpAt :: Target -> Gen WriteOp
 genInsertOpAt t = do
@@ -1021,14 +1057,15 @@ laws = do
           (rights [runResult run])
 
   describe "P-003#LAW-3" $
-    it "invariant:位元組保留,不插入新節的請求成功後目標節以外每一節位元組不變" $
+    it "invariant:位元組保留,不插入也不刪除節的請求(REV-1)成功後目標節以外每一節位元組不變" $
       hedgehog $ do
         t <- forAll genTime
         rp <- forAll genRegPick
         tgt <- forAll genTarget
         r <- forAll (Gen.choice [pure (tRev tgt), genAnyRevision])
-        -- given not (isInsertOp op):產生器只產不插入新節的請求
-        op <- forAll (genNonInsertOpAt tgt r)
+        -- given not (isInsertOp op) and not (isDeleteOp op)(REV-1):產生器
+        -- 直接不把 DeleteNode 放進選項,建構滿足兩個前提,不呼叫 isDeleteOp stub
+        op <- forAll (genNonInsertNonDeleteOpAt tgt r)
         let reg = regOf rp
             vf = vfBase
             ix = ixBase
@@ -1742,12 +1779,16 @@ examples = do
       fmap secLevel (sectionById idNodA d) `shouldBe` Just 3
 
   describe "P-003#EX-20" $
-    it "成環的 Level 檔:validateLevelDoc 回 Left (TreeInvalidOnWrite …),與 buildTree 的 Left 一致" $
-      -- 輸入建構不出來:「@nod-b@ 的 parent 是自己」在標題階層即樹(ADR-009)之下
-      -- 需要同一個節 id 出現兩次,而 @parseDocument@ 對此回
-      -- @MdError { errKind = DuplicateSectionId (Id "nod-...") }@,連 'Document'
-      -- 都拿不到,更談不上 'validateLevelDoc'。
-      pendingWith "GAP 本次-1"
+    it "REV-1:兩個最淺層級的節(兩個根)的 Level 檔,validateLevelDoc 回 Left (TreeInvalidOnWrite …),與 buildTree 的 Left(MultipleRoots)一致" $ do
+      let d = docOf levelTwoRootsText
+      case levelOf d of
+        Just (lvl, nodes) -> case buildTree lvl nodes of
+          Left errs -> do
+            errs `shouldBe` [MultipleRoots [idNodA, idNodB]]
+            validateLevelDoc pathLevel d `shouldBe` Left (TreeInvalidOnWrite pathLevel errs)
+          Right _ ->
+            expectationFailure "P-003#EX-20 buildTree 對兩個根的 Level 檔沒有回 Left"
+        Nothing -> expectationFailure "P-003#EX-20 levelOf 解不出 Level 檔"
 
   describe "P-003#EX-21" $
     it "isRootNode 的三種結果" $ do

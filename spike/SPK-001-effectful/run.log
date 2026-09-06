@@ -1,0 +1,5 @@
+pure result: [("a",1),("b",2)]
+io result:   [("a",1),("b",2)]
+MATCH: pure and IO interpreters agree
+error program result: Left "not found"
+OK: Error effect composed with Index as expected

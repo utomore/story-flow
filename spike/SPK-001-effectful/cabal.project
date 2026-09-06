@@ -1,0 +1,11 @@
+packages:
+  .
+
+-- Same allow-newer as root cabal.project (GHC 9.14.1 / base-4.22 is new,
+-- some packages' upper bounds haven't caught up yet).
+allow-newer:
+  , *:base
+  , *:template-haskell
+  , *:ghc-prim
+
+tests: True

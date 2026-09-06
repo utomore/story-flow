@@ -1,0 +1,17 @@
+cabal-version:      3.0
+name:               spk001
+version:            0.1.0.0
+build-type:         Simple
+
+executable spk001
+  main-is:          Main.hs
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  build-depends:
+      base
+    , containers
+    , text
+    , effectful-core
+    , effectful
+    , effectful-th

@@ -1,7 +1,7 @@
 ---
 id: P-005
 description: init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
-status: frozen
+status: ready
 updated: 2026-09-06
 ---
 # P-005-vault-lifecycle:init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
@@ -54,6 +54,7 @@ updated: 2026-09-06
 | o | `vwEntries :: VaultWorld -> FilePath -> [FilePath]` | 觀察:目錄第一層 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwMarkerDir :: VaultWorld -> FilePath -> Bool` | 觀察:`.aapms` 路徑被佔用 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)` | 觀察:marker 讀數 | `Aapms.Workspace.Types`(願望) | types |
+| o | `driftAt :: VaultWorld -> VaultEntry -> Maybe VaultId` | 觀察:這一列的路徑上 marker 讀得到且 id 與中樞記的不同時,回實際住在那裡的 id;讀不到或相符回 Nothing(刪 index.db 前的守門) | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwHasIndex :: VaultWorld -> FilePath -> Bool` | 觀察:index.db 在不在 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwDirExists :: VaultWorld -> FilePath -> Bool` | 觀察:目錄在不在 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwWithout :: [FilePath] -> VaultWorld -> VaultWorld` | 觀察:拿掉這些路徑後的目錄樹(比較「其餘不動」用) | `Aapms.Workspace.Types`(願望) | types |
@@ -99,8 +100,15 @@ updated: 2026-09-06
 - LAW-20 [relation] add 讀不到 marker 是 MarkerUnreadable 原件,零副作用
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, run in simulateLifecycle t hw vw h (applyLifecycle h (AddVault d)), err in lefts (maybe [] pure (vwMarker vw d))
   - |- lcResult run == Left (MarkerUnreadable d err) and lcHubText run == hubTextIn hw and lcVaults run == vw
+- LAW-21 [relation] forget 的 DeleteIndex 先驗身分:目標路徑的 marker 讀得到且 id 與中樞不同就拒,回 DeleteTargetIdDrift,中樞與目錄樹零副作用
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, s in Text, e in rights [lookupSelector h s], actual in maybe [] pure (driftAt vw e), run in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s DeleteIndex))
+  - |- lcResult run == Left (DeleteTargetIdDrift (veId e) (vePath e) actual) and lcHubText run == hubTextIn hw and lcVaults run == vw
+- LAW-22 [relation] purge AllVaults 全有或全無:任一列漂移就整個拒,回第一列漂移的 DeleteTargetIdDrift,中樞檔、縮圖與每個 index.db 都不動
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, e in take 1 (filter (isJust . driftAt vw) (hubVaults h)), actual in maybe [] pure (driftAt vw e), run in simulateLifecycle t hw vw h (applyLifecycle h (Purge PurgeAllVaults))
+  - |- lcResult run == Left (DeleteTargetIdDrift (veId e) (vePath e) actual) and lcHubText run == hubTextIn hw and lcVaults run == vw
 - LAW-9 [relation] forget:selector 規則同 lookupSelector,解不開零副作用;KeepIndex 只動中樞,DeleteIndex 只多刪 index.db;回傳被移除的那一列
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, s in Text, di in DeleteIndex, run in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s di))
+  - given di == KeepIndex or all (isNothing . driftAt vw) (rights [lookupSelector h s])
   - |- either (const (fmap (const ()) (lcResult run) == fmap (const ()) (lookupSelector h s) and lcHubText run == hubTextIn hw and lcVaults run == vw)) (const (fmap outcomeEntry (lcResult run) == fmap Just (lookupSelector h s) and fmap (fmap hubVaults . outcomeHub) (lcResult run) == fmap (Just . hubVaults . flip removeVault h . veId) (lookupSelector h s))) (lookupSelector h s)
 - LAW-10 [relation] forget 的 DeleteIndex 只刪那個 vault 的 index.db,其餘目錄樹不動;KeepIndex 連它也不動
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, s in Text, e in rights [lookupSelector h s], runK in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s KeepIndex)), runD in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s DeleteIndex))
@@ -114,6 +122,7 @@ updated: 2026-09-06
   - |- elem (syncEntry e m) (hubVaults h2) and outcomeIssues o == checkVaultsOf vw h and lcVaults run == vw and ((h2 == h) => (lcHubText run == hubTextIn hw))
 - LAW-13 [relation] purge:HubOnly 刪 config.toml 與縮圖不碰 vault;AllVaults 只多刪每個 vault 的 index.db;永不刪 library 與 .md;再跑一次回 PurgeReport False 0 []
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, scope in PurgeScope, run in simulateLifecycle t hw vw h (applyLifecycle h (Purge scope)), o in rights [lcResult run], rep in maybe [] pure (outcomePurge o), run2 in simulateLifecycle t (hubWorldAfter run) (lcVaults run) h (applyLifecycle h (Purge scope))
+  - given scope == PurgeHubOnly or all (isNothing . driftAt vw) (hubVaults h)
   - |- isNothing (lcHubText run) and (prHubRemoved rep == isJust (hubTextIn hw)) and ((scope == PurgeHubOnly) => (lcVaults run == vw and prVaultIndexesRemoved rep == [])) and ((scope == PurgeAllVaults) => (vwWithout (map vePath (hubVaults h)) (lcVaults run) == vwWithout (map vePath (hubVaults h)) vw and all (not . vwHasIndex (lcVaults run)) (map vePath (hubVaults h)))) and fmap outcomePurge (lcResult run2) == Right (Just (PurgeReport False 0 []))
 - LAW-14 [relation] 專案登錄:空名 InvalidName、路徑不是目錄 ProjectPathMissing、同一路徑第二次 ProjectAlreadyRegistered,三者零副作用;成功只多一列專案
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, name in Text, run in simulateLifecycle t hw vw h (applyLifecycle h (RegisterProject d name)), o in rights [lcResult run], p in maybe [] pure (outcomeProject o), h2 in maybe [] pure (outcomeHub o)
@@ -159,6 +168,8 @@ updated: 2026-09-06
 | EX-19 | 任一 Left 的請求 | 中樞文字與起始相同 | LAW-17 |
 | EX-20 | EX-6 成功後把最終中樞文字 parseHubText | 三段等於回傳的 Hub | LAW-18 |
 | EX-21 | 亂造的世界與請求 | 不拋例外 | LAW-19 |
+| EX-22 | 中樞列 A(id `vlt-0000000a`,路徑 P);世界裡 P 的 marker 讀得到但 id 是 `vlt-0000000b`;`ForgetVault "A" DeleteIndex` | `Left (DeleteTargetIdDrift vlt-0000000a P vlt-0000000b)`;中樞文字不變、P 的 index.db 仍在 | LAW-21 |
+| EX-23 | 中樞兩列,第二列的路徑上 marker id 漂移;`Purge PurgeAllVaults` | `Left (DeleteTargetIdDrift …)` 指向第二列;中樞檔、縮圖、兩個 index.db 都還在 | LAW-22 |
 
 ## 決定
 - **十個生命週期操作收成 `LifecycleOp` 一個 sum、一列 `!`;`HubFile` / `VaultDir` / `Markers` / `Clock` 四個效果。** 否決:每個函數一條 pipeline。理由:全部走「前置檢查 → 改 Hub 值 → 原子寫回」同一條紀律。證據:ADR-023-effectful-effects-layer
@@ -190,3 +201,7 @@ updated: 2026-09-06
   - 動到:Stages 第 4 列
   - 保護:LAW-1 到 LAW-20、全部 EX(沒有 law 直接引用 `ensureCacheDir`)
   - 重委派:impl(`HubFile` 的 op、兩個解譯器、`applyLifecycle` 的 SetupHub);qa 無
+- REV-4(2026-09-06,依退場波 impl 提問「`DeleteTargetIdDrift` 在 ForgetVault / Purge 沒有任何通道,舊 WAVE-4 裁決 B『刪索引前先驗身分』在搬遷時從 law 消失」;開發者裁決補回守門):加觀察點 `driftAt`;LAW-9 / LAW-13 加 given 排除漂移;新增 LAW-21(forget 的 DeleteIndex 漂移即拒、零副作用)與 LAW-22(purge AllVaults 全有或全無);EX-22 / EX-23
+  - 動到:LAW-9、LAW-13 的 given;LAW-21、LAW-22、EX-22、EX-23、觀察點 `driftAt`(新增)
+  - 保護:LAW-1 到 LAW-8、LAW-10 到 LAW-12、LAW-14 到 LAW-20、EX-1 到 EX-21
+  - 重委派:impl(`driftAt`、`applyLifecycle` 的 ForgetVault / Purge);qa(LAW-9、LAW-13、LAW-21、LAW-22、EX-22、EX-23)

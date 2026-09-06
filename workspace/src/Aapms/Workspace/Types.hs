@@ -88,6 +88,7 @@ module Aapms.Workspace.Types
   , vwEntries
   , vwMarkerDir
   , vwMarker
+  , driftAt
   , vwHasIndex
   , vwDirExists
   , vwWithout
@@ -685,6 +686,10 @@ vwMarkerDir vw d = Set.member d (vwMarkerDirs vw)
 -- | 觀察:marker 讀數;@Nothing@ = 那個路徑上讀不到任何 marker。
 vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
 vwMarker vw d = Map.lookup d (vwMarkers vw)
+
+-- | 這一列的路徑上 marker 讀得到且 id 與中樞不同時回實際的 id(P-005 REV-4 的守門)。
+driftAt :: VaultWorld -> VaultEntry -> Maybe VaultId
+driftAt _vw _e = error "P-005#driftAt stub"
 
 -- | 觀察:@index.db@ 在不在。
 vwHasIndex :: VaultWorld -> FilePath -> Bool

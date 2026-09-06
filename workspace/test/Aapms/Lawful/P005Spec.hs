@@ -414,8 +414,8 @@ lawsSpec = do
         let vw = scWorld s
             h = scHub s
             run = runOp t hw vw h (Purge scope)
-            -- 逐字照 law:第二次仍以 hw 為中樞世界,只換成跑完之後的目錄樹。
-            run2 = runOp t hw (lcVaults run) h (Purge scope)
+            -- 逐字照 law(REV-1):第二次從跑完之後的中樞世界與目錄樹起跑。
+            run2 = runOp t (hubWorldAfter run) (lcVaults run) h (Purge scope)
             paths = map vePath (hubVaults h)
         assert (isNothing (lcHubText run))
         fmap outcomePurge (lcResult run2) === Right (Just (PurgeReport False 0 []))
@@ -561,7 +561,7 @@ examplesSpec = do
       lcVaults run2 `shouldBe` lcVaults run1
 
   describe "P-005#EX-2" $ do
-    let hw = HubWorld (Just brokenHubText) hubLoc
+    let hw = brokenHubWorld
         run = runOp fixedT hw setupWorld emptyHub SetupHub
     it "解不開的 config.toml:setup 仍是 Right,不是 HubUnreadable" $
       case lcResult run of
@@ -633,7 +633,7 @@ examplesSpec = do
     let collId = VaultId (renderId (newId PVlt "Lore" fixedT 0))
         old = VaultEntry collId "old" AssetVault occupiedOther
         h = mkHub [old] [] Nothing (ToolsConfig Nothing) ""
-        hw = HubWorld (Just (renderHub h)) hubLoc
+        hw = hubWorldOf h
         run = runOp fixedT hw exWorld h (InitVault freshDir StoryVault "  Lore  " FreshVault)
     it "同 t 同名撞到既有列:VaultIdCollision 三個值" $
       lcResult run `shouldBe` Left (VaultIdCollision collId occupiedOther freshDir)
@@ -684,7 +684,7 @@ examplesSpec = do
         Left e -> expectationFailure ("預期 Right,實際:" <> show e)
     it "中樞裡同 id 但在舊位置的那一列被換成新位置" $
       let hOld = mkHub [VaultEntry ex9Id "old" StoryVault ex9Old] [] Nothing (ToolsConfig Nothing) ""
-          hwOld = HubWorld (Just (renderHub hOld)) hubLoc
+          hwOld = hubWorldOf hOld
           run = runOp fixedT hwOld ex9World hOld (AddVault ex9New)
       in case lcResult run of
           Right o -> fmap hubVaults (outcomeHub o) `shouldBe` Just [expected]
@@ -756,8 +756,8 @@ examplesSpec = do
     let runHubOnly = runOp fixedT purgeHubWorld purgeWorld purgeHub (Purge PurgeHubOnly)
         runAll = runOp fixedT purgeHubWorld purgeWorld purgeHub (Purge PurgeAllVaults)
         run2 = runOp fixedT (hubWorldAfter runAll) (lcVaults runAll) purgeHub (Purge PurgeAllVaults)
-    it "兩張縮圖的 prThumbsRemoved == 2" $
-      pendingWith "GAP 本次-1"
+    it "HubOnly 的報告逐字是 PurgeReport True 2 []" $
+      fmap outcomePurge (lcResult runHubOnly) `shouldBe` Right (Just (PurgeReport True 2 []))
     it "HubOnly:中樞檔沒了、vault 目錄樹一個位元組都不動" $ do
       lcHubText runHubOnly `shouldBe` Nothing
       fmap (fmap prHubRemoved . outcomePurge) (lcResult runHubOnly) `shouldBe` Right (Just True)
@@ -918,11 +918,21 @@ hubDir = "H"
 hubLoc :: HubLocation
 hubLoc = HubLocation hubDir FromEnv
 
+-- | 中樞檔不存在、快取目錄也還沒建的世界(EX-1 的第一次 setup 兩個 Bool 都 True)。
 emptyHubWorld :: HubWorld
-emptyHubWorld = HubWorld Nothing hubLoc
+emptyHubWorld = HubWorld Nothing hubLoc False []
 
+-- | 中樞檔是這個 Hub 的渲染結果;快取目錄與縮圖不參與這些例子。
 hubWorldOf :: Hub -> HubWorld
-hubWorldOf h = HubWorld (Just (renderHub h)) hubLoc
+hubWorldOf h = HubWorld (Just (renderHub h)) hubLoc False []
+
+-- | 中樞檔存在但解不開(EX-2 與產生器共用)。
+brokenHubWorld :: HubWorld
+brokenHubWorld = HubWorld (Just brokenHubText) hubLoc False []
+
+-- | 產生器用的縮圖固定小池('thumbsIn' 取它的子序列)。
+thumbPool :: [FilePath]
+thumbPool = ["H/cache/thumbs/t1.png", "H/cache/thumbs/t2.png", "H/cache/thumbs/t3.png"]
 
 emptyHub :: Hub
 emptyHub = mkHub [] [] Nothing (ToolsConfig Nothing) ""
@@ -1171,8 +1181,12 @@ purgeHub =
     (ToolsConfig Nothing)
     ""
 
+-- | EX-15 的中樞:config.toml 加兩張縮圖(notes.txt 不是縮圖,purge 不碰)。
+purgeThumbs :: [FilePath]
+purgeThumbs = ["H/cache/thumbs/p1.png", "H/cache/thumbs/p2.png"]
+
 purgeHubWorld :: HubWorld
-purgeHubWorld = hubWorldOf purgeHub
+purgeHubWorld = HubWorld (Just (renderHub purgeHub)) hubLoc True purgeThumbs
 
 purgeWorld :: VaultWorld
 purgeWorld =
@@ -1234,7 +1248,7 @@ chaosCases :: [(HubWorld, VaultWorld, Hub, LifecycleOp)]
 chaosCases =
   [ (emptyHubWorld, worldOf [], emptyHub, SetupHub)
   , (emptyHubWorld, worldOf [], emptyHub, CheckVaults)
-  , (HubWorld (Just brokenHubText) hubLoc, exWorld, exHub, SyncHub)
+  , (brokenHubWorld, exWorld, exHub, SyncHub)
   , (exHubWorld, exWorld, exHub, InitVault "" AssetVault "" FreshVault)
   , (exHubWorld, worldOf [], dupHub, ForgetVault "" DeleteIndex)
   , (emptyHubWorld, exWorld, chkHub, Purge PurgeAllVaults)
@@ -1376,22 +1390,37 @@ genName = Gen.element ["Lore", "  Lore  ", "real", "a", "中文名稱"]
 genMaybeBlankName :: Gen Text
 genMaybeBlankName = Gen.frequency [(3, genName), (1, Gen.element ["", "  ", "\t"])]
 
--- | 中樞世界:沒有檔、有一份與這個中樞一致的檔、有一份解不開的檔。
+-- | 中樞世界:沒有檔、有一份與這個中樞一致的檔、有一份解不開的檔;快取目錄與
+-- 縮圖另外抽。
 genHubWorld :: Scenario -> Gen HubWorld
-genHubWorld s =
-  Gen.frequency
-    [ (1, pure emptyHubWorld)
-    , (4, pure (hubWorldOf (scHub s)))
-    , (1, pure (HubWorld (Just brokenHubText) hubLoc))
-    ]
+genHubWorld s = do
+  txt <-
+    Gen.frequency
+      [ (1, pure Nothing)
+      , (4, pure (Just (renderHub (scHub s))))
+      , (1, pure (Just brokenHubText))
+      ]
+  genHubWorldWith txt
 
 -- | LAW-2 的定義域:中樞檔一定存在。
 genHubWorldWithText :: Scenario -> Gen HubWorld
-genHubWorldWithText s =
-  Gen.frequency
-    [ (3, pure (hubWorldOf (scHub s)))
-    , (1, pure (HubWorld (Just brokenHubText) hubLoc))
-    ]
+genHubWorldWithText s = do
+  txt <-
+    Gen.frequency
+      [ (3, pure (renderHub (scHub s)))
+      , (1, pure brokenHubText)
+      ]
+  genHubWorldWith (Just txt)
+
+-- | 中樞檔以外的兩欄:快取目錄在不在、快取裡有哪幾張縮圖。
+--
+-- __世界的合法性__(qa 自己決定,見回報):縮圖住在快取目錄底下,所以快取目錄不
+-- 存在的世界一律零張縮圖。
+genHubWorldWith :: Maybe Text -> Gen HubWorld
+genHubWorldWith txt = do
+  cache <- Gen.bool
+  thumbs <- if cache then Gen.subsequence thumbPool else pure []
+  pure (HubWorld txt hubLoc cache thumbs)
 
 -- | 世界裡任何一個路徑(含不存在的)。
 genAnyDir :: Scenario -> Gen FilePath

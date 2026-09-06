@@ -10,7 +10,7 @@ updated: 2026-09-06
 
 ## 語言與工具
 - 建置:`cabal build all`
-- 測試(整套):`cabal test all --test-show-details=direct`
+- 測試(整套):`cabal test all -j1 --test-show-details=direct`(`-j1` 讓各套件輸出不交錯,`lawful status --tests` 才對得上歸屬字串)
 - 測試(子集):`cabal test <套件>-test --test-show-details=direct --test-options='-m P-00x'`(stage 住哪個套件就跑哪個;hspec 的 `-m` 以歸屬字串 `P-00x` 選)
 - IO 模組追加:`Database.SQLite.Simple`、`Database.SQLite3`、`System.FilePath.Windows`、`Control.Exception`、`UnliftIO.*`
 - 效果型別追加:`ServiceM`、`Connection`、`VaultHandle`
@@ -33,7 +33,7 @@ updated: 2026-09-06
 | 命中(每筆帶 vault) | out | `SearchHit` | `Aapms.Store.MultiVault` | P-002-search |
 | 寫入請求(新節 / 覆寫 / 關聯 / 授權 / 刪除) | in | `NewSection` | `Aapms.Store.Write` | P-003-node-write |
 | Markdown 寫回與索引更新結果 | out | `WriteResult` | `Aapms.Store.Write` | P-003-node-write |
-| 中樞 `config.toml` | in | `Hub` | `Aapms.Workspace.Hub` | P-004-vault-scope |
+| 中樞 `config.toml` | in | `Hub` | `Aapms.Workspace.Effect.HubFile.IO` | P-004-vault-scope |
 | 型別註冊表 `types/registry/*.toml` | in | `TypeRegistry` | `Aapms.Types.Loader` | P-004-vault-scope |
 | `--vault` 旗標與起點目錄 | in | `VaultRef` | `Aapms.Workspace.Scope` | P-004-vault-scope |
 | 本次生效的 vault 集合 | out | `ReadScope` | `Aapms.Workspace.Scope` | P-004-vault-scope |

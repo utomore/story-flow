@@ -24,6 +24,7 @@ import qualified Aapms.Store.WalkSpec
 import qualified Aapms.Store.WriteLockBudgetSpec
 import qualified Aapms.Store.WriteSpec
 import qualified Aapms.StoreSpec
+import qualified Aapms.Lawful.P027Spec
 import System.IO
 import Test.Hspec
 
@@ -32,6 +33,7 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
+    describe "lawful P027" Aapms.Lawful.P027Spec.spec
     Aapms.StoreSpec.spec
     Aapms.Store.AtomicSpec.spec
     Aapms.Store.ErrorSpec.spec

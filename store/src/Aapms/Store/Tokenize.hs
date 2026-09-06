@@ -48,6 +48,9 @@ module Aapms.Store.Tokenize
     -- * FTS5 字面字串
   , ftsQuoted
   , ftsPhrase
+
+    -- * 純參考(P-027-fts-tokenize;P-002-search 的 oracle)
+  , matchesQuery
   ) where
 
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
@@ -278,3 +281,8 @@ ftsQuoted t = "\"" <> T.replace "\"" "\"\"" t <> "\""
 -- 出現__,所以「金門建築」不會誤中只含「金門」與不相鄰的「建築」的文件。
 ftsPhrase :: Text -> Text
 ftsPhrase t = ftsQuoted (T.unwords (T.words t))
+
+-- | 純參考實作:這串查詢文字在同一套路由規則下打不打得中這個節點
+-- (P-027-fts-tokenize#matchesQuery;P-002-search 的 LAW-4 拿它當 sqlite 解譯器的對照)。
+matchesQuery :: Text -> AnyNode -> Bool
+matchesQuery = error "P-027#matchesQuery stub"

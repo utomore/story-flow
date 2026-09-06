@@ -34,6 +34,7 @@ library
         Aapms.Store.Query
         Aapms.Store.Schema
         Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
         Aapms.Store.Types
         Aapms.Store.Write
     other-modules:
@@ -63,6 +64,7 @@ test-suite aapms-store-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P027Spec
         Aapms.Store.AtomicSpec
         Aapms.Store.BoundarySpec
         Aapms.Store.CreateSpec

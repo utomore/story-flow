@@ -49,6 +49,8 @@ test-suite aapms-md-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P026Spec
+        Aapms.Lawful.P025Spec
         Aapms.Md.AppendSectionSpec
         Aapms.Md.DocKindLawSpec
         Aapms.Md.DocKindSpec

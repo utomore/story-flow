@@ -53,6 +53,11 @@ test-suite aapms-core-test
     hs-source-dirs:   test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P024Spec
+        Aapms.Lawful.P023Spec
+        Aapms.Lawful.P022Spec
+        Aapms.Lawful.P021Spec
+        Aapms.Lawful.P020Spec
         Aapms.Core.AnyNodeSpec
         Aapms.Core.AssetSpec
         Aapms.Core.CabalSpec
@@ -77,6 +82,8 @@ test-suite aapms-core-test
         , containers
         , directory
         , hspec
+        , hedgehog
+        , hspec-hedgehog
         , aapms-core
         , text
         , time

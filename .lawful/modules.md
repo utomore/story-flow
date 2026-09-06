@@ -6,7 +6,7 @@
 | `Aapms.Store.Types`、`Aapms.Types.Source`、`Aapms.Workspace.Types`、`Aapms.Service.Types` | types |
 | `Aapms.Core.Naming`、`Aapms.Core.Registry.Build`、`Aapms.Core.Tree` | pure |
 | `Aapms.Md`、`Aapms.Md.Lexer`、`Aapms.Md.Yaml`、`Aapms.Md.Parse`、`Aapms.Md.Inherit`、`Aapms.Md.Render` | pure |
-| `Aapms.Store.Tokenize`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing` | pure |
+| `Aapms.Store.Tokenize`、`Aapms.Store.Tokenize.Internal`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing` | pure |
 | `Aapms.Workspace.Hub`、`Aapms.Workspace.Location` | pure |
 | `Aapms.Types.Parse` | pure |
 | `Aapms.Types.Loader` | shell |

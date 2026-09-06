@@ -84,6 +84,7 @@ test-suite aapms-store-test
     other-modules:
         Aapms.Lawful.P001Spec
         Aapms.Lawful.P002Spec
+        Aapms.Lawful.P002SqliteSpec
         Aapms.Lawful.P003Spec
         Aapms.Lawful.P027Spec
         Aapms.Store.AtomicSpec

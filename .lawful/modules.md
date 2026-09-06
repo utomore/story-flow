@@ -15,5 +15,5 @@
 | `Aapms.Types.Loader` | shell |
 | `Aapms.Store`、`Aapms.Store.Atomic`、`Aapms.Store.Create`、`Aapms.Store.Edit`、`Aapms.Store.Error`、`Aapms.Store.Index`、`Aapms.Store.Marker`、`Aapms.Store.MultiVault`、`Aapms.Store.Query`、`Aapms.Store.Row.Sql`、`Aapms.Store.Schema`、`Aapms.Store.Walk`、`Aapms.Store.Write` | shell |
 | `Aapms.Workspace.Hub.File`、`Aapms.Workspace.Discovery`、`Aapms.Workspace.Scope`、`Aapms.Workspace.Lifecycle`、`Aapms.Workspace.Projects`、`Aapms.Workspace.Tools` | shell |
-| `Aapms.Store.Effect.VaultFs.IO`、`Aapms.Store.Effect.Index.Sqlite`、`Aapms.Store.Effect.Vaults.IO`、`Aapms.Store.Effect.Clock.IO`、`Aapms.Workspace.Effect.HubFile.IO`、`Aapms.Workspace.Effect.Markers.IO`、`Aapms.Workspace.Effect.VaultDir.IO` | shell |
+| `Aapms.Store.Effect.VaultFs.IO`、`Aapms.Store.Effect.Index.Sqlite`、`Aapms.Store.Effect.Vaults.IO`、`Aapms.Store.Effect.Clock.IO`、`Aapms.Workspace.Effect.HubFile.IO`、`Aapms.Workspace.Effect.Markers.IO`、`Aapms.Workspace.Effect.VaultDir.IO`、`Aapms.Workspace.Effect.ToolProbe.IO`、`Aapms.Types.Effect.RegistryFs.IO` | shell |
 | `Aapms.Service.Monad`、`Aapms.Service.Scope`、`Aapms.Service.Machine` | shell |

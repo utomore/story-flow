@@ -400,6 +400,10 @@ lawsSpec = do
             h = scHub s
             runK = runOp t hw vw h (ForgetVault sel KeepIndex)
             runD = runOp t hw vw h (ForgetVault sel DeleteIndex)
+        -- given(REV-4,與 LAW-9 同一個 given):@all (isNothing . driftAt vw)
+        -- (rights [lookupSelector h s])@。'genGoodVaultSel' 直接建構滿足它的
+        -- selector(排除目標列在世界裡漂移的組合),這裡只把前提斷言出來。
+        assert (noDriftTarget s sel)
         case lookupSelector h sel of
           Left _ -> success
           Right e -> do
@@ -1628,9 +1632,14 @@ genVaultSel s =
   Gen.element
     (map (idText . slotId) (scSlots s) <> map slotName (scSlots s) <> ["nope", ""])
 
--- | LAW-10 的定義域:一定解得開的 selector(逐列的 id 唯一)。
+-- | LAW-10 的定義域(REV-4 的 given,與 LAW-9 同一個 given):一定解得開的
+-- selector(逐列的 id 唯一),排除目標那一列在世界裡漂移的組合;篩完是空的
+-- 就退回一定解不開的 "nope"(給 'lookupSelector' 一個 @Left@,given 對它
+-- 恆真)。
 genGoodVaultSel :: Scenario -> Gen Text
-genGoodVaultSel s = Gen.element (map (idText . slotId) (scSlots s))
+genGoodVaultSel s = case filter (noDriftTarget s) (map (idText . slotId) (scSlots s)) of
+  [] -> pure "nope"
+  ids -> Gen.element ids
 
 -- 漂移(REV-4)------------------------------------------------------------------
 

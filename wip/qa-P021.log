@@ -1,0 +1,80 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (lib) (configuration changed)
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (configuration changed)
+Configuring library for aapms-core-0.1.0.0...
+Preprocessing library for aapms-core-0.1.0.0...
+Building library for aapms-core-0.1.0.0...
+Configuring test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+lawful P021
+  P-021#LAW-1
+    保留鍵一律進不了註冊表 [✔]
+      passed 100 tests.
+  P-021#LAW-2
+    任何宣告清單丟給 buildRegistry 都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-021#LAW-3
+    同一份宣告出現兩次一定被拒,鍵不可重複 [✔]
+      passed 100 tests.
+  P-021#LAW-4
+    建得起來的註冊表列得出送進去的每一份宣告 [✔]
+      passed 100 tests.
+  P-021#LAW-5
+    listTypes 列出來的每一份,lookupType 都查得到而且就是它自己 [✔]
+      passed 100 tests.
+  P-021#LAW-6
+    listTypes 依鍵排序且鍵不重複 [✔]
+      passed 100 tests.
+  P-021#LAW-7
+    型別自己宣告了 dir 時,lookupDir 就回那一個 [✔]
+      passed 100 tests.
+      至少一份宣告帶 dir 60% ████████████········ ✓ 10%
+  P-021#LAW-8
+    家族的文字表示與解析互為反函式 [✔]
+      passed 100 tests.
+  P-021#LAW-9
+    型別沒宣告時,checkMeta 只回一則 UnknownNodeType [✔]
+      passed 100 tests.
+  P-021#LAW-10
+    沒有必填欄位、沒有 allowed_links、沒有 name_kinds 時不產生警告 [✔]
+      passed 100 tests.
+  P-021#LAW-11
+    宣告了 allowed_links 之後,不在裡面的關聯逐條產生 LinkNotAllowed [✔]
+      passed 100 tests.
+      節點帶了不被允許的關聯 47% █████████▍·········· ✓ 30%
+  P-021#EX-1
+    空目錄是合法的:buildRegistry [] 建得出空註冊表 [✔]
+  P-021#EX-2
+    三個保留鍵各自被擋下 [✔]
+  P-021#EX-3
+    同一個 tdKey 的兩份宣告被拒,該鍵只列一次 [✔]
+  P-021#EX-4
+    兩份宣告依鍵字母序列出,兩個鍵都查得到 [✔]
+  P-021#EX-5
+    lookupDir 回型別自己宣告的目錄 [✔]
+  P-021#EX-6
+    宣告了 Meta 上不存在的欄位名會被擋下 [✔]
+  P-021#EX-7
+    空白鍵與保留鍵的錯誤同時出現在一個清單裡 [✔]
+  P-021#EX-8
+    家族的文字互轉 [✔]
+  P-021#EX-9
+    註冊表沒有的型別鍵恰好產生一則 UnknownNodeType [✔]
+  P-021#EX-10
+    空清單是「未宣告限制」而不是「什麼都不准」 [✔]
+  P-021#EX-11
+    不在 allowed_links 內的關聯產生 LinkNotAllowed [✔]
+  P-021#EX-12
+    命名第一段在 name_kinds 內才不產生 NameKindNotAllowed [✔]
+
+Finished in 0.0404 seconds
+23 examples, 0 failures
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P021\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

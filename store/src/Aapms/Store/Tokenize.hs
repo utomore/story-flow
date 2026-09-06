@@ -60,6 +60,7 @@ import Aapms.Core.Id (Id)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Meta (Meta (..))
 import Aapms.Core.Pack (Pack (..))
+import Aapms.Store.Tokenize.Internal (runHits, stripText, wordHits)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -284,5 +285,17 @@ ftsPhrase t = ftsQuoted (T.unwords (T.words t))
 
 -- | 純參考實作:這串查詢文字在同一套路由規則下打不打得中這個節點
 -- (P-027-fts-tokenize#matchesQuery;P-002-search 的 LAW-4 拿它當 sqlite 解譯器的對照)。
+-- 三條路由各自對應一條規則,與 'routeOf' 一一對上:
+--
+-- * 'TrigramOnly':每個詞都要命中;空查詢(去頭尾空白後為空)誰都不中。
+-- * 'CjkOnly':每一段中日韓都要以連續子字串出現,段與段之間是 AND。
+-- * 'BothIndexes':兩張表各自算完,任一邊全中就算命中(SQL 側是 UNION)。
 matchesQuery :: Text -> AnyNode -> Bool
-matchesQuery = error "P-027#matchesQuery stub"
+matchesQuery t n = case routeOf t of
+  TrigramOnly -> not (T.null s) && triSide
+  CjkOnly -> cjkSide
+  BothIndexes -> triSide || cjkSide
+  where
+    s = stripText t
+    triSide = all (\w -> wordHits w n) (T.words s)
+    cjkSide = all (\r -> runHits r n) (cjkRuns s)

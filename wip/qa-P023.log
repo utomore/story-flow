@@ -1,0 +1,70 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (ephemeral targets)
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+lawful P023
+  P-023#LAW-1
+  ✓ <interactive> passed 100 tests.
+    [roundtrip] 版本相符的 assets manifest 編成 JSON 再讀回來是同一個值 [✔]
+  P-023#LAW-2
+  ✓ <interactive> passed 100 tests.
+    [roundtrip] 版本相符的 story manifest 編成 JSON 再讀回來是同一個值 [✔]
+  P-023#LAW-3
+  ✓ <interactive> passed 100 tests.
+    [invariant] schemaVersion 不是本工具支援的那一個就不解析,不靜默通過 [✔]
+  P-023#LAW-4
+  ✓ <interactive> passed 100 tests.
+    [invariant] story manifest 的版本閘門獨立於 assets manifest,用自己的常數 [✔]
+  P-023#LAW-5
+  ✓ <interactive> passed 100 tests.
+    [relation] key 不重複時,每一筆 asset 都能用自己的 key 從索引查回自己 [✔]
+  P-023#LAW-6
+  ✓ <interactive> passed 100 tests.
+    [invariant] 索引的鍵集合就是 asset 的 key 集合,不多也不少 [✔]
+  P-023#LAW-7
+  ✓ <interactive> passed 100 tests.
+    [relation] 沒出現在 manifest 裡的 key 查不到東西 [✔]
+  P-023#LAW-8
+  ✓ <interactive> passed 100 tests.
+    [roundtrip] ImageMeta 編成 JSON 再型別化讀回來是同一個值 [✔]
+  P-023#LAW-9
+  ✓ <interactive> passed 100 tests.
+    [roundtrip] AudioMeta 編成 JSON 再型別化讀回來是同一個值 [✔]
+  P-023#LAW-10
+  ✓ <interactive> passed 100 tests.
+    [total] 任何 Value 丟給兩個型別化讀取都有值,不拋例外 [✔]
+  P-023#EX-1
+    golden manifest.golden.json 解得出 Manifest,再編碼與原檔語意相同 [✔]
+  P-023#EX-2
+    golden story-manifest.golden.json 解得出 StoryManifest,schemaVersion 2,編回去語意相同 [✔]
+  P-023#EX-3
+    manifest 的 schemaVersion 換成 1 或 3 都解不出來,訊息含「請重新產生」 [✔]
+  P-023#EX-4
+    story manifest 的 schemaVersion 換成 1 或 3 都解不出來,用自己的版本常數 [✔]
+  P-023#EX-5
+    兩筆 asset 的 manifest:兩個 AssetKey 都回 Just,does-not-exist 回 Nothing [✔]
+  P-023#EX-6
+    mAssets 為 [] 的 manifest:manifestIndex 是空表,鍵集合為 [] [✔]
+  P-023#EX-7
+    maPack / maLicense 皆 Nothing:編碼後恰好九個鍵,兩者是 null 而不是省略鍵 [✔]
+  P-023#EX-8
+    pack 寫成裸 id "pck-11223344" 讀成 Just (Ref Nothing ...),視為本 vault 參照 [✔]
+  P-023#EX-9
+    短 id 相同、vault 不同的兩筆 pack:mpId 不相等,各自能被完整 Ref 唯一查到 [✔]
+  P-023#EX-10
+    imageMeta 讀出完整物件與缺 colorCount 的同形物件 [✔]
+  P-023#EX-11
+    audioMeta 讀出 durationMs / sampleRate / channels [✔]
+  P-023#EX-12
+    image 的 Value 給 audioMeta、audio 的給 imageMeta,兩邊都是 Nothing 且不拋例外 [✔]
+
+Finished in 0.1347 seconds
+22 examples, 0 failures
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P023\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

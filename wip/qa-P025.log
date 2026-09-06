@@ -1,0 +1,419 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-md-0.1.0.0 (test:aapms-md-test) (ephemeral targets)
+Preprocessing test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Building test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Running 1 test suites...
+Test suite aapms-md-test: RUNNING...
+
+lawful P025
+  P-025#LAW-1
+    解析得開的文字原樣寫回,逐位元組相同 [✘]
+  P-025#LAW-2
+    寫回是四段原始切片依序接起來,只有兩條 --- 界線由 renderDocument 重生 [✔]
+      passed 100 tests.
+  P-025#LAW-3
+    一節就是標題行、meta 區塊與正文三段原始切片 [✔]
+      passed 100 tests.
+  P-025#LAW-4
+    解析對任何文字都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-025#LAW-5
+    行尾風格與檔尾換行由全檔多數決定,解析出來就是原文的事實 [✘]
+  P-025#LAW-6
+    從零產生的文件一定解析得回來 [✘]
+  P-025#LAW-7
+    檔案身分只由檔案層 type 決定:三個保留鍵各對一種,其餘一律 TopicDoc [✘]
+  P-025#LAW-8
+    沒有檔案層專屬欄位時 newDocument 就是 newDocumentWith 的特化 [✔]
+      passed 100 tests.
+  P-025#LAW-9
+    frontmatter 序列化再解回來不失真 [✘]
+  P-025#LAW-10
+    meta 區塊以行尾收尾,型別專屬條目的每一行逐字都在裡面 [✔]
+      passed 100 tests.
+  P-025#LAW-11
+    節的 tags 是檔案層與節層的聯集去重 [✔]
+      passed 100 tests.
+  P-025#LAW-12
+    節層未寫時 vault / status / source / created / updated / timeline 一律繼承檔案層 [✔]
+      passed 100 tests.
+  P-025#LAW-13
+    summary / aliases / links 不繼承,未寫為空;revision 不繼承,未寫是 1 [✔]
+      passed 100 tests.
+  P-025#LAW-14
+    節的 id 與標題取自節本身,永遠不繼承 [✔]
+      passed 100 tests.
+  P-025#LAW-15
+    type 是否繼承由旗標決定:pack.md 的節不繼承,缺漏是錯誤 [✔]
+      passed 100 tests.
+  P-025#LAW-16
+    展開再套回同一份 Meta 是恆等 [✔]
+      passed 100 tests.
+  P-025#LAW-17
+    套回是逐欄覆蓋,id 與 title 表達不了因此原樣保留 [✔]
+      passed 100 tests.
+  P-025#LAW-18
+    主題檔的片段與節一一對應,依文件順序 [✘]
+  P-025#LAW-19
+    Level 檔的節點與節一一對應,依文件順序 [✘]
+  P-025#LAW-20
+    pack.md 的 asset 與節一一對應,依文件順序 [✘]
+  P-025#LAW-21
+    licenses.md 每一節一個授權,容器本身不是節點 [✘]
+  P-025#EX-1
+    空檔案與只有一行 --- 的檔案都是 Left,不拋例外 [✔]
+  P-025#EX-2
+    parseDocument "---\nid: [broken" 是第 1 行的 UnterminatedFrontmatter [✔]
+  P-025#EX-3
+    只有 frontmatter、沒有任何節的 pack.md 逐位元組寫回,sectionIds 為空 [✔]
+  P-025#EX-4
+    frontmatter 界線用 LF、正文用 CRLF 的混合檔:逐位元組相同,docEnding 是 CRLF [✔]
+  P-025#EX-5
+    檔尾沒有換行:docFinalNL 為 False,寫回仍逐位元組相同 [✔]
+  P-025#EX-6
+    一節等於三段接起來,整份等於 --- + frontRaw + --- + preamble + 各節 [✔]
+  P-025#EX-7
+    五份 frontmatter 的 docKind 依序是 LevelDoc / PackDoc / LicenseDoc / TopicDoc / TopicDoc [✔]
+  P-025#EX-8
+    newDocument PackDoc m 的產物解析得回來,且等於 newDocumentWith 的空專屬欄位版本 [✔]
+  P-025#EX-9
+    renderFrontmatter 輸出十四欄(tags: []、timeline: null),decodeFrontmatter 解回等於 m [✔]
+  P-025#EX-10
+    renderMetaBlock 以 ```meta 起、以 ``` 與換行收,中間逐字含那兩行 [✔]
+  P-025#EX-11
+    檔案層與節層的 tags 是聯集去重,檔案層在前 [✔]
+  P-025#EX-12
+    節的 meta 區塊什麼都沒寫時的繼承結果 [✔]
+  P-025#EX-13
+    節的 id 與標題取自節本身,與檔案層無關 [✔]
+  P-025#EX-14
+    typeInherits 為 True 時繼承檔案層,為 False 時是 SectionFieldMissing [✔]
+  P-025#EX-15
+    pack.md 的節沒有寫 type,toPack 回 SectionFieldMissing [✔]
+  P-025#EX-16
+    applyOverride (overrideOf m) m 逐欄等於 m [✔]
+  P-025#EX-17
+    套回是逐欄覆蓋,id 與 title 仍是 b 的 [✔]
+  P-025#EX-18
+    主題檔的兩個片段依序是 ent-0001 / ent-0002,與 sectionIds 相同 [✔]
+  P-025#EX-19
+    Level 檔的節點依序是 nod-0003 / nod-0010 / nod-0011,root 以第一個節填入 [✔]
+  P-025#EX-20
+    pack.md 兩個 asset 節解回長度 2,metaId 依序等於 sectionIds [✔]
+  P-025#EX-21
+    licenses.md 缺 commercial 是錯誤;三節寫齊時長度 3 且 metaId 依序等於 sectionIds [✔]
+  P-025#EX-22
+    第一個帶 {#id} 的標題之前的無 id 標題留在 preamble,寫回仍逐位元組相同 [✔]
+
+Failures:
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  1) lawful P025, P-025#LAW-1, 解析得開的文字原樣寫回,逐位元組相同
+       failed after 27 tests and 32 shrinks.
+       shrink path: 27:a2P8be7BF4biBL9a
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       524 ┃   describe "P-025#LAW-1" $
+       525 ┃     it "解析得開的文字原樣寫回,逐位元組相同" $
+       526 ┃       hedgehog $ do
+       527 ┃         t <- forAll genParseableText
+           ┃         │ "---\nid: ent-00000000\ntype: character\nvault: vlt-00000000\ntitle: a\nsummary: a:\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n"
+       528 ┃         d <- requireRight "isRight (parseDocument t)" (parseDocument t)
+       529 ┃         renderDocument d === t
+       530 ┃ 
+       
+       isRight (parseDocument t) 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 6, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-1/解析得開的文字原樣寫回,逐位元組相同/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  2) lawful P025, P-025#LAW-5, 行尾風格與檔尾換行由全檔多數決定,解析出來就是原文的事實
+       failed after 27 tests and 32 shrinks.
+       shrink path: 27:a2P8be7BF4biBL9a
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       557 ┃   describe "P-025#LAW-5" $
+       558 ┃     it "行尾風格與檔尾換行由全檔多數決定,解析出來就是原文的事實" $
+       559 ┃       hedgehog $ do
+       560 ┃         t <- forAll genParseableText
+           ┃         │ "---\nid: ent-00000000\ntype: character\nvault: vlt-00000000\ntitle: a\nsummary: a:\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n"
+       561 ┃         d <- requireRight "isRight (parseDocument t)" (parseDocument t)
+       562 ┃         docEnding d === detectLineEnding t
+       563 ┃         docFinalNL d === T.isSuffixOf "\n" t
+       
+       isRight (parseDocument t) 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 6, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-5/行尾風格與檔尾換行由全檔多數決定,解析出來就是原文的事實/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:573:9: 
+  3) lawful P025, P-025#LAW-6, 從零產生的文件一定解析得回來
+       failed after 25 tests and 31 shrinks.
+       shrink path: 25:a2P7be7BF3bi2BL10
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       565 ┃   describe "P-025#LAW-6" $
+       566 ┃     it "從零產生的文件一定解析得回來" $
+       567 ┃       hedgehog $ do
+       568 ┃         k <- forAll genDocKind
+           ┃         │ TopicDoc
+       569 ┃         m <- forAll genMeta
+           ┃         │ Meta
+           ┃         │   { metaId = Id "ent-00000000"
+           ┃         │   , metaVault = VaultId "vlt-00000000"
+           ┃         │   , metaType = TypeKey "character"
+           ┃         │   , metaTitle = "a"
+           ┃         │   , metaSummary = "a:"
+           ┃         │   , metaTags = []
+           ┃         │   , metaStatus = Draft
+           ┃         │   , metaTimeline = Nothing
+           ┃         │   , metaAliases = []
+           ┃         │   , metaLinks = []
+           ┃         │   , metaSource = Human
+           ┃         │   , metaRevision = Revision 1
+           ┃         │   , metaCreated = 2000-01-01
+           ┃         │   , metaUpdated = 2000-01-01
+           ┃         │   }
+       570 ┃         b <- forAll genPreambleText
+           ┃         │ ""
+       571 ┃         let r = parseDocument (renderDocument (newDocument k m b))
+       572 ┃         footnote ("parseDocument 的結果:" <> show r)
+       573 ┃         assert (isRight r)
+           ┃         ^^^^^^^^^^^^^^^^^^
+       574 ┃ 
+       575 ┃   describe "P-025#LAW-7" $
+       576 ┃     it "檔案身分只由檔案層 type 決定:三個保留鍵各對一種,其餘一律 TopicDoc" $
+       
+       parseDocument 的結果:Left (MdError {errLine = 6, errKind = FrontmatterYaml "Expected start of line"})
+
+  To rerun use: --match "/lawful P025/P-025#LAW-6/從零產生的文件一定解析得回來/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  4) lawful P025, P-025#LAW-7, 檔案身分只由檔案層 type 決定:三個保留鍵各對一種,其餘一律 TopicDoc
+       failed after 25 tests and 31 shrinks.
+       shrink path: 25:a2P7be7BF3bi2BL10
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       575 ┃   describe "P-025#LAW-7" $
+       576 ┃     it "檔案身分只由檔案層 type 決定:三個保留鍵各對一種,其餘一律 TopicDoc" $
+       577 ┃       hedgehog $ do
+       578 ┃         k <- forAll genDocKind
+           ┃         │ TopicDoc
+       579 ┃         m <- forAll genMeta
+           ┃         │ Meta
+           ┃         │   { metaId = Id "ent-00000000"
+           ┃         │   , metaVault = VaultId "vlt-00000000"
+           ┃         │   , metaType = TypeKey "character"
+           ┃         │   , metaTitle = "a"
+           ┃         │   , metaSummary = "a:"
+           ┃         │   , metaTags = []
+           ┃         │   , metaStatus = Draft
+           ┃         │   , metaTimeline = Nothing
+           ┃         │   , metaAliases = []
+           ┃         │   , metaLinks = []
+           ┃         │   , metaSource = Human
+           ┃         │   , metaRevision = Revision 1
+           ┃         │   , metaCreated = 2000-01-01
+           ┃         │   , metaUpdated = 2000-01-01
+           ┃         │   }
+       580 ┃         b <- forAll genPreambleText
+           ┃         │ ""
+       581 ┃         d <- requireRight "parseDocument (renderDocument (newDocument k m b))" $
+       582 ┃           parseDocument (renderDocument (newDocument k m b))
+       583 ┃         docKind d
+       
+       parseDocument (renderDocument (newDocument k m b)) 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 6, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-7/檔案身分只由檔案層 type 決定:三個保留鍵各對一種,其餘一律 TopicDoc/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:607:52: 
+  5) lawful P025, P-025#LAW-9, frontmatter 序列化再解回來不失真
+       failed after 25 tests and 29 shrinks.
+       shrink path: 25:a2P8be8BH2bk9
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       602 ┃   describe "P-025#LAW-9" $
+       603 ┃     it "frontmatter 序列化再解回來不失真" $
+       604 ┃       hedgehog $ do
+       605 ┃         m <- forAll genMeta
+           ┃         │ Meta
+           ┃         │   { metaId = Id "ent-00000000"
+           ┃         │   , metaVault = VaultId "vlt-00000000"
+           ┃         │   , metaType = TypeKey "character"
+           ┃         │   , metaTitle = "a:"
+           ┃         │   , metaSummary = ""
+           ┃         │   , metaTags = []
+           ┃         │   , metaStatus = Draft
+           ┃         │   , metaTimeline = Nothing
+           ┃         │   , metaAliases = []
+           ┃         │   , metaLinks = []
+           ┃         │   , metaSource = Human
+           ┃         │   , metaRevision = Revision 1
+           ┃         │   , metaCreated = 2000-01-01
+           ┃         │   , metaUpdated = 2000-01-01
+           ┃         │   }
+       606 ┃         le <- forAll genLineEnding
+           ┃         │ LF
+       607 ┃         decodeFrontmatter (renderFrontmatter m le) === Right m
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Failed (- lhs) (+ rhs) ━━━
+           ┃         │ - Left "Expected start of line"
+           ┃         │ + Right
+           ┃         │ +   Meta
+           ┃         │ +     { metaId = Id "ent-00000000"
+           ┃         │ +     , metaVault = VaultId "vlt-00000000"
+           ┃         │ +     , metaType = TypeKey "character"
+           ┃         │ +     , metaTitle = "a:"
+           ┃         │ +     , metaSummary = ""
+           ┃         │ +     , metaTags = []
+           ┃         │ +     , metaStatus = Draft
+           ┃         │ +     , metaTimeline = Nothing
+           ┃         │ +     , metaAliases = []
+           ┃         │ +     , metaLinks = []
+           ┃         │ +     , metaSource = Human
+           ┃         │ +     , metaRevision = Revision 1
+           ┃         │ +     , metaCreated = 2000-01-01
+           ┃         │ +     , metaUpdated = 2000-01-01
+           ┃         │ +     }
+       608 ┃ 
+       609 ┃   describe "P-025#LAW-10" $
+       610 ┃     it "meta 區塊以行尾收尾,型別專屬條目的每一行逐字都在裡面" $
+
+  To rerun use: --match "/lawful P025/P-025#LAW-9/frontmatter 序列化再解回來不失真/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  6) lawful P025, P-025#LAW-18, 主題檔的片段與節一一對應,依文件順序
+       failed after 35 tests and 30 shrinks.
+       shrink path: 35:p8BE7bh2BK13
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       694 ┃   describe "P-025#LAW-18" $
+       695 ┃     it "主題檔的片段與節一一對應,依文件順序" $
+       696 ┃       hedgehog $ do
+       697 ┃         t <- forAll genTopicText
+           ┃         │ "---\nid: ent-00000000\ntype: character\nvault: vlt-00000000\ntitle: a:\nsummary: \"\"\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n"
+       698 ┃         d <- requireRight "parseDocument" (parseDocument t)
+       699 ┃         (_, frags) <- requireRight "isRight (toTopic d)" (toTopic d)
+       700 ┃         map (metaId . entMeta) frags === sectionIds d
+       
+       parseDocument 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 5, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-18/主題檔的片段與節一一對應,依文件順序/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  7) lawful P025, P-025#LAW-19, Level 檔的節點與節一一對應,依文件順序
+       failed after 18 tests and 53 shrinks.
+       shrink path: 18:p7BE7bf12Ab3A9b2A3eG8
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       702 ┃   describe "P-025#LAW-19" $
+       703 ┃     it "Level 檔的節點與節一一對應,依文件順序" $
+       704 ┃       hedgehog $ do
+       705 ┃         t <- forAll genLevelText
+           ┃         │ "---\nid: lvl-00000000\ntype: level\nvault: vlt-00000000\ntitle: a\nsummary: \"\"\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n## a {#nod-00000001}\n```meta\nkind: scene\nsummary: a:\n```\n\n"
+       706 ┃         d <- requireRight "parseDocument" (parseDocument t)
+       707 ┃         (_, nodes) <- requireRight "isRight (toLevel d)" (toLevel d)
+       708 ┃         map (metaId . nodMeta) nodes === sectionIds d
+       
+       isRight (toLevel d) 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 21, errKind = SectionYaml (Id "nod-00000001") "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-19/Level 檔的節點與節一一對應,依文件順序/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  8) lawful P025, P-025#LAW-20, pack.md 的 asset 與節一一對應,依文件順序
+       failed after 35 tests and 30 shrinks.
+       shrink path: 35:p8BE7bh2BK13
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       710 ┃   describe "P-025#LAW-20" $
+       711 ┃     it "pack.md 的 asset 與節一一對應,依文件順序" $
+       712 ┃       hedgehog $ do
+       713 ┃         t <- forAll genPackText
+           ┃         │ "---\nid: pck-00000000\ntype: asset-pack\nvault: vlt-00000000\ntitle: a:\nsummary: \"\"\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n"
+       714 ┃         d <- requireRight "parseDocument" (parseDocument t)
+       715 ┃         (_, assets) <- requireRight "isRight (toPack d)" (toPack d)
+       716 ┃         map (metaId . astMeta) assets === sectionIds d
+       
+       parseDocument 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 5, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-20/pack.md 的 asset 與節一一對應,依文件順序/" --seed 1127100392
+
+  test\Aapms\Lawful\P025Spec.hs:465:5: 
+  9) lawful P025, P-025#LAW-21, licenses.md 每一節一個授權,容器本身不是節點
+       failed after 35 tests and 30 shrinks.
+       shrink path: 35:p8BE7bh2BK13
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       462 ┃   Right a -> pure a
+       463 ┃   Left e -> do
+       464 ┃     footnote (what <> " 的前提不成立(產生器造出的值被拒絕):" <> show e)
+       465 ┃     failure
+           ┃     ^^^^^^^
+       
+           ┏━━ test\Aapms\Lawful\P025Spec.hs ━━━
+       718 ┃   describe "P-025#LAW-21" $
+       719 ┃     it "licenses.md 每一節一個授權,容器本身不是節點" $
+       720 ┃       hedgehog $ do
+       721 ┃         t <- forAll genLicensesText
+           ┃         │ "---\nid: lic-00000000\ntype: asset-license\nvault: vlt-00000000\ntitle: a:\nsummary: \"\"\ntags: []\nstatus: draft\ntimeline: null\naliases: []\nsource: human\nrevision: 1\ncreated: 2000-01-01\nupdated: 2000-01-01\nlinks: []\n---\n\n"
+       722 ┃         d <- requireRight "parseDocument" (parseDocument t)
+       723 ┃         lics <- requireRight "isRight (toLicenses d)" (toLicenses d)
+       724 ┃         map (metaId . licMeta) lics === sectionIds d
+       
+       parseDocument 的前提不成立(產生器造出的值被拒絕):MdError {errLine = 5, errKind = FrontmatterYaml "Expected start of line"}
+
+  To rerun use: --match "/lawful P025/P-025#LAW-21/licenses.md 每一節一個授權,容器本身不是節點/" --seed 1127100392
+
+Randomized with seed 1127100392
+
+Finished in 2.6841 seconds
+43 examples, 9 failures
+Test suite aapms-md-test: FAIL
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P025\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\test\aapms-md-0.1.0.0-aapms-md-test.log
+0 of 1 test suites (0 of 1 test cases) passed.
+Error: [Cabal-7125]
+Tests failed for test:aapms-md-test from aapms-md-0.1.0.0.
+

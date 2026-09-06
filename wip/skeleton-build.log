@@ -1,0 +1,124 @@
+Warning: The package list for 'hackage.haskell.org' is 17 days old.
+Run 'cabal update' to get the latest list of available packages.
+Resolving dependencies...
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-contract-0.1.0.0 (test:aapms-contract-rules-test) (additional components to build)
+ - aapms-core-0.1.0.0 (lib) (configuration changed)
+ - aapms-types-0.1.0.0 (lib) (dependency rebuilt)
+ - aapms-md-0.1.0.0 (lib) (configuration changed)
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (configuration changed)
+ - aapms-types-0.1.0.0 (test:aapms-types-test) (dependency rebuilt)
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (configuration changed)
+ - aapms-store-0.1.0.0 (lib) (configuration changed)
+ - aapms-md-0.1.0.0 (test:aapms-md-test) (configuration changed)
+ - aapms-workspace-0.1.0.0 (test:aapms-workspace-test) (configuration changed)
+ - aapms-workspace-0.1.0.0 (lib) (configuration changed)
+ - aapms-service-0.1.0.0 (test:aapms-service-test) (dependency rebuilt)
+ - aapms-service-0.1.0.0 (lib) (dependency rebuilt)
+Configuring library for aapms-core-0.1.0.0...
+Preprocessing test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Building test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Preprocessing library for aapms-core-0.1.0.0...
+Building library for aapms-core-0.1.0.0...
+Configuring library for aapms-md-0.1.0.0...
+Configuring test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing library for aapms-types-0.1.0.0...
+Building library for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Building test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing library for aapms-md-0.1.0.0...
+Building library for aapms-md-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+[18 of 23] Compiling Aapms.Lawful.P020Spec ( test\Aapms\Lawful\P020Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P020Spec.o )
+[19 of 23] Compiling Aapms.Lawful.P021Spec ( test\Aapms\Lawful\P021Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P021Spec.o )
+[20 of 23] Compiling Aapms.Lawful.P022Spec ( test\Aapms\Lawful\P022Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P022Spec.o )
+[21 of 23] Compiling Aapms.Lawful.P023Spec ( test\Aapms\Lawful\P023Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P023Spec.o )
+[22 of 23] Compiling Aapms.Lawful.P024Spec ( test\Aapms\Lawful\P024Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P024Spec.o )
+Configuring test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Configuring library for aapms-store-0.1.0.0...
+Configuring test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+[23 of 23] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Main.o ) [Source file changed]
+[24 of 24] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test.exe [Objects changed]
+Preprocessing library for aapms-store-0.1.0.0...
+Building library for aapms-store-0.1.0.0...
+Preprocessing test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Building test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+[ 3 of 19] Compiling Aapms.Store.Tokenize ( src\Aapms\Store\Tokenize.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\build\Aapms\Store\Tokenize.o ) [Source file changed]
+[ 1 of 26] Compiling Aapms.Lawful.P025Spec ( test\Aapms\Lawful\P025Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\build\aapms-md-test\aapms-md-test-tmp\Aapms\Lawful\P025Spec.o )
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[ 1 of 46] Compiling Aapms.Lawful.P027Spec ( test\Aapms\Lawful\P027Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Lawful\P027Spec.o )
+[ 2 of 26] Compiling Aapms.Lawful.P026Spec ( test\Aapms\Lawful\P026Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\build\aapms-md-test\aapms-md-test-tmp\Aapms\Lawful\P026Spec.o )
+[ 4 of 46] Compiling Aapms.Store.Tokenize ( src\Aapms\Store\Tokenize.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Tokenize.o ) [Source file changed]
+[26 of 26] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\build\aapms-md-test\aapms-md-test-tmp\Main.o ) [Source file changed]
+[ 4 of 19] Compiling Aapms.Store.Tokenize.Internal ( src\Aapms\Store\Tokenize\Internal.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\build\Aapms\Store\Tokenize\Internal.o )
+[19 of 46] Compiling Aapms.Store.TokenizeSpec ( test\Aapms\Store\TokenizeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\TokenizeSpec.o ) [Aapms.Store.Tokenize changed]
+[27 of 27] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\build\aapms-md-test\aapms-md-test.exe [Objects changed]
+test\Aapms\Store\TokenizeSpec.hs:29:1: warning: [GHC-66111] [-Wunused-imports]
+    The import of ‘Data.Text’ is redundant
+      except perhaps to import instances from ‘Data.Text’
+    To import instances alone, use: import Data.Text()
+   |
+29 | import Data.Text (Text)
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+
+Configuring test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Configuring library for aapms-workspace-0.1.0.0...
+[46 of 46] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Main.o ) [Source file changed]
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[47 of 47] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test.exe [Objects changed]
+Preprocessing library for aapms-workspace-0.1.0.0...
+Building library for aapms-workspace-0.1.0.0...
+Preprocessing test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+[ 1 of 20] Compiling Aapms.Lawful.P028Spec ( test\Aapms\Lawful\P028Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Lawful\P028Spec.o )
+[20 of 20] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Main.o ) [Source file changed]
+Preprocessing test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Preprocessing library for aapms-service-0.1.0.0...
+Building library for aapms-service-0.1.0.0...
+Building test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+[21 of 21] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test.exe [Objects changed]
+[18 of 18] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test.exe [Library changed]

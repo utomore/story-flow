@@ -62,18 +62,85 @@ module Aapms.Store.Types
   , CreateResult (..)
   , DeleteMode (..)
   , DeleteResult (..)
+
+    -- * 全文檢索的路由(P-002-search;自 "Aapms.Store.Tokenize" 搬進型別層,
+    -- 讓 effects 層的 @ftsMatch@ 用得到它而不必 import pure 層)
+  , SearchRoute (..)
+  , usesTrigram
+  , usesCjk
+
+    -- * 索引狀態與記憶體 vault(P-001-index-rebuild)
+  , FileStat (..)
+  , IndexedNode (..)
+  , FileIndex (..)
+  , IndexState (..)
+  , VaultFiles
+  , emptyIndex
+  , vaultPaths
+  , fileAt
+  , statsDistinguish
+  , indexedPaths
+  , indexedNodes
+  , indexedIds
+  , assetNames
+  , warnedIds
+
+    -- * 搜尋的觀察點(P-002-search)
+  , hitKey
+  , nodeKey
+  , allNodesIn
+  , keysOf
+  , wide
+  , page
+  , withTypes
+  , withTags
+
+    -- * 寫入請求與結果(P-003-node-write)
+  , WriteOp (..)
+  , WriteOutcome (..)
+  , WriteRun (..)
+  , PackFields (..)
+  , opTarget
+  , opRevision
+  , isInsertOp
+  , outcomeRevision
+  , outcomePath
+  , outcomeId
+  , removedIds
+  , brokenLinks
+  , documentAt
+  , sectionBytes
+  , locatedFile
+  , metaAt
+  , assetAt
+  , licensesAt
+  , assetIdsAt
+  , packAt
+  , levelAt
+  , packFields
+  , newPackFields
+  , patchedName
+  , fileStatsOf
+  , stripStamps
+  , levelOf
   ) where
 
+import Data.Int (Int64)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.Asset (LogicalName (..), Sha256)
+import Aapms.Core.AnyNode (AnyNode)
+import Aapms.Core.Asset (Asset, LogicalName (..), Sha256)
 import Aapms.Core.Id (Id, IdPrefix, Ref, VaultId (..), renderId, renderRef)
-import Aapms.Core.Level (NodeKind, TreeError, renderTreeError)
+import Aapms.Core.Level (Level, Node, NodeKind, TreeError, renderTreeError)
+import Aapms.Core.License (License)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..))
-import Aapms.Core.Pack (AiDisclosure, Author)
-import Aapms.Md.Document (DocKind (..))
+import Aapms.Core.Pack (AiDisclosure, Author, Pack)
+import Aapms.Md.Document (DocKind (..), Document)
 import Aapms.Md.Error (MdError, renderMdError)
+import Aapms.Md.Section (MetaOverride, NewSection)
 
 --------------------------------------------------------------------------------
 -- 錯誤(契約 G)
@@ -600,3 +667,282 @@ data DeleteResult = DeleteResult
   , drIssues :: [IndexIssue]
   }
   deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- 全文檢索的路由(P-002-search;原住 "Aapms.Store.Tokenize")
+
+-- | 一次查詢要走哪張(或哪兩張)FTS 表。
+--
+-- __為什麼住型別層__:effects 層的 @Aapms.Store.Effect.Index.ftsMatch@ 把它當
+-- 參數,而 effects 只准 import types 與 effects(rules\/boundary.md「四層」)。
+-- "Aapms.Store.Tokenize"(pure)原樣 re-export 它與 'usesTrigram' \/ 'usesCjk',
+-- 既有呼叫端逐字不變。
+data SearchRoute
+  = -- | 只查 @fts_tri@:查詢字串不含中日韓字元
+    TrigramOnly
+  | -- | 只查 @fts_cjk@:含中日韓字元,且整串長度不到三個字元
+    -- (trigram 對三字元以下的查詢必定空結果,不值得多一次子查詢)
+    CjkOnly
+  | -- | 兩張都查,結果以分數合併去重:含中日韓字元且長度三個字元以上
+    BothIndexes
+  deriving stock (Show, Eq)
+
+-- | 這條路由要不要查 @fts_tri@。
+usesTrigram :: SearchRoute -> Bool
+usesTrigram TrigramOnly = True
+usesTrigram CjkOnly = False
+usesTrigram BothIndexes = True
+
+-- | 這條路由要不要查 @fts_cjk@。
+usesCjk :: SearchRoute -> Bool
+usesCjk TrigramOnly = False
+usesCjk CjkOnly = True
+usesCjk BothIndexes = True
+
+--------------------------------------------------------------------------------
+-- 索引狀態與記憶體 vault(P-001-index-rebuild)
+
+-- | 一個檔的指紋:mtime 與 size。索引拿它判斷「這個檔要不要重新索引」。
+data FileStat = FileStat
+  { fsMtime :: Int64
+  , fsSize :: Int64
+  }
+  deriving stock (Show, Eq)
+
+-- | 索引裡的一個節點,連同它的擁有者(檔案層主體為 'Nothing')。
+data IndexedNode = IndexedNode
+  { inNode :: AnyNode
+  , inOwner :: Maybe Id
+  }
+  deriving stock (Show, Eq)
+
+-- | 一份 @.md@ 在索引裡的全部記錄。整檔一起進退(P-001 的決定)。
+data FileIndex = FileIndex
+  { fiPath :: FilePath
+  , fiKind :: DocKind
+  , fiStat :: FileStat
+  , fiReference :: Bool
+  , fiNodes :: [IndexedNode]
+  }
+  deriving stock (Show, Eq)
+
+-- | 索引的完整狀態:每個檔一組記錄。純解譯器跑在它上面。
+newtype IndexState = IndexState (Map FilePath FileIndex)
+  deriving stock (Show, Eq)
+
+-- | 記憶體裡的 vault:路徑 → (指紋, 全文)。@VaultFs@ 的純解譯器跑在它上面。
+type VaultFiles = Map FilePath (FileStat, Text)
+
+-- | 空索引。
+emptyIndex :: IndexState
+emptyIndex = IndexState Map.empty
+
+-- | 記憶體 vault 裡的路徑,已排序。
+vaultPaths :: VaultFiles -> [FilePath]
+vaultPaths _vf = error "P-001#vaultPaths stub"
+
+-- | 記憶體 vault 裡某路徑的指紋與內容。
+fileAt :: VaultFiles -> FilePath -> (FileStat, Text)
+fileAt _vf _p = error "P-001#fileAt stub"
+
+-- | 兩份 vault 同路徑內容不同時指紋也不同。
+statsDistinguish :: VaultFiles -> VaultFiles -> Bool
+statsDistinguish _a _b = error "P-001#statsDistinguish stub"
+
+-- | 索引裡有記錄的路徑。
+indexedPaths :: IndexState -> [FilePath]
+indexedPaths _ix = error "P-001#indexedPaths stub"
+
+-- | 索引裡全部節點。
+indexedNodes :: IndexState -> [AnyNode]
+indexedNodes _ix = error "P-001#indexedNodes stub"
+
+-- | 索引裡全部節點的 id。
+indexedIds :: IndexState -> [Id]
+indexedIds _ix = error "P-001#indexedIds stub"
+
+-- | 索引裡已命名 asset 的邏輯名稱。
+assetNames :: IndexState -> [LogicalName]
+assetNames _ix = error "P-001#assetNames stub"
+
+-- | 'MetaWarningsFound' 點到的節點 id。
+warnedIds :: [IndexIssue] -> [Id]
+warnedIds _is = error "P-001#warnedIds stub"
+
+--------------------------------------------------------------------------------
+-- 搜尋的觀察點(P-002-search)
+
+-- | 命中的 (vault, id)。
+hitKey :: SearchHit -> (VaultId, Id)
+hitKey _h = error "P-002#hitKey stub"
+
+-- | 節點的 (vault, id)。
+nodeKey :: (VaultId, AnyNode) -> (VaultId, Id)
+nodeKey _n = error "P-002#nodeKey stub"
+
+-- | 記憶體索引集合裡全部節點。
+allNodesIn :: Map VaultId IndexState -> [(VaultId, AnyNode)]
+allNodesIn _m = error "P-002#allNodesIn stub"
+
+-- | 記憶體索引集合裡的 vault id。
+keysOf :: Map VaultId IndexState -> [VaultId]
+keysOf _m = error "P-002#keysOf stub"
+
+-- | 拿掉分頁(offset 0、limit 大於任何樣本總數)。
+wide :: SearchQuery -> SearchQuery
+wide _q = error "P-002#wide stub"
+
+-- | 設 offset j、limit k。
+page :: Int -> Int -> SearchQuery -> SearchQuery
+page _j _k _q = error "P-002#page stub"
+
+-- | 換掉 'nfTypes'。
+withTypes :: [TypeKey] -> SearchQuery -> SearchQuery
+withTypes _ts _q = error "P-002#withTypes stub"
+
+-- | 換掉 'nfTags'。
+withTags :: [Text] -> SearchQuery -> SearchQuery
+withTags _tags _q = error "P-002#withTags stub"
+
+--------------------------------------------------------------------------------
+-- 寫入請求與結果(P-003-node-write)
+
+-- | 十一種寫入請求收成一個 sum type(P-003 的決定):三個殼對同一個型別編解碼,
+-- 每種要動既有節點的都帶 expected 'Revision'。
+data WriteOp
+  = CreateTopic NewEntity
+  | CreateLevel NewLevel
+  | CreatePack NewPack [NewSection]
+  | AddSection Id SectionPlacement NewSection
+  | DeleteNode Id Revision DeleteMode
+  | WriteMeta Id Revision MetaOverride
+  | WriteAssetFields Id Revision AssetPatch
+  | WriteBody Id Revision Text
+  | AddLink Id Revision Link
+  | RemoveLink Id Revision Link
+  | UpsertLicense License
+  deriving stock (Show, Eq)
+
+-- | 一次成功寫入的結果:建檔、改寫、刪除三種形狀。
+data WriteOutcome
+  = Created CreateResult
+  | Written WriteResult
+  | Deleted DeleteResult
+  deriving stock (Show, Eq)
+
+-- | 純解譯器跑完一段寫入程式之後的三件事:結果、最終檔案表、最終索引。
+data WriteRun a = WriteRun
+  { runResult :: a
+  , runFiles :: VaultFiles
+  , runIndex :: IndexState
+  }
+  deriving stock (Show, Eq)
+
+-- | @pack.md@ 的七個 pack 專屬欄位(P-003 LAW-20 的往返單位),逐欄對應
+-- 'Aapms.Core.Pack.Pack' 的 @pckVendor@ 到 @pckAiDisclosure@。
+data PackFields = PackFields
+  { pfVendor :: Maybe Text
+  , pfArchive :: Maybe FilePath
+  , pfSha256 :: Maybe Sha256
+  , pfLicense :: Maybe Ref
+  , pfAuthor :: Maybe Author
+  , pfSourceUrl :: Maybe Text
+  , pfAiDisclosure :: AiDisclosure
+  }
+  deriving stock (Show, Eq)
+
+-- | 請求要動的既有節點(建檔類為 'Nothing')。
+opTarget :: WriteOp -> Maybe Id
+opTarget _op = error "P-003#opTarget stub"
+
+-- | 請求帶的 expected revision。
+opRevision :: WriteOp -> Maybe Revision
+opRevision _op = error "P-003#opRevision stub"
+
+-- | 是不是會插入新節的請求(增節、建檔)。
+isInsertOp :: WriteOp -> Bool
+isInsertOp _op = error "P-003#isInsertOp stub"
+
+-- | 結果的新 revision。
+outcomeRevision :: WriteOutcome -> Revision
+outcomeRevision _o = error "P-003#outcomeRevision stub"
+
+-- | 結果落地的檔。
+outcomePath :: WriteOutcome -> FilePath
+outcomePath _o = error "P-003#outcomePath stub"
+
+-- | 結果的節點 id(建檔為新檔主體)。
+outcomeId :: WriteOutcome -> Id
+outcomeId _o = error "P-003#outcomeId stub"
+
+-- | 刪除結果消失的 id。
+removedIds :: WriteOutcome -> [Id]
+removedIds _o = error "P-003#removedIds stub"
+
+-- | 刪除結果列出的斷點。
+brokenLinks :: WriteOutcome -> [(Id, Link)]
+brokenLinks _o = error "P-003#brokenLinks stub"
+
+-- | 記憶體 vault 裡某檔解析後的文件。
+--
+-- 本模組是型別層,不得 import pure 層的 "Aapms.Md.Parse";這一列與
+-- 'metaAt' \/ 'assetAt' \/ 'licensesAt' \/ 'assetIdsAt' \/ 'packAt' \/ 'levelAt' \/
+-- 'sectionBytes' \/ 'levelOf' 同屬「要解析才算得出來」的觀察點。
+documentAt :: VaultFiles -> FilePath -> Maybe Document
+documentAt _vf _p = error "P-003#documentAt stub"
+
+-- | 某檔每一節渲染後的位元組。
+sectionBytes :: VaultFiles -> FilePath -> [(Id, Text)]
+sectionBytes _vf _p = error "P-003#sectionBytes stub"
+
+-- | 索引裡節點所在檔。
+locatedFile :: IndexState -> Id -> Maybe FilePath
+locatedFile _ix _i = error "P-003#locatedFile stub"
+
+-- | 從檔案重讀節點目前的 'Meta'。
+metaAt :: VaultFiles -> IndexState -> Id -> Maybe Meta
+metaAt _vf _ix _i = error "P-003#metaAt stub"
+
+-- | 從 pack 檔重讀 asset 目前的欄位。
+assetAt :: VaultFiles -> IndexState -> Id -> Maybe Asset
+assetAt _vf _ix _i = error "P-003#assetAt stub"
+
+-- | @licenses.md@ 解出的授權清單。
+licensesAt :: VaultFiles -> [License]
+licensesAt _vf = error "P-003#licensesAt stub"
+
+-- | 某 pack 檔的 asset id 依文件順序。
+assetIdsAt :: VaultFiles -> FilePath -> [Id]
+assetIdsAt _vf _p = error "P-003#assetIdsAt stub"
+
+-- | 某 pack 檔的檔案層 'Aapms.Core.Pack.Pack'。
+packAt :: VaultFiles -> FilePath -> Maybe Pack
+packAt _vf _p = error "P-003#packAt stub"
+
+-- | 某 Level 檔解出的場景與節點。
+levelAt :: VaultFiles -> FilePath -> Maybe (Level, [Node])
+levelAt _vf _p = error "P-003#levelAt stub"
+
+-- | pack 七個專屬欄位。
+packFields :: Pack -> PackFields
+packFields _p = error "P-003#packFields stub"
+
+-- | 請求裡的同七欄。
+newPackFields :: NewPack -> PackFields
+newPackFields _np = error "P-003#newPackFields stub"
+
+-- | 三態補丁套在舊值上。
+patchedName :: AssetPatch -> Maybe LogicalName -> Maybe LogicalName
+patchedName _patch _old = error "P-003#patchedName stub"
+
+-- | 索引記錄的每檔指紋。
+fileStatsOf :: IndexState -> [(FilePath, FileStat)]
+fileStatsOf _ix = error "P-003#fileStatsOf stub"
+
+-- | 去掉 revision 與 updated 兩行。
+stripStamps :: Text -> Text
+stripStamps _t = error "P-003#stripStamps stub"
+
+-- | Level 檔文件解出的場景與節點。
+levelOf :: Document -> Maybe (Level, [Node])
+levelOf _d = error "P-003#levelOf stub"

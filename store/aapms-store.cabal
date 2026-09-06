@@ -27,12 +27,22 @@ library
         Aapms.Store.Atomic
         Aapms.Store.Create
         Aapms.Store.Editing
+        Aapms.Store.Editing.Internal
+        Aapms.Store.Effect.Clock
+        Aapms.Store.Effect.Index
+        Aapms.Store.Effect.VaultFs
+        Aapms.Store.Effect.Vaults
         Aapms.Store.Error
+        Aapms.Store.Filter
         Aapms.Store.Index
+        Aapms.Store.Indexing
+        Aapms.Store.Indexing.Internal
         Aapms.Store.Marker
         Aapms.Store.MultiVault
         Aapms.Store.Query
         Aapms.Store.Schema
+        Aapms.Store.Search
+        Aapms.Store.Search.Internal
         Aapms.Store.Tokenize
         Aapms.Store.Tokenize.Internal
         Aapms.Store.Types
@@ -50,6 +60,9 @@ library
         , containers
         , direct-sqlite
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , sqlite-simple
         , aapms-core
@@ -98,6 +111,9 @@ test-suite aapms-store-test
         , containers
         , direct-sqlite
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , hspec
         , hedgehog

@@ -59,6 +59,9 @@ module Aapms.Workspace.Types
     -- * 契約 F:錯誤
   , WorkspaceError (..)
   , renderWorkspaceError
+
+    -- * 純增刪的請求(P-028-hub-config 的觀察點 applyHubEdits 用)
+  , HubEdit (..)
   ) where
 
 import Data.Map.Strict (Map)
@@ -453,3 +456,12 @@ renderWorkspaceError = \case
     unVaultId (VaultId t) = t
     ambiguousEntry e = unVaultId (veId e) <> "(" <> pack (vePath e) <> ")"
     ambiguousProjectEntry e = renderId (peId e) <> "(" <> pack (pePath e) <> ")"
+
+-- | 對 'Hub' 值的四種純增刪,依序套用(P-028-hub-config 的 LAW-2 前提:
+-- 快照來自 'Aapms.Workspace.Hub.parseHubText' 再經這些增刪)。
+data HubEdit
+  = PutVault VaultEntry
+  | DropVault VaultId
+  | PutProject ProjectEntry
+  | DropProject Id
+  deriving stock (Show, Eq)

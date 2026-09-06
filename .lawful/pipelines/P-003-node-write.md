@@ -67,7 +67,7 @@ updated: 2026-09-06
 | o | `patchedName :: AssetPatch -> Maybe LogicalName -> Maybe LogicalName` | 觀察:三態補丁套在舊值上 | `Aapms.Store.Types`(願望) | types |
 | o | `fileStatsOf :: IndexState -> [(FilePath, FileStat)]` | 觀察:索引記錄的每檔指紋 | `Aapms.Store.Types`(願望) | types |
 | o | `levelOf :: Document -> Maybe (Level, [Node])` | 觀察:Level 檔文件解出的場景與節點 | `Aapms.Store.Types`(願望) | types |
-| o | `lvlRoot :: Level -> Id` | 觀察:Level 的根 Node id(record 欄位,宣告時註解夾在逗號與名字之間,adapter 讀不到) | `Aapms.Core.Level`(願望) | types |
+| o | `lvlRoot :: Level -> Id` | 觀察:Level 的根 Node id | `Aapms.Core.Level` | types |
 | o | `stripStamps :: Text -> Text` | 觀察:去掉 revision 與 updated 兩行 | `Aapms.Store.Types`(願望) | types |
 | o | `allocateN :: Int -> IdPrefix -> Text -> UTCTime -> IndexState -> [Id]` | 觀察:同一個 t 連續配 n 次、每次寫進索引後拿到的 id | `Aapms.Store.Editing.Internal`(願望) | pure |
 | = | `applyWrite :: (VaultFs :> es, Index :> es, Clock :> es) => TypeRegistry -> VaultId -> WriteOp -> Eff es (Either StoreError WriteOutcome)` | 純的整條:1 → 2 → 3 → 23 或 22 → 24 → 14 → 25 / 26 → 27 / 28 | `Aapms.Store.Editing`(願望) | pure |

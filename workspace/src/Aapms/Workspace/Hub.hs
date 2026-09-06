@@ -29,12 +29,14 @@ module Aapms.Workspace.Hub
   , removeVault
   , upsertProject
   , removeProject
+
+    -- * 觀察點(P-028-hub-config):依序套用增刪
+  , applyHubEdits
   ) where
 
 import Data.Char (toUpper)
 import Data.List (find)
 import qualified Data.Map.Strict as M
-import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified TOML
@@ -51,6 +53,7 @@ import Aapms.Core.Id
 import Aapms.Store.Types (parseVaultKind, renderVaultKind)
 import Aapms.Workspace.Types
   ( Hub
+  , HubEdit (..)
   , LlmSection (..)
   , ProjectEntry (..)
   , ToolsConfig (..)
@@ -222,12 +225,23 @@ data Segment = Segment
 -- __既有列的相對順序、使用者寫的註解與空白行原樣保留__(ADR-017 決策二的
 -- 「可手寫」):序列化自己寫,不用泛型 encoder。
 renderHub :: Hub -> Text
-renderHub hub = T.concat (concatMap segLines finalSegs)
+renderHub hub
+  | sourceUnchanged = src
+  | otherwise = T.concat (concatMap segLines finalSegs)
   where
     src = hubSourceText hub
     segs = segmentText src
     vaults = hubVaults hub
     projects = hubProjects hub
+
+    -- 底稿本身就是「現在應該長什麼樣」時,__整份逐字沿用__,連切段都不必做:
+    -- 沒有改過的快照(以及冪等的 upsert、刪不存在的 id 這種沒真的動到東西的
+    -- 增刪)因此保證與讀進來的文字逐位元組相同。判準只比 @[[vaults]]@ 與
+    -- @[[projects]]@:@[llm]@ \/ @[tools]@ \/ 未知段落沒有任何函式會改,切段那條
+    -- 路徑對它們也只是原樣抄回,兩條路徑的輸出一致。
+    sourceUnchanged = case parseHubText "" src of
+      Right h0 -> hubVaults h0 == vaults && hubProjects h0 == projects
+      Left _ -> False
 
     eol :: Text
     eol = if "\r\n" `T.isInfixOf` src then "\r\n" else "\n"
@@ -322,68 +336,38 @@ mapAccumSegs isTarget f = foldr step ([], [])
       | otherwise = (s : accSegs, accIds)
 
 matchVault :: Text -> [VaultEntry] -> Segment -> (Maybe Segment, Maybe VaultId)
-matchVault eol current seg = case findStringField "id" (segLines seg) of
+matchVault eol current seg = case segEntry parseVaultsSection seg of
   Nothing -> (Just seg, Nothing)
-  Just idText ->
-    let vid = VaultId idText
-    in case find ((== vid) . veId) current of
-        Nothing -> (Nothing, Nothing)
-        Just e
-          | segMatchesVault seg e -> (Just seg, Just vid)
-          | otherwise -> (Just (renderVaultSeg eol e), Just vid)
+  Just e0 -> case find ((== veId e0) . veId) current of
+    Nothing -> (Nothing, Nothing)
+    Just e
+      | e == e0 -> (Just seg, Just (veId e0))
+      | otherwise -> (Just (renderVaultSeg eol e), Just (veId e0))
 
 matchProject :: Text -> [ProjectEntry] -> Segment -> (Maybe Segment, Maybe Id)
-matchProject eol current seg = case findStringField "id" (segLines seg) of
+matchProject eol current seg = case segEntry parseProjectsSection seg of
   Nothing -> (Just seg, Nothing)
-  Just idText -> case parseId idText of
-    Left _ -> (Just seg, Nothing)
-    Right (_, pid) -> case find ((== pid) . peId) current of
-      Nothing -> (Nothing, Nothing)
-      Just e
-        | segMatchesProject seg e -> (Just seg, Just pid)
-        | otherwise -> (Just (renderProjectSeg eol e), Just pid)
+  Just e0 -> case find ((== peId e0) . peId) current of
+    Nothing -> (Nothing, Nothing)
+    Just e
+      | e == e0 -> (Just seg, Just (peId e0))
+      | otherwise -> (Just (renderProjectSeg eol e), Just (peId e0))
 
-segMatchesVault :: Segment -> VaultEntry -> Bool
-segMatchesVault seg e =
-  findStringField "name" (segLines seg) == Just (veName e)
-    && findStringField "kind" (segLines seg) == Just (renderVaultKind (veKind e))
-    && findStringField "path" (segLines seg) == Just (T.pack (vePath e))
-
-segMatchesProject :: Segment -> ProjectEntry -> Bool
-segMatchesProject seg e =
-  findStringField "name" (segLines seg) == Just (peName e)
-    && findStringField "path" (segLines seg) == Just (T.pack (pePath e))
-
--- | 在一段行裡找 @key = "value"@ 這種指定,回傳去引號、去逸出後的值。只認雙引號
--- 字串,忽略值後面的行內 comment。找不到、或值不是雙引號字串時回 'Nothing'。
-findStringField :: Text -> [Text] -> Maybe Text
-findStringField key ls = listToMaybe (mapMaybe matchLine ls)
-  where
-    matchLine l =
-      let content = T.stripStart (stripLineEnding l)
-      in case T.stripPrefix key content of
-          Just afterKey -> do
-            afterEq <- eatEq (T.stripStart afterKey)
-            case T.uncons (T.stripStart afterEq) of
-              Just ('"', afterQuote) -> Just (fst (unquote afterQuote))
-              _ -> Nothing
-          Nothing -> Nothing
-
-    eatEq t = case T.uncons t of
-      Just ('=', rest) -> Just rest
+-- | 把一個段落的原文單獨交給 __解析全檔用的同一組解析器__,取出它代表的那一列。
+-- 段落不是合法 TOML、或那一段不是恰好一列時回 'Nothing'(呼叫端把它當「認不得,
+-- 原樣留著」)。
+--
+-- 比對用的值必須走同一條解析路徑:另寫一個「找 @key = \"value\"@」的行掃描器,
+-- 就會在逸出序列(@\\n@ \/ @\\uXXXX@)、單引號字串、多行字串、加引號的鍵上與解析器
+-- 對不上,把__沒有變動__的段落誤判成變了而重新序列化——使用者夾在鍵之間的獨立
+-- 註解行會因此消失,而未變動的段落要逐字沿用(LAW-1)。
+segEntry :: (FilePath -> TOML.Table -> Either WorkspaceError [a]) -> Segment -> Maybe a
+segEntry parseSection seg =
+  case (TOML.decode (T.concat (segLines seg)) :: Either TOML.TOMLError TOML.Value) of
+    Right (TOML.Table tbl) -> case parseSection "" tbl of
+      Right [e] -> Just e
       _ -> Nothing
-
-    unquote = go []
-      where
-        go acc t = case T.uncons t of
-          Nothing -> (T.pack (reverse acc), T.empty)
-          Just ('"', rest) -> (T.pack (reverse acc), rest)
-          Just ('\\', rest) -> case T.uncons rest of
-            Just ('"', rest') -> go ('"' : acc) rest'
-            Just ('\\', rest') -> go ('\\' : acc) rest'
-            Just (c, rest') -> go (c : acc) rest'
-            Nothing -> (T.pack (reverse acc), T.empty)
-          Just (c, rest) -> go (c : acc) rest
+    _ -> Nothing
 
 renderVaultSeg :: Text -> VaultEntry -> Segment
 renderVaultSeg eol e =
@@ -504,3 +488,13 @@ replaceOrAppend :: (a -> Bool) -> a -> [a] -> [a]
 replaceOrAppend p new xs
   | any p xs = map (\x -> if p x then new else x) xs
   | otherwise = xs ++ [new]
+
+-- | 依序套用增刪(P-028-hub-config 的觀察點):對 'HubEdit' 清單依序
+-- 'Prelude.foldl'',每個建構子轉呼叫對應的純增刪函式。
+applyHubEdits :: [HubEdit] -> Hub -> Hub
+applyHubEdits edits h0 = foldl' applyOne h0 edits
+  where
+    applyOne h (PutVault e) = upsertVault e h
+    applyOne h (DropVault vid) = removeVault vid h
+    applyOne h (PutProject p) = upsertProject p h
+    applyOne h (DropProject pid) = removeProject pid h

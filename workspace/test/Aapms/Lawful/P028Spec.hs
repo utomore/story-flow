@@ -31,7 +31,8 @@ import qualified TOML
 import Aapms.Core.Id (Id, VaultId (..), parseId, renderId)
 import Aapms.Store.Types (VaultKind (..), renderVaultKind)
 import Aapms.Workspace.Hub
-  ( parseHubText
+  ( applyHubEdits
+  , parseHubText
   , removeProject
   , removeVault
   , renderHub
@@ -40,6 +41,7 @@ import Aapms.Workspace.Hub
   )
 import Aapms.Workspace.Types
   ( Hub
+  , HubEdit (..)
   , LlmSection (..)
   , ProjectEntry (..)
   , ToolsConfig (..)
@@ -95,12 +97,21 @@ lawsSpec = do
     it "渲染再解析,四段逐欄相等(清單含順序)" $
       hedgehog $ do
         fp <- forAll genFilePath
-        h <- forAll genHub
-        let out = renderHub h
+        txt <- forAll genConfigText
+        -- forall 的定義域:h0 來自 parseHubText,h 是它再經 applyHubEdits。
+        h0 <- case parseHubText fp txt of
+          Left e -> do
+            annotate "本產生器只產合法中樞文字,這裡應該是 Right"
+            annotateShow e
+            failure
+          Right h0 -> pure h0
+        edits <- forAll genHubEdits
+        let h = applyHubEdits edits h0
+            out = renderHub h
         annotate (T.unpack out)
         case parseHubText fp out of
           Left e -> do
-            annotate "渲染出來的中樞應該讀得回來(LAW-3)"
+            annotate "h 的底稿與四段都滿足 LAW-3 的前提,渲染出來應該讀得回來"
             annotateShow e
             failure
           Right h2 -> do
@@ -116,8 +127,8 @@ lawsSpec = do
         h <- forAll genHub
         -- 前提由產生器直接建構,在這裡斷言出來,property 才不會恆真。
         assert (isRight (parseHubText fp (hubSourceText h)))
-        assert (all (not . T.null) (map veName (hubVaults h)))
-        assert (all (not . T.null) (map peName (hubProjects h)))
+        assert (all (not . T.null . T.strip) (map veName (hubVaults h)))
+        assert (all (not . T.null . T.strip) (map peName (hubProjects h)))
         nub (map veId (hubVaults h)) === map veId (hubVaults h)
         nub (map peId (hubProjects h)) === map peId (hubProjects h)
         let out = renderHub h
@@ -252,7 +263,7 @@ lawsSpec = do
         hubSourceText (mkHub vs ps llm tools txt) === txt
 
   describe "P-028#LAW-17" $
-    it "載入得起來的中樞,每一列的名稱都非空" $
+    it "載入得起來的中樞,每一列的名稱去前後空白後都非空" $
       hedgehog $ do
         fp <- forAll genFilePath
         txt <- forAll genMaybeInvalidConfigText
@@ -262,8 +273,8 @@ lawsSpec = do
         case r of
           Left _ -> success
           Right h -> do
-            assert (all (not . T.null) (map veName (hubVaults h)))
-            assert (all (not . T.null) (map peName (hubProjects h)))
+            assert (all (not . T.null . T.strip) (map veName (hubVaults h)))
+            assert (all (not . T.null . T.strip) (map peName (hubProjects h)))
 
   describe "P-028#LAW-18" $
     it "鍵是 id:載入得起來的中樞裡 id 唯一,名稱與路徑都可以重複" $
@@ -308,11 +319,6 @@ examplesSpec = do
       case parseHubText exFp "[[vaults" of
         Left (HubUnreadable fp _) -> fp `shouldBe` exFp
         other -> expectationFailure ("預期 HubUnreadable,實際:" <> show other)
-
-  describe "P-028#EX-3" $
-    it "最上層不是 TOML 表的檔案是 HubMalformed" $
-      pendingWith
-        "GAP 本次-1:toml-reader 的 decode 一定回 Table,產不出「最上層不是 TOML 表」的輸入"
 
   describe "P-028#EX-4" $
     it "[[vaults]] 缺 id 是 HubMalformed,訊息含 id" $
@@ -1003,6 +1009,22 @@ genEdit =
     , removeVault <$> Gen.element vaultIdPool
     , upsertProject <$> genPoolProjectEntry
     , removeProject <$> Gen.element projectIdPool
+    ]
+
+-- | LAW-2 的 @edits in [HubEdit]@:0 到 3 個增刪。id 取自中樞內容的池與備用池
+-- 兩者(這一串只套在 LAW-2 自己的 @h0@ 上,不影響 'genHub' 對備用 id 的保留),
+-- 名稱一律走 'genName'(去前後空白後非空),套用後的四段因此仍然滿足 LAW-3 的
+-- 前提:渲染得出、也讀得回來。
+genHubEdits :: Gen [HubEdit]
+genHubEdits = Gen.list (Range.linear 0 3) genHubEdit
+
+genHubEdit :: Gen HubEdit
+genHubEdit =
+  Gen.choice
+    [ PutVault <$> genAnyVaultEntry
+    , DropVault <$> genAnyVaultId
+    , PutProject <$> genAnyProjectEntry
+    , DropProject <$> genAnyProjectId
     ]
 
 genPoolVaultEntry :: Gen VaultEntry

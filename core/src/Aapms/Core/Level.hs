@@ -29,8 +29,8 @@ import Aapms.Core.Meta (Meta)
 
 data Level = Level
   { lvlMeta :: Meta
-  , -- | 根 Node 的 id
-    lvlRoot :: Id
+  , lvlRoot :: Id
+  -- ^ 根 Node 的 id
   }
   deriving stock (Show, Eq)
 

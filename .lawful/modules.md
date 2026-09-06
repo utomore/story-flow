@@ -4,9 +4,10 @@
 | `Aapms.Core.AnyNode`、`Aapms.Core.Asset`、`Aapms.Core.Entity`、`Aapms.Core.Id`、`Aapms.Core.Json`、`Aapms.Core.Level`、`Aapms.Core.License`、`Aapms.Core.Link`、`Aapms.Core.Manifest`、`Aapms.Core.Meta`、`Aapms.Core.Name`、`Aapms.Core.Pack`、`Aapms.Core.Registry` | types |
 | `Aapms.Md.Document`、`Aapms.Md.Error`、`Aapms.Md.Section` | types |
 | `Aapms.Store.Types`、`Aapms.Types.Source`、`Aapms.Workspace.Types`、`Aapms.Service.Types` | types |
+| `Aapms.Store.Effect.Clock`、`Aapms.Store.Effect.Index`、`Aapms.Store.Effect.VaultFs`、`Aapms.Store.Effect.Vaults` | effects |
 | `Aapms.Core.Naming`、`Aapms.Core.Registry.Build`、`Aapms.Core.Tree` | pure |
 | `Aapms.Md`、`Aapms.Md.Lexer`、`Aapms.Md.Yaml`、`Aapms.Md.Parse`、`Aapms.Md.Inherit`、`Aapms.Md.Render` | pure |
-| `Aapms.Store.Tokenize`、`Aapms.Store.Tokenize.Internal`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing` | pure |
+| `Aapms.Store.Tokenize`、`Aapms.Store.Tokenize.Internal`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing`、`Aapms.Store.Editing.Internal`、`Aapms.Store.Filter`、`Aapms.Store.Indexing`、`Aapms.Store.Indexing.Internal`、`Aapms.Store.Search`、`Aapms.Store.Search.Internal` | pure |
 | `Aapms.Workspace.Hub`、`Aapms.Workspace.Location` | pure |
 | `Aapms.Types.Parse` | pure |
 | `Aapms.Types.Loader` | shell |

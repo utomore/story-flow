@@ -34,6 +34,9 @@ module Aapms.Store.Write
 
     -- * ID
   , allocateId
+
+    -- * 唯一進入點(P-003-node-write 的 ! 列)
+  , applyWriteIO
   ) where
 
 import Data.List (find)
@@ -77,7 +80,7 @@ import Aapms.Store.Edit
   )
 import Aapms.Store.Error (StoreError (..), trySqlite)
 import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
-import Aapms.Store.Types (AssetPatch (..), Located (..), WriteResult (..))
+import Aapms.Store.Types (AssetPatch (..), Located (..), WriteOp, WriteOutcome, WriteResult (..))
 
 -- Meta ------------------------------------------------------------------------
 
@@ -411,3 +414,12 @@ allocateId vh p c t = tryAlloc 0
         Left e -> pure (Left e)
         Right (Only n : _) | n > 0 -> tryAlloc (salt + 1)
         Right _ -> pure (Right candidate)
+
+-- 唯一進入點(P-003-node-write 的 ! 列)-------------------------------------------
+
+-- | 十一種寫入請求的唯一進入點:以 handle 的根目錄、連線與系統時鐘跑
+-- 'Aapms.Store.Editing.applyWrite' 的三個真解譯器(@directory@、@sqlite@、
+-- 系統時鐘)。本模組原本的十二個 @IO@ 函數(上面那些)在 P-003 落地後退成
+-- 它的薄包裝。
+applyWriteIO :: VaultHandle -> WriteOp -> IO (Either StoreError WriteOutcome)
+applyWriteIO _vh _op = error "P-003#applyWriteIO stub"

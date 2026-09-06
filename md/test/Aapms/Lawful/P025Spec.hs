@@ -414,7 +414,7 @@ genPackText = do
       ov <- genOverride
       sha <- Gen.text (Range.singleton 12) (Gen.element (['0' .. '9'] ++ ['a' .. 'f']))
       ent <- nonEmpty "a.png" (genSafeText (Range.linear 1 8))
-      let ex = MetaExtras ["sha256: " <> sha, "entry: PNG/" <> ent]
+      let ex = MetaExtras ["sha256: \"" <> sha <> "\"", "entry: \"PNG/" <> ent <> "\""]
       pure s {ssMeta = Just (renderMetaBlock ov {moType = Just (TypeKey "asset-image")} ex (ssEnding s))}
 
 genLicensesText :: Gen Text

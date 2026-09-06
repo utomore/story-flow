@@ -36,26 +36,43 @@ module Aapms.Store.Editing
 
     -- * 結果換型
   , toCreateResult
+
+    -- * 配號與寫入規劃(P-003-node-write)
+  , allocateFreshId
+  , planEdit
+  , planCreate
+
+    -- * 純的整條(P-003-node-write)
+  , applyWrite
   ) where
 
 import Data.Char (isControl, isSpace)
 import Data.List (find)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time (UTCTime)
+import Effectful (Eff, (:>))
 import Aapms.Core.Asset (Asset (..))
 import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Id (Id)
+import Aapms.Core.Id (Id, IdPrefix, VaultId)
 import Aapms.Core.Level (Level (..), Node (..))
 import Aapms.Core.License (License (..))
 import Aapms.Core.Meta (Meta (..), Revision)
 import Aapms.Core.Pack (Pack (..))
+import Aapms.Core.Registry (TypeRegistry)
 import Aapms.Md.Document (DocKind (..), Document, LineEnding, renderLineEnding)
 import Aapms.Md.Error (MdError)
 import Aapms.Md.Parse (toLevel, toLicenses, toPack, toTopic)
 import Aapms.Md.Render (NewSectionPayload (..))
+import Aapms.Store.Effect.Clock (Clock)
+import Aapms.Store.Effect.Index (Index)
+import Aapms.Store.Effect.VaultFs (VaultFs)
 import Aapms.Store.Types
   ( CreateResult (..)
+  , Located
   , StoreError (..)
+  , WriteOp
+  , WriteOutcome
   , WriteResult (..)
   )
 
@@ -160,3 +177,25 @@ payloadMatchesDocKind _ _ = False
 -- | 'WriteResult' → 'CreateResult'。同樣四個欄位,只是建檔路徑回的是後者。
 toCreateResult :: WriteResult -> CreateResult
 toCreateResult wr = CreateResult (wrId wr) (wrPath wr) (wrRevision wr) (wrIssues wr)
+
+-- 配號與寫入規劃(P-003-node-write)----------------------------------------------
+
+-- | 同一個 @t@ 之下以 salt 遞增重試到不撞號;碰撞查詢失敗即失敗。
+allocateFreshId :: Index :> es => IdPrefix -> Text -> UTCTime -> Eff es (Either StoreError Id)
+allocateFreshId _pre _c _t = error "P-003#allocateFreshId stub"
+
+-- | 既有檔的純核心:樂觀鎖 → 讀出目前的 Meta \/ Asset → 編輯那一節 →
+-- 新 'Document' 與結果;失敗即 'Left',文件不動。
+planEdit :: TypeRegistry -> UTCTime -> Located -> Document -> WriteOp -> Either StoreError (Document, WriteOutcome)
+planEdit _reg _t _loc _doc _op = error "P-003#planEdit stub"
+
+-- | 建新檔的純核心:落點目錄 → 檔名 → @newDocument@;Level 檔含唯一根 Node。
+planCreate :: TypeRegistry -> VaultId -> UTCTime -> Id -> WriteOp -> Either StoreError (FilePath, Document, WriteOutcome)
+planCreate _reg _vid _t _newId _op = error "P-003#planCreate stub"
+
+-- 純的整條(P-003-node-write)-----------------------------------------------------
+
+-- | 定位 → 重讀 → 解析 → 規劃(改既有檔)或配號後規劃(建新檔)→ 寫檔前驗證 →
+-- 寫檔 \/ 刪檔 → 單檔重索引。
+applyWrite :: (VaultFs :> es, Index :> es, Clock :> es) => TypeRegistry -> VaultId -> WriteOp -> Eff es (Either StoreError WriteOutcome)
+applyWrite _reg _vid _op = error "P-003#applyWrite stub"

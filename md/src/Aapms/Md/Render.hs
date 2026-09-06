@@ -868,21 +868,88 @@ scalar t
   | otherwise = t
 
 -- | 流式上下文(@{}@ 與 @[]@ 之內)另外要避開 @,@ @{@ @}@ @[@ @]@。
+--
+-- 流式的 @:@ 比區塊更窄(YAML 1.2 的 @ns-plain-safe-in@:@:@ 後面接流式指示字元
+-- 也不算純量的一部分),但那種文字本身就含流式指示字元,已經被下面這一行擋掉,
+-- 不必再寫一條規則。
 flowScalar :: Text -> Text
 flowScalar t
-  | needsQuote t || T.any (`elem` (",{}[]" :: String)) t = quote t
+  | needsQuote t || T.any (`elem` flowIndicators) t = quote t
   | otherwise = t
 
+-- | 流式指示字元。
+flowIndicators :: String
+flowIndicators = ",{}[]"
+
+-- | 一個純量寫成 plain scalar 會不會失真。
+--
+-- 判準對照 __YAML 1.2 的 plain scalar 限制__與解析端實際用的 __HsYAML__
+-- (見 "Aapms.Md.Yaml");拿不準時一律加引號——多加的引號只是難看,少加的
+-- 引號是寫出去就讀不回來(LAW-9 \/ LAW-6)。逐條:
+--
+-- 1. __空字串__:plain scalar 空的解回來是 @null@,不是 @""@
+-- 2. __前後有空白__:plain scalar 的前後空白會被解析器吃掉
+-- 3. __第一個字元是指示字元__ @- ? : , [ ] { } # & * ! | > ' " % \@ `@
+-- 4. __@:@ 後面接空白、或 @:@ 剛好在字尾__:那是「鍵與值的分隔」而不是純量的
+--    一部分。字尾那一種是 @summary: a:@ ——HsYAML 回
+--    @Expected start of line@。@:@ 後面接別的字元(@https:\/\/x@、
+--    @source: agent:claude-code@)才是純量的一部分,不加引號
+-- 5. __空白之後接 @#@__:YAML 的行內註解起點,純量會被從那裡截斷
+-- 6. __含換行、tab 或 CR__('quote' 會把這三個跳脫掉)
+-- 7. __整串看起來像 bool \/ null__(含 YAML 1.1 的 @yes@ \/ @no@ \/ @on@ \/
+--    @off@,大小寫不拘)
+-- 8. __整串看起來像數字__,含 @.inf@ \/ @.nan@ 這類特殊浮點字面值
 needsQuote :: Text -> Bool
 needsQuote t =
   T.null t
     || T.strip t /= t
-    || maybe False (`elem` ("-?:,[]{}#&*!|>'\"%@`" :: String)) (fst <$> T.uncons t)
-    || T.isInfixOf ": " t
-    || T.isInfixOf " #" t
+    || maybe False (`elem` indicatorChars) (fst <$> T.uncons t)
+    || colonNotInline t
+    || hashAfterSpace t
     || T.any (`elem` ("\n\t\r" :: String)) t
-    || T.toLower t `elem` ["true", "false", "null", "yes", "no", "on", "off", "~"]
+    || T.toLower t `elem` plainLiterals
     || looksNumeric t
+
+-- | plain scalar 的第一個字元不得是這些(YAML 1.2 的 c-indicator)。
+indicatorChars :: String
+indicatorChars = "-?:,[]{}#&*!|>'\"%@`"
+
+-- | 整串等於這些(大小寫不拘)時,plain scalar 會被解析成 bool \/ null \/ 特殊
+-- 浮點值而不是字串。
+plainLiterals :: [Text]
+plainLiterals =
+  [ "true"
+  , "false"
+  , "null"
+  , "yes"
+  , "no"
+  , "on"
+  , "off"
+  , "~"
+  , ".inf"
+  , "-.inf"
+  , "+.inf"
+  , ".nan"
+  ]
+
+-- | 有沒有一個 @:@ 後面接空白、或剛好落在字尾——那個 @:@ 是鍵與值的分隔。
+colonNotInline :: Text -> Bool
+colonNotInline t = case T.breakOn ":" t of
+  (_, rest)
+    | T.null rest -> False
+    | otherwise -> case T.uncons (T.drop 1 rest) of
+        Nothing -> True
+        Just (c, _) | isSpace c -> True
+        _ -> colonNotInline (T.drop 1 rest)
+
+-- | 有沒有一個 @#@ 前面接空白——那個 @#@ 起一段行內註解。
+-- (@#@ 在第一個字元的情形由 'indicatorChars' 擋。)
+hashAfterSpace :: Text -> Bool
+hashAfterSpace t = case T.breakOn "#" t of
+  (pre, rest)
+    | T.null rest -> False
+    | maybe False isSpace (snd <$> T.unsnoc pre) -> True
+    | otherwise -> hashAfterSpace (T.drop 1 rest)
 
 looksNumeric :: Text -> Bool
 looksNumeric t = case T.uncons t of

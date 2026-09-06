@@ -98,12 +98,13 @@ module Aapms.Workspace.Types
   ) where
 
 import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Text as T
 
 import Aapms.Core.Id (Id, VaultId (..), renderId)
-import Aapms.Store.Types (StoreError, VaultKind, VaultMarker, renderStoreError, renderVaultKind)
+import Aapms.Store.Types (StoreError, VaultKind, VaultMarker (..), renderStoreError, renderVaultKind)
 import qualified TOML
 
 -- 契約 A:中樞位置與載入 -------------------------------------------------------
@@ -523,24 +524,41 @@ data Scope
 
 -- | 觀察:三種 scope 的 vault 清單(寫入 scope 是目標開頭的 'wsRead')。
 scopeRefs :: Scope -> [VaultRef]
-scopeRefs _sc = error "P-029#scopeRefs stub"
+scopeRefs = \case
+  SRead rs -> rsVaults rs
+  SWrite ws -> wsRead ws
+  SPipeline ps -> psRuns ps
 
 -- | 觀察:三種 scope 的降級紀錄。
 scopeIssues :: Scope -> [ScopeIssue]
-scopeIssues _sc = error "P-029#scopeIssues stub"
+scopeIssues = \case
+  SRead rs -> rsIssues rs
+  SWrite ws -> wsIssues ws
+  SPipeline ps -> psIssues ps
 
--- | 觀察:每個 ref 的 marker id。
+-- | 觀察:每個 ref 的 marker id。__身分來自 marker__,不是中樞那一列。
 refIds :: [VaultRef] -> [VaultId]
-refIds _rs = error "P-029#refIds stub"
+refIds = map (vmId . vrMarker)
 
 -- | 觀察:是不是 'RefVaultNotRegistered'。
 isRefNotRegistered :: ScopeIssue -> Bool
-isRefNotRegistered _iss = error "P-029#isRefNotRegistered stub"
+isRefNotRegistered = \case
+  RefVaultNotRegistered _ _ -> True
+  _ -> False
 
 -- | 觀察:selector 生效的命中集合(id 命中非空就是它,否則是 name 命中),
 -- 順序同 'hubVaults'。
+--
+-- 兩階段都__逐字精確__比對:不去空白、不忽略大小寫、不做前綴比對。這是
+-- 'Aapms.Workspace.Resolve.lookupSelector' 的判定依據,兩者必須是同一套規則。
 selectorHits :: Hub -> Text -> [VaultEntry]
-selectorHits _h _s = error "P-029#selectorHits stub"
+selectorHits h s
+  | not (null byId) = byId
+  | otherwise = byName
+  where
+    entries = hubVaults h
+    byId = filter ((== VaultId s) . veId) entries
+    byName = filter ((== s) . veName) entries
 
 -- P-029-scope-resolve:Markers 的世界 ------------------------------------------
 
@@ -562,9 +580,9 @@ instance Monoid MarkerWorld where
 instance Semigroup MarkerWorld where
   a <> b = MarkerWorld (mwMarkers a <> mwMarkers b) (worldDirs a <> worldDirs b)
 
--- | 觀察:某路徑在世界裡的 marker 讀數。
+-- | 觀察:某路徑在世界裡的 marker 讀數;@Nothing@ = 那個路徑上讀不到任何 marker。
 worldMarker :: MarkerWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
-worldMarker _w _p = error "P-029#worldMarker stub"
+worldMarker w p = Map.lookup p (mwMarkers w)
 
 -- P-004-vault-scope:HubFile 的世界 --------------------------------------------
 

@@ -216,7 +216,7 @@ spec = describe "F001 Aapms.Workspace.Types" $ do
       filter (isInfixOf "Aapms.Store.Marker") importLines `shouldBe` []
       let storeLines = filter (isInfixOf "Aapms.Store.") importLines
       storeLines
-        `shouldBe` [ "import Aapms.Store.Types (StoreError, VaultKind, VaultMarker, renderStoreError, renderVaultKind)"
+        `shouldBe` [ "import Aapms.Store.Types (StoreError, VaultKind, VaultMarker (..), renderStoreError, renderVaultKind)"
                    ]
 
     it "test_no_index_or_process_imports(e): 三個檔案的 import 行都不含 \

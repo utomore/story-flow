@@ -688,8 +688,15 @@ vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
 vwMarker vw d = Map.lookup d (vwMarkers vw)
 
 -- | 這一列的路徑上 marker 讀得到且 id 與中樞不同時回實際的 id(P-005 REV-4 的守門)。
+--
+-- 三種「不算漂移」的情形一律 @Nothing@:路徑不在 'vwMarkers' 上(那裡沒有
+-- marker 檔)、marker 讀壞了('Left')、讀得到而 id 相符。__讀不到不是漂移__:
+-- 刪索引前的守門只擋「那個位置住著另一個 vault」,讀不到的情形由別的降級管道
+-- (@checkVaults@ 的 'VaultMarkerBroken')負責報告。
 driftAt :: VaultWorld -> VaultEntry -> Maybe VaultId
-driftAt _vw _e = error "P-005#driftAt stub"
+driftAt vw e = case vwMarker vw (vePath e) of
+  Just (Right m) | vmId m /= veId e -> Just (vmId m)
+  _ -> Nothing
 
 -- | 觀察:@index.db@ 在不在。
 vwHasIndex :: VaultWorld -> FilePath -> Bool

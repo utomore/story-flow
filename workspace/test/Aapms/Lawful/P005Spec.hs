@@ -23,7 +23,7 @@ module Aapms.Lawful.P005Spec (spec) where
 import Control.Exception (evaluate)
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as M
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -90,6 +90,7 @@ import Aapms.Workspace.Types
   , VaultEntry (..)
   , VaultWorld (..)
   , WorkspaceError (..)
+  , driftAt
   , hubLlm
   , hubProjects
   , hubTools
@@ -321,17 +322,61 @@ lawsSpec = do
             lcVaults run === vw
           _ -> success
 
+  describe "P-005#LAW-21" $
+    it "relation:forget 的 DeleteIndex 先驗身分,目標路徑的 id 漂移就拒且零副作用" $
+      hedgehog $ do
+        t <- forAll genTime
+        s <- forAll genDriftScenario
+        hw <- forAll (genHubWorld s)
+        sel <- forAll (genDriftVaultSel s)
+        let vw = scWorld s
+            h = scHub s
+            run = runOp t hw vw h (ForgetVault sel DeleteIndex)
+        -- forall 的兩個約束由產生器直接建構:'genDriftScenario' 保證至少一列的
+        -- marker 讀得到而且 id 與中樞不同,'genDriftVaultSel' 只抽那些列的 id
+        -- (id 逐列唯一,一定唯一解得開)。
+        e <- expectRight "lookupSelector(前提:selector 要解得開)" (lookupSelector h sel)
+        actual <- expectJust "driftAt(前提:那一列在世界裡漂移)" (driftAt vw e)
+        lcResult run === Left (DeleteTargetIdDrift (veId e) (vePath e) actual)
+        lcHubText run === hubTextIn hw
+        lcVaults run === vw
+
+  describe "P-005#LAW-22" $
+    it "relation:purge AllVaults 任一列漂移就整個拒,回第一列漂移的 DeleteTargetIdDrift" $
+      hedgehog $ do
+        t <- forAll genTime
+        s <- forAll genDriftScenario
+        hw <- forAll (genHubWorld s)
+        let vw = scWorld s
+            h = scHub s
+            run = runOp t hw vw h (Purge PurgeAllVaults)
+        -- @e in take 1 (filter (isJust . driftAt vw) (hubVaults h))@:產生器保證
+        -- 這個清單非空。
+        e <-
+          expectHead
+            "take 1 (filter (isJust . driftAt vw) (hubVaults h))"
+            (filter (isJust . driftAt vw) (hubVaults h))
+        actual <- expectJust "driftAt(前提:那一列在世界裡漂移)" (driftAt vw e)
+        lcResult run === Left (DeleteTargetIdDrift (veId e) (vePath e) actual)
+        lcHubText run === hubTextIn hw
+        lcVaults run === vw
+
   describe "P-005#LAW-9" $
     it "relation:forget 的 selector 規則同 lookupSelector,成功時只少那一列" $
       hedgehog $ do
         t <- forAll genTime
         s <- forAll genScenario
         hw <- forAll (genHubWorld s)
-        sel <- forAll (genVaultSel s)
-        _di <- forAll genDeleteIndex
+        (sel, di) <- forAll (genForgetArgs s)
         let vw = scWorld s
             h = scHub s
-            run = runOp t hw vw h (ForgetVault sel _di)
+            run = runOp t hw vw h (ForgetVault sel di)
+        -- given(REV-4):@di == KeepIndex or all (isNothing . driftAt vw)
+        -- (rights [lookupSelector h s])@。'genForgetArgs' 直接建構滿足它的組合
+        -- (DeleteIndex 的那一支只抽「解不開、或解出來的那一列 marker 讀不到 /
+        -- id 相符」的 selector),這裡只把前提斷言出來。判定走世界的建構
+        -- ('driftSlotEntries'),不呼叫 'driftAt',見回報「自己決定的事」。
+        assert (di == KeepIndex || noDriftTarget s sel)
         cover 20 "selector 解得開" (isRight (lookupSelector h sel))
         annotateShow (lookupSelector h sel)
         case lookupSelector h sel of
@@ -411,13 +456,19 @@ lawsSpec = do
         t <- forAll genTime
         s <- forAll genScenario
         hw <- forAll (genHubWorld s)
-        scope <- forAll genPurgeScope
+        scope <- forAll (genPurgeScopeFor s)
         let vw = scWorld s
             h = scHub s
             run = runOp t hw vw h (Purge scope)
             -- 逐字照 law(REV-1):第二次從跑完之後的中樞世界與目錄樹起跑。
             run2 = runOp t (hubWorldAfter run) (lcVaults run) h (Purge scope)
             paths = map vePath (hubVaults h)
+        -- given(REV-4):@scope == PurgeHubOnly or all (isNothing . driftAt vw)
+        -- (hubVaults h)@。'genPurgeScopeFor' 直接建構:世界裡有漂移的那一列時
+        -- 只抽 'PurgeHubOnly',沒有漂移時兩種都抽。判定走世界的建構,不呼叫
+        -- 'driftAt',見回報「自己決定的事」。
+        assert (scope == PurgeHubOnly || not (hasDriftSlot s))
+        cover 15 "AllVaults 且整份中樞無漂移" (scope == PurgeAllVaults)
         assert (isNothing (lcHubText run))
         fmap outcomePurge (lcResult run2) === Right (Just (PurgeReport False 0 []))
         case lcResult run of
@@ -874,6 +925,22 @@ examplesSpec = do
         )
         chaosCases
 
+  describe "P-005#EX-22" $ do
+    it "DeleteIndex 的目標路徑實際上住著別的 vault:DeleteTargetIdDrift 三個值" $
+      lcResult ex22Run `shouldBe` Left (DeleteTargetIdDrift ex22Id ex22Path ex22Actual)
+    it "中樞文字不變、P 的 index.db 仍在" $ do
+      lcHubText ex22Run `shouldBe` hubTextIn ex22HubWorld
+      vwHasIndex (lcVaults ex22Run) ex22Path `shouldBe` True
+
+  describe "P-005#EX-23" $ do
+    it "第二列的路徑上 id 漂移:PurgeAllVaults 整個拒,錯誤指向第二列" $
+      lcResult ex23Run `shouldBe` Left (DeleteTargetIdDrift (veId ex23E2) ex23P2 ex23Actual)
+    it "中樞檔、縮圖、兩個 index.db 都還在" $ do
+      lcHubText ex23Run `shouldBe` hubTextIn ex23HubWorld
+      cacheDirIn (hubWorldAfter ex23Run) `shouldBe` True
+      thumbsIn (hubWorldAfter ex23Run) `shouldBe` purgeThumbs
+      map (vwHasIndex (lcVaults ex23Run)) [ex23P1, ex23P2] `shouldBe` [True, True]
+
 --------------------------------------------------------------------------------
 -- 世界的建構
 --------------------------------------------------------------------------------
@@ -1252,6 +1319,64 @@ projDup2 = ProjectEntry (projIdPool !! 2) "dup" "C:/P/dup2"
 projDupHub :: Hub
 projDupHub = mkHub [] [projDemo, projDup1, projDup2] Nothing (ToolsConfig Nothing) ""
 
+-- | EX-22:中樞那一列記的 id 是 @vlt-0000000a@,P 上實際的 marker 是
+-- @vlt-0000000b@(讀得到,只是身分不同)。
+ex22Id, ex22Actual :: VaultId
+ex22Id = VaultId "vlt-0000000a"
+ex22Actual = VaultId "vlt-0000000b"
+
+ex22Path :: FilePath
+ex22Path = "C:/T/a"
+
+ex22Entry :: VaultEntry
+ex22Entry = VaultEntry ex22Id "A" AssetVault ex22Path
+
+ex22Hub :: Hub
+ex22Hub = mkHub [ex22Entry] [] Nothing (ToolsConfig Nothing) ""
+
+ex22HubWorld :: HubWorld
+ex22HubWorld = hubWorldOf ex22Hub
+
+ex22World :: VaultWorld
+ex22World =
+  worldOf
+    [ plainDir vaultRootDir ["a"]
+    , vaultDir ex22Path (Right (VaultMarker ex22Actual AssetVault "A" []))
+    ]
+
+ex22Run :: LifecycleRun (Either WorkspaceError LifecycleOutcome)
+ex22Run = runOp fixedT ex22HubWorld ex22World ex22Hub (ForgetVault "A" DeleteIndex)
+
+-- | EX-23:中樞兩列,第二列的路徑上 marker id 漂移;中樞世界另有快取目錄與兩張
+-- 縮圖(purge 拒了以後它們都要還在)。
+ex23P1, ex23P2 :: FilePath
+ex23P1 = "C:/T/q1"
+ex23P2 = "C:/T/q2"
+
+ex23Actual :: VaultId
+ex23Actual = VaultId "vlt-0000000b"
+
+ex23E1, ex23E2 :: VaultEntry
+ex23E1 = VaultEntry (idPool !! 0) "q1" AssetVault ex23P1
+ex23E2 = VaultEntry (idPool !! 1) "q2" StoryVault ex23P2
+
+ex23Hub :: Hub
+ex23Hub = mkHub [ex23E1, ex23E2] [] Nothing (ToolsConfig Nothing) ""
+
+ex23HubWorld :: HubWorld
+ex23HubWorld = HubWorld (Just (renderHub ex23Hub)) hubLoc True purgeThumbs
+
+ex23World :: VaultWorld
+ex23World =
+  worldOf
+    [ plainDir vaultRootDir ["q1", "q2"]
+    , vaultDir ex23P1 (Right (VaultMarker (idPool !! 0) AssetVault "q1" []))
+    , vaultDir ex23P2 (Right (VaultMarker ex23Actual StoryVault "q2" []))
+    ]
+
+ex23Run :: LifecycleRun (Either WorkspaceError LifecycleOutcome)
+ex23Run = runOp fixedT ex23HubWorld ex23World ex23Hub (Purge PurgeAllVaults)
+
 -- | EX-19:一定是 Left 的請求。
 leftOps :: [LifecycleOp]
 leftOps =
@@ -1507,6 +1632,65 @@ genVaultSel s =
 genGoodVaultSel :: Scenario -> Gen Text
 genGoodVaultSel s = Gen.element (map (idText . slotId) (scSlots s))
 
+-- 漂移(REV-4)------------------------------------------------------------------
+
+-- | 世界裡「marker 讀得到、但 id 與中樞那一列不同」的那些列。__這就是
+-- 'Aapms.Workspace.Types.driftAt' 回 @Just@ 的那一組__:'slotDir' 對 @SDrift@
+-- 放一個 id 是 'driftIdOf' 的 marker(讀得到),對 @SOk@ 放 id 相符的 marker,
+-- 對 @SMissing@ \/ @SBroken@ 放 @Left@(讀不到)。
+--
+-- LAW-9 \/ LAW-13 的 given 用這個判定,不呼叫 'driftAt' 本身(見回報)。
+driftSlotEntries :: Scenario -> [VaultEntry]
+driftSlotEntries s = [entryOfSlot sl | sl <- scSlots s, slotState sl == SDrift]
+
+hasDriftSlot :: Scenario -> Bool
+hasDriftSlot s = not (null (driftSlotEntries s))
+
+-- | 這個 selector 解不開,或解出來的那一列在世界裡沒有漂移。
+noDriftTarget :: Scenario -> Text -> Bool
+noDriftTarget s sel = case lookupSelector (scHub s) sel of
+  Left _ -> True
+  Right e -> e `notElem` driftSlotEntries s
+
+-- | LAW-9 的定義域(REV-4 的 given):@KeepIndex@ 配任何 selector;
+-- @DeleteIndex@ 只配「解不開、或目標那一列 marker 讀不到 \/ id 相符」的 selector。
+-- 直接建構,不做條件過濾。
+genForgetArgs :: Scenario -> Gen (Text, DeleteIndex)
+genForgetArgs s =
+  Gen.choice
+    [ (,) <$> genVaultSel s <*> pure KeepIndex
+    , (,) <$> Gen.element (safeVaultSels s) <*> pure DeleteIndex
+    ]
+
+-- | 'genForgetArgs' 的 @DeleteIndex@ 池。@""@ 與 @"nope"@ 一定解不開,所以這個
+-- 清單永遠非空。
+safeVaultSels :: Scenario -> [Text]
+safeVaultSels s = filter (noDriftTarget s) (vaultSelPool s)
+
+vaultSelPool :: Scenario -> [Text]
+vaultSelPool s = map (idText . slotId) (scSlots s) <> map slotName (scSlots s) <> ["nope", ""]
+
+-- | LAW-13 的定義域(REV-4 的 given):有漂移的中樞只跑 'PurgeHubOnly'。
+genPurgeScopeFor :: Scenario -> Gen PurgeScope
+genPurgeScopeFor s
+  | hasDriftSlot s = pure PurgeHubOnly
+  | otherwise = genPurgeScope
+
+-- | LAW-21 \/ LAW-22 的定義域:至少有一列 marker 讀得到而且 id 與中樞不同。
+genDriftScenario :: Gen Scenario
+genDriftScenario = do
+  n <- Gen.int (Range.linear 1 4)
+  slots <- traverse genSlot (zip3 [0 ..] (take n idPool) (take n slotPaths))
+  i <- Gen.int (Range.constant 0 (n - 1))
+  ps <- genProjectEntries
+  let drifted = [if slotIndex sl == i then sl {slotState = SDrift} else sl | sl <- slots]
+  pure (scenarioOf drifted ps)
+
+-- | LAW-21 的 selector:一定唯一解到某一列漂移的 vault(用它的 id,逐列唯一)。
+genDriftVaultSel :: Scenario -> Gen Text
+genDriftVaultSel s =
+  Gen.element [idText (slotId sl) | sl <- scSlots s, slotState sl == SDrift]
+
 -- | LAW-12 的定義域:中樞裡「marker 讀得到而且 id 相符」的那些列。
 genSyncableEntry :: Scenario -> Gen VaultEntry
 genSyncableEntry s = case [entryOfSlot sl | sl <- scSlots s, slotState sl == SOk] of
@@ -1570,4 +1754,18 @@ expectRight what r = case r of
   Left e -> do
     annotate ("預期 Right:" <> what)
     annotateShow e
+    failure
+
+expectJust :: String -> Maybe a -> PropertyT IO a
+expectJust what m = case m of
+  Just a -> pure a
+  Nothing -> do
+    annotate ("預期 Just:" <> what)
+    failure
+
+expectHead :: String -> [a] -> PropertyT IO a
+expectHead what xs = case xs of
+  (a : _) -> pure a
+  [] -> do
+    annotate ("預期非空清單:" <> what)
     failure

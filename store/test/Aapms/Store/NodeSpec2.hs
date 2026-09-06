@@ -41,7 +41,7 @@ import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 import Aapms.Md.Document (Document (..), Section (..))
 import Aapms.Md.Parse (parseDocument)
-import Aapms.Store.Create (sanitizeFileName)
+import Aapms.Store.Editing (sanitizeFileName)
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Fixtures (idOf)
 import Aapms.Store.Node (headingDepthFor, isRootNode, subtreeAfter, subtreeIds, validateLevelDoc)

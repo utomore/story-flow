@@ -12,8 +12,7 @@
 -- @Aapms.Store.*@,是 @aapms-store@ 內部依賴圖的葉子,誰都可以往上帶,沒有模組環。
 --
 -- 各原模組("Aapms.Store.Error" \/ "Aapms.Store.Schema" \/ "Aapms.Store.Marker" \/
--- "Aapms.Store.Query" \/ "Aapms.Store.Edit" \/ "Aapms.Store.Write" \/
--- "Aapms.Store.Create")原樣 re-export 自己那一份,匯出清單
+-- "Aapms.Store.Query" \/ "Aapms.Store.Write")原樣 re-export 自己那一份,匯出清單
 -- 與既有呼叫端逐字不變;門面 "Aapms.Store" 也把本模組收進去。
 module Aapms.Store.Types
   ( -- * 錯誤(契約 G)
@@ -176,12 +175,12 @@ data StoreError
     NotAnAsset Id
   | -- | 對非 license 的節點呼叫 'Aapms.Store.Write.upsertLicense'
     NotALicense Id
-  | -- | 目標節點、目標檔案的種類。'Aapms.Store.Create.addSection' 的
+  | -- | 目標節點、目標檔案的種類。@AddSection@ 請求的
     -- 'Aapms.Md.Section.NewSectionPayload' 與檔案種類不相容
     BadSectionPayload Id DocKind
   | -- | 節點、要刪的那一筆關聯。一筆都沒命中時回這個而不是靜默成功
     LinkNotFound Id Link
-  | -- | 被刪的節點、指向它的 (來源節點, 關聯)。'Aapms.Store.Create.DeleteSafe' 專用
+  | -- | 被刪的節點、指向它的 (來源節點, 關聯)。'DeleteSafe' 專用
     ReferencedBy Id [(Id, Link)]
   | -- | Level 的根 Node 刪不得(刪了就解析不出 @root@),請改刪整份 Level 檔
     CannotDeleteRootNode Id
@@ -537,7 +536,7 @@ data Located = Located
 -- @sha256@ \/ @entry@ \/ @ext@ \/ @meta@ __不在這裡,而且是刻意的__:那四欄是
 -- 掃描器(@asset-ingest@)從檔案本身算出來的事實,不是人給的意見。「拒絕改」
 -- 因此不是一個執行期檢查,而是__型別上表達不出來__ ——檔案換了就是換了一筆
--- asset,要走 'Aapms.Store.Create.addSection' \/ 'Aapms.Store.Create.deleteNode'。
+-- asset,要走 'AddSection' \/ 'DeleteNode' 兩個請求。
 --
 -- 每一欄的外層 'Maybe' 是「這次動不動它」,內層 'Maybe' 是「要設成什麼」:
 -- @apName = Nothing@ 不動、@apName = Just Nothing@ 清空、

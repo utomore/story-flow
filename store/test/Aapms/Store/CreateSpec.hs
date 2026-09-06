@@ -1,5 +1,14 @@
--- | graph-core\/F008:契約 E 的建檔\/增節\/刪除組——'createTopicFile' \/
--- 'createLevelFile' \/ 'createPackFile' \/ 'addSection' \/ 'deleteNode'。
+-- | graph-core\/F008:契約 E 的建檔\/增節\/刪除組。
+--
+-- 2026-09-06 退場波:舊的五個直接 IO 函式(@createTopicFile@ \/
+-- @createLevelFile@ \/ @createPackFile@ \/ @addSection@ \/ @deleteNode@)與整個
+-- @Aapms.Store.Create@ 模組退場,本檔改呼叫 P-003-node-write 的唯一進入點
+-- 'Aapms.Store.Write.applyWriteIO'(請求逐條對應 'Aapms.Store.Types.WriteOp'
+-- 的 @CreateTopic@ \/ @CreateLevel@ \/ @CreatePack@ \/ @AddSection@ \/
+-- @DeleteNode@),結果以 'Aapms.Store.Types.WriteOutcome' 的觀察點讀出
+-- (@outcomeId@ \/ @outcomePath@ \/ @outcomeRevision@ \/ @removedIds@ \/
+-- @brokenLinks@);斷言不變。註冊表原本由呼叫端逐次傳入,新進入點一律取自
+-- 把手的 @vhRegistry@,本檔的 fixture 本來就以 'regWithTypes' 開 vault。
 --
 -- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
 --
@@ -45,7 +54,7 @@ import Data.Aeson (Value (Null))
 import Test.Hspec
 import Aapms.Core.Asset (Asset (..), Sha256 (..))
 import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Id (Id, Ref (..), localRef)
+import Aapms.Core.Id (Id, localRef)
 import Aapms.Core.Level (Level (..), Node (..), NodeKind (..))
 import Aapms.Core.Link (Link (..), LinkKind (Involves))
 import Aapms.Core.Meta (Meta (..), Revision (..), Source (..), Status (..), TypeKey (..))
@@ -62,12 +71,25 @@ import Aapms.Md.Inherit (MetaOverride (..), emptyOverride)
 import Aapms.Md.Parse (parseDocument, toLevel, toPack, toTopic)
 import Aapms.Md.Render (NewAsset (..), NewNode (..), NewSection (..), NewSectionPayload (..), renderSection)
 import Aapms.Store.Atomic (readTextFile)
-import Aapms.Store.Create
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Fixtures
 import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault, vhRoot)
 import Aapms.Store.Schema (VaultKind (StoryVault))
+import Aapms.Store.Types
+  ( DeleteMode (..)
+  , NewEntity (..)
+  , NewLevel (..)
+  , NewPack (..)
+  , SectionPlacement (..)
+  , WriteOp (..)
+  , brokenLinks
+  , outcomeId
+  , outcomePath
+  , outcomeRevision
+  , removedIds
+  )
+import Aapms.Store.Write (applyWriteIO)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
 import System.FilePath ((</>))
 
@@ -157,13 +179,13 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
   describe "EX-1 / LAW-10: createTopicFile" $ do
     it "EX-1: 落點依註冊表 dir,crPath = characters/琳達.md,crRevision = Revision 1,toTopic 解得 metaTitle == 琳達" $
       withFreshVault $ \vh -> do
-        r <- createTopicFile vh regWithTypes (mkEntity (TypeKey "character") "characters" "琳達")
+        r <- applyWriteIO vh (CreateTopic (mkEntity (TypeKey "character") "characters" "琳達"))
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> do
-            crPath cr `shouldBe` "characters/琳達.md"
-            crRevision cr `shouldBe` Revision 1
-            raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+            outcomePath cr `shouldBe` "characters/琳達.md"
+            outcomeRevision cr `shouldBe` Revision 1
+            raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
             doc <- parseOrFail raw
             (ent, _frags) <- either (\e -> fail ("toTopic 失敗:" <> show e)) pure (toTopic doc)
             metaTitle (entMeta ent) `shouldBe` "琳達"
@@ -175,14 +197,14 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
           , (TypeKey "item", "items", "測試乙")
           ]
           $ \(ty, dir, title) -> do
-            r <- createTopicFile vh regWithTypes (mkEntity ty dir title)
+            r <- applyWriteIO vh (CreateTopic (mkEntity ty dir title))
             case r of
               Right cr -> do
-                (T.pack dir <> "/") `T.isPrefixOf` T.pack (crPath cr) `shouldBe` True
-                ".md" `T.isSuffixOf` T.pack (crPath cr) `shouldBe` True
+                (T.pack dir <> "/") `T.isPrefixOf` T.pack (outcomePath cr) `shouldBe` True
+                ".md" `T.isSuffixOf` T.pack (outcomePath cr) `shouldBe` True
               Left e -> expectationFailure ("預期成功,得到 " <> show e)
         before <- sort <$> listVaultFiles vh
-        r2 <- createTopicFile vh regWithTypes (mkEntity (TypeKey "unknown-type") "?" "不存在型別")
+        r2 <- applyWriteIO vh (CreateTopic (mkEntity (TypeKey "unknown-type") "?" "不存在型別"))
         r2 `shouldBe` Left (RegistryDirUnknown (TypeKey "unknown-type"))
         after <- sort <$> listVaultFiles vh
         after `shouldBe` before
@@ -204,12 +226,12 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nlRootKind = KScene
                 , nlPath = Nothing
                 }
-        r <- createLevelFile vh regWithTypes nl
+        r <- applyWriteIO vh (CreateLevel nl)
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> do
-            crPath cr `shouldBe` "levels/第一章.md"
-            raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+            outcomePath cr `shouldBe` "levels/第一章.md"
+            raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
             doc <- parseOrFail raw
             (lvl, nodes) <- either (\e -> fail ("toLevel 失敗:" <> show e)) pure (toLevel doc)
             length nodes `shouldBe` 1
@@ -233,12 +255,12 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                   , nlRootKind = KScene
                   , nlPath = Nothing
                   }
-          r <- createLevelFile vh regWithTypes nl
+          r <- applyWriteIO vh (CreateLevel nl)
           case r of
             Left e -> expectationFailure ("預期成功,得到 " <> show e)
             Right cr -> do
-              "levels/" `T.isPrefixOf` T.pack (crPath cr) `shouldBe` True
-              raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+              "levels/" `T.isPrefixOf` T.pack (outcomePath cr) `shouldBe` True
+              raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
               doc <- parseOrFail raw
               (_lvl, nodes) <- either (\e -> fail ("toLevel 失敗:" <> show e)) pure (toLevel doc)
               length nodes `shouldBe` 1
@@ -251,12 +273,12 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
       withFreshVault $ \vh -> do
         let np = mkPack "packs/e3-fixture"
             secs = [mkAssetSection (idOf "ast-0000000a") "a", mkAssetSection (idOf "ast-0000000b") "b", mkAssetSection (idOf "ast-0000000c") "c"]
-        r <- createPackFile vh np secs
+        r <- applyWriteIO vh (CreatePack np secs)
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> do
-            crPath cr `shouldBe` "packs/e3-fixture/pack.md"
-            raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+            outcomePath cr `shouldBe` "packs/e3-fixture/pack.md"
+            raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
             doc <- parseOrFail raw
             (_pack, assets) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc)
             map (metaId . astMeta) assets `shouldBe` [idOf "ast-0000000a", idOf "ast-0000000b", idOf "ast-0000000c"]
@@ -267,11 +289,11 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
           let dir = "packs/l9-fixture-" <> show n
               np = mkPack dir
               secs = [mkAssetSection i ("asset-" <> show k) | (k, i) <- zip [1 :: Int ..] ids]
-          r <- createPackFile vh np secs
+          r <- applyWriteIO vh (CreatePack np secs)
           case r of
             Left e -> expectationFailure ("預期成功,得到 " <> show e)
             Right cr -> do
-              raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+              raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
               doc <- parseOrFail raw
               (_pack, assets) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc)
               length assets `shouldBe` length ids
@@ -295,11 +317,11 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , npAiDisclosure = AiNone
                 }
             secs = [mkAssetSection (idOf "ast-0000000e") "e22"]
-        r <- createPackFile vh npNonDefault secs
+        r <- applyWriteIO vh (CreatePack npNonDefault secs)
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right cr -> do
-            raw <- orDie =<< readTextFile (vhRoot vh </> crPath cr)
+            raw <- orDie =<< readTextFile (vhRoot vh </> outcomePath cr)
             doc <- parseOrFail raw
             (pck, _assets) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc)
             pckVendor pck `shouldBe` npVendor npNonDefault
@@ -326,10 +348,10 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = "新片段內文"
                 , nsPayload = NSFragment emptyOverride
                 }
-        r <- addSection vh (idOf "ent-00000001") AtEnd newFrag
+        r <- applyWriteIO vh (AddSection (idOf "ent-00000001") AtEnd newFrag)
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
-          Right cr -> crId cr `shouldBe` idOf "ent-00000009"
+          Right cr -> outcomeId cr `shouldBe` idOf "ent-00000009"
         afterDoc <- parseOrFail =<< (orDie =<< readTextFile (vhRoot vh </> topicPath))
         -- ent-00000002 在插入點(檔尾追加的插入點是原本最後一節 ent-00000003)之前,不受但書影響
         strictBytesUnchanged beforeDoc afterDoc (idOf "ent-00000002")
@@ -353,7 +375,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsPayload = NSFragment emptyOverride
                 }
         beforeRaw <- orDie =<< readTextFile (vhRoot vh </> packPath)
-        r <- addSection vh (idOf "pck-00000001") AtEnd badSection
+        r <- applyWriteIO vh (AddSection (idOf "pck-00000001") AtEnd badSection)
         r `shouldBe` Left (BadSectionPayload (idOf "ast-00000009") PackDoc)
         afterRaw <- orDie =<< readTextFile (vhRoot vh </> packPath)
         afterRaw `shouldBe` beforeRaw
@@ -373,10 +395,10 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = "新節點內文"
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000002")) newNode
+        r <- applyWriteIO vh (AddSection (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000002")) newNode)
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
-          Right cr -> crId cr `shouldBe` idOf "nod-e0000004"
+          Right cr -> outcomeId cr `shouldBe` idOf "nod-e0000004"
         afterDoc <- parseOrFail =<< (orDie =<< readTextFile (levelE12AbsPath vh))
         -- 開場(nod-e0000002)的子樹是空的(k=0),所以插入點前一段就是開場自己
         map secId (docSections afterDoc)
@@ -406,7 +428,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = ""
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "lvl-e0000001") (UnderParent missing) newNode
+        r <- applyWriteIO vh (AddSection (idOf "lvl-e0000001") (UnderParent missing) newNode)
         r `shouldBe` Left (SectionMissing levelE12RelPath missing)
         afterRaw <- orDie =<< readTextFile (levelE12AbsPath vh)
         afterRaw `shouldBe` beforeRaw
@@ -422,7 +444,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
                 , nsBody = ""
                 , nsPayload = NSNode emptyOverride (NewNode KScene)
                 }
-        r <- addSection vh (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000005")) newNode
+        r <- applyWriteIO vh (AddSection (idOf "lvl-e0000001") (UnderParent (idOf "nod-e0000005")) newNode)
         r `shouldBe` Left (NodeDepthExceeded (idOf "nod-e0000005") 7)
         afterRaw <- orDie =<< readTextFile (levelE12AbsPath vh)
         afterRaw `shouldBe` beforeRaw
@@ -444,7 +466,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
           Just n -> pure (metaRevision (nodMeta n))
           Nothing -> fail "找不到根節點 nod-00000001"
         forM_ [DeleteSafe, DeleteForce] $ \mode -> do
-          r <- deleteNode vh (idOf "nod-00000001") rootRevision mode
+          r <- applyWriteIO vh (DeleteNode (idOf "nod-00000001") rootRevision mode)
           r `shouldBe` Left (CannotDeleteRootNode (idOf "nod-00000001"))
         afterRaw <- orDie =<< readTextFile (vhRoot vh </> levelPath)
         afterRaw `shouldBe` beforeRaw
@@ -456,7 +478,7 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
             victims = map idOf ["ent-00000001", "ent-00000002", "ent-00000003"]
             expectedBroken = (idOf "nod-00000002", Link Involves (localRef (idOf "ent-00000001")) Nothing)
         beforeRaw <- orDie =<< readTextFile (vhRoot vh </> topicPath)
-        rSafe <- deleteNode vh (idOf "ent-00000001") (Revision 1) DeleteSafe
+        rSafe <- applyWriteIO vh (DeleteNode (idOf "ent-00000001") (Revision 1) DeleteSafe)
         case rSafe of
           Left (ReferencedBy i vs) -> do
             i `shouldBe` idOf "ent-00000001"
@@ -465,13 +487,13 @@ spec = describe "graph-core/F008 Aapms.Store.Create" $ do
         afterSafeRaw <- orDie =<< readTextFile (vhRoot vh </> topicPath)
         afterSafeRaw `shouldBe` beforeRaw
 
-        rForce <- deleteNode vh (idOf "ent-00000001") (Revision 1) DeleteForce
+        rForce <- applyWriteIO vh (DeleteNode (idOf "ent-00000001") (Revision 1) DeleteForce)
         case rForce of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right dr -> do
-            drPath dr `shouldBe` topicPath
-            drRemovedIds dr `shouldBe` victims
-            drBrokenLinks dr `shouldSatisfy` elem expectedBroken
+            outcomePath dr `shouldBe` topicPath
+            removedIds dr `shouldBe` victims
+            brokenLinks dr `shouldSatisfy` elem expectedBroken
         stillThere <- doesFileExist (vhRoot vh </> topicPath)
         stillThere `shouldBe` False
 

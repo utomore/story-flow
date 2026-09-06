@@ -6,11 +6,11 @@
 -- @
 -- REG-1  只 import Aapms.Store 就取得到契約 E 的每一個公開符號,由「能不能編譯」證明 -> test_EX2
 -- REG-2  WriteResult 經 Aapms.Store 與經 Aapms.Store.Write 取得的是同一個型別        -> _r2SameType(型別檢查即斷言)
--- LAW-1  aapms-store.cabal 的 exposed-modules 不含 Edit\/Node\/Row\/Row.Sql\/Walk    -> test_LAW1
--- LAW-2  上述五個模組都在 other-modules                                             -> test_LAW2
+-- LAW-1  aapms-store.cabal 的 exposed-modules 不含 Node\/Row\/Row.Sql\/Walk         -> test_LAW1
+-- LAW-2  上述四個模組都在 other-modules                                             -> test_LAW2
 -- LAW-3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_LAW3
 -- LAW-4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_LAW4
--- EX-1  exposed-modules 25 項 + other-modules 5 項 = 30,對帳                       -> test_EX1
+-- EX-1  exposed-modules 28 項 + other-modules 4 項 = 32,對帳                       -> test_EX1
 -- EX-2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_EX2 / _contractEFunctions / ContractETypesCheck
 -- @
 --
@@ -38,11 +38,8 @@ import Aapms.Store
   , initVaultAt
   , openVault
   , closeVault
-    -- 索引維護
+    -- 索引維護(P-001-index-rebuild 的唯一進入點)
   , rebuildIndex
-  , refreshStale
-  , indexFile
-  , unindexFile
     -- 單一 vault 查詢
   , lookupNode
   , lookupByName
@@ -51,8 +48,7 @@ import Aapms.Store
   , linksFrom
   , linksTo
   , loadLinkGraph
-  , search
-    -- 跨 vault 讀
+    -- 跨 vault 讀(全文檢索的唯一進入點是 searchAcross)
   , VaultSet
   , openVaultSet
   , lookupRef
@@ -64,20 +60,11 @@ import Aapms.Store
   , maxAttachedVaults
   , DanglingRef
   , DanglingReason
-    -- 寫入
+    -- 寫入(P-003-node-write 的唯一進入點)
   , SectionPlacement
-  , createTopicFile
-  , createLevelFile
-  , createPackFile
-  , addSection
-  , writeMeta
-  , writeAssetFields
-  , writeBody
-  , addLink
-  , removeLink
-  , upsertLicense
-  , deleteNode
-  , allocateId
+  , WriteOp
+  , WriteOutcome
+  , applyWriteIO
     -- 結果 / 查詢 DTO / 錯誤
   , WriteResult (..)
   , CreateResult
@@ -96,23 +83,23 @@ import qualified Aapms.Store.Write as Write
 spec :: Spec
 spec = describe "graph-core/E001 cabal 可見度界線" $ do
   describe "LAW-1 / LAW-2 / EX-1: library exposed-modules / other-modules" $ do
-    it "LAW-1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Row.Sql / .Walk" $ do
+    it "LAW-1: exposed-modules 不含 Aapms.Store.Node / .Row / .Row.Sql / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
       filter (`elem` movedModules) exposed `shouldBe` []
 
-    it "LAW-2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Row.Sql / .Walk" $ do
+    it "LAW-2: other-modules 都含 Aapms.Store.Node / .Row / .Row.Sql / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "EX-1: exposed-modules 29 項 + other-modules 5 項 = 34,對帳" $ do
+    it "EX-1: exposed-modules 28 項 + other-modules 4 項 = 32,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort exposed `shouldBe` sort expectedExposed
       sort other `shouldBe` sort movedModules
-      (length exposed + length other) `shouldBe` 34
+      (length exposed + length other) `shouldBe` 32
 
   describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
@@ -150,9 +137,6 @@ _contractEFunctions =
   , openVault
   , closeVault
   , rebuildIndex
-  , refreshStale
-  , indexFile
-  , unindexFile
   , lookupNode
   , lookupByName
   , listNodes
@@ -160,7 +144,6 @@ _contractEFunctions =
   , linksFrom
   , linksTo
   , loadLinkGraph
-  , search
   , openVaultSet
   , lookupRef
   , listAcross
@@ -169,18 +152,7 @@ _contractEFunctions =
   , closeVaultSet
   , vaultSetIds
   , maxAttachedVaults
-  , createTopicFile
-  , createLevelFile
-  , createPackFile
-  , addSection
-  , writeMeta
-  , writeAssetFields
-  , writeBody
-  , addLink
-  , removeLink
-  , upsertLicense
-  , deleteNode
-  , allocateId
+  , applyWriteIO
   )
 
 -- | EX-2:契約 E 的全部型別符號各引用一次(型別層級,只需要名字在作用域內)。
@@ -192,6 +164,8 @@ type ContractETypesCheck =
   , DanglingRef
   , DanglingReason
   , SectionPlacement
+  , WriteOp
+  , WriteOutcome
   , WriteResult
   , CreateResult
   , DeleteResult
@@ -211,10 +185,11 @@ type ContractETypesCheck =
 -- | 2026-09-06 純函式重構:'Aapms.Store.Row' 拆成純的列轉換(原名)與碰 sqlite 的
 -- 'Aapms.Store.Row.Sql';後者同樣是內部模組,因此一起列進 other-modules。清單
 -- 從 4 項長成 5 項,LAW-1 \/ LAW-2 的判準(這些模組不得 exposed、必須 other)不變。
+-- | 2026-09-06 退場波:@Aapms.Store.Edit@ 整個模組退場(舊寫入路徑的共用紀律,
+-- 與 'Aapms.Store.Editing.applyWrite' 並存的第二份實作),清單從 5 項回到 4 項。
 movedModules :: [String]
 movedModules =
-  [ "Aapms.Store.Edit"
-  , "Aapms.Store.Node"
+  [ "Aapms.Store.Node"
   , "Aapms.Store.Row"
   , "Aapms.Store.Row.Sql"
   , "Aapms.Store.Walk"
@@ -241,11 +216,14 @@ movedModules =
 -- 全部 shell 層,見 @.lawful\/modules.md@)。它們是 @!@ 列的落地與跨套件消費端
 -- 的接點,因此 exposed;清單從 25 項長成 29 項,對帳總數 30 → 34。E001 的五個
 -- 內部模組一項未動,LAW-1 \/ LAW-2 的判準不受影響。
+--
+-- 2026-09-06 退場波:@Aapms.Store.Create@(五個舊建檔\/刪除 IO 函式)退場,
+-- exposed 從 29 項回到 28 項;@Aapms.Store.Edit@ 一併退場,other-modules 從
+-- 5 項回到 4 項,對帳總數 34 → 32。
 expectedExposed :: [String]
 expectedExposed =
   [ "Aapms.Store"
   , "Aapms.Store.Atomic"
-  , "Aapms.Store.Create"
   , "Aapms.Store.Editing"
   , "Aapms.Store.Editing.Internal"
   , "Aapms.Store.Effect.Clock"

@@ -34,7 +34,7 @@ import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Effectful (Eff, (:>))
 
-import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, renderId)
+import Aapms.Core.Id (Id, IdPrefix (PPrj), VaultId, newId, renderId)
 import Aapms.Store.Effect.Clock (Clock, now)
 import Aapms.Store.Types (VaultMarker (..))
 import Aapms.Workspace.Effect.HubFile
@@ -231,18 +231,26 @@ applyLifecycle hub = \case
   ForgetVault sel di -> case lookupSelector hub sel of
     Left err -> pure (Left err)
     Right entry -> do
-      let hub' = removeVault (veId entry) hub
-      saved <- writeHub (renderHub hub')
-      case saved of
-        Left err -> pure (Left err)
-        Right () -> do
-          case di of
-            KeepIndex -> pure ()
-            DeleteIndex -> () <$ removeIndexDb (vePath entry)
-          pure
-            ( Right
-                emptyOutcome {outcomeHub = Just hub', outcomeEntry = Just entry}
-            )
+      -- 要刪索引才驗身分,而且驗在__動任何東西之前__:漂移時中樞與目錄樹都零
+      -- 副作用(P-005-vault-lifecycle LAW-21)。'KeepIndex' 什麼都不刪,不驗。
+      guarded <- case di of
+        KeepIndex -> pure Nothing
+        DeleteIndex -> driftErrorAt entry
+      case guarded of
+        Just err -> pure (Left err)
+        Nothing -> do
+          let hub' = removeVault (veId entry) hub
+          saved <- writeHub (renderHub hub')
+          case saved of
+            Left err -> pure (Left err)
+            Right () -> do
+              case di of
+                KeepIndex -> pure ()
+                DeleteIndex -> () <$ removeIndexDb (vePath entry)
+              pure
+                ( Right
+                    emptyOutcome {outcomeHub = Just hub', outcomeEntry = Just entry}
+                )
   CheckVaults -> do
     results <- mapM refOfEntry (hubVaults hub)
     pure (Right emptyOutcome {outcomeIssues = [i | Left i <- results]})
@@ -265,14 +273,23 @@ applyLifecycle hub = \case
           Right () ->
             Right emptyOutcome {outcomeHub = Just hub', outcomeIssues = issues}
   Purge scope -> do
-    (hubRemoved, thumbs) <- purgeHubFiles
-    indexes <- case scope of
-      PurgeHubOnly -> pure []
-      PurgeAllVaults -> dropIndexes (hubVaults hub)
-    pure
-      ( Right
-          emptyOutcome {outcomePurge = Just (PurgeReport hubRemoved thumbs indexes)}
-      )
+    -- 全有或全無:'PurgeAllVaults' 先對中樞每一列驗身分,任一列漂移就整個拒,
+    -- 連中樞檔與縮圖都不刪(P-005-vault-lifecycle LAW-22)。'PurgeHubOnly' 不碰
+    -- 任何 vault,不驗。
+    guarded <- case scope of
+      PurgeHubOnly -> pure Nothing
+      PurgeAllVaults -> firstDrift (hubVaults hub)
+    case guarded of
+      Just err -> pure (Left err)
+      Nothing -> do
+        (hubRemoved, thumbs) <- purgeHubFiles
+        indexes <- case scope of
+          PurgeHubOnly -> pure []
+          PurgeAllVaults -> dropIndexes (hubVaults hub)
+        pure
+          ( Right
+              emptyOutcome {outcomePurge = Just (PurgeReport hubRemoved thumbs indexes)}
+          )
   RegisterProject dir name
     | T.null (T.strip name) -> pure (Left (InvalidName name))
     | otherwise -> do
@@ -329,6 +346,36 @@ emptyOutcome =
 -- 對空底稿的結果),四段都空。
 emptyHub :: Hub
 emptyHub = mkHub [] [] Nothing (ToolsConfig Nothing) ""
+
+-- | 私有:讀這一列路徑上的 marker,回__實際住在那裡__的 id;只有讀得到而且與中樞
+-- 記的不同時才是 @Just@。
+--
+-- 與純側的 'Aapms.Workspace.Types.driftAt' 同語意:讀不到(marker 檔不在、或讀壞
+-- 了)一律不算漂移,那是 @checkVaults@ 的降級管道要報告的事,不是刪索引的守門要
+-- 擋的事。
+driftIdAt :: Markers :> es => VaultEntry -> Eff es (Maybe VaultId)
+driftIdAt e = do
+  read' <- readMarkerAt (vePath e)
+  pure $ case read' of
+    Right m | vmId m /= veId e -> Just (vmId m)
+    _ -> Nothing
+
+-- | 私有:一列的守門,漂移時直接給出 'Aapms.Workspace.Types.DeleteTargetIdDrift'
+-- 三個值(中樞那一列的 id、它的路徑、實際的 id)。
+driftErrorAt :: Markers :> es => VaultEntry -> Eff es (Maybe WorkspaceError)
+driftErrorAt e = fmap (fmap (DeleteTargetIdDrift (veId e) (vePath e))) (driftIdAt e)
+
+-- | 私有:中樞順序逐列驗身分,回__第一列__漂移的錯誤;全部相符回 @Nothing@。
+--
+-- 一列一列短路(找到就不再讀後面的 marker),所以「第一列」是中樞的順序,
+-- 與 LAW-22 的 @take 1 (filter (isJust . driftAt vw) (hubVaults h))@ 同一列。
+firstDrift :: Markers :> es => [VaultEntry] -> Eff es (Maybe WorkspaceError)
+firstDrift [] = pure Nothing
+firstDrift (e : es) = do
+  err <- driftErrorAt e
+  case err of
+    Just _ -> pure err
+    Nothing -> firstDrift es
 
 -- | 私有:逐一刪除中樞每一列的 @index.db@,回__真的被刪掉__的那些路徑(保序;
 -- 呼叫前就不存在的不列入)。

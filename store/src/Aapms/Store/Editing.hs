@@ -5,15 +5,15 @@
 -- 節的正文切片、從已解析的 'Aapms.Md.Document.Document' 取出目標目前的
 -- 'Aapms.Core.Meta.Meta' \/ 'Aapms.Core.Asset.Asset'、檔名淨化與結果換型
 -- __全部是純函式__ ——它們只吃已經讀進記憶體的值,不需要 'Aapms.Store.Marker.VaultHandle'、
--- 不開檔、不碰 SQLite。集中在這裡之後,"Aapms.Store.Edit" 與 "Aapms.Store.Create"
--- 剩下的就只有 IO。
+-- 不開檔、不碰 SQLite。2026-09-06 退場波之後,舊的 @Aapms.Store.Edit@ \/
+-- @Aapms.Store.Create@ 兩個直接 IO 模組已經退場,寫入的唯一 shell 進入點是
+-- 'Aapms.Store.Write.applyWriteIO',而它跑的就是本模組的 'applyWrite'。
 --
 -- __依賴方向__:本模組只 import 型別層(@aapms-core@ 的值型別、"Aapms.Md.Document"、
 -- "Aapms.Md.Error"、"Aapms.Store.Types")與純模組("Aapms.Md.Parse" \/
 -- "Aapms.Md.Render"),__不 import 任何碰 IO 的 @Aapms.Store.*@__
--- (Edit \/ Create \/ Write \/ Index \/ Query \/ Marker \/ Schema \/ Atomic \/
--- Walk \/ MultiVault \/ Error)。"Aapms.Store.Edit" 與 "Aapms.Store.Create"
--- 原樣 re-export 自己那一份,匯出清單與既有呼叫端逐字不變。
+-- (Write \/ Index \/ Query \/ Marker \/ Schema \/ Atomic \/
+-- Walk \/ MultiVault \/ Error)。
 module Aapms.Store.Editing
   ( -- * 錯誤翻譯
     orMd
@@ -124,7 +124,7 @@ orMd fp = either (Left . MdWriteFailed fp) Right
 -- | 節點 id、呼叫端手上的 revision、檔案裡的實際 revision。
 --
 -- 不符即 'RevisionMismatch',而呼叫端在這之後才會碰到
--- 'Aapms.Store.Edit.commit' —— __一個位元組都不會被寫出去__
+-- 寫檔那一步('Aapms.Store.Effect.VaultFs.writeMarkdown')—— __一個位元組都不會被寫出去__
 -- (system.md 全域錯誤處理策略第 6 條)。
 checkRevision :: Id -> Revision -> Revision -> Either StoreError ()
 checkRevision i expected actual
@@ -143,10 +143,10 @@ sectionBodyRaw le t = nl <> T.strip t <> nl
 
 -- 共用:讀出目標目前的 Meta / Asset ---------------------------------------------
 --
--- 'Aapms.Store.Write' 與 'Aapms.Store.Create' 都需要「目標目前真正的 Meta」
+-- 'planEdit' 的改寫類請求都需要「目標目前真正的 Meta」
 -- 才能做樂觀鎖比對(不可逆決定 2:來源是重讀的檔案,不是索引)。四種文件的
 -- 檔案層主體與節分別由 'toTopic' \/ 'toLevel' \/ 'toPack' \/ 'toLicenses' 解讀,
--- 派送邏輯集中在這裡,'Write' 與 'Create' 都不用各自重寫一份。
+-- 派送邏輯集中在這裡,每一種請求都不用各自重寫一份。
 
 -- | @path@、目標所在文件的種類、目標 id、'Aapms.Store.Types.locAnchor'(定位
 -- 結果)→ 目標目前的 'Meta'。找不到回 'SectionMissing'。

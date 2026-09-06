@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 
 -- | P-005-vault-lifecycle 的觀察點:四個純解譯器一起跑到底,以及 @checkVaults@
 -- 的參考實作。

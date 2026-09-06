@@ -1,5 +1,4 @@
--- | 條件查詢、關聯查詢、全文檢索與 facet:單一 vault 的查詢出口
--- (graph-core\/F006 + graph-core\/F007)。
+-- | 條件查詢與關聯查詢:單一 vault 的查詢出口(graph-core\/F006)。
 --
 -- 'linksTo' 是索引存在的主要理由之一:關聯只存在來源端(ADR-002),檔案裡
 -- 查不到「誰指向我」,只有索引做得到反向查詢。
@@ -8,19 +7,13 @@
 -- 可丟棄的索引裡再存一份權威副本;design.md 明寫「@body@ 進 FTS 但不進
 -- @nodes@」。
 --
--- == 全文檢索的兩條路(graph-core\/F007;ADR-016)
+-- == 全文檢索不在這裡(P-002-search,2026-09-06 退場波)
 --
--- 'search' 把文字條件交給 "Aapms.Store.Tokenize" 的 'Aapms.Store.Tokenize.routeOf'
--- 決定走 @fts_tri@(trigram)、@fts_cjk@(unicode61 + 預切)或兩者,兩邊的
--- 命中以相關度合併去重。兩條路都給得出 bm25 分數,'shScore' 因此是 'Double'
--- 而不是 @Maybe Double@。__只有這兩條路,沒有第三條__:ADR-016 第二條讓
--- @LIKE@ 子字串掃描退場(它是 trigram 三字元下限的權宜之計),而 LAW-9 \/ LAW-10
--- 把「每個查詢字串走哪一條」完全釘死在 'Aapms.Store.Tokenize.routeOf' 與兩個
--- @MATCH@ 運算式上,沒有留給第三種比對方式的位置。
---
--- 'shSnippet' __一律取自 @fts_tri@ 的原文__,與這一筆命中來自哪張表無關
--- (graph-core\/F007 的不可逆決定 DEC-6):@fts_cjk@ 存的是預切後的 n-gram 串,
--- 它的視窗片段不是原文的子字串,不能給人看。
+-- 舊的單 vault @search@ 與它底下整棵私有子樹(@matchHits@ \/ @mergeHits@ \/
+-- @snippetOf@ \/ @computeFacets@ …)是與新核心並存的第二份實作,已經退場。
+-- 全文檢索現在只有一條:pure 層的 'Aapms.Store.Search.searchVaults',shell
+-- 進入點是 'Aapms.Store.MultiVault.searchAcross'(單一 vault 就是集合裡只有
+-- 一個 vault 的特例)。
 --
 -- 本模組的__型別__('NodeFilter' \/ 'SearchQuery' \/ 'SearchHit' \/ 'FacetCounts' \/
 -- 'SearchResult' 與兩個 @empty*@ 預設值)宣告在 "Aapms.Store.Types",這裡只有
@@ -50,19 +43,16 @@ module Aapms.Store.Query
   , linksTo
   , loadLinkGraph
 
-    -- * 全文檢索(graph-core\/F007)
+    -- * 全文檢索的型別(宣告在 "Aapms.Store.Types",本模組原樣 re-export)
   , SearchQuery (..)
   , emptySearchQuery
   , SearchHit (..)
   , FacetCounts (..)
   , SearchResult (..)
-  , search
   ) where
 
-import Data.List (sortBy)
 import Data.Maybe (listToMaybe, mapMaybe)
 import qualified Data.Map.Strict as M
-import Data.Ord (Down (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
@@ -101,13 +91,6 @@ import Aapms.Store.Types
   , VaultMarker (..)
   , emptyNodeFilter
   , emptySearchQuery
-  )
-import Aapms.Store.Tokenize
-  ( cjkMatchExpr
-  , routeOf
-  , triMatchExpr
-  , usesCjk
-  , usesTrigram
   )
 import System.FilePath ((</>))
 
@@ -519,295 +502,3 @@ loadLinkGraph vh = do
       IO [LinkRow]
   pure (M.fromListWith (flip (++)) [(s, [l]) | (s, l) <- mapMaybe toLink rows])
 
---------------------------------------------------------------------------------
--- 全文檢索(契約 F,graph-core/F007)
-
--- | 單一 vault 的全文檢索出口(契約 E)。
---
--- 不會失敗:索引是衍生物,查不到就是空結果,沒有 'Aapms.Store.Error.StoreError'
--- 這一層——與 'listNodes' \/ 'lookupNode' 一致。
-search :: VaultHandle -> SearchQuery -> IO SearchResult
-search vh q = do
-  let filt = sqFilter q
-      textM = normalizeText (sqText q)
-  merged <- matchHits vh textM filt
-  let total = length merged
-      sorted = sortHits merged
-      paged = takePage filt sorted
-      byId = M.fromList [(hId h, h) | h <- paged]
-  metas <- metasFor vh (map (renderId . hId) paged)
-  let vid = vmId (vhMarker vh)
-      toSearchHit m =
-        SearchHit
-          { shVault = vid
-          , shMeta = m
-          , shSnippet = maybe "" hSnippet (M.lookup (metaId m) byId)
-          , shScore = maybe 0 hScore (M.lookup (metaId m) byId)
-          }
-  facets <-
-    if sqFacets q
-      then Just <$> computeFacets vh textM filt total
-      else pure Nothing
-  pure
-    SearchResult
-      { srHits = map toSearchHit metas
-      , srTotal = total
-      , srFacets = facets
-      }
-
--- | 一筆內部命中:哪個節點、相關度、片段。沒有文字條件時 'hScore' 恆 @0@、
--- 'hSnippet' 恆 @""@(對照 'listNodes' 語意,見 LAW-12)。
-data Hit = Hit
-  { hId :: Id
-  , hScore :: Double
-  , hSnippet :: Text
-  }
-  deriving stock (Show, Eq)
-
-normalizeText :: Maybe Text -> Maybe Text
-normalizeText mt = case T.strip <$> mt of
-  Nothing -> Nothing
-  Just s | T.null s -> Nothing
-  Just s -> Just s
-
--- | 沒有文字條件時退化成 'listNodes' 的結構條件(不套用 'nfLimit'\/'nfOffset',
--- 分頁在 'search' 統一處理);有文字條件時依 'routeOf' 決定的路由查一張或兩張
--- FTS 表,兩邊的命中以 'shScore' 較大者去重(DEC-2)。
-matchHits :: VaultHandle -> Maybe Text -> NodeFilter -> IO [Hit]
-matchHits vh Nothing filt = do
-  ids <- structuralIds vh filt
-  pure [Hit i 0 "" | i <- ids]
-matchHits vh (Just txt) filt = do
-  let route = routeOf txt
-  triHits <-
-    if usesTrigram route
-      then case triMatchExpr txt of
-        Just expr -> ftsHits vh "fts_tri" expr txt filt
-        Nothing -> pure []
-      else pure []
-  cjkHits <-
-    if usesCjk route
-      then case cjkMatchExpr txt of
-        Just expr -> ftsHits vh "fts_cjk" expr txt filt
-        Nothing -> pure []
-      else pure []
-  pure (mergeHits (triHits ++ cjkHits))
-
--- | 兩張表都命中同一個節點時,取分數較大者(DEC-2:不是相加)。
-mergeHits :: [Hit] -> [Hit]
-mergeHits hs = M.elems (M.fromListWith pickBetter [(hId h, h) | h <- hs])
-  where
-    pickBetter new old = if hScore new >= hScore old then new else old
-
--- | 分數非遞增,分數相同時 id 遞增(LAW-14)。
-sortHits :: [Hit] -> [Hit]
-sortHits = sortBy (\a b -> compare (Down (hScore a)) (Down (hScore b)) <> compare (hId a) (hId b))
-
-takePage :: NodeFilter -> [Hit] -> [Hit]
-takePage filt = take (nfLimit filt) . drop (nfOffset filt)
-
--- | 全部符合結構條件的 id(不套用 'nfLimit'\/'nfOffset')。
-structuralIds :: VaultHandle -> NodeFilter -> IO [Id]
-structuralIds vh filt = do
-  let (cond, args) = whereOf filt
-      sql = "SELECT n.id " <> baseFrom <> " WHERE 1 = 1" <> cond <> " ORDER BY n.id"
-  rows <- query (vhConn vh) (Query sql) args :: IO [Only Text]
-  pure [i | Only t <- rows, Right (_, i) <- [parseId t]]
-
--- | 對一張 FTS 表跑 @MATCH@,附上結構條件,回傳每個命中節點的
--- (id, bm25 取負, 片段)。
---
--- 參數依序是:@table@ 要 @MATCH@ 的表名(@fts_tri@ 或 @fts_cjk@)、
--- @matchExpr@ 該表對應的 @MATCH@ 運算式、@queryText@ 使用者原本的查詢字串
--- (已去頭尾空白)、@filt@ 結構條件。
---
--- __片段一律取自該節點在 @fts_tri@ 的六欄原文__,與 @table@ 是哪一張無關
--- (不可逆決定 DEC-6 \/ 待確認假設 ASM-3)。@fts_cjk@ 存的是「先所有 unigram、再所有
--- bigram」的 token 串,@snippet()@ 對它取出的視窗不是原文的子字串,接不回
--- 連續文字。spec 對片段只要求兩件事:有文字條件且命中時非空;@queryText@ 在
--- 該節點的 @fts_tri@ 原文裡確實出現時,片段必須包含它。視窗怎麼挑(先找完整
--- 查詢字串、再找個別詞、都對不上時取第一個非空欄位的開頭,長度取多少)是實作
--- 層級的選擇。
---
--- 注意 CJK-only 的查詢(如二字詞)在 @fts_tri@ 上沒有 @MATCH@,FTS5 的
--- @snippet()@ 輔助函式因此不可用,片段要由 @fts_tri@ 的欄位內容自行取窗。
---
--- __實作筆記__:取片段__不__與 @MATCH@ 查詢同一句 SQL 自我 JOIN @fts_tri@
--- (@table == "fts_tri"@ 時會把同一張虛擬表接兩次)——實測 FTS5 的
--- @MATCH@\/@bm25()@ 認的是隱藏欄位「表名」而非 SQL 別名,同一句話裡出現兩次
--- 會讓 SQLite 回報 @ambiguous column name@。因此片段改由 'ftsTriSnippets'
--- batch 成獨立一次查詢,不受 @table@ 是哪一張影響。
-ftsHits :: VaultHandle -> Text -> Text -> Text -> NodeFilter -> IO [Hit]
-ftsHits vh table matchExpr queryText filt = do
-  let (cond, args) = whereOf filt
-      sql =
-        "SELECT n.id, -bm25("
-          <> table
-          <> ")\
-             \ FROM "
-          <> table
-          <> " JOIN fts_map fm ON fm.rowid = "
-          <> table
-          <> ".rowid\
-             \ JOIN nodes n ON n.id = fm.node_id\
-             \ LEFT JOIN assets a ON a.id = n.id\
-             \ LEFT JOIN packs p ON p.id = n.id\
-             \ WHERE "
-          <> table
-          <> " MATCH ?"
-          <> cond
-      params = sText matchExpr : args
-  rows <- query (vhConn vh) (Query sql) params :: IO [(Text, Double)]
-  let hits = [(i, sc) | (idText, sc) <- rows, Right (_, i) <- [parseId idText]]
-  snippets <- ftsTriSnippets vh queryText (map fst hits)
-  pure [Hit i sc (M.findWithDefault "" i snippets) | (i, sc) <- hits]
-
--- | 一批命中節點 → 各自的 'snippetOf' 結果,一次查詢(避免 N+1)。查不到
--- @fts_tri@ 列的 id(理論上不會發生,兩張表的列同進同出)乾脆不放進 map,
--- 'ftsHits' 用 'M.findWithDefault' 落到空字串。
-ftsTriSnippets :: VaultHandle -> Text -> [Id] -> IO (M.Map Id Text)
-ftsTriSnippets _ _ [] = pure M.empty
-ftsTriSnippets vh queryText ids = do
-  let idTexts = map renderId ids
-      sql =
-        "SELECT n.id, ft.title, ft.summary, ft.body, ft.aliases, ft.tags, ft.name\
-        \ FROM nodes n\
-        \ JOIN fts_map fm ON fm.node_id = n.id\
-        \ JOIN fts_tri ft ON ft.rowid = fm.rowid\
-        \ WHERE n.id IN "
-          <> inList (length idTexts)
-  rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [FtsTriRow]
-  pure
-    (M.fromList
-      [ (i, snippetOf queryText (ftsTriColumns r))
-      | r <- rows
-      , Right (_, i) <- [parseId (ftrId r)]
-      ])
-
--- | 一列 @fts_tri@ 原文:命中節點的 id 與六欄原文,順序對應 SQL 的
--- @SELECT@(DEC-6:片段一律從這裡取)。
-data FtsTriRow = FtsTriRow
-  { ftrId :: Text
-  , ftrTitle :: Text
-  , ftrSummary :: Text
-  , ftrBody :: Text
-  , ftrAliases :: Text
-  , ftrTags :: Text
-  , ftrName :: Text
-  }
-
-instance FromRow FtsTriRow where
-  fromRow =
-    FtsTriRow
-      <$> field -- n.id
-      <*> field -- ft.title
-      <*> field -- ft.summary
-      <*> field -- ft.body
-      <*> field -- ft.aliases
-      <*> field -- ft.tags
-      <*> field -- ft.name
-
-ftsTriColumns :: FtsTriRow -> [Text]
-ftsTriColumns r = [ftrTitle r, ftrSummary r, ftrBody r, ftrAliases r, ftrTags r, ftrName r]
-
--- | 從 @fts_tri@ 六欄原文取一段片段(ASM-3\/DEC-6)。先找 'queryText' 在哪一欄裡以
--- 連續子字串出現,取到就以那個出現位置為中心裁窗、片段裡必定含
--- 'queryText'(spec 對片段的第二條要求);沒有任何一欄含 'queryText' 時,
--- 退而取第一個非空欄位的開頭。裁掉的地方補一個省略號 @…@。視窗長度、挑選
--- 順序都是實作層級的選擇,spec 未逐字規定。
-snippetOf :: Text -> [Text] -> Text
-snippetOf queryText cols = case windowed of
-  Just s -> s
-  Nothing -> case filter (not . T.null) cols of
-    (c : _) -> truncateFront c
-    [] -> ""
-  where
-    windowed
-      | T.null queryText = Nothing
-      | otherwise =
-          listToMaybe
-            [ truncateBack before <> queryText <> truncateFront after
-            | c <- cols
-            , not (T.null c)
-            , let (before, rest) = T.breakOn queryText c
-            , not (T.null rest)
-            , let after = T.drop (T.length queryText) rest
-            ]
-
-    truncateBack t
-      | T.length t > snippetContext = "\x2026" <> T.takeEnd snippetContext t
-      | otherwise = t
-
-    truncateFront t
-      | T.length t > snippetContext = T.take snippetContext t <> "\x2026"
-      | otherwise = t
-
--- | 片段視窗一側取多少字元(不含省略號),實作層級的選擇。
-snippetContext :: Int
-snippetContext = 24
-
--- | 五個分面維度。每個維度各自忽略自己的條件(DEC-5\/LAW-17)但保留其他結構條件與
--- 文字條件,計算候選集再依維度分組計數。
-computeFacets :: VaultHandle -> Maybe Text -> NodeFilter -> Int -> IO FacetCounts
-computeFacets vh textM filt total = do
-  types <- facetColumn vh textM filt {nfTypes = []} "n.type"
-  tags <- facetTags vh textM filt {nfTags = []}
-  owners <- facetColumn vh textM filt {nfOwner = Nothing} "n.owner"
-  licenses <- facetLicenses vh textM filt {nfLicense = Nothing}
-  let (VaultId vidText) = vmId (vhMarker vh)
-  pure
-    FacetCounts
-      { fcTypes = types
-      , fcVaults = [(vidText, total)]
-      , fcTags = tags
-      , fcOwners = owners
-      , fcLicenses = licenses
-      }
-
--- | 忽略某一維度後仍符合的候選節點 id(文字條件照舊套用)。
-candidateIds :: VaultHandle -> Maybe Text -> NodeFilter -> IO [Id]
-candidateIds vh textM filt = map hId <$> matchHits vh textM filt
-
-facetColumn :: VaultHandle -> Maybe Text -> NodeFilter -> Text -> IO [(Text, Int)]
-facetColumn vh textM filt column = do
-  ids <- candidateIds vh textM filt
-  if null ids
-    then pure []
-    else do
-      let idTexts = map renderId ids
-          sql = "SELECT " <> column <> " FROM nodes n WHERE n.id IN " <> inList (length idTexts)
-      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only (Maybe Text)]
-      pure (tally [v | Only (Just v) <- rows])
-
-facetTags :: VaultHandle -> Maybe Text -> NodeFilter -> IO [(Text, Int)]
-facetTags vh textM filt = do
-  ids <- candidateIds vh textM filt
-  if null ids
-    then pure []
-    else do
-      let idTexts = map renderId ids
-          sql = "SELECT tag FROM node_tags WHERE node_id IN " <> inList (length idTexts)
-      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only Text]
-      pure (tally [t | Only t <- rows])
-
-facetLicenses :: VaultHandle -> Maybe Text -> NodeFilter -> IO [(Text, Int)]
-facetLicenses vh textM filt = do
-  ids <- candidateIds vh textM filt
-  if null ids
-    then pure []
-    else do
-      let idTexts = map renderId ids
-          sql =
-            "SELECT COALESCE(a.license, p.license) FROM nodes n\
-            \ LEFT JOIN assets a ON a.id = n.id\
-            \ LEFT JOIN packs p ON p.id = n.id\
-            \ WHERE n.id IN "
-              <> inList (length idTexts)
-      rows <- query (vhConn vh) (Query sql) (map sText idTexts) :: IO [Only (Maybe Text)]
-      pure (tally [v | Only (Just v) <- rows])
-
--- | 計數遞減、同計數以值遞增(契約 F 'FacetCounts' 的說明)。
-tally :: [Text] -> [(Text, Int)]
-tally xs =
-  sortBy (\(v1, c1) (v2, c2) -> compare (Down c1) (Down c2) <> compare v1 v2)
-    (M.toList (M.fromListWith (+) [(x, 1 :: Int) | x <- xs]))

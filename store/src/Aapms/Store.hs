@@ -5,12 +5,11 @@
 -- 「Markdown 是真相、SQLite 是衍生」在這裡被真正實現。
 --
 -- graph-core\/F005 交付了讀取管線的第一段:@openVault@:讀 marker → 開索引 →
--- schema 判斷。graph-core\/F006 接上索引維護(@rebuildIndex@\/@refreshStale@\/
--- @indexFile@\/@unindexFile@)與單一 vault 查詢(@lookupNode@\/@listNodes@ 等,
--- 不含全文檢索);graph-core\/F008 接上寫入('Aapms.Store.Create' 的建檔\/增節\/
--- 刪除與 'Aapms.Store.Write' 的改寫\/配號);graph-core\/F009 接上跨 vault 讀
--- ('Aapms.Store.MultiVault' 的 'openVaultSet' 與三個 @*Across@ \/ 'lookupRef' \/
--- 'checkReferences')。
+-- schema 判斷。索引維護、全文檢索與寫入現在各只有__一條__ shell 進入點
+-- (2026-09-06 退場波):'rebuildIndex'(P-001-index-rebuild)、
+-- 'searchAcross'(P-002-search)、'applyWriteIO'(P-003-node-write);
+-- 單一 vault 的條件查詢與關聯查詢(@lookupNode@\/@listNodes@ 等)在
+-- 'Aapms.Store.Query',跨 vault 讀在 'Aapms.Store.MultiVault'。
 --
 -- 典型用法:
 --
@@ -24,17 +23,17 @@
 --
 -- 'Aapms.Store.Row' __不__ re-export——那是內部列轉換,呼叫端只透過
 -- 'Aapms.Store.Index'\/'Aapms.Store.Query' 的函式互動,不直接碰
--- @SQLData@\/@FromRow@ 這層。同理 'Aapms.Store.Edit'(寫入紀律)與
--- 'Aapms.Store.Node'(Level 樹的純推導)是 graph-core\/F008 的內部模組,不進門面;
--- 它們的結果型別 'Aapms.Store.Types.WriteResult' 由 'Aapms.Store.Write' 帶進來
--- ——契約 E 的寫入組回的就是它,門面少了它等於少一半簽名。
+-- @SQLData@\/@FromRow@ 這層。同理 'Aapms.Store.Node'(Level 樹的純推導)是
+-- 寫入路徑的內部模組,不進門面。
 --
 -- 'Aapms.Store.Types'(本套件全部對外型別的宣告)也 re-export:各功能模組
 -- 本來就把自己那一份原樣帶出來,門面收下整個模組讓「只要型別」的消費端
--- (@workspace@ \/ @service@ 的 Types)有一個不碰 IO 的 import 目標。
+-- (@workspace@ \/ @service@ 的 Types)有一個不碰 IO 的 import 目標;建檔\/
+-- 刪除的輸入與結果型別('NewEntity' \/ 'NewLevel' \/ 'NewPack' \/
+-- 'SectionPlacement' \/ 'CreateResult' \/ 'DeleteMode' \/ 'DeleteResult')
+-- 就是從那裡來的。
 module Aapms.Store
   ( module Aapms.Store.Atomic
-  , module Aapms.Store.Create
   , module Aapms.Store.Error
   , module Aapms.Store.Index
   , module Aapms.Store.Marker
@@ -46,7 +45,6 @@ module Aapms.Store
   ) where
 
 import Aapms.Store.Atomic
-import Aapms.Store.Create
 import Aapms.Store.Error
 import Aapms.Store.Index
 import Aapms.Store.Marker

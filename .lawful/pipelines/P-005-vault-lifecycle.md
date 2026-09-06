@@ -112,6 +112,7 @@ updated: 2026-09-06
   - |- either (const (fmap (const ()) (lcResult run) == fmap (const ()) (lookupSelector h s) and lcHubText run == hubTextIn hw and lcVaults run == vw)) (const (fmap outcomeEntry (lcResult run) == fmap Just (lookupSelector h s) and fmap (fmap hubVaults . outcomeHub) (lcResult run) == fmap (Just . hubVaults . flip removeVault h . veId) (lookupSelector h s))) (lookupSelector h s)
 - LAW-10 [relation] forget 的 DeleteIndex 只刪那個 vault 的 index.db,其餘目錄樹不動;KeepIndex 連它也不動
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, s in Text, e in rights [lookupSelector h s], runK in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s KeepIndex)), runD in simulateLifecycle t hw vw h (applyLifecycle h (ForgetVault s DeleteIndex))
+  - given all (isNothing . driftAt vw) (rights [lookupSelector h s])
   - |- lcVaults runK == vw and not (vwHasIndex (lcVaults runD) (vePath e)) and vwWithout [vePath e] (lcVaults runD) == vwWithout [vePath e] vw and vwMarker (lcVaults runD) (vePath e) == vwMarker vw (vePath e)
 - LAW-11 [equiv] checkVaults 等於中樞順序逐列重讀 marker 的降級清單,不展開 refs,不寫任何東西
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, run in simulateLifecycle t hw vw h (applyLifecycle h CheckVaults), o in rights [lcResult run]
@@ -202,6 +203,6 @@ updated: 2026-09-06
   - 保護:LAW-1 到 LAW-20、全部 EX(沒有 law 直接引用 `ensureCacheDir`)
   - 重委派:impl(`HubFile` 的 op、兩個解譯器、`applyLifecycle` 的 SetupHub);qa 無
 - REV-4(2026-09-06,依退場波 impl 提問「`DeleteTargetIdDrift` 在 ForgetVault / Purge 沒有任何通道,舊 WAVE-4 裁決 B『刪索引前先驗身分』在搬遷時從 law 消失」;開發者裁決補回守門):加觀察點 `driftAt`;LAW-9 / LAW-13 加 given 排除漂移;新增 LAW-21(forget 的 DeleteIndex 漂移即拒、零副作用)與 LAW-22(purge AllVaults 全有或全無);EX-22 / EX-23
-  - 動到:LAW-9、LAW-13 的 given;LAW-21、LAW-22、EX-22、EX-23、觀察點 `driftAt`(新增)
-  - 保護:LAW-1 到 LAW-8、LAW-10 到 LAW-12、LAW-14 到 LAW-20、EX-1 到 EX-21
-  - 重委派:impl(`driftAt`、`applyLifecycle` 的 ForgetVault / Purge);qa(LAW-9、LAW-13、LAW-21、LAW-22、EX-22、EX-23)
+  - 動到:LAW-9、LAW-10、LAW-13 的 given(LAW-10 是 impl 指出的漏網:它是 LAW-9 的目錄樹面,同一個 given);LAW-21、LAW-22、EX-22、EX-23、觀察點 `driftAt`(新增)
+  - 保護:LAW-1 到 LAW-8、LAW-11、LAW-12、LAW-14 到 LAW-20、EX-1 到 EX-21
+  - 重委派:impl(`driftAt`、`applyLifecycle` 的 ForgetVault / Purge);qa(LAW-9、LAW-10、LAW-13、LAW-21、LAW-22、EX-22、EX-23)

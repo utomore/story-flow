@@ -76,7 +76,7 @@ subtreeIds doc i = i : map secId (subtreeAfter doc i)
 --
 -- 最後一種__不是__ @'Right' 'False'@:與同模組的 'headingDepthFor' 對稱(父節點不在
 -- 文件裡時它回 'Aapms.Store.Types.SectionMissing')。「查無此節」與「這個節不是根」
--- 是兩件不同的事,合一會讓呼叫端分不出來 ——'Aapms.Store.Create.deleteNode' 會把
+-- 是兩件不同的事,合一會讓呼叫端分不出來 ——刪除路徑會把
 -- 一個根本不存在的 id 當成「可以刪的非根節點」繼續往下走,錯誤就往下游飄。
 isRootNode :: FilePath -> Document -> Id -> Either StoreError Bool
 isRootNode path doc i = case sectionById i doc of

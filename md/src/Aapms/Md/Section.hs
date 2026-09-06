@@ -12,7 +12,7 @@
 -- 'Aapms.Md.Render.packFrontExtras')全部留在 "Aapms.Md.Render"。
 --
 -- 分家的判準是層次而不是主題:這些型別是 @aapms-store@ 的寫入路徑
--- ('Aapms.Store.Create.addSection' 等)與外殼的線上格式共同持有的__資料__,
+-- (store 的 @AddSection@ 請求等)與外殼的線上格式共同持有的__資料__,
 -- 而 "Aapms.Md.Render" 是做位元組級推導的模組;型別層的消費端不該為了一個
 -- DTO 去依賴整套編輯演算法。"Aapms.Md.Render" 原樣 re-export 本模組的全部
 -- 名字,既有呼叫端與 'Aapms.Md' 門面都不受影響。

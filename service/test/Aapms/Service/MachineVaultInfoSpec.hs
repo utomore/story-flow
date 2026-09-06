@@ -18,7 +18,7 @@ import System.FilePath ((</>), takeDirectory)
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Store.Index (indexFile)
+import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (closeVault, openVault)
 import Aapms.Types.Loader (loadRegistry)
 import Aapms.Workspace.Types (WorkspaceError (VaultSelectorNotFound))
@@ -64,7 +64,9 @@ packMdWithOneAsset =
     , "```"
     ]
 
--- | 在 vb 寫入 'packMdWithOneAsset' 並用 graph-core 的 @indexFile@ 建索引。
+-- | 在 vb 寫入 'packMdWithOneAsset' 並用 graph-core 的 @rebuildIndex@ 建索引
+-- (2026-09-06 退場波:舊的 @indexFile@ 單檔進入點退場,這個 vault 只有這一份
+-- Markdown,整庫重建與單檔索引等價)。
 -- 在 __開任何 'Aapms.Service.Monad.Env' 之前__呼叫——用的是 @aapms-store@
 -- 自己的 'openVault'\/'closeVault',與 'Aapms.Service.Monad.handleFor' 的 handle
 -- 快取無關;索引寫進磁碟上的 @index.db@,之後任何一次開啟都看得到。
@@ -82,10 +84,10 @@ indexOneAssetPack fl = do
       case openR of
         Left e -> fail ("測試前置:openVault 失敗:" <> show e)
         Right (vh, _issues) -> do
-          idxR <- indexFile vh packRelPath
+          idxR <- rebuildIndex vh
           closeVault vh
           case idxR of
-            Left e -> fail ("測試前置:indexFile 失敗:" <> show e)
+            Left e -> fail ("測試前置:rebuildIndex 失敗:" <> show e)
             Right _ -> pure ()
 
 --------------------------------------------------------------------------------

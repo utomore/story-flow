@@ -25,7 +25,6 @@ library
     exposed-modules:
         Aapms.Store
         Aapms.Store.Atomic
-        Aapms.Store.Create
         Aapms.Store.Editing
         Aapms.Store.Editing.Internal
         Aapms.Store.Effect.Clock
@@ -53,7 +52,6 @@ library
         Aapms.Store.Types
         Aapms.Store.Write
     other-modules:
-        Aapms.Store.Edit
         Aapms.Store.Node
         Aapms.Store.Row
         Aapms.Store.Row.Sql

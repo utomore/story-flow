@@ -42,9 +42,9 @@ import Aapms.Store.Walk (statOf, vaultMarkdownFiles)
 -- * @FileExists@ → 'System.Directory.doesFileExist'
 -- * @WriteMarkdown@ → 先建出目錄再
 --   'Aapms.Store.Atomic.atomicWriteText'(暫存檔 + rename;目錄不存在連暫存檔
---   都開不起來,對照 "Aapms.Store.Edit" 的 @ensureDir@)
+--   都開不起來,對照舊 @Aapms.Store.Edit@ 的 @ensureDir@)
 -- * @DeleteMarkdown@ → 'System.Directory.removeFile',失敗轉成
---   'Aapms.Store.Types.FileWriteFailed'(對照 "Aapms.Store.Edit" 的 @dropFile@)
+--   'Aapms.Store.Types.FileWriteFailed'(對照舊 @Aapms.Store.Edit@ 的 @dropFile@)
 runVaultFsIO :: IOE :> es => FilePath -> Eff (VaultFs : es) a -> Eff es a
 runVaultFsIO root = interpret $ \_ op -> liftIO $ case op of
   ListMarkdown -> vaultMarkdownFiles root

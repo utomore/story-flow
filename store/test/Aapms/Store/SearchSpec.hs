@@ -1,5 +1,11 @@
--- | graph-core\/F007:"Aapms.Store.Query".'search'(全文檢索出口本身,不含 facet
--- ——facet 見 "Aapms.Store.FacetSpec")。
+-- | graph-core\/F007:全文檢索出口本身(不含 facet ——facet 見
+-- "Aapms.Store.FacetSpec")。
+--
+-- 2026-09-06 退場波:舊的單 vault @Aapms.Store.Query.search@ 與
+-- @indexFile@ \/ @unindexFile@ 退場,本檔改呼叫新核心——
+-- 'Aapms.Store.Fixtures.searchOne'(P-002-search 的 @!@ 列 @searchAcross@,
+-- 集合裡只有這個 vault)、'Aapms.Store.Fixtures.indexOnePath' 與
+-- 'Aapms.Store.Fixtures.unindexOnePath',斷言逐字不變。
 --
 -- __spec 對照__(每條 law\/example 對回
 -- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
@@ -41,7 +47,7 @@ import Aapms.Core.Id (VaultId (..), renderId)
 import Aapms.Core.Meta (Meta (..))
 import Aapms.Store.Fixtures
 import Aapms.Store.Gens (genNonCjkText)
-import Aapms.Store.Index (indexFile, unindexFile, rebuildIndex)
+import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker
 import Aapms.Store.Query
 import Aapms.Store.Schema (IndexIssue (..), VaultKind (StoryVault))
@@ -60,7 +66,7 @@ spec = describe "graph-core/F007 search" $ do
         \vh -> hedgehog $ do
           txt <- forAll genEmptyish
           let filt = emptyNodeFilter {nfIncludeReference = True}
-          r <- evalIO (search vh (emptySearchQuery {sqText = txt, sqFilter = filt}))
+          r <- evalIO (searchOne vh (emptySearchQuery {sqText = txt, sqFilter = filt}))
           expected <- evalIO (listNodes vh filt)
           map shMeta (srHits r) === expected
           map shScore (srHits r) === replicate (length expected) 0
@@ -70,14 +76,14 @@ spec = describe "graph-core/F007 search" $ do
       it "LAW-13: 有文字條件時,每筆命中的 shScore > 0" $
         \vh -> hedgehog $ do
           q <- forAll genQueryCandidate
-          r <- evalIO (search vh (emptySearchQuery {sqText = Just q}))
+          r <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q}))
           assert (all (> 0) (map shScore (srHits r)))
 
       it "LAW-14: 命中節點 id 兩兩相異、分數非遞增、同分時 id 遞增、重複查詢逐筆相同" $
         \vh -> hedgehog $ do
           q <- forAll genQueryCandidate
-          r1 <- evalIO (search vh (emptySearchQuery {sqText = Just q}))
-          r2 <- evalIO (search vh (emptySearchQuery {sqText = Just q}))
+          r1 <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q}))
+          r2 <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q}))
           let rids = map (renderId . metaId . shMeta) (srHits r1)
           rids === nub rids
           let scores = map shScore (srHits r1)
@@ -91,8 +97,8 @@ spec = describe "graph-core/F007 search" $ do
           lim <- forAll (Gen.int (Range.linear 0 5))
           off <- forAll (Gen.int (Range.linear 0 5))
           let filt = emptyNodeFilter {nfLimit = lim, nfOffset = off}
-          r <- evalIO (search vh (emptySearchQuery {sqText = Just q, sqFilter = filt}))
-          rBase <- evalIO (search vh (emptySearchQuery {sqText = Just q}))
+          r <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q, sqFilter = filt}))
+          rBase <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q}))
           srTotal r === srTotal rBase
           assert (srTotal r >= length (srHits r))
           assert (length (srHits r) <= lim)
@@ -100,7 +106,7 @@ spec = describe "graph-core/F007 search" $ do
       it "LAW-19: 每筆 shVault 等於本 vault 的 vmId" $
         \vh -> hedgehog $ do
           q <- forAll genQueryCandidate
-          r <- evalIO (search vh (emptySearchQuery {sqText = Just q}))
+          r <- evalIO (searchOne vh (emptySearchQuery {sqText = Just q}))
           let VaultId vaultText = vmId (vhMarker vh)
               matches h = case shVault h of
                 VaultId t -> t == vaultText
@@ -109,28 +115,28 @@ spec = describe "graph-core/F007 search" $ do
       it "LAW-24: 純 ASCII 查詢字串,search 對 t 與對 T.toUpper t 回相同的 srHits" $
         \vh -> hedgehog $ do
           t <- forAll genNonCjkText
-          r1 <- evalIO (search vh (emptySearchQuery {sqText = Just t}))
-          r2 <- evalIO (search vh (emptySearchQuery {sqText = Just (T.toUpper t)}))
+          r1 <- evalIO (searchOne vh (emptySearchQuery {sqText = Just t}))
+          r2 <- evalIO (searchOne vh (emptySearchQuery {sqText = Just (T.toUpper t)}))
           srHits r1 === srHits r2
 
   describe "LAW-20-LAW-22: 索引維護與 search 的一致性" $ do
-    it "LAW-20: 對同一檔案連續 indexFile 兩次,search vh q 的結果與只做一次時相同" $
+    it "LAW-20: 對同一檔案連續 indexFile 兩次,searchOne vh q 的結果與只做一次時相同" $
       withStoryVault $ \vh ->
         forM_ storyVaultFiles $ \(rel, _) -> do
-          _ <- orDie =<< indexFile vh rel
+          _ <- orDie =<< indexOnePath vh rel
           forM_ ([Nothing, Just "藥水", Just "  "] :: [Maybe Text]) $ \txt -> do
-            r1 <- search vh (emptySearchQuery {sqText = txt})
-            _ <- orDie =<< indexFile vh rel
-            r2 <- search vh (emptySearchQuery {sqText = txt})
+            r1 <- searchOne vh (emptySearchQuery {sqText = txt})
+            _ <- orDie =<< indexOnePath vh rel
+            r2 <- searchOne vh (emptySearchQuery {sqText = txt})
             r2 `shouldBe` r1
 
     it "LAW-21: unindexFile 之後,該檔案的節點不再出現在任何 search 結果的 srHits 裡" $
       withIndexedStoryVault $ \vh -> do
-        _ <- orDie =<< unindexFile vh "levels/test-classroom.md"
+        unindexOnePath vh "levels/test-classroom.md"
         let removedIds = [idOf "lvl-00000001", idOf "nod-00000001", idOf "nod-00000002"]
             filt = emptyNodeFilter {nfIncludeReference = True}
         forM_ ([Nothing, Just "測試場景", Just "開場"] :: [Maybe Text]) $ \txt -> do
-          r <- search vh (emptySearchQuery {sqText = txt, sqFilter = filt})
+          r <- searchOne vh (emptySearchQuery {sqText = txt, sqFilter = filt})
           let hitIds = map (metaId . shMeta) (srHits r)
           forM_ removedIds $ \rid -> hitIds `shouldNotContain` [rid]
 
@@ -141,21 +147,21 @@ spec = describe "graph-core/F007 search" $ do
         (vh1, _issues1) <- orDie =<< openVault testRegistry dir
         _ <- orDie =<< rebuildIndex vh1
         let filt = emptyNodeFilter {nfIncludeReference = True}
-        baseline <- search vh1 (emptySearchQuery {sqFilter = filt})
+        baseline <- searchOne vh1 (emptySearchQuery {sqFilter = filt})
         execute_ (vhConn vh1) "UPDATE meta_info SET value = '0' WHERE key = 'schema_version'"
         closeVault vh1
 
         (vh2, issues2) <- orDie =<< openVault testRegistry dir
         any isSchemaRebuilt issues2 `shouldBe` True
         _ <- orDie =<< rebuildIndex vh2
-        rebuilt <- search vh2 (emptySearchQuery {sqFilter = filt})
+        rebuilt <- searchOne vh2 (emptySearchQuery {sqFilter = filt})
         rebuilt `shouldBe` baseline
         closeVault vh2
 
   describe "Examples" $ do
     it "EX-6: 二字中文\"藥水\"命中含\"魔法藥水瓶\"的節點,snippet 含\"藥水\"(契約卡驗收標準)" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "藥水"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "藥水"})
         case filter ((== idOf "ast-00000101") . metaId . shMeta) (srHits r) of
           [h] -> do
             shScore h `shouldSatisfy` (> 0)
@@ -164,31 +170,31 @@ spec = describe "graph-core/F007 search" $ do
 
     it "EX-7: 二字中文\"琳達\"命中同名角色主體(契約卡驗收標準)" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "琳達"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "琳達"})
         case filter ((== idOf "ent-00000101") . metaId . shMeta) (srHits r) of
           [h] -> shScore h `shouldSatisfy` (> 0)
           hits -> expectationFailure ("預期恰一筆 ent-00000101,得到 " <> show (length hits) <> " 筆")
 
     it "EX-8: 英文子字串\"travel-book\"命中 name 含該字串的 asset(\"-\" 不被當運算子)" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "travel-book"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "travel-book"})
         map (metaId . shMeta) (srHits r) `shouldContain` [idOf "ast-00000101"]
 
     it "EX-9: 三字以上中文\"魔法藥水\"走 trigram 並有分數" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "魔法藥水"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "魔法藥水"})
         case filter ((== idOf "ast-00000101") . metaId . shMeta) (srHits r) of
           [h] -> shScore h `shouldSatisfy` (> 0)
           hits -> expectationFailure ("預期恰一筆 ast-00000101,得到 " <> show (length hits) <> " 筆")
 
     it "EX-10: 節點的 title 同時含\"藥水\"與 potion,查詢\"藥水 potion\" 只回一筆" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "藥水 potion"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "藥水 potion"})
         length (filter ((== idOf "ast-00000102") . metaId . shMeta) (srHits r)) `shouldBe` 1
 
     it "EX-12: emptySearchQuery 退化成純結構查詢" $
       withIndexedAssetVault $ \vh -> do
-        r <- search vh emptySearchQuery
+        r <- searchOne vh emptySearchQuery
         expected <- listNodes vh emptyNodeFilter
         map shMeta (srHits r) `shouldBe` expected
         map shScore (srHits r) `shouldBe` replicate (length expected) 0
@@ -197,13 +203,13 @@ spec = describe "graph-core/F007 search" $ do
 
     it "EX-13: 查無此文字時 srHits 為空、srTotal 為 0,不是錯誤" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "這個詞不存在於任何節點"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "這個詞不存在於任何節點"})
         srHits r `shouldBe` []
         srTotal r `shouldBe` 0
 
     it "EX-14: 純 ASCII 二字查詢\"ui\"因雙索引的已知代價回空結果(LIKE 已退場)" $
       withFtsVault $ \vh -> do
-        r <- search vh (emptySearchQuery {sqText = Just "ui"})
+        r <- searchOne vh (emptySearchQuery {sqText = Just "ui"})
         srHits r `shouldBe` []
 
 --------------------------------------------------------------------------------

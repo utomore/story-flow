@@ -48,6 +48,7 @@ updated: 2026-09-06
 | o | `opTarget :: WriteOp -> Maybe Id` | 觀察:請求要動的既有節點(建檔類為 Nothing) | `Aapms.Store.Types`(願望) | types |
 | o | `opRevision :: WriteOp -> Maybe Revision` | 觀察:請求帶的 expected revision | `Aapms.Store.Types`(願望) | types |
 | o | `isInsertOp :: WriteOp -> Bool` | 觀察:是不是會插入新節的請求(增節、建檔) | `Aapms.Store.Types`(願望) | types |
+| o | `isDeleteOp :: WriteOp -> Bool` | 觀察:是不是會刪掉節的請求(刪節,含 DeleteForce 連子樹一起刪) | `Aapms.Store.Types`(願望) | types |
 | o | `outcomeRevision :: WriteOutcome -> Revision` | 觀察:結果的新 revision | `Aapms.Store.Types`(願望) | types |
 | o | `outcomePath :: WriteOutcome -> FilePath` | 觀察:結果落地的檔 | `Aapms.Store.Types`(願望) | types |
 | o | `outcomeId :: WriteOutcome -> Id` | 觀察:結果的節點 id(建檔為新檔主體) | `Aapms.Store.Types`(願望) | types |
@@ -82,9 +83,9 @@ updated: 2026-09-06
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, op in WriteOp, i in Id, n in Int, run in simulateWrite t vf ix (applyWrite reg vid op), o in rights [runResult run]
   - given opTarget op == Just i and opRevision op == Just (Revision n)
   - |- outcomeRevision o == Revision (n + 1) and fmap metaRevision (metaAt (runFiles run) (runIndex run) i) == Just (Revision (n + 1))
-- LAW-3 [invariant] 位元組保留:不插入新節的請求成功後,目標節以外每一節的位元組不變(ADR-010)
+- LAW-3 [invariant] 位元組保留:不插入也不刪除節的請求成功後,目標節以外每一節的位元組不變(ADR-010)
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, op in WriteOp, i in Id, p in FilePath, run in simulateWrite t vf ix (applyWrite reg vid op)
-  - given opTarget op == Just i and not (isInsertOp op) and locatedFile ix i == Just p and isRight (runResult run)
+  - given opTarget op == Just i and not (isInsertOp op) and not (isDeleteOp op) and locatedFile ix i == Just p and isRight (runResult run)
   - |- filter ((/= i) . fst) (sectionBytes (runFiles run) p) == filter ((/= i) . fst) (sectionBytes vf p)
 - LAW-4 [invariant] 改 asset 人給欄位不動唯讀欄位:sha256、entry、ext、kind meta、正文
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, i in Id, r in Revision, patch in AssetPatch, a in Asset, run in simulateWrite t vf ix (applyWrite reg vid (WriteAssetFields i r patch)), a2 in maybe [] pure (assetAt (runFiles run) (runIndex run) i)
@@ -189,7 +190,7 @@ updated: 2026-09-06
 | EX-17 | `CreatePack np [sA]`,np 七欄全給非預設值(vendor Kenney、archive、sha256、license、author、sourceUrl、`AiNone`) | 重讀 `packFields == newPackFields np` | LAW-20 |
 | EX-18 | `sanitizeFileName "第一章: 序幕 " fb`、`"   "`、`"..."`、`"<"`、`"<>?"`、`"琳達 的筆記"` | 依序 `"第一章- 序幕"`、`fb`、`fb`、`"-"`、`"---"`、`"琳達 的筆記"` | LAW-21 |
 | EX-19 | 四節文件 `nod-root(2) > nod-a(3) > nod-a1(4), nod-b(3)`,`subtreeIds d nod-a` | `[nod-a, nod-a1]`,`nod-a1` 層級 4 > 3 | LAW-22 |
-| EX-20 | Level 檔成環(`nod-b` 的 parent 是自己) | `validateLevelDoc` 回 `Left (TreeInvalidOnWrite …)`,與 `buildTree` 的 Left 一致 | LAW-23 |
+| EX-20 | Level 檔有兩個最淺層級的節(`## nod-a` 與 `## nod-b` 同層,兩個根) | `validateLevelDoc` 回 `Left (TreeInvalidOnWrite …)`,與 `buildTree` 的 Left 一致 | LAW-23 |
 | EX-21 | `isRootNode p d nod-root`、`nod-a`、`nod-zzz` | `Right True`、`Right False`、`Left (SectionMissing p nod-zzz)` | LAW-24 |
 | EX-22 | `planEdit reg t loc d op`,d 是任意亂文件、op 任意 | 求值到底不拋例外 | LAW-25 |
 
@@ -211,4 +212,7 @@ updated: 2026-09-06
 - **建 pack 檔的七個 pack 專屬欄位往返是 law(LAW-20),不能只靠實作記得寫。** 否決:只驗路徑與節順序。理由:pack.md 是素材中繼資料的真相(ADR-013),原 F008 GAP-17 就是沒人在看才漏掉
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 qa 提問 GAP-1「EX-20 的『成環』在 ADR-009 標題即樹之下建構不出來」與 qa 仲裁提示「LAW-3 的 given 只排除插入,DeleteForce 刪整棵子樹時目標節以外的子節位元組會一起消失」):EX-20 的輸入改成可達的樹違規(兩個最淺層級的節,`MultipleRoots`),後件不變;LAW-3 加觀察點 `isDeleteOp` 與 given `not (isDeleteOp op)`
+  - 動到:LAW-3、EX-20、觀察點 `isDeleteOp`(新增)
+  - 保護:LAW-1、LAW-2、LAW-4 到 LAW-25、其餘 EX
+  - 重委派:qa(LAW-3、EX-20);impl 尚未派,骨架由 conductor 同步

@@ -102,6 +102,7 @@ module Aapms.Store.Types
   , opTarget
   , opRevision
   , isInsertOp
+  , isDeleteOp
   , outcomeRevision
   , outcomePath
   , outcomeId
@@ -879,6 +880,10 @@ opRevision _op = error "P-003#opRevision stub"
 -- | 是不是會插入新節的請求(增節、建檔)。
 isInsertOp :: WriteOp -> Bool
 isInsertOp _op = error "P-003#isInsertOp stub"
+
+-- | 是不是會刪掉節的請求(刪節,含 DeleteForce 連子樹一起刪)。
+isDeleteOp :: WriteOp -> Bool
+isDeleteOp _op = error "P-003#isDeleteOp stub"
 
 -- | 結果的新 revision。
 outcomeRevision :: WriteOutcome -> Revision

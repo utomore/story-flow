@@ -240,7 +240,7 @@ examplesSpec = do
     it "中樞文字的 id 不是字串:HubMalformed,與 parseHubText 回的逐欄相同" $ do
       let txt = "[[vaults]]\nid = 3\n"
           parsed = parseHubText exHubPath txt
-          world = HubWorld (Just txt) (HubLocation exHubPath FromEnv)
+          world = HubWorld (Just txt) (HubLocation exHubPath FromEnv) False []
       case parsed of
         Left err@(HubMalformed fp _) -> do
           fp `shouldBe` exHubPath
@@ -314,7 +314,7 @@ ex1HubPath :: FilePath
 ex1HubPath = "C:/Users/u/AppData/Roaming/aapms/config.toml"
 
 ex1HubWorld :: HubWorld
-ex1HubWorld = HubWorld Nothing (HubLocation ex1HubPath FromPlatformDefault)
+ex1HubWorld = HubWorld Nothing (HubLocation ex1HubPath FromPlatformDefault) False []
 
 exCwd :: FilePath
 exCwd = "T/x"
@@ -340,7 +340,7 @@ ex5Hub =
     ""
 
 ex5HubWorld :: HubWorld
-ex5HubWorld = HubWorld (Just (renderHub ex5Hub)) (HubLocation exHubPath FromEnv)
+ex5HubWorld = HubWorld (Just (renderHub ex5Hub)) (HubLocation exHubPath FromEnv) False []
 
 -- | EX-6 \/ EX-7 的「同 EX-5 的 Session」:中樞、位置、selector 與 cwd 逐欄同
 -- EX-5;'scopeOf' 只用得到這四欄,註冊表與命名詞彙因此取空值('buildRegistry' 對
@@ -381,18 +381,18 @@ ex4RegistryWorld =
 
 ex8Cases :: [(HubWorld, RegistryWorld, Maybe Text, FilePath)]
 ex8Cases =
-  [ (HubWorld Nothing (HubLocation "" FromEnv), RegistryWorld Nothing [], Nothing, "")
-  , ( HubWorld (Just "\SOH\n[[vaults") (HubLocation "?" FromPlatformDefault)
+  [ (HubWorld Nothing (HubLocation "" FromEnv) False [], RegistryWorld Nothing [], Nothing, "")
+  , ( HubWorld (Just "\SOH\n[[vaults") (HubLocation "?" FromPlatformDefault) True ["\SOH.png"]
     , RegistryWorld (Just ("", Src.FromDataDir)) [("", "= =")]
     , Just ""
     , "\SOH"
     )
-  , ( HubWorld (Just (renderHub ex5Hub)) (HubLocation exHubPath FromEnv)
+  , ( HubWorld (Just (renderHub ex5Hub)) (HubLocation exHubPath FromEnv) False []
     , RegistryWorld (Just (registryDirPath, Src.BesideExecutable)) [namingFile]
     , Just "沒有這個 vault"
     , "D:/vaults/a/deep/deeper"
     )
-  , ( HubWorld (Just "") (HubLocation exHubPath FromEnv)
+  , ( HubWorld (Just "") (HubLocation exHubPath FromEnv) True ["a.png", "b.png"]
     , exRegistryWorldOk
     , Nothing
     , exCwd
@@ -516,14 +516,29 @@ genHubLocation =
       ]
     <*> Gen.element [FromEnv, FromPlatformDefault]
 
+-- | REV-2:縮圖快取目錄下的檔案池(固定 3 個),取子集即涵蓋「零到多張」,結構
+-- 有界。
+thumbFilePool :: [FilePath]
+thumbFilePool = ["D:/cache/a.png", "D:/cache/b.png", "D:/cache/c.png"]
+
+-- | REV-2:世界裡縮圖快取目錄存不存在。
+genCacheDirIn :: Gen Bool
+genCacheDirIn = Gen.bool
+
+-- | REV-2:世界裡快取目錄下的縮圖檔;固定小池取子集,結構有界。
+genThumbsIn :: Gen [FilePath]
+genThumbsIn = Gen.subsequence thumbFilePool
+
 genHubWorldNoText :: Gen HubWorld
-genHubWorldNoText = HubWorld Nothing <$> genHubLocation
+genHubWorldNoText = HubWorld Nothing <$> genHubLocation <*> genCacheDirIn <*> genThumbsIn
 
 genHubWorldGoodText :: Gen HubWorld
-genHubWorldGoodText = HubWorld <$> (Just <$> genGoodHubText) <*> genHubLocation
+genHubWorldGoodText =
+  HubWorld <$> (Just <$> genGoodHubText) <*> genHubLocation <*> genCacheDirIn <*> genThumbsIn
 
 genHubWorldBadText :: Gen HubWorld
-genHubWorldBadText = HubWorld <$> (Just <$> genBadHubText) <*> genHubLocation
+genHubWorldBadText =
+  HubWorld <$> (Just <$> genBadHubText) <*> genHubLocation <*> genCacheDirIn <*> genThumbsIn
 
 -- | LAW-7 的定義域:任何中樞世界。
 genHubWorldAny :: Gen HubWorld
@@ -532,7 +547,7 @@ genHubWorldAny =
     [ (2, genHubWorldNoText)
     , (2, genHubWorldGoodText)
     , (2, genHubWorldBadText)
-    , (1, HubWorld <$> (Just <$> genJunkText) <*> genHubLocation)
+    , (1, HubWorld <$> (Just <$> genJunkText) <*> genHubLocation <*> genCacheDirIn <*> genThumbsIn)
     ]
 
 -- | 取出世界裡的中樞文字;產生器保證有,沒有就是產生器壞了。

@@ -49,6 +49,8 @@ updated: 2026-09-06
 | o | `hubWorldAfter :: LifecycleRun a -> HubWorld` | 觀察:跑完之後的中樞世界(拿來接著跑下一個請求) | `Aapms.Workspace.Types`(願望) | types |
 | o | `hubTextIn :: HubWorld -> Maybe Text` | 觀察:起始中樞文字 | `Aapms.Workspace.Types`(願望,見 P-004-vault-scope) | types |
 | o | `hubLocationIn :: HubWorld -> HubLocation` | 觀察:中樞位置 | `Aapms.Workspace.Types`(願望,見 P-004-vault-scope) | types |
+| o | `cacheDirIn :: HubWorld -> Bool` | 觀察:快取目錄存不存在 | `Aapms.Workspace.Types`(願望,見 P-004-vault-scope) | types |
+| o | `thumbsIn :: HubWorld -> [FilePath]` | 觀察:快取目錄下的縮圖檔 | `Aapms.Workspace.Types`(願望,見 P-004-vault-scope) | types |
 | o | `vwEntries :: VaultWorld -> FilePath -> [FilePath]` | 觀察:目錄第一層 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwMarkerDir :: VaultWorld -> FilePath -> Bool` | 觀察:`.aapms` 路徑被佔用 | `Aapms.Workspace.Types`(願望) | types |
 | o | `vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)` | 觀察:marker 讀數 | `Aapms.Workspace.Types`(願望) | types |
@@ -111,7 +113,7 @@ updated: 2026-09-06
   - given vmId m == veId e
   - |- elem (syncEntry e m) (hubVaults h2) and outcomeIssues o == checkVaultsOf vw h and lcVaults run == vw and ((h2 == h) => (lcHubText run == hubTextIn hw))
 - LAW-13 [relation] purge:HubOnly 刪 config.toml 與縮圖不碰 vault;AllVaults 只多刪每個 vault 的 index.db;永不刪 library 與 .md;再跑一次回 PurgeReport False 0 []
-  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, scope in PurgeScope, run in simulateLifecycle t hw vw h (applyLifecycle h (Purge scope)), o in rights [lcResult run], rep in maybe [] pure (outcomePurge o), run2 in simulateLifecycle t hw (lcVaults run) h (applyLifecycle h (Purge scope))
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, scope in PurgeScope, run in simulateLifecycle t hw vw h (applyLifecycle h (Purge scope)), o in rights [lcResult run], rep in maybe [] pure (outcomePurge o), run2 in simulateLifecycle t (hubWorldAfter run) (lcVaults run) h (applyLifecycle h (Purge scope))
   - |- isNothing (lcHubText run) and (prHubRemoved rep == isJust (hubTextIn hw)) and ((scope == PurgeHubOnly) => (lcVaults run == vw and prVaultIndexesRemoved rep == [])) and ((scope == PurgeAllVaults) => (vwWithout (map vePath (hubVaults h)) (lcVaults run) == vwWithout (map vePath (hubVaults h)) vw and all (not . vwHasIndex (lcVaults run)) (map vePath (hubVaults h)))) and fmap outcomePurge (lcResult run2) == Right (Just (PurgeReport False 0 []))
 - LAW-14 [relation] 專案登錄:空名 InvalidName、路徑不是目錄 ProjectPathMissing、同一路徑第二次 ProjectAlreadyRegistered,三者零副作用;成功只多一列專案
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, name in Text, run in simulateLifecycle t hw vw h (applyLifecycle h (RegisterProject d name)), o in rights [lcResult run], p in maybe [] pure (outcomeProject o), h2 in maybe [] pure (outcomeHub o)
@@ -176,4 +178,7 @@ updated: 2026-09-06
 - **檔案系統足跡(只碰 config.toml、cache/thumbs、`.aapms/`、index.db)由 shell 內部測試守,不掛 law。** 否決:寫成 law。理由:純解譯器的世界只裝這幾樣,在純側恆真
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 qa 提問 GAP-1「EX-15 的 `PurgeReport True 2 []` 需要『H 有兩張縮圖』,`HubWorld` 表達不出」與 GAP-2「LAW-13 的 run2 起始中樞世界仍是 hw,與 `prHubRemoved rep == isJust (hubTextIn hw)` 互斥」):`HubWorld` 依 P-004-vault-scope REV-2 加 `cacheDirIn` / `thumbsIn` 兩個觀察點,EX-15 與 LAW-1 的 `spCacheCreated` 由它們定義;LAW-13 的 run2 改從 `hubWorldAfter run` 起跑(與 LAW-1 同形)
+  - 動到:LAW-13 的 forall、觀察點 `cacheDirIn` / `thumbsIn`(引用)
+  - 保護:LAW-1 到 LAW-12、LAW-14 到 LAW-20、全部 EX
+  - 重委派:qa(LAW-13、EX-15、`HubWorld` 產生器);impl 尚未派

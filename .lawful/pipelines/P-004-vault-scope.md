@@ -27,6 +27,8 @@ updated: 2026-09-06
 | o | `simulateSession :: HubWorld -> RegistryWorld -> Eff '[HubFile, RegistryFs] a -> a` | 觀察:兩個純解譯器跑到底 | `Aapms.Service.Session.Internal`(願望) | pure |
 | o | `hubTextIn :: HubWorld -> Maybe Text` | 觀察:世界裡有沒有中樞文字 | `Aapms.Workspace.Types`(願望) | types |
 | o | `hubLocationIn :: HubWorld -> HubLocation` | 觀察:世界裡的中樞位置 | `Aapms.Workspace.Types`(願望) | types |
+| o | `cacheDirIn :: HubWorld -> Bool` | 觀察:世界裡縮圖快取目錄存不存在;`ensureCacheDir` 的純語意(不在就建、回有沒有建) | `Aapms.Workspace.Types`(願望) | types |
+| o | `thumbsIn :: HubWorld -> [FilePath]` | 觀察:世界裡快取目錄下的縮圖檔;`purgeHubFiles` 的純語意(刪中樞檔與全部縮圖,回 (中樞檔本來在不在, 縮圖張數)) | `Aapms.Workspace.Types`(願望) | types |
 | o | `registryDirIn :: RegistryWorld -> Maybe (FilePath, RegistrySource)` | 觀察:三層裡第一個存在的 | `Aapms.Types.Source`(願望) | types |
 | o | `registryFilesIn :: RegistryWorld -> [(FilePath, Text)]` | 觀察:那個目錄裡的 TOML | `Aapms.Types.Source`(願望) | types |
 | o | `sessionHub :: Session -> Hub` | 觀察:快照裡的中樞 | `Aapms.Service.Types`(願望) | types |
@@ -93,3 +95,7 @@ updated: 2026-09-06
   - 動到:觀察點 `runHubFilePure` 的簽名
   - 保護:LAW-1 到 LAW-7
   - 重委派:無(尚未派 qa / impl;骨架簽名已同步)
+- REV-2(2026-09-06,依 P-005-vault-lifecycle 的 qa 提問 GAP-1「`HubWorld` 只有 `hubTextIn` 與 `hubLocationIn`,純世界裡表達不出縮圖張數,`purgeHubFiles` 第二個分量在純解譯器裡沒有來源」,以及同一份回報「`spCacheCreated` 也沒有欄位可依」):`HubWorld` 加兩個欄位 `cacheDirIn :: Bool` 與 `thumbsIn :: [FilePath]`,`runHubFilePure` 對 `ensureCacheDir` / `purgeHubFiles` 的純語意由它們定義
+  - 動到:觀察點 `cacheDirIn`、`thumbsIn`(新增);`HubWorld` 的形狀
+  - 保護:LAW-1 到 LAW-7
+  - 重委派:impl(`runHubFilePure` 兩個 op);qa(`HubWorld` 產生器跟著型別走)

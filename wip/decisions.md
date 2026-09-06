@@ -12,3 +12,7 @@
 
 ## 備忘(2026-09-06,P-025 REV-1 impl 提)
 - 凍結中的 `workshop/` 套件(`cabal.project` 註解掉,不在建置範圍)在 `Aapms.Workshop.Emit` 用執行期值 `Workshop (wsType session)` 建構 `Source`;`SourceName` 收成非空後這裡要走 `mkSourceName`,`Nothing` 分支走哪條錯誤是 P-018-workshop 解凍時的契約決定,現在不決。
+
+## 備忘(2026-09-06,store shell 波 impl 提)
+- `Indexing.place` 的撞名裁決靠 `nameHolders`(`filterNodes` 全放寬 + 逐 asset `locateId`),在 sqlite 上是 O(n²);fixture 無感,真庫 6,783 筆會浮出來。治本要給 `Index` 效果加「照邏輯名稱查持有檔」的 op(簽名層級),候選 REV 排在 P-003 之後。
+- `Aapms.Store.Query.search` 與它底下整棵私有子樹(matchHits / mergeHits / snippetOf / computeFacets …)已無 production 呼叫端,只因契約 E(BoundarySpec EX-2)逐名引用而留著;P-003 接完後與 Index.hs 的舊 indexOne 路徑一起清。

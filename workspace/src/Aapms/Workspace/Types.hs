@@ -593,6 +593,10 @@ data HubWorld = HubWorld
   -- ^ 觀察:世界裡的中樞文字;@Nothing@ = 中樞檔不存在。
   , hubLocationIn :: HubLocation
   -- ^ 觀察:世界裡的中樞位置與它的來源。
+  , cacheDirIn :: Bool
+  -- ^ 觀察:世界裡縮圖快取目錄存不存在(P-005 的 SetupHub 第一次建、第二次不建)。
+  , thumbsIn :: [FilePath]
+  -- ^ 觀察:世界裡快取目錄下的縮圖檔(P-005 的 Purge 刪掉幾張就是它的長度)。
   }
   deriving stock (Show, Eq)
 

@@ -98,6 +98,7 @@ import Aapms.Md.Document
   , Document
   , LineEnding (..)
   , Section (..)
+  , docKind
   , sectionById
   , sectionIds
   )
@@ -116,7 +117,22 @@ import Aapms.Md.Section
   )
 
 import Aapms.Store.Editing (applyWrite, planEdit, sanitizeFileName)
-import Aapms.Store.Editing.Internal (allocateN, simulateWrite)
+-- REV-2:'documentAt' \/ 'sectionBytes' \/ 'metaAt' \/ 'assetAt' \/ 'licensesAt' \/
+-- 'assetIdsAt' \/ 'packAt' \/ 'levelAt' \/ 'levelOf' 九個解析類觀察點由 types 層的
+-- "Aapms.Store.Types" 搬到 pure 層的這裡(簽名不變)。
+import Aapms.Store.Editing.Internal
+  ( allocateN
+  , assetAt
+  , assetIdsAt
+  , documentAt
+  , levelAt
+  , levelOf
+  , licensesAt
+  , metaAt
+  , packAt
+  , sectionBytes
+  , simulateWrite
+  )
 import Aapms.Store.Node
   ( headingDepthFor
   , isRootNode
@@ -141,25 +157,16 @@ import Aapms.Store.Types
   , WriteOp (..)
   , WriteOutcome
   , WriteRun (..)
-  , assetAt
-  , assetIdsAt
   , brokenLinks
-  , documentAt
   , emptyIndex
   , fileStatsOf
-  , levelAt
-  , levelOf
-  , licensesAt
   , locatedFile
-  , metaAt
   , newPackFields
   , outcomePath
   , outcomeRevision
-  , packAt
   , packFields
   , patchedName
   , removedIds
-  , sectionBytes
   , stripStamps
   )
 

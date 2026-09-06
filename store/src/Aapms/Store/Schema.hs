@@ -12,6 +12,12 @@
 -- 與一個觸發器,'schemaVersion' 因此 2 → 3。__ADR-016 第四條__:切詞規則
 -- ("Aapms.Store.Tokenize")改版一樣只 bump 這個數字讓索引整庫重建,不遷移。
 --
+-- P-002-search 把 reference 從「pack 節點自己的旗標」改成 __檔的屬性__:
+-- @files.is_reference@ 多一欄,'Aapms.Store.Filter.passesFilter' 與
+-- 'Aapms.Store.Query.whereOfIn' 因此是同一條規則(見 'Aapms.Store.Query' 的
+-- @referenceClause@),'schemaVersion' 3 → 4。欄位帶 @DEFAULT 0@ 只是為了讓
+-- 「不填這一欄」的插入語句仍然合法,舊索引一律走 'ensureSchema' 整庫重建。
+--
 -- 兩張 FTS 表的__列維護__也住在本模組('insertFtsRows'):FTS5 虛擬表沒有外鍵,
 -- 是整份 schema 裡唯一不能靠 @files@ → @nodes@ 的級聯自動清乾淨的東西,而
 -- @fts_map@ 的刪除觸發器(建在本模組的 DDL 裡)正是補上那條級聯的機制;
@@ -68,10 +74,11 @@ import Aapms.Store.Types
   )
 
 -- | graph-core\/F006 把業務表接上,shape 變了(1 → 2);graph-core\/F007 再加
--- 兩張 FTS5 虛擬表與 @fts_map@(2 → 3)。依 ADR-013 \/ ADR-016 第四條,舊索引
--- 一律視為需要重建,不寫 migration——__切詞規則改版也只 bump 這個數字__。
+-- 兩張 FTS5 虛擬表與 @fts_map@(2 → 3);P-002-search 讓 @files@ 多一欄
+-- @is_reference@(3 → 4)。依 ADR-013 \/ ADR-016 第四條,舊索引一律視為需要
+-- 重建,不寫 migration——__切詞規則改版也只 bump 這個數字__。
 schemaVersion :: Int
-schemaVersion = 3
+schemaVersion = 4
 
 -- | 全部的表,順序固定(依外鍵相依順序:@files@ → @nodes@ → 其餘 → 三張
 -- FTS 相關表)。之後的 feature 加業務表時擴充這份清單,不是另開一份。
@@ -212,11 +219,17 @@ schemaDDL =
   [ "CREATE TABLE meta_info(\
     \  key TEXT PRIMARY KEY,\
     \  value TEXT NOT NULL)"
-  , "CREATE TABLE files(\
+  , -- P-002-search:reference 是__檔__的屬性(路徑落在 @library/reference/@ 之
+    -- 下,'Aapms.Store.Indexing.isReferencePath' 算的),不是 pack 節點自己的旗
+    -- 標。'Aapms.Store.Query.whereOfIn' 的 @referenceClause@ 靠這一欄把整份檔
+    -- 的每一個節點一起排除,與純的 'Aapms.Store.Filter.passesFilter' 同一條
+    -- 規則。@DEFAULT 0@ 讓不填這一欄的插入語句仍然合法。
+    "CREATE TABLE files(\
     \  path TEXT PRIMARY KEY,\
     \  mtime INTEGER NOT NULL,\
     \  size INTEGER NOT NULL,\
-    \  doc_kind TEXT NOT NULL)"
+    \  doc_kind TEXT NOT NULL,\
+    \  is_reference INTEGER NOT NULL DEFAULT 0)"
   , "CREATE TABLE nodes(\
     \  id TEXT PRIMARY KEY,\
     \  prefix TEXT NOT NULL,\

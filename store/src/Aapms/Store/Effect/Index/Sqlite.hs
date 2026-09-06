@@ -130,12 +130,16 @@ replaceFileIn conn fi = withTransaction conn $ do
   execute conn "DELETE FROM files WHERE path = ?" (Only rel)
   execute
     conn
-    "INSERT INTO files(path, mtime, size, doc_kind) VALUES (?, ?, ?, ?)"
-    (rel, fsMtime (fiStat fi), fsSize (fiStat fi), renderDocKind (fiKind fi))
+    "INSERT INTO files(path, mtime, size, doc_kind, is_reference) VALUES (?, ?, ?, ?, ?)"
+    (rel, fsMtime (fiStat fi), fsSize (fiStat fi), renderDocKind (fiKind fi), refFlag)
   mapM_ (insertIndexedNode conn fi rel) (fiNodes fi)
   insertFtsRows conn (map (ftsRowOf . inNode) (fiNodes fi))
   where
     rel = T.pack (fiPath fi)
+    -- P-002-search:reference 是__檔__的屬性,'Aapms.Store.Query.whereOfIn' 的
+    -- @referenceClause@ 讀的就是這一欄;純核心已經用路徑算好
+    -- ("Aapms.Store.Indexing" 的 @isReferencePath@)。
+    refFlag = if fiReference fi then 1 else 0 :: Int
 
 -- | 一個索引節點的 @nodes@ 列、附屬表列與種類專屬表列。
 --
@@ -198,6 +202,10 @@ insertMetaExtras conn rel meta = do
 -- | 種類專屬表(逐字沿用舊碼 @writeLevel@ \/ @writePack@ \/ @writeLicenses@ 的
 -- 欄位與順序)。@packs.is_reference@ 取自這個檔的 'fiReference' ——純核心已經
 -- 用路徑算好了("Aapms.Store.Indexing" 的 @isReferencePath@)。
+--
+-- 這一欄只是 pack 自己的資料,__不是過濾的來源__:'nfIncludeReference' 走的是
+-- @files.is_reference@(P-002-search,見 'Aapms.Store.Query.whereOfIn' 的
+-- @referenceClause@),兩者由 'replaceFileIn' 從同一個 'fiReference' 寫出。
 insertKindRow :: Connection -> FileIndex -> AnyNode -> IO ()
 insertKindRow conn fi node = case node of
   NEntity _ -> pure ()

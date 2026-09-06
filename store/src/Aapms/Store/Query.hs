@@ -116,7 +116,8 @@ import System.FilePath ((</>))
 
 -- | 'NodeFilter' → SQL 片段 + 參數。base 查詢固定是
 -- @nodes n LEFT JOIN assets a ON a.id = n.id LEFT JOIN packs p ON p.id = n.id@
--- ——'nfLicense'\/'nfNamedOnly'\/reference 排除都要用到 @a@\/@p@。
+-- ——'nfLicense' 與 'nfNamedOnly' 要用到 @a@\/@p@;reference 排除只用 @n@
+-- (見 @referenceClause@)。
 --
 -- 單一 vault 的三個呼叫端('listNodes' \/ 'structuralIds' \/ 'ftsHits')用的
 -- 就是這個沒有前綴的特化,行為與 graph-core\/F007 交付時逐字相同。
@@ -133,8 +134,8 @@ whereOf = whereOfIn ""
 -- @grep -nE \"FROM [A-Za-z_]+|JOIN [A-Za-z_]+\"@ 對本函式全段掃出來的,不是用讀的):
 --
 -- 1. @tagClause@ 的 @SELECT 1 FROM node_tags nt …@('nfTags')
--- 2. @referenceClause@ 的 @SELECT id FROM packs WHERE is_reference = 1@
---    ('nfIncludeReference')
+-- 2. @referenceClause@ 的 @SELECT 1 FROM files f WHERE f.path = n.file_path AND
+--    f.is_reference = 1@('nfIncludeReference')
 --
 -- 跨 vault 時少了前綴,它們會解析到 @main@ 的那張表(或根本沒有這張表),等於
 -- 拿__別的 vault__ 的標籤 \/ reference 清單去篩這個 vault 的節點。第 2 條尤其
@@ -184,15 +185,24 @@ whereOfIn schema NodeFilter {..} = (T.concat (map fst parts), concatMap snd part
       | nfNamedOnly = (" AND a.name IS NOT NULL", [])
       | otherwise = ("", [])
 
-    -- nfIncludeReference = False(預設)時排除是 reference 的 pack 本身,以及
-    -- owner 指向該 pack 的節點(待確認假設 ASM-3)。p.is_reference 對非 pack 節點
-    -- 是 NULL(LEFT JOIN),所以用 IS NULL OR = 0 而非 NOT(...) = 1,避免
-    -- NULL 在 WHERE 子句被當成 false 誤刪全部非 pack 節點。
+    -- nfIncludeReference = False(預設)時排除__reference 檔裡的每一個節點__
+    -- (P-002-search:reference 是檔的屬性,'Aapms.Store.Types.fiReference')。
+    --
+    -- 舊規則是「@p.is_reference@ 排掉 pack 節點自己 + @n.owner NOT IN (reference
+    -- packs)@ 排掉它的下屬」,與純的 'Aapms.Store.Filter.passesFilter' 分岔:
+    -- 同一份 reference 的 @pack.md@ 裡若有 owner 為 NULL 的節點(沒有 pack 節點
+    -- 的檔,或 owner 沒接上),SQL 側留著、純側整檔排除。改成看 @files@ 那一欄
+    -- 之後兩邊逐字同義,@packs.is_reference@ 不再參與過濾(欄位仍在,是 pack 自
+    -- 己的資料)。
+    --
+    -- 寫成 @NOT EXISTS@ 的相關子查詢而不是多接一張表:呼叫端各自組自己的
+    -- @FROM@('baseFromIn'、'ftsHits' 的 FTS JOIN、'Aapms.Store.MultiVault' 的
+    -- UNION 片段),共通的只有 @n@ 這個別名。裸表名要加 schema 前綴,理由同
+    -- @tagClause@。
     referenceClause =
-      ( " AND (p.is_reference IS NULL OR p.is_reference = 0)\
-        \ AND (n.owner IS NULL OR n.owner NOT IN (SELECT id FROM "
+      ( " AND NOT EXISTS (SELECT 1 FROM "
           <> schema
-          <> "packs WHERE is_reference = 1))"
+          <> "files f WHERE f.path = n.file_path AND f.is_reference = 1)"
       , []
       )
 

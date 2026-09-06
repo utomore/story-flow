@@ -141,10 +141,17 @@ indexOne vh rel = do
               try
                 ( trySqlite . withTransaction (vhConn vh) $ do
                     execute (vhConn vh) "DELETE FROM files WHERE path = ?" (Only rel)
+                    -- P-002-search:reference 是__檔__的屬性,
+                    -- 'Aapms.Store.Query.whereOfIn' 的 @referenceClause@ 讀的
+                    -- 就是 @files.is_reference@。這條舊路徑一樣要填,否則它索引
+                    -- 出來的庫在新的 WHERE 下會漏掉排除。判準與新路徑的
+                    -- 'Aapms.Store.Indexing.isReferencePath' 同一條。
+                    let isRef = if isReferencePath relStr then 1 else 0 :: Int
                     execute
                       (vhConn vh)
-                      "INSERT INTO files(path, mtime, size, doc_kind) VALUES (?, ?, ?, ?)"
-                      (rel, mtime, size, renderDocKind kind)
+                      "INSERT INTO files(path, mtime, size, doc_kind, is_reference)\
+                      \ VALUES (?, ?, ?, ?, ?)"
+                      (rel, mtime, size, renderDocKind kind, isRef)
                     action (vhConn vh) rel
                     -- graph-core/F007:FTS 列與節點列同一個交易內一起進退,
                     -- 不會出現「節點在、FTS 沒進」的半殘狀態。純函式的預切

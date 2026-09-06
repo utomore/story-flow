@@ -154,6 +154,7 @@ updated: 2026-09-06
 - **selector 逐字精確,不 trim、不忽略大小寫、先 id 後 name,撞到就 Ambiguous。** 否決:模糊比對。理由:歧義要浮出來給人決定(原 F002 ASM-2)
 - **`lookupSelector` 與 refs 展開自 `Aapms.Workspace.Discovery` / `Scope` 搬進純的 `Aapms.Workspace.Resolve`;真解譯器住 `Aapms.Workspace.Effect.Markers.IO`,`resolveRead` 等三個 IO 函數退成薄包裝。** 否決:原地不動。理由:純判定不該住 shell 模組
 - **真解譯器不動檔案系統(不建 .aapms、不開 index.db、不修補 marker、不寫中樞)由 shell 的內部測試守。** 否決:寫成 law。理由:純解譯器裡世界是不可變的,這條在純側恆真
+- **`MarkerWorld` 的世界不變量:路徑不是既存目錄(不在 `worldDirs`)時,該路徑的 marker 讀數一定是 `Left`。** 否決:讓「目錄不存在但 marker 可讀」的世界也合法。理由:stage 6 的 `refOfEntry` 先看路徑在不在,LAW-9 的右半只看 `worldMarker`,兩者要對得起來這條就必須成立;純解譯器與產生器都遵守它,真解譯器天然成立(沒有目錄就沒有檔)。(qa 基線時發現,2026-09-06)
 
 ## 修訂記錄
 無

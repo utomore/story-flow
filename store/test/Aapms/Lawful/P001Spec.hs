@@ -472,7 +472,7 @@ vfLinda =
 vfCycle :: VaultFiles
 vfCycle =
   vaultFilesOf
-    [ (pathLevel, levelSelfParentMd)
+    [ (pathLevel, levelMultiRootMd)
     , (pathLinda, topicMd "00000003" (TypeKey "character") [] "主體概述。\n")
     ]
 

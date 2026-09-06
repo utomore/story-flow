@@ -567,11 +567,14 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
     -- 搬到 'Aapms.Workspace.Hub.File',Hub 本身變成純模組。Projects 要的 saveHub
     -- 因此改從 Hub.File 取,允許清單多這一項;判準(只准 Types 與 Hub 家族,
     -- Location \/ Discovery \/ Scope \/ Lifecycle 一律不准)不變。
+    -- 2026-09-06 P-005-vault-lifecycle 的骨架:allocateProjectId 的定義搬到純層的
+    -- Aapms.Workspace.Lifecycle.Plan,本模組原地 re-export。允許清單因此多這一項;
+    -- 判準(只准 Types 與 Hub 家族,Location / Discovery / Scope 一律不准)不變。
     it "test_projects_no_sibling_or_vault_imports(a): 本套件內的 import 只能是 \
-       \Aapms.Workspace.Types、Aapms.Workspace.Hub 或 Aapms.Workspace.Hub.File" $ do
+       \Aapms.Workspace.Types、Aapms.Workspace.Hub、Aapms.Workspace.Hub.File 或 Aapms.Workspace.Lifecycle.Plan" $ do
       importLines <- projectsImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
-      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File"])) sibling
+      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File", "Aapms.Workspace.Lifecycle.Plan"])) sibling
 
     it "test_projects_never_imports_store(b): 完全不得出現任何 import Aapms.Store 開頭的行" $ do
       importLines <- projectsImportLines

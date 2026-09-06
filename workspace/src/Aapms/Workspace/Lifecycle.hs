@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | vault 的建立、納管、撤除、體檢與清理(design.md「內部模組劃分」的 Lifecycle)。
 --
 -- 擁有的事實(唯一真相來源):__撤除的分層界線__——什麼能刪、什麼絕不刪。
@@ -35,6 +37,9 @@ module Aapms.Workspace.Lifecycle
     -- * 體檢與回寫
   , checkVaults
   , syncHub
+
+    -- * P-005-vault-lifecycle 的進入點
+  , runLifecycle
   ) where
 
 import Control.Exception (IOException, try)
@@ -43,12 +48,18 @@ import Data.List (find)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime, getCurrentTime)
+import Effectful (Eff, IOE, runEff, (:>))
 
+import Aapms.Store.Effect.Clock (Clock)
 import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
 import Aapms.Store.Schema (VaultKind)
 import Aapms.Workspace.Discovery (lookupSelector, readVaultRef, readVaultRefAt)
 import Aapms.Workspace.Hub (hubVaults, removeVault, upsertVault)
+import Aapms.Workspace.Effect.HubFile.IO (runHubFileIO)
+import Aapms.Workspace.Effect.Markers.IO (runMarkersIO)
+import Aapms.Workspace.Effect.VaultDir.IO (runVaultDirIO)
 import Aapms.Workspace.Hub.File (saveHub)
+import Aapms.Workspace.Lifecycle.Plan (applyLifecycle)
 import Aapms.Workspace.Location (configPath, thumbCacheDir)
 import Aapms.Workspace.Types
   ( AdoptNotice (..)
@@ -59,6 +70,8 @@ import Aapms.Workspace.Types
   , PurgeReport (..)
   , PurgeScope (..)
   , ScopeIssue
+  , LifecycleOp
+  , LifecycleOutcome
   , SetupReport (..)
   , ToolsConfig (..)
   , VaultEntry (..)
@@ -473,3 +486,19 @@ removeExistingIndexes (e : es) = do
       case r of
         Left err -> pure (Left err)
         Right () -> fmap (fmap (p :)) (removeExistingIndexes es)
+
+-- P-005-vault-lifecycle 的進入點 ----------------------------------------------
+
+-- | 以中樞位置、目錄與系統時鐘跑真解譯器,把 P-005-vault-lifecycle 的純整條
+-- 'applyLifecycle' 接到檔案系統上。
+--
+-- 上面那十個函式('setupHub' … 'syncHub')退成本函式的薄包裝(P-005 的決定);
+-- 每個真解譯器各自守自己的檔案系統足跡。
+runLifecycle :: HubLocation -> Hub -> LifecycleOp -> IO (Either WorkspaceError LifecycleOutcome)
+runLifecycle loc hub op =
+  runEff (runHubFileIO loc (runVaultDirIO (runMarkersIO (runClockIO (applyLifecycle hub op)))))
+
+-- | 私有:系統時鐘的真解譯器。'Aapms.Store.Effect.Clock' 住 graph-core,
+-- 它的真解譯器由需要它的進入點各自提供。
+runClockIO :: IOE :> es => Eff (Clock : es) a -> Eff es a
+runClockIO _act = error "P-005#runClockIO stub"

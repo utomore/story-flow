@@ -30,19 +30,21 @@ module Aapms.Workspace.Projects
     -- * 撤除
   , forgetProject
 
-    -- * 配號(純函式,時間由呼叫端給)
+    -- * 配號(純函式,時間由呼叫端給;定義搬到
+    -- "Aapms.Workspace.Lifecycle.Plan",此處原地 re-export)
   , allocateProjectId
   ) where
 
 import Data.List (find)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (getCurrentTime)
 
 import System.Directory (canonicalizePath, doesDirectoryExist)
 
-import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, renderId)
+import Aapms.Core.Id (renderId)
 import Aapms.Workspace.Hub (removeProject, upsertProject)
+import Aapms.Workspace.Lifecycle.Plan (allocateProjectId)
 import Aapms.Workspace.Hub.File (saveHub)
 import Aapms.Workspace.Types
   ( Hub
@@ -146,29 +148,3 @@ forgetProject loc hub s =
             Right () -> Right (hub', e)
         [] -> pure (Left (ProjectSelectorNotFound s))
         es -> pure (Left (ProjectSelectorAmbiguous s es))
-
--- | 配一個在給定清單裡不撞號的 @prj-@ id。__純函式__:相同輸入必得相同輸出,
--- __時間由呼叫端給__('registerProject' 自己取 @getCurrentTime@ 再傳進來,
--- __它的對外簽名不變__)。
---
--- 參數:中樞既有的那些列(比對 'Aapms.Workspace.Types.peId' 用)、專案名
--- (已去除前後空白,當作 @newId@ 的內容)、時間。
---
--- 自 @salt = 0@ 起算 @newId PPrj 名稱 時間 salt@,候選與清單裡任何一列的
--- 'Aapms.Workspace.Types.peId' 相同就 @salt + 1@ 重算,回__第一個不撞的__候選;
--- __不靜默照發__。
---
--- __為什麼它是公開的而不是藏在 'registerProject' 裡__(見 spec 的待確認假設 ASM-5):
--- 契約 D 的 'registerProject' 簽名沒有時間參數,時間只能在函式內部取樣;而藏起來
--- 取樣的話,呼叫端就無法預先造出碰撞,salt 重試迴圈__永遠測不到__——碰撞在正常
--- 情況下幾乎不發生,那段程式碼可能永遠是錯的而沒人知道。graph-core 的
--- 'Aapms.Store.Write.allocateId' 為同一個理由把時間放到呼叫端(2026-08-25 GAP-8 裁決)。
--- 把配號抽成這個純函式,契約 D 的簽名一個字不動,而「撞號時以 salt 遞增重試」
--- 這條驗收標準變成可以直接斷言的。
-allocateProjectId :: [ProjectEntry] -> Text -> UTCTime -> Id
-allocateProjectId existing nm t = go 0
-  where
-    taken = map peId existing
-    go salt =
-      let cand = newId PPrj nm t salt
-      in  if cand `elem` taken then go (salt + 1) else cand

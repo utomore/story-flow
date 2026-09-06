@@ -27,12 +27,14 @@ module Aapms.Workspace.Tools
   ( -- * 契約 E
     detectSevenZip
     -- $plan
+    -- (型別定義搬到 "Aapms.Workspace.Types",此處原地 re-export)
   , ToolSearchPlan (..)
   , detectSevenZipIn
   ) where
 
 import Aapms.Workspace.Types
   ( ToolOrigin (FromCandidate, FromPath, FromToolsConfig, NotFound)
+  , ToolSearchPlan (..)
   , ToolStatus (ToolStatus)
   , ToolsConfig (tcSevenZip)
   )
@@ -47,21 +49,6 @@ import System.FilePath (splitSearchPath, (<.>), (</>))
 -- 契約卡的「三層都找不到時 @tsPath == Nothing@」永遠觸發不到。'detectSevenZipIn'
 -- 把這兩份清單變成參數,'detectSevenZip' 只是「拿真實的兩份清單去呼叫它」。
 -- 契約 E 的 'detectSevenZip' 簽名一字未動。
-
--- | 三層探測裡__可以被替換掉的那兩層__的來源。
---
--- 第三層(內建候選清單)與第二層(@PATH@)都是環境事實;把它們收成一個值,
--- 'detectSevenZipIn' 就成了「給定這兩份清單,依序探測」的確定性函式。
-data ToolSearchPlan = ToolSearchPlan
-  { tspPathDirs :: [FilePath]
-  -- ^ 第二層:要當成 @PATH@ 來掃的目錄清單,__保留順序__。真實呼叫時是
-  -- @PATH@ 環境變數以 'System.FilePath.splitSearchPath' 切開的結果;該變數
-  -- 未設時是空清單(不是失敗)。
-  , tspCandidates :: [FilePath]
-  -- ^ 第三層:要逐一探測的__完整檔案路徑__清單,__保留順序__。真實呼叫時是本模組
-  -- 內建的七條(沿用 legacy assetdb 的 @sevenZipCandidates@),__不隨平台變動__。
-  }
-  deriving stock (Show, Eq)
 
 -- | 探測這台機器上的 7-Zip:@[tools]@ 覆寫 → @PATH@ → 內建候選清單,__命中即停__。
 --

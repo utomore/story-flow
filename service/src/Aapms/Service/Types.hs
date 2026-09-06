@@ -40,20 +40,27 @@ module Aapms.Service.Types
   , DoctorView (..)
   , ProjectView (..)
 
+    -- * P-004-vault-scope:一次執行的不可變快照
+  , Session (..)
+
     -- * 契約 F:錯誤
   , ServiceError (..)
   , errorCode
   , renderServiceError
+  , isRegistryUnavailable
   ) where
 
 import Data.Text (Text)
 
 import Aapms.Core.Id (Id, VaultId)
-import Aapms.Core.Registry (RegistryError, renderRegistryError)
+import Aapms.Core.Name (NamingVocab)
+import Aapms.Core.Registry (RegistryError, TypeRegistry, renderRegistryError)
 import Aapms.Store.Types (IndexIssue, StoreError, VaultKind, renderStoreError)
 import Aapms.Types.Source (RegistrySource)
 import Aapms.Workspace.Types
-  ( HubSource
+  ( Hub
+  , HubLocation
+  , HubSource
   , ScopeIssue
   , ToolStatus
   , WorkspaceError
@@ -156,6 +163,34 @@ data ProjectView = ProjectView
   deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
+-- P-004-vault-scope:Session
+
+-- | 一次執行的開場快照,__不可變__(P-004-vault-scope 的決定)。
+--
+-- 'Aapms.Service.Monad.Env' 是它加上 handle 快取與全域鎖;可變狀態是 shell 的
+-- 資源生命週期,快照則是「一次載入的不變量」。註冊表與命名詞彙來自__同一次__
+-- 載入,所以一起帶。
+--
+-- __沒有 @Show@ \/ @Eq@__:'TypeRegistry' 兩者都沒有。要比較兩份快照時比它的投影
+-- (@listTypes . sessionRegistry@ 等)。
+data Session = Session
+  { sessionHub :: Hub
+  -- ^ 觀察:快照裡的中樞。
+  , sessionLocation :: HubLocation
+  -- ^ 觀察:中樞位置與來源。
+  , sessionRegistry :: TypeRegistry
+  -- ^ 觀察:註冊表。
+  , sessionNaming :: NamingVocab
+  -- ^ 觀察:命名詞彙。
+  , sessionSource :: RegistrySource
+  -- ^ 觀察:註冊表來自哪一層。
+  , sessionSelector :: Maybe Text
+  -- ^ 觀察:原樣捧著的 @--vault@;本層__不解讀__,交給 P-029-scope-resolve。
+  , sessionCwd :: FilePath
+  -- ^ 觀察:起點目錄。
+  }
+
+--------------------------------------------------------------------------------
 -- 契約 F:錯誤
 
 -- | @aapms-service@ 的__唯一__錯誤型別(design.md 契約 F)。不得另立平行的錯誤
@@ -222,3 +257,7 @@ renderServiceError = \case
       <> k
       <> "」這個型別鍵。用 type list 看目前有哪些型別,或到型別註冊表目錄"
       <> "(types/registry/)補一份宣告後重試。"
+
+-- | 觀察:是不是 'RegistryUnavailable'(P-004-vault-scope 的 LAW-3)。
+isRegistryUnavailable :: ServiceError -> Bool
+isRegistryUnavailable _e = error "P-004#isRegistryUnavailable stub"

@@ -15,7 +15,7 @@ module Aapms.Workspace.Discovery
   ( -- * 向上探測
     detectVault
 
-    -- * selector 解析
+    -- * selector 解析(定義搬到 "Aapms.Workspace.Resolve",此處原地 re-export)
   , lookupSelector
 
     -- * 路徑 → 權威身分
@@ -24,11 +24,10 @@ module Aapms.Workspace.Discovery
   ) where
 
 import Data.List (find)
-import Data.Text (Text)
 
-import Aapms.Core.Id (VaultId (..))
 import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)
 import Aapms.Workspace.Hub (hubVaults)
+import Aapms.Workspace.Resolve (lookupSelector)
 import Aapms.Workspace.Types
   ( Hub
   , ScopeIssue (..)
@@ -60,32 +59,6 @@ detectVault start = canonicalizePath start >>= climb
         else
           let up = takeDirectory d
           in if up == d then pure Nothing else climb up
-
--- | 把 @--vault@ 的字串解析成中樞裡的一列。
---
--- 兩階段,__先比 'Aapms.Workspace.Types.veId' 的完整字串,再比
--- 'Aapms.Workspace.Types.veName'__:id 階段有命中時,name 階段完全不參與;
--- 兩階段都逐字精確比對(不去空白、不忽略大小寫、不做前綴或子字串比對)。
---
--- 任一階段的命中集合:恰好一列 → @Right@ 該列;兩列以上 →
--- @Left ('Aapms.Workspace.Types.VaultSelectorAmbiguous' s es)@,@es@ __含全部__
--- 撞名的列(順序同中樞),使用者才知道改用哪個 id;兩階段都沒命中 →
--- @Left ('Aapms.Workspace.Types.VaultSelectorNotFound' s)@。
---
--- 純函式,只看 'Aapms.Workspace.Hub.hubVaults';不讀檔案、不碰
--- @[[projects]]@ \/ @[llm]@ \/ @[tools]@。
-lookupSelector :: Hub -> Text -> Either WorkspaceError VaultEntry
-lookupSelector hub s = case byId of
-  [e] -> Right e
-  es@(_ : _ : _) -> Left (VaultSelectorAmbiguous s es)
-  [] -> case byName of
-    [e] -> Right e
-    es@(_ : _ : _) -> Left (VaultSelectorAmbiguous s es)
-    [] -> Left (VaultSelectorNotFound s)
-  where
-    entries = hubVaults hub
-    byId = filter ((== VaultId s) . veId) entries
-    byName = filter ((== s) . veName) entries
 
 -- | 中樞的一列 + 它指的路徑 → 權威身分(design.md「模組間公開介面」的
 -- @Scope → Discovery@)。

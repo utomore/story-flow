@@ -38,11 +38,26 @@ library
         Aapms.Workspace.Lifecycle
         Aapms.Workspace.Projects
         Aapms.Workspace.Tools
+        Aapms.Workspace.Effect.HubFile
+        Aapms.Workspace.Effect.HubFile.IO
+        Aapms.Workspace.Effect.Markers
+        Aapms.Workspace.Effect.Markers.IO
+        Aapms.Workspace.Effect.ToolProbe
+        Aapms.Workspace.Effect.VaultDir
+        Aapms.Workspace.Effect.VaultDir.IO
+        Aapms.Workspace.Resolve
+        Aapms.Workspace.Resolve.Internal
+        Aapms.Workspace.Lifecycle.Plan
+        Aapms.Workspace.Lifecycle.Internal
+        Aapms.Workspace.Tools.Plan
     build-depends:
         , base          >=4.14 && <5
         , containers
         , directory
         , filepath
+        , effectful
+        , effectful-core
+        , effectful-th
         , text
         , time
         , toml-reader
@@ -74,11 +89,26 @@ test-suite aapms-workspace-test
         Aapms.Workspace.Lifecycle
         Aapms.Workspace.Projects
         Aapms.Workspace.Tools
+        Aapms.Workspace.Effect.HubFile
+        Aapms.Workspace.Effect.HubFile.IO
+        Aapms.Workspace.Effect.Markers
+        Aapms.Workspace.Effect.Markers.IO
+        Aapms.Workspace.Effect.ToolProbe
+        Aapms.Workspace.Effect.VaultDir
+        Aapms.Workspace.Effect.VaultDir.IO
+        Aapms.Workspace.Resolve
+        Aapms.Workspace.Resolve.Internal
+        Aapms.Workspace.Lifecycle.Plan
+        Aapms.Workspace.Lifecycle.Internal
+        Aapms.Workspace.Tools.Plan
     build-depends:
         , base
         , containers
         , directory
         , filepath
+        , effectful
+        , effectful-core
+        , effectful-th
         , hspec
         , hedgehog
         , hspec-hedgehog

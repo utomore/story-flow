@@ -20,6 +20,9 @@ module Aapms.Types.Parse
     parseSpecText
   , parseNamingText
 
+    -- * 一整個註冊表目錄的文字 → 宣告清單與命名詞彙(P-004-vault-scope)
+  , parseRegistryFiles
+
     -- * 已解出的 TOML 表 → 宣告
   , parseSpec
   , parseNaming
@@ -51,6 +54,15 @@ parseSpecText fp txt = case TOML.decode txt of
   Left e -> Left [TomlParseError fp (TOML.renderTOMLError e)]
   Right (TOML.Table tbl) -> parseSpec fp tbl
   Right _ -> Left [TomlParseError fp "檔案的最上層不是 TOML 表"]
+
+-- | 一整個註冊表目錄讀進來的 @(路徑, 全文)@ → 型別宣告清單與命名詞彙
+-- (P-004-vault-scope 的第 6 步)。
+--
+-- @naming.toml@ 那一份走 'parseNamingText',其餘走 'parseSpecText';任一份不合規
+-- 即失敗,錯誤經 'aggregate' 收成一則(呼叫端只有一個
+-- 'Aapms.Service.Types.RegistryLoadFailed' 欄位裝得下)。
+parseRegistryFiles :: [(FilePath, Text)] -> Either RegistryError ([TypeDecl], NamingVocab)
+parseRegistryFiles _files = error "P-004#parseRegistryFiles stub"
 
 -- | @naming.toml@ 的文字 → 'NamingVocab'。第一個參數同 'parseSpecText'。
 parseNamingText :: FilePath -> Text -> Either [RegistryError] NamingVocab

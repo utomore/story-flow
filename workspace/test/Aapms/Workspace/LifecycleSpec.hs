@@ -1137,13 +1137,16 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
     -- 搬到 'Aapms.Workspace.Hub.File',Hub 本身變成純模組。Lifecycle 要的
     -- saveHub 因此改從 Hub.File 取,允許清單多這一項;判準(只准 Types \/
     -- Location \/ Hub 家族 \/ Discovery,下游模組一律不准)不變。
-    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Hub.File\\/Discovery" $ do
+    -- 2026-09-06 P-005-vault-lifecycle 的骨架:進入點 runLifecycle 以三個真解譯器
+    -- 跑純層的 Aapms.Workspace.Lifecycle.Plan.applyLifecycle;允許清單因此多那四項,
+    -- 判準(只准型別層、純層與自己的 .IO 真解譯器,平行的 shell 模組一律不准)不變。
+    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Hub.File\\/Discovery\\/Lifecycle.Plan\\/Effect.*.IO" $ do
       importLines <- lifecycleImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
       mapM_
         ( \l ->
             moduleNameOf l
-              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File", "Aapms.Workspace.Discovery"])
+              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File", "Aapms.Workspace.Discovery", "Aapms.Workspace.Lifecycle.Plan", "Aapms.Workspace.Effect.HubFile.IO", "Aapms.Workspace.Effect.Markers.IO", "Aapms.Workspace.Effect.VaultDir.IO"])
         )
         sibling
 

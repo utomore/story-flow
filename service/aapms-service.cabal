@@ -39,10 +39,17 @@ library
         Aapms.Service.Monad
         Aapms.Service.Scope
         Aapms.Service.Machine
+        Aapms.Service.Session
+        Aapms.Service.Session.Internal
+        Aapms.Service.Machine.View
+        Aapms.Service.Machine.Internal
     build-depends:
         , base          >=4.14 && <5
         , containers
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , mtl
         , text
         , aapms-core
@@ -60,6 +67,10 @@ test-suite aapms-service-test
         Aapms.Service.Monad
         Aapms.Service.Scope
         Aapms.Service.Machine
+        Aapms.Service.Session
+        Aapms.Service.Session.Internal
+        Aapms.Service.Machine.View
+        Aapms.Service.Machine.Internal
         Aapms.Service.Fixtures
         Aapms.Service.TypesSpec
         Aapms.Service.MonadSpec
@@ -76,6 +87,9 @@ test-suite aapms-service-test
         , base
         , containers
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , hspec
         , hedgehog

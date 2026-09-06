@@ -1,7 +1,7 @@
 ---
 id: P-024
 description: Level 的 Node 清單經五條不變量驗證建成嚴格樹,再據以前序走訪、取子樹、追路徑與查合流
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-024-level-tree:Level 的 Node 清單經五條不變量驗證建成嚴格樹,再據以前序走訪、取子樹、追路徑與查合流

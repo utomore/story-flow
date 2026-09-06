@@ -1,7 +1,7 @@
 ---
 id: P-021
 description: 型別宣告清單經五條規則驗證建成註冊表,再據以查型別、查目錄與檢查節點
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-021-registry-build:型別宣告清單經五條規則驗證建成註冊表,再據以查型別、查目錄與檢查節點

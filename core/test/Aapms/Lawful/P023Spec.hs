@@ -6,18 +6,23 @@
 -- __執行預算__(rules\/roles.md「qa 的交付」:案例數與尺寸有上限、整個模組有
 -- timeout):
 --
--- * 每條 property 固定 @withTests 100@、@withShrinks 50@、@withDiscards 500@;
+-- * 每條 property 固定 100 個案例,經 @Test.Hspec.Hedgehog.'modifyMaxSuccess'@
+--   宣告(hspec-hedgehog 的 @Example (PropertyT IO ())@ 實例本來就會拿 hspec 的
+--   QuickCheck 參數覆寫掉 hedgehog 的 @withTests@,這裡不逆著它,直接用它唯一
+--   認得的介面);shrink 上限 50、discard 上限 500(@maxDiscardRatio 5 * maxSuccess
+--   100@)分別經 'modifyMaxShrinks' \/ 'modifyMaxDiscardRatio' 宣告,理由相同。
 --   產生器的清單長度上限 5、文字長度上限 12、'Data.Aeson.Value' 巢狀深度上限 1,
 --   沒有無界結構
--- * 每個 @it@(property 與 example 都算)包在 'System.Timeout.timeout' 裡;
---   超時視同紅。property 60 秒、example 10 秒,模組總預算因此有上界
+-- * 每個 @it@(property 與 example 都算)經 'around_' 包在 'System.Timeout.timeout'
+--   裡;超時視同紅。property 60 秒、example 10 秒,模組總預算因此有上界
 --
--- __為什麼用 'Hedgehog.check' 而不是 @Test.Hspec.Hedgehog.hedgehog@__:
--- @hspec-hedgehog@ 的 @Example (PropertyT IO ())@ 實例會拿 hspec 的 QuickCheck
--- @maxSuccess@ 覆寫掉 @withTests@,而且把 property 包成不可中斷的一整塊,沒有地方
--- 放 timeout。直接跑 'Hedgehog.check' 才能讓「100 個案例」與「模組 timeout」兩項
--- 交付要求都真的成立;失敗時 hedgehog 的反例報告印在標準輸出,hspec 這一側只回報
--- 哪一條紅。
+-- __為什麼是 @Test.Hspec.Hedgehog.hedgehog@ 而不是自己呼叫 'Hedgehog.check'__:
+-- lawful 的測試輸出解析器認的是 hspec 自己印的 @[✔]@\/@[✘]@ 那一列,緊接在
+-- @describe "P-023#LAW-n"@ 之後。自己呼叫 'Hedgehog.check' 會讓 hedgehog 的
+-- reporter 先印一行「✓ \<interactive\> passed 100 tests.」,把這一列插進中間,
+-- 解析器就再也對不上。'hedgehog' 把 @PropertyT IO ()@ 交給 hspec-hedgehog 的
+-- @Example@ 實例跑,hspec 這一側是唯一的 reporter,反例報告仍然完整印在失敗訊息裡,
+-- 只是不會再多印一行「跑過了幾次」。
 --
 -- __產生器紀律__:每條 law 的 @given@ 一律用__直接建構__滿足前提的值(版本相符 \/
 -- 版本不符 \/ key 不重複 \/ key 不存在),完全沒有用 'Hedgehog.Gen.filter' 過濾,
@@ -43,24 +48,22 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
-import Hedgehog
-  ( Gen
-  , PropertyT
-  , annotateShow
-  , check
-  , evalIO
-  , forAll
-  , property
-  , withDiscards
-  , withShrinks
-  , withTests
-  , (/==)
-  , (===)
-  )
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import System.Timeout (timeout)
 import Test.Hspec
+import Test.Hspec.Hedgehog
+  ( Gen
+  , annotateShow
+  , evalIO
+  , forAll
+  , hedgehog
+  , modifyMaxDiscardRatio
+  , modifyMaxShrinks
+  , modifyMaxSuccess
+  , (/==)
+  , (===)
+  )
 
 import Aapms.Core.Asset (Sha256 (..))
 import Aapms.Core.Id
@@ -87,31 +90,26 @@ propTimeoutMicros = 60 * 1000 * 1000
 exTimeoutMicros :: Int
 exTimeoutMicros = 10 * 1000 * 1000
 
--- | property test:100 個案例、shrink 與 discard 有上限、整條有 timeout。
-lawProp :: (HasCallStack) => String -> PropertyT IO () -> Spec
-lawProp name p =
-  it name $ do
-    r <-
-      timeout propTimeoutMicros $
-        check (withShrinks 50 (withDiscards 500 (withTests 100 (property p))))
-    case r of
-      Nothing ->
-        expectationFailure
-          (name <> ":超過 " <> show (propTimeoutMicros `div` 1000000) <> " 秒未跑完,視同紅")
-      Just False ->
-        expectationFailure (name <> ":hedgehog property 失敗,反例見標準輸出的報告")
-      Just True -> pure ()
+-- | 包住所有 law 的 'it':掛在 hspec 的 'around_' 這一層,不進 property 內部,
+-- 所以 hspec-hedgehog 的 'hedgehog' 仍是唯一的 reporter。逾時視同紅。
+withPropTimeout :: SpecWith a -> SpecWith a
+withPropTimeout = around_ $ \act -> do
+  r <- timeout propTimeoutMicros act
+  case r of
+    Just () -> pure ()
+    Nothing ->
+      expectationFailure
+        ("law property 超過 " <> show (propTimeoutMicros `div` 1000000) <> " 秒未跑完,視同紅")
 
--- | example test:有 timeout。
-exIt :: (HasCallStack) => String -> Expectation -> Spec
-exIt name act =
-  it name $ do
-    r <- timeout exTimeoutMicros act
-    case r of
-      Nothing ->
-        expectationFailure
-          (name <> ":超過 " <> show (exTimeoutMicros `div` 1000000) <> " 秒未跑完,視同紅")
-      Just () -> pure ()
+-- | 包住所有 example 的 'it'。逾時視同紅。
+withExTimeout :: SpecWith a -> SpecWith a
+withExTimeout = around_ $ \act -> do
+  r <- timeout exTimeoutMicros act
+  case r of
+    Just () -> pure ()
+    Nothing ->
+      expectationFailure
+        ("example 超過 " <> show (exTimeoutMicros `div` 1000000) <> " 秒未跑完,視同紅")
 
 --------------------------------------------------------------------------------
 -- 產生器(只用 types 層匯出的建構子與 smart constructor)
@@ -428,76 +426,95 @@ spec :: Spec
 spec = do
   manifestGolden <- runIO (readGolden manifestGoldenPath)
   storyGolden <- runIO (readGolden storyGoldenPath)
+  modifyMaxSuccess (const 100) $
+    modifyMaxShrinks (const 50) $
+      modifyMaxDiscardRatio (const 5) $ do
+        withPropTimeout laws
+        withExTimeout (examples manifestGolden storyGolden)
 
-  ------------------------------------------------------------------ Laws
+------------------------------------------------------------------ Laws
 
+laws :: Spec
+laws = do
   describe "P-023#LAW-1" $
-    lawProp "[roundtrip] 版本相符的 assets manifest 編成 JSON 再讀回來是同一個值" $ do
-      m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
-      fromJSON (toJSON m) === Success m
+    it "[roundtrip] 版本相符的 assets manifest 編成 JSON 再讀回來是同一個值" $
+      hedgehog $ do
+        m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
+        fromJSON (toJSON m) === Success m
 
   describe "P-023#LAW-2" $
-    lawProp "[roundtrip] 版本相符的 story manifest 編成 JSON 再讀回來是同一個值" $ do
-      sm <- forAll (genStoryManifestWith currentStoryManifestSchemaVersion)
-      fromJSON (toJSON sm) === Success sm
+    it "[roundtrip] 版本相符的 story manifest 編成 JSON 再讀回來是同一個值" $
+      hedgehog $ do
+        sm <- forAll (genStoryManifestWith currentStoryManifestSchemaVersion)
+        fromJSON (toJSON sm) === Success sm
 
   describe "P-023#LAW-3" $
-    lawProp "[invariant] schemaVersion 不是本工具支援的那一個就不解析,不靜默通過" $ do
-      v <- forAll (genWrongVersion currentSchemaVersion)
-      m <- forAll (genManifestWith v genAssetsMaybeDup)
-      annotateShow (mSchemaVersion m)
-      fromJSON (toJSON m) /== Success m
+    it "[invariant] schemaVersion 不是本工具支援的那一個就不解析,不靜默通過" $
+      hedgehog $ do
+        v <- forAll (genWrongVersion currentSchemaVersion)
+        m <- forAll (genManifestWith v genAssetsMaybeDup)
+        annotateShow (mSchemaVersion m)
+        fromJSON (toJSON m) /== Success m
 
   describe "P-023#LAW-4" $
-    lawProp "[invariant] story manifest 的版本閘門獨立於 assets manifest,用自己的常數" $ do
-      v <- forAll (genWrongVersion currentStoryManifestSchemaVersion)
-      sm <- forAll (genStoryManifestWith v)
-      annotateShow (smSchemaVersion sm)
-      fromJSON (toJSON sm) /== Success sm
+    it "[invariant] story manifest 的版本閘門獨立於 assets manifest,用自己的常數" $
+      hedgehog $ do
+        v <- forAll (genWrongVersion currentStoryManifestSchemaVersion)
+        sm <- forAll (genStoryManifestWith v)
+        annotateShow (smSchemaVersion sm)
+        fromJSON (toJSON sm) /== Success sm
 
   describe "P-023#LAW-5" $
-    lawProp "[relation] key 不重複時,每一筆 asset 都能用自己的 key 從索引查回自己" $ do
-      m <- forAll (genManifestWith currentSchemaVersion genAssetsDistinctKeys)
-      -- given:產生器直接建構,這裡順帶把前提釘成斷言的一部分
-      nub (map maKey (mAssets m)) === map maKey (mAssets m)
-      forM_ (mAssets m) $ \a ->
-        lookup (maKey a) (Map.toList (manifestIndex m)) === Just a
+    it "[relation] key 不重複時,每一筆 asset 都能用自己的 key 從索引查回自己" $
+      hedgehog $ do
+        m <- forAll (genManifestWith currentSchemaVersion genAssetsDistinctKeys)
+        -- given:產生器直接建構,這裡順帶把前提釘成斷言的一部分
+        nub (map maKey (mAssets m)) === map maKey (mAssets m)
+        forM_ (mAssets m) $ \a ->
+          lookup (maKey a) (Map.toList (manifestIndex m)) === Just a
 
   describe "P-023#LAW-6" $
-    lawProp "[invariant] 索引的鍵集合就是 asset 的 key 集合,不多也不少" $ do
-      m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
-      sort (map fst (Map.toList (manifestIndex m))) === sort (nub (map maKey (mAssets m)))
+    it "[invariant] 索引的鍵集合就是 asset 的 key 集合,不多也不少" $
+      hedgehog $ do
+        m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
+        sort (map fst (Map.toList (manifestIndex m))) === sort (nub (map maKey (mAssets m)))
 
   describe "P-023#LAW-7" $
-    lawProp "[relation] 沒出現在 manifest 裡的 key 查不到東西" $ do
-      m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
-      k <- forAll (Gen.element absentKeyPool)
-      -- given:absentKeyPool 與 keyPool 不相交,前提由建構保證
-      notElem k (map maKey (mAssets m)) === True
-      lookup k (Map.toList (manifestIndex m)) === Nothing
+    it "[relation] 沒出現在 manifest 裡的 key 查不到東西" $
+      hedgehog $ do
+        m <- forAll (genManifestWith currentSchemaVersion genAssetsMaybeDup)
+        k <- forAll (Gen.element absentKeyPool)
+        -- given:absentKeyPool 與 keyPool 不相交,前提由建構保證
+        notElem k (map maKey (mAssets m)) === True
+        lookup k (Map.toList (manifestIndex m)) === Nothing
 
   describe "P-023#LAW-8" $
-    lawProp "[roundtrip] ImageMeta 編成 JSON 再型別化讀回來是同一個值" $ do
-      im <- forAll genImageMeta
-      imageMeta (toJSON im) === Just im
+    it "[roundtrip] ImageMeta 編成 JSON 再型別化讀回來是同一個值" $
+      hedgehog $ do
+        im <- forAll genImageMeta
+        imageMeta (toJSON im) === Just im
 
   describe "P-023#LAW-9" $
-    lawProp "[roundtrip] AudioMeta 編成 JSON 再型別化讀回來是同一個值" $ do
-      am <- forAll genAudioMeta
-      audioMeta (toJSON am) === Just am
+    it "[roundtrip] AudioMeta 編成 JSON 再型別化讀回來是同一個值" $
+      hedgehog $ do
+        am <- forAll genAudioMeta
+        audioMeta (toJSON am) === Just am
 
   describe "P-023#LAW-10" $
-    lawProp "[total] 任何 Value 丟給兩個型別化讀取都有值,不拋例外" $ do
-      v <- forAll genValueForTotality
-      -- total = 求值到正規形不拋例外;evalIO 會把例外變成這條 property 的紅燈
-      _ <- evalIO (evaluate (forceImageMeta (imageMeta v)))
-      _ <- evalIO (evaluate (forceAudioMeta (audioMeta v)))
-      pure ()
+    it "[total] 任何 Value 丟給兩個型別化讀取都有值,不拋例外" $
+      hedgehog $ do
+        v <- forAll genValueForTotality
+        -- total = 求值到正規形不拋例外;evalIO 會把例外變成這條 property 的紅燈
+        _ <- evalIO (evaluate (forceImageMeta (imageMeta v)))
+        _ <- evalIO (evaluate (forceAudioMeta (audioMeta v)))
+        pure ()
 
-  ------------------------------------------------------------------ Examples
+------------------------------------------------------------------ Examples
 
+examples :: Either String Value -> Either String Value -> Spec
+examples manifestGolden storyGolden = do
   describe "P-023#EX-1" $
-    exIt "golden manifest.golden.json 解得出 Manifest,再編碼與原檔語意相同" $
+    it "golden manifest.golden.json 解得出 Manifest,再編碼與原檔語意相同" $
       withGolden manifestGoldenPath manifestGolden $ \gv ->
         decodedAs "manifest.golden.json" (fromJSON gv :: Result Manifest) $ \m -> do
           mSchemaVersion m `shouldBe` 2
@@ -508,7 +525,7 @@ spec = do
           fromJSON (toJSON m) `shouldBe` Success m
 
   describe "P-023#EX-2" $
-    exIt "golden story-manifest.golden.json 解得出 StoryManifest,schemaVersion 2,編回去語意相同" $
+    it "golden story-manifest.golden.json 解得出 StoryManifest,schemaVersion 2,編回去語意相同" $
       withGolden storyGoldenPath storyGolden $ \gv ->
         decodedAs "story-manifest.golden.json" (fromJSON gv :: Result StoryManifest) $ \sm -> do
           smSchemaVersion sm `shouldBe` 2
@@ -516,7 +533,7 @@ spec = do
           fromJSON (toJSON sm) `shouldBe` Success sm
 
   describe "P-023#EX-3" $
-    exIt "manifest 的 schemaVersion 換成 1 或 3 都解不出來,訊息含「請重新產生」" $
+    it "manifest 的 schemaVersion 換成 1 或 3 都解不出來,訊息含「請重新產生」" $
       withGolden manifestGoldenPath manifestGolden $ \gv ->
         forM_ [1 :: Int, 3] $ \bad ->
           case fromJSON (setKey "schemaVersion" (toJSON bad) gv) :: Result Manifest of
@@ -526,7 +543,7 @@ spec = do
               (T.pack (show bad) `T.isInfixOf` T.pack e) `shouldBe` True
 
   describe "P-023#EX-4" $
-    exIt "story manifest 的 schemaVersion 換成 1 或 3 都解不出來,用自己的版本常數" $
+    it "story manifest 的 schemaVersion 換成 1 或 3 都解不出來,用自己的版本常數" $
       withGolden storyGoldenPath storyGolden $ \gv ->
         forM_ [1 :: Int, 3] $ \bad ->
           case fromJSON (setKey "schemaVersion" (toJSON bad) gv) :: Result StoryManifest of
@@ -536,7 +553,7 @@ spec = do
               (T.pack (show currentStoryManifestSchemaVersion) `T.isInfixOf` T.pack e) `shouldBe` True
 
   describe "P-023#EX-5" $
-    exIt "兩筆 asset 的 manifest:兩個 AssetKey 都回 Just,does-not-exist 回 Nothing" $
+    it "兩筆 asset 的 manifest:兩個 AssetKey 都回 Just,does-not-exist 回 Nothing" $
       withGolden manifestGoldenPath manifestGolden $ \gv ->
         decodedAs "manifest.golden.json" (fromJSON gv :: Result Manifest) $ \m -> do
           let ix = manifestIndex m
@@ -547,7 +564,7 @@ spec = do
           Map.lookup (AssetKey "does-not-exist") ix `shouldBe` Nothing
 
   describe "P-023#EX-6" $
-    exIt "mAssets 為 [] 的 manifest:manifestIndex 是空表,鍵集合為 []" $
+    it "mAssets 為 [] 的 manifest:manifestIndex 是空表,鍵集合為 []" $
       withGolden manifestGoldenPath manifestGolden $ \gv ->
         decodedAs "manifest.golden.json" (fromJSON gv :: Result Manifest) $ \m0 -> do
           let m = m0 {mAssets = []}
@@ -555,7 +572,7 @@ spec = do
           Map.keys (manifestIndex m) `shouldBe` []
 
   describe "P-023#EX-7" $
-    exIt "maPack / maLicense 皆 Nothing:編碼後恰好九個鍵,兩者是 null 而不是省略鍵" $ do
+    it "maPack / maLicense 皆 Nothing:編碼後恰好九個鍵,兩者是 null 而不是省略鍵" $ do
       let v = toJSON ex7Asset
       case v of
         Object o -> KM.size o `shouldBe` 9
@@ -568,7 +585,7 @@ spec = do
         a `shouldBe` ex7Asset
 
   describe "P-023#EX-8" $
-    exIt "pack 寫成裸 id \"pck-11223344\" 讀成 Just (Ref Nothing ...),視為本 vault 參照" $
+    it "pack 寫成裸 id \"pck-11223344\" 讀成 Just (Ref Nothing ...),視為本 vault 參照" $
       withGolden manifestGoldenPath manifestGolden $ \gv ->
         case lookupKey "assets" gv >>= asList of
           Just (a0 : _) ->
@@ -577,7 +594,7 @@ spec = do
           _ -> expectationFailure "golden manifest 的 assets 讀不出第一筆"
 
   describe "P-023#EX-9" $
-    exIt "短 id 相同、vault 不同的兩筆 pack:mpId 不相等,各自能被完整 Ref 唯一查到" $ do
+    it "短 id 相同、vault 不同的兩筆 pack:mpId 不相等,各自能被完整 Ref 唯一查到" $ do
       mpId ex9PackA `shouldNotBe` mpId ex9PackB
       -- 剝掉 vault 前綴就會撞名——這正是整個引用圖 vault 化要擋的事
       refId (mpId ex9PackA) `shouldBe` refId (mpId ex9PackB)
@@ -586,16 +603,16 @@ spec = do
       lookup (mpId ex9PackB) table `shouldBe` Just ex9PackB
 
   describe "P-023#EX-10" $
-    exIt "imageMeta 讀出完整物件與缺 colorCount 的同形物件" $ do
+    it "imageMeta 讀出完整物件與缺 colorCount 的同形物件" $ do
       imageMeta ex10ImageFull `shouldBe` Just (ImageMeta 512 512 True (Just 128))
       imageMeta ex10ImageNoColorCount `shouldBe` Just (ImageMeta 64 64 False Nothing)
 
   describe "P-023#EX-11" $
-    exIt "audioMeta 讀出 durationMs / sampleRate / channels" $
+    it "audioMeta 讀出 durationMs / sampleRate / channels" $
       audioMeta ex11Audio `shouldBe` Just (AudioMeta 240 44100 2)
 
   describe "P-023#EX-12" $
-    exIt "image 的 Value 給 audioMeta、audio 的給 imageMeta,兩邊都是 Nothing 且不拋例外" $ do
+    it "image 的 Value 給 audioMeta、audio 的給 imageMeta,兩邊都是 Nothing 且不拋例外" $ do
       audioMeta ex10ImageFull `shouldBe` Nothing
       imageMeta ex11Audio `shouldBe` Nothing
       forceAudioMeta (audioMeta ex10ImageFull) `shouldBe` ()

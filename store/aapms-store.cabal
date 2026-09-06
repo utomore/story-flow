@@ -77,6 +77,9 @@ test-suite aapms-store-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P001Spec
+        Aapms.Lawful.P002Spec
+        Aapms.Lawful.P003Spec
         Aapms.Lawful.P027Spec
         Aapms.Store.AtomicSpec
         Aapms.Store.BoundarySpec

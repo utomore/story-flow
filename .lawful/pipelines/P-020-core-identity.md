@@ -1,7 +1,7 @@
 ---
 id: P-020
 description: 短 id 與跨 vault Ref 的生成、解析與渲染往返
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-020-core-identity:短 id 與跨 vault Ref 的生成、解析與渲染往返

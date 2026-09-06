@@ -1,7 +1,7 @@
 ---
 id: P-022
 description: 素材邏輯名稱的分段驗證、由右往左拆解與組回,詞彙表由外部注入
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-022-logical-name:素材邏輯名稱的分段驗證、由右往左拆解與組回,詞彙表由外部注入

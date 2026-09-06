@@ -1,7 +1,7 @@
 ---
 id: P-023
 description: 兩份 manifest 的 schema 2 編解碼、版本閘門與遊戲啟動時的查表索引
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-023-manifest-codec:兩份 manifest 的 schema 2 編解碼、版本閘門與遊戲啟動時的查表索引

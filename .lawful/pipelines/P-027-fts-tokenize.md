@@ -1,7 +1,7 @@
 ---
 id: P-027
 description: 文字經 CJK 判定與分詞產生雙 FTS 列與 MATCH 表達式,查詢依內容路由
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-027-fts-tokenize:文字經 CJK 判定與分詞產生雙 FTS 列與 MATCH 表達式,查詢依內容路由
@@ -19,8 +19,8 @@ updated: 2026-09-06
 | 5 | `rawFtsText :: AnyNode -> FtsText` | 節點投影成六欄原文,不做切詞 | `Aapms.Store.Tokenize` | pure |
 | 6 | `segmentFtsText :: FtsText -> FtsText` | 六欄逐欄套用 `cjkSegment` | `Aapms.Store.Tokenize` | pure |
 | 7 | `routeOf :: Text -> SearchRoute` | 依去頭尾空白後的長度與字元類別決定查哪張表 | `Aapms.Store.Tokenize` | pure |
-| 8 | `usesTrigram :: SearchRoute -> Bool` | 這條路由要不要查 `fts_tri` | `Aapms.Store.Tokenize` | pure |
-| 9 | `usesCjk :: SearchRoute -> Bool` | 這條路由要不要查 `fts_cjk` | `Aapms.Store.Tokenize` | pure |
+| 8 | `usesTrigram :: SearchRoute -> Bool` | 這條路由要不要查 `fts_tri` | `Aapms.Store.Types` | types |
+| 9 | `usesCjk :: SearchRoute -> Bool` | 這條路由要不要查 `fts_cjk` | `Aapms.Store.Types` | types |
 | 10 | `ftsQuoted :: Text -> Text` | 把使用者輸入包成 FTS5 的字面字串,關掉運算子語意 | `Aapms.Store.Tokenize` | pure |
 | 11 | `ftsPhrase :: Text -> Text` | 把已經是空白分隔的 token 串包成片語查詢,要求連續出現 | `Aapms.Store.Tokenize` | pure |
 | 12 | `triMatchExpr :: Text -> Maybe Text` | `fts_tri` 的 `MATCH` 運算式:逐詞加引號後以 AND 相連 | `Aapms.Store.Tokenize` | pure |
@@ -155,4 +155,7 @@ updated: 2026-09-06
 - **facet 計數排除該 facet 自己的條件。** 否決:一律套用完整條件。理由:選了一個 tag 之後 tag 側欄只會剩那一個值,使用者換不掉。這條決定由 P-002-search 承接落地
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 ADR-023-effectful-effects-layer「effects 層只准 import types 層」:P-002-search 的 `ftsMatch :: Index :> es => SearchRoute -> …` 住 effects 層,`SearchRoute` 必須住 types):`SearchRoute` 與它的兩個判定 `usesTrigram` / `usesCjk` 從 `Aapms.Store.Tokenize`(pure)搬到 `Aapms.Store.Types`(types),`Aapms.Store.Tokenize` 原樣 re-export;簽名不變
+  - 動到:Stages 第 8、9 列的模組與層
+  - 保護:LAW-1 到 LAW-20 全部
+  - 重委派:無(簽名與 law 都沒變,測試從 `Aapms.Store.Tokenize` 匯入仍可編譯)

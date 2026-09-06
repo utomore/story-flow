@@ -6,11 +6,11 @@
 -- @
 -- REG-1  只 import Aapms.Store 就取得到契約 E 的每一個公開符號,由「能不能編譯」證明 -> test_EX2
 -- REG-2  WriteResult 經 Aapms.Store 與經 Aapms.Store.Write 取得的是同一個型別        -> _r2SameType(型別檢查即斷言)
--- LAW-1  aapms-store.cabal 的 exposed-modules 不含 Edit\/Node\/Row\/Walk             -> test_LAW1
--- LAW-2  上述四個模組都在 other-modules                                             -> test_LAW2
+-- LAW-1  aapms-store.cabal 的 exposed-modules 不含 Edit\/Node\/Row\/Row.Sql\/Walk    -> test_LAW1
+-- LAW-2  上述五個模組都在 other-modules                                             -> test_LAW2
 -- LAW-3  aapms-store-test 的 build-depends 不含 aapms-store,hs-source-dirs 含 src+test -> test_LAW3
 -- LAW-4  Index.hs 的匯出清單不含 vaultMarkdownFiles\/statOf                          -> test_LAW4
--- EX-1  exposed-modules 12 項 + other-modules 4 項 = 16,對帳                       -> test_EX1
+-- EX-1  exposed-modules 13 項 + other-modules 5 項 = 18,對帳                       -> test_EX1
 -- EX-2  只 import Aapms.Store(...)列出契約 E 全部符號各引用一次,編譯通過           -> test_EX2 / _contractEFunctions / ContractETypesCheck
 -- @
 --
@@ -96,23 +96,23 @@ import qualified Aapms.Store.Write as Write
 spec :: Spec
 spec = describe "graph-core/E001 cabal 可見度界線" $ do
   describe "LAW-1 / LAW-2 / EX-1: library exposed-modules / other-modules" $ do
-    it "LAW-1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
+    it "LAW-1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Row.Sql / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
       filter (`elem` movedModules) exposed `shouldBe` []
 
-    it "LAW-2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Walk" $ do
+    it "LAW-2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Row.Sql / .Walk" $ do
       lib <- librarySection <$> readCabalSource
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "EX-1: exposed-modules 12 項 + other-modules 4 項 = 16,對帳" $ do
+    it "EX-1: exposed-modules 13 項 + other-modules 5 項 = 18,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort exposed `shouldBe` sort expectedExposed
       sort other `shouldBe` sort movedModules
-      (length exposed + length other) `shouldBe` 16
+      (length exposed + length other) `shouldBe` 18
 
   describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
@@ -208,19 +208,34 @@ type ContractETypesCheck =
 --------------------------------------------------------------------------------
 -- cabal / 原始檔文字輔助(只做字串切段,不解讀語意)
 
+-- | 2026-09-06 純函式重構:'Aapms.Store.Row' 拆成純的列轉換(原名)與碰 sqlite 的
+-- 'Aapms.Store.Row.Sql';後者同樣是內部模組,因此一起列進 other-modules。清單
+-- 從 4 項長成 5 項,LAW-1 \/ LAW-2 的判準(這些模組不得 exposed、必須 other)不變。
 movedModules :: [String]
-movedModules = ["Aapms.Store.Edit", "Aapms.Store.Node", "Aapms.Store.Row", "Aapms.Store.Walk"]
+movedModules =
+  [ "Aapms.Store.Edit"
+  , "Aapms.Store.Node"
+  , "Aapms.Store.Row"
+  , "Aapms.Store.Row.Sql"
+  , "Aapms.Store.Walk"
+  ]
 
 -- | 2026-09-06 型別層重構:@aapms-store@ 全部對外型別的宣告集中到新的
 -- 'Aapms.Store.Types',它是門面 re-export 的一員也是消費端(@workspace@ \/
 -- @service@ 的 Types)唯一該 import 的 store 模組,因此__必須__ exposed。
 -- 清單因此從 11 項長成 12 項;E001 的四個內部模組(Edit \/ Node \/ Row \/ Walk)
 -- 一項未動,LAW-1 \/ LAW-2 的判準不受影響。
+--
+-- 2026-09-06 純函式重構:寫入路徑上不碰 IO 的那幾個函式收進新的
+-- 'Aapms.Store.Editing'(純層模組),它與 'Aapms.Store.Types' 同樣是消費端
+-- (含 @service@ 與其他純層模組)該 import 的目標,因此__必須__ exposed;
+-- 清單再從 12 項長成 13 項。
 expectedExposed :: [String]
 expectedExposed =
   [ "Aapms.Store"
   , "Aapms.Store.Atomic"
   , "Aapms.Store.Create"
+  , "Aapms.Store.Editing"
   , "Aapms.Store.Error"
   , "Aapms.Store.Index"
   , "Aapms.Store.Marker"

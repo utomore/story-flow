@@ -13,6 +13,7 @@ import Aapms.Store.Fixtures (idOf, orDie, refOf, testRegistry, withTempVault)
 import Aapms.Store.Marker (closeVault, initVaultAt, openVault, vhConn)
 import Aapms.Store.Schema (VaultKind (StoryVault))
 import Aapms.Store.Row
+import Aapms.Store.Row.Sql
 import Test.Hspec
 
 -- | 一個「什麼欄位都有值」的合成 Meta,涵蓋 tags/aliases/links/timeline。

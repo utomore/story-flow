@@ -59,6 +59,7 @@ import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Error (StoreError (..), trySqlite)
 import Aapms.Store.Marker (VaultHandle (..))
 import Aapms.Store.Row
+import Aapms.Store.Row.Sql
 import Aapms.Store.Schema (IndexIssue (..), insertFtsRows)
 import Aapms.Store.Tokenize (ftsRowOf)
 import Aapms.Store.Walk (statOf, vaultMarkdownFiles)

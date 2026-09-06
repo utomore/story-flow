@@ -91,6 +91,7 @@ import Aapms.Md.Parse (parseDocument, toPack, toTopic)
 import Aapms.Store.Atomic (readTextFile)
 import Aapms.Store.Marker (VaultHandle (..))
 import Aapms.Store.Row
+import Aapms.Store.Row.Sql
 import Aapms.Store.Types
   ( FacetCounts (..)
   , NodeFilter (..)

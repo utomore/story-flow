@@ -34,6 +34,12 @@
 -- __不自動清掉指向被刪目標的關聯__:那要改其他檔案,而多檔寫入沒有交易保證 ——
 -- 改到一半失敗會留下不一致,比留幾筆孤兒關聯糟得多。孤兒關聯是可查詢、可修復的
 -- 狀態;半套的刪除不是。'DeleteSafe' 因此先擋下來讓作者自己決定。
+--
+-- __型別與純函式不住這裡__:輸入 \/ 結果的宣告('NewEntity' \/ 'NewLevel' \/
+-- 'NewPack' \/ 'SectionPlacement' \/ 'CreateResult' \/ 'DeleteMode' \/
+-- 'DeleteResult')住 "Aapms.Store.Types"(型別層),'sanitizeFileName' 與
+-- @payloadMatchesDocKind@ \/ @toCreateResult@ 住 "Aapms.Store.Editing"(純);
+-- 本模組原樣 re-export,匯出清單與既有呼叫端逐字不變,自己只剩 IO。
 module Aapms.Store.Create
   ( -- * 輸入:整份新檔
     NewEntity (..)
@@ -67,17 +73,13 @@ module Aapms.Store.Create
   ) where
 
 import Control.Monad (foldM)
-import Data.Char (isControl, isSpace)
 import Data.List (find)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (getCurrentTime, utctDay)
-import Aapms.Core.Asset (Sha256)
-import Aapms.Core.Id (Id, IdPrefix (..), Ref, localRef, renderId)
-import Aapms.Core.Level (NodeKind)
+import Aapms.Core.Id (Id, IdPrefix (..), localRef, renderId)
 import Aapms.Core.Link (Link)
-import Aapms.Core.Meta (Meta (..), Revision (..), Source, Status, Timeline, TypeKey (..), bumpRevision)
-import Aapms.Core.Pack (AiDisclosure, Author)
+import Aapms.Core.Meta (Meta (..), Revision (..), TypeKey (..), bumpRevision)
 import Aapms.Core.Registry (TypeRegistry, lookupDir)
 import Aapms.Md.Document (DocKind (..), Document, sectionIds)
 import Aapms.Md.Error (MdError)
@@ -98,87 +100,37 @@ import Aapms.Md.Render
   , updateFrontmatter
   )
 import Aapms.Store.Edit
-  ( Located (..)
-  , WriteResult (..)
-  , checkRevision
-  , commit
-  , currentMetaAt
+  ( commit
   , dropFile
   , locate
-  , orMd
   , readDocument
   , vaultAbsPath
+  )
+import Aapms.Store.Editing
+  ( checkRevision
+  , currentMetaAt
+  , orMd
+  , payloadMatchesDocKind
+  , sanitizeFileName
+  , toCreateResult
   )
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Node (headingDepthFor, isRootNode, subtreeIds, validateLevelDoc)
 import Aapms.Store.Query (linksTo)
-import Aapms.Store.Schema (IndexIssue)
+import Aapms.Store.Types
+  ( CreateResult (..)
+  , DeleteMode (..)
+  , DeleteResult (..)
+  , Located (..)
+  , NewEntity (..)
+  , NewLevel (..)
+  , NewPack (..)
+  , SectionPlacement (..)
+  , WriteResult (..)
+  )
 import Aapms.Store.Write (allocateId)
 import System.Directory (doesFileExist)
-
--- 輸入:整份新檔 -----------------------------------------------------------------
-
--- | 一份新的主題檔(檔案層主體)。
---
--- 沒有 @revision@ \/ @created@ \/ @updated@ 欄位:新檔的 revision 恆為 1,兩個
--- 日期恆為今天,由本層填 —— 讓呼叫端指定它們等於開一個偽造歷史的後門。
-data NewEntity = NewEntity
-  { neType :: TypeKey
-  -- ^ 主體型別鍵,如 @character@;決定檔案落在註冊表的哪個 @dir@
-  , neTitle :: Text
-  , neSummary :: Text
-  , neBody :: Text
-  , neTags :: [Text]
-  , neAliases :: [Text]
-  , neStatus :: Status
-  , neTimeline :: Maybe Timeline
-  , neLinks :: [Link]
-  , neSource :: Source
-  , nePath :: Maybe FilePath
-  -- ^ Vault 相對路徑;@Nothing@ = 依註冊表 @dir@ + 標題推導(撞名遞增)。
-  -- 明確給了卻已經有檔案時回 'Aapms.Store.Error.FileAlreadyExists' ——那是指定,
-  -- 不是推導,不該悄悄換掉
-  }
-  deriving stock (Show, Eq)
-
--- | 一份新的 Level 檔。__一併建出根 Node__:Level 檔沒有根 Node 就解析不出
--- @root@,建一個空殼等於建一份壞檔。
-data NewLevel = NewLevel
-  { nlTitle :: Text
-  , nlSummary :: Text
-  , nlBody :: Text
-  , nlStatus :: Status
-  , nlSource :: Source
-  , nlRootTitle :: Text
-  , nlRootKind :: NodeKind
-  , nlPath :: Maybe FilePath
-  -- ^ @Nothing@ = @levels\/\<標題\>.md@
-  }
-  deriving stock (Show, Eq)
-
--- | 一份新的 @pack.md@(檔案層)。
---
--- @pckArchive = Nothing@ 表示散檔目錄,此時各 asset 的 @entry@ 是相對
--- 'npDir' 的路徑(design.md 契約 A)。
-data NewPack = NewPack
-  { npDir :: FilePath
-  -- ^ Vault 相對目錄;檔案落在 @\<npDir\>\/pack.md@。由呼叫端給,不查註冊表
-  , npTitle :: Text
-  , npSummary :: Text
-  , npBody :: Text
-  , npTags :: [Text]
-  , npStatus :: Status
-  , npSource :: Source
-  , npVendor :: Maybe Text
-  , npArchive :: Maybe FilePath
-  , npSha256 :: Maybe Sha256
-  , npLicense :: Maybe Ref
-  , npAuthor :: Maybe Author
-  , npSourceUrl :: Maybe Text
-  , npAiDisclosure :: AiDisclosure
-  }
-  deriving stock (Show, Eq)
 
 -- 輸入:一個新的節(re-export)-----------------------------------------------------
 
@@ -190,51 +142,7 @@ data NewPack = NewPack
 -- nsId 由呼叫端先以 allocateId 配好再傳進來:md 那一層不知道怎麼配 id,而配號
 -- 需要索引在場(ADR-014)。
 
--- 結果 ------------------------------------------------------------------------
-
--- | 新產生的節點。
---
--- @crId@ 是呼叫端唯一拿不到其他來源的資訊 —— 少了它,@service@ 與 CLI 只能重讀
--- 檔案猜「最後一節就是剛剛那個」。
-data CreateResult = CreateResult
-  { crId :: Id
-  , crPath :: FilePath
-  -- ^ Vault 相對路徑
-  , crRevision :: Revision
-  -- ^ 寫入後檔案層主體的 revision(新檔為 @Revision 1@)
-  , crIssues :: [IndexIssue]
-  }
-  deriving stock (Show, Eq)
-
--- | 被指向時要擋下來,還是照刪並回報斷點。
-data DeleteMode = DeleteSafe | DeleteForce
-  deriving stock (Show, Eq)
-
-data DeleteResult = DeleteResult
-  { drPath :: FilePath
-  , drRemovedIds :: [Id]
-  -- ^ 刪整份檔案或整棵子樹時不只一個,依文件順序
-  , drBrokenLinks :: [(Id, Link)]
-  -- ^ 'DeleteForce' 打斷的關聯(來源節點, 那一筆關聯)
-  , drIssues :: [IndexIssue]
-  }
-  deriving stock (Show, Eq)
-
 -- 建立 ------------------------------------------------------------------------
-
--- | 新節要落在哪裡(契約 E,2026-08-25 裁決)。
---
--- 用__封閉 sum__ 而不是 @Maybe Id@:落點種類日後若要再長(例如「插在某個兄弟
--- 之前」),編譯器會列出所有待處理處 ——與 'Aapms.Core.AnyNode.AnyNode' \/
--- 'Aapms.Md.Render.NewSectionPayload' \/ 'DeleteMode' 同一個模式。
-data SectionPlacement
-  = -- | 追加在檔尾('Aapms.Md.Render.appendSection')
-    AtEnd
-  | -- | 插在指定父節點的子樹之後,成為它的最後一個子節點
-    -- ('Aapms.Md.Render.insertSection')。__只有 @LevelDoc@ 用得到__:另外三種
-    -- 文件的節是平的
-    UnderParent Id
-  deriving stock (Show, Eq)
 
 -- | 建一份新的主題檔。
 --
@@ -300,9 +208,6 @@ findFreePath vh dir base n = do
       rel = dir <> "/" <> T.unpack name
   exists <- doesFileExist (vaultAbsPath vh rel)
   if exists then findFreePath vh dir base (n + 1) else pure (Right rel)
-
-toCreateResult :: WriteResult -> CreateResult
-toCreateResult wr = CreateResult (wrId wr) (wrPath wr) (wrRevision wr) (wrIssues wr)
 
 -- | 建一份新的 Level 檔,連同它的根 Node。
 --
@@ -474,13 +379,6 @@ addSection vh targetId placement sec = do
                 Left e -> pure (Left e)
                 Right depth -> proceedAdd vh loc doc targetId (sec {nsLevel = depth}) (insertSection p)
 
-payloadMatchesDocKind :: NewSectionPayload -> DocKind -> Bool
-payloadMatchesDocKind (NSFragment _) TopicDoc = True
-payloadMatchesDocKind (NSAsset _ _) PackDoc = True
-payloadMatchesDocKind (NSLicense _ _) LicenseDoc = True
-payloadMatchesDocKind (NSNode _ _) LevelDoc = True
-payloadMatchesDocKind _ _ = False
-
 -- | 'addSection' 兩種落點共用的後半段:視情況把檔案層主體的 revision +1、
 -- (@LevelDoc@)重新驗證整棵樹,最後落地。
 proceedAdd
@@ -595,20 +493,5 @@ performDelete vh loc doc i victims refs = case locAnchor loc of
       pure (fmap (\wr -> DeleteResult (locPath loc) victims refs (wrIssues wr)) result)
 
 -- 檔名 ------------------------------------------------------------------------
-
--- | 檔名淨化:標題 → 檔名主幹。
 --
--- __保留中文原字元__(vault 是給人看的 git repo)。只把檔案系統不接受的
--- @\<\>:\"\/\\|?*@ 與控制字元換成 @-@,去掉頭尾空白與句點(Windows 不接受以句點
--- 結尾的檔名);全部被清掉時退回第二個參數(慣例上是該節點的短 id)。
-sanitizeFileName :: Text -> Text -> Text
-sanitizeFileName t fb =
-  let replaced = T.map replaceChar t
-      trimmed = T.dropWhileEnd trimChar (T.dropWhile trimChar replaced)
-   in if T.null trimmed then fb else trimmed
-  where
-    trimChar c = isSpace c || c == '.'
-    replaceChar c
-      | c `elem` ("<>:\"/\\|?*" :: String) = '-'
-      | isControl c = '-'
-      | otherwise = c
+-- 'sanitizeFileName' 住 "Aapms.Store.Editing"(純);本模組原樣 re-export。

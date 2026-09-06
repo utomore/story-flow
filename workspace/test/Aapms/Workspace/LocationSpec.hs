@@ -24,6 +24,7 @@ import Test.Hspec.Hedgehog (hedgehog)
 
 import Aapms.Core.Asset (Sha256 (..))
 import Aapms.Workspace.Fixtures
+import Aapms.Workspace.Hub.File (hubLocation)
 import Aapms.Workspace.Location
 import Aapms.Workspace.Types (HubLocation (..), HubSource (..))
 

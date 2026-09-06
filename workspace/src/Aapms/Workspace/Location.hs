@@ -4,11 +4,11 @@
 -- (@config.toml@、@cache\/thumbs\/@)。
 --
 -- 本模組只回答「路徑是什麼」,__不建立任何目錄或檔案__(那是 F004 的
--- @setupHub@),也不判斷路徑存不存在。除 'hubLocation' 讀環境變數與平台預設外,
--- 其餘三個函式都是純函式。
+-- @setupHub@),也不判斷路徑存不存在。三個函式__全部是純函式__:讀環境變數與
+-- 平台預設的 'Aapms.Workspace.Hub.File.hubLocation' 住 "Aapms.Workspace.Hub.File",
+-- 本模組因此不 import 任何 IO 模組。
 module Aapms.Workspace.Location
-  ( hubLocation
-  , configPath
+  ( configPath
   , thumbCacheDir
   , thumbCachePath
   ) where
@@ -16,30 +16,8 @@ module Aapms.Workspace.Location
 import qualified Data.Text as T
 
 import Aapms.Core.Asset (Sha256 (..))
-import Aapms.Workspace.Types (HubLocation (..), HubSource (..))
-import System.Directory (XdgDirectory (XdgConfig), getXdgDirectory, makeAbsolute)
-import System.Environment (lookupEnv)
+import Aapms.Workspace.Types (HubLocation (..))
 import System.FilePath ((</>))
-
--- | 解析中樞根目錄,順序固定兩層,__沒有第三層、不搜尋、不猜__:
---
--- 1. 環境變數 @AAPMS_HOME@ 已設且非空 → 用它(絕對化),
---    @'Aapms.Workspace.Types.hlSource' == 'Aapms.Workspace.Types.FromEnv'@
--- 2. 否則平台預設(Windows @%APPDATA%\\aapms@;其他平台 XDG
---    @$XDG_CONFIG_HOME\/aapms@,該變數未設時 @~\/.config\/aapms@),
---    @hlSource == 'Aapms.Workspace.Types.FromPlatformDefault'@
---
--- @AAPMS_HOME@ 設為__空字串__視同未設,走第 2 層。
-hubLocation :: IO HubLocation
-hubLocation = do
-  mEnv <- lookupEnv "AAPMS_HOME"
-  case mEnv of
-    Just raw | not (T.null (T.strip (T.pack raw))) -> do
-      abs' <- makeAbsolute raw
-      pure (HubLocation abs' FromEnv)
-    _ -> do
-      dir <- getXdgDirectory XdgConfig "aapms"
-      pure (HubLocation dir FromPlatformDefault)
 
 -- | 中樞註冊表檔案:@\<hlPath\>\/config.toml@。
 --

@@ -46,7 +46,8 @@ import Aapms.Store.Fixtures
 import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault, vhConn, vhRoot)
 import Aapms.Store.Query (linksFrom)
-import Aapms.Store.Row (insertSql, nodeColumnList, nodeFields)
+import Aapms.Store.Row (nodeColumnList)
+import Aapms.Store.Row.Sql (insertSql, nodeFields)
 import Aapms.Store.Schema (VaultKind (AssetVault))
 import Aapms.Store.Write
 import System.FilePath ((</>))

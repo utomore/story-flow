@@ -69,7 +69,7 @@ import Test.Hspec.Hedgehog (hedgehog)
 
 import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, parseId, renderId)
 import Aapms.Workspace.Fixtures
-import Aapms.Workspace.Hub (loadHub, saveHub)
+import Aapms.Workspace.Hub.File (loadHub, saveHub)
 import Aapms.Workspace.Projects (allocateProjectId, forgetProject, registerProject)
 import Aapms.Workspace.Types
 
@@ -563,11 +563,15 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         stillMissing `shouldBe` False
   --------------------------------------------------------------------------
   describe "LAW-17(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+    -- 2026-09-06 純函式重構:'Aapms.Workspace.Hub' 的 IO 面(loadHub \/ saveHub)
+    -- 搬到 'Aapms.Workspace.Hub.File',Hub 本身變成純模組。Projects 要的 saveHub
+    -- 因此改從 Hub.File 取,允許清單多這一項;判準(只准 Types 與 Hub 家族,
+    -- Location \/ Discovery \/ Scope \/ Lifecycle 一律不准)不變。
     it "test_projects_no_sibling_or_vault_imports(a): 本套件內的 import 只能是 \
-       \Aapms.Workspace.Types 或 Aapms.Workspace.Hub" $ do
+       \Aapms.Workspace.Types、Aapms.Workspace.Hub 或 Aapms.Workspace.Hub.File" $ do
       importLines <- projectsImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
-      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub"])) sibling
+      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File"])) sibling
 
     it "test_projects_never_imports_store(b): 完全不得出現任何 import Aapms.Store 開頭的行" $ do
       importLines <- projectsImportLines

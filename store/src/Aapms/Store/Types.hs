@@ -12,7 +12,8 @@
 -- @Aapms.Store.*@,是 @aapms-store@ 內部依賴圖的葉子,誰都可以往上帶,沒有模組環。
 --
 -- 各原模組("Aapms.Store.Error" \/ "Aapms.Store.Schema" \/ "Aapms.Store.Marker" \/
--- "Aapms.Store.Query" \/ "Aapms.Store.Edit")原樣 re-export 自己那一份,匯出清單
+-- "Aapms.Store.Query" \/ "Aapms.Store.Edit" \/ "Aapms.Store.Write" \/
+-- "Aapms.Store.Create")原樣 re-export 自己那一份,匯出清單
 -- 與既有呼叫端逐字不變;門面 "Aapms.Store" 也把本模組收進去。
 module Aapms.Store.Types
   ( -- * 錯誤(契約 G)
@@ -44,15 +45,33 @@ module Aapms.Store.Types
 
     -- * 寫入結果(graph-core\/F008)
   , WriteResult (..)
+
+    -- * 寫入路徑的定位(graph-core\/F008)
+  , Located (..)
+
+    -- * asset 的人給欄位(graph-core\/F008)
+  , AssetPatch (..)
+
+    -- * 輸入:整份新檔(graph-core\/F008)
+  , NewEntity (..)
+  , NewLevel (..)
+  , NewPack (..)
+
+    -- * 建立與刪除的結果(graph-core\/F008)
+  , SectionPlacement (..)
+  , CreateResult (..)
+  , DeleteMode (..)
+  , DeleteResult (..)
   ) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.Asset (LogicalName (..))
+import Aapms.Core.Asset (LogicalName (..), Sha256)
 import Aapms.Core.Id (Id, IdPrefix, Ref, VaultId (..), renderId, renderRef)
-import Aapms.Core.Level (TreeError, renderTreeError)
+import Aapms.Core.Level (NodeKind, TreeError, renderTreeError)
 import Aapms.Core.Link (Link (..), renderLinkKind)
-import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Status, TypeKey (..))
+import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..))
+import Aapms.Core.Pack (AiDisclosure, Author)
 import Aapms.Md.Document (DocKind (..))
 import Aapms.Md.Error (MdError, renderMdError)
 
@@ -430,5 +449,154 @@ data WriteResult = WriteResult
   , wrRevision :: Revision
   -- ^ 寫入後的新 revision(= 傳入的 expected + 1)
   , wrIssues :: [IndexIssue]
+  }
+  deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- 寫入路徑的定位(graph-core/F008)
+
+-- | 索引裡的 @nodes.file_path@ \/ @nodes.section_anchor@ 與 @files.doc_kind@。
+--
+-- 索引在寫入路徑上__只做定位__:哪個檔、哪一節、那是哪一種文件。所有會被比對
+-- 或寫回的值一律重讀檔案取得。
+data Located = Located
+  { locPath :: FilePath
+  -- ^ Vault 相對路徑
+  , locAnchor :: Maybe Id
+  -- ^ @Nothing@ = 檔案層主體(meta 在 frontmatter,不在任何一節)
+  , locKind :: DocKind
+  }
+  deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- asset 的人給欄位(graph-core/F008)
+
+-- | 'Aapms.Store.Write.writeAssetFields' 能改的__全部__欄位。
+--
+-- @sha256@ \/ @entry@ \/ @ext@ \/ @meta@ __不在這裡,而且是刻意的__:那四欄是
+-- 掃描器(@asset-ingest@)從檔案本身算出來的事實,不是人給的意見。「拒絕改」
+-- 因此不是一個執行期檢查,而是__型別上表達不出來__ ——檔案換了就是換了一筆
+-- asset,要走 'Aapms.Store.Create.addSection' \/ 'Aapms.Store.Create.deleteNode'。
+--
+-- 每一欄的外層 'Maybe' 是「這次動不動它」,內層 'Maybe' 是「要設成什麼」:
+-- @apName = Nothing@ 不動、@apName = Just Nothing@ 清空、
+-- @apName = Just (Just n)@ 設成 @n@。兩層合在一起才表達得出「清空」,少一層就
+-- 只能把「不動」與「清空」混為一談。
+data AssetPatch = AssetPatch
+  { apName :: Maybe (Maybe LogicalName)
+  , apLicense :: Maybe (Maybe Ref)
+  , apAuthor :: Maybe (Maybe Text)
+  , apTags :: Maybe [Text]
+  -- ^ @tags@ 住在 'Aapms.Core.Meta.Meta' 而不是 asset 專屬表,但它是人給欄位,
+  -- 所以與另外三欄一起走這條路徑;@Just []@ = 清空
+  }
+  deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- 輸入:整份新檔(graph-core/F008)
+
+-- | 一份新的主題檔(檔案層主體)。
+--
+-- 沒有 @revision@ \/ @created@ \/ @updated@ 欄位:新檔的 revision 恆為 1,兩個
+-- 日期恆為今天,由本層填 —— 讓呼叫端指定它們等於開一個偽造歷史的後門。
+data NewEntity = NewEntity
+  { neType :: TypeKey
+  -- ^ 主體型別鍵,如 @character@;決定檔案落在註冊表的哪個 @dir@
+  , neTitle :: Text
+  , neSummary :: Text
+  , neBody :: Text
+  , neTags :: [Text]
+  , neAliases :: [Text]
+  , neStatus :: Status
+  , neTimeline :: Maybe Timeline
+  , neLinks :: [Link]
+  , neSource :: Source
+  , nePath :: Maybe FilePath
+  -- ^ Vault 相對路徑;@Nothing@ = 依註冊表 @dir@ + 標題推導(撞名遞增)。
+  -- 明確給了卻已經有檔案時回 'FileAlreadyExists' ——那是指定,
+  -- 不是推導,不該悄悄換掉
+  }
+  deriving stock (Show, Eq)
+
+-- | 一份新的 Level 檔。__一併建出根 Node__:Level 檔沒有根 Node 就解析不出
+-- @root@,建一個空殼等於建一份壞檔。
+data NewLevel = NewLevel
+  { nlTitle :: Text
+  , nlSummary :: Text
+  , nlBody :: Text
+  , nlStatus :: Status
+  , nlSource :: Source
+  , nlRootTitle :: Text
+  , nlRootKind :: NodeKind
+  , nlPath :: Maybe FilePath
+  -- ^ @Nothing@ = @levels\/\<標題\>.md@
+  }
+  deriving stock (Show, Eq)
+
+-- | 一份新的 @pack.md@(檔案層)。
+--
+-- @pckArchive = Nothing@ 表示散檔目錄,此時各 asset 的 @entry@ 是相對
+-- 'npDir' 的路徑(design.md 契約 A)。
+data NewPack = NewPack
+  { npDir :: FilePath
+  -- ^ Vault 相對目錄;檔案落在 @\<npDir\>\/pack.md@。由呼叫端給,不查註冊表
+  , npTitle :: Text
+  , npSummary :: Text
+  , npBody :: Text
+  , npTags :: [Text]
+  , npStatus :: Status
+  , npSource :: Source
+  , npVendor :: Maybe Text
+  , npArchive :: Maybe FilePath
+  , npSha256 :: Maybe Sha256
+  , npLicense :: Maybe Ref
+  , npAuthor :: Maybe Author
+  , npSourceUrl :: Maybe Text
+  , npAiDisclosure :: AiDisclosure
+  }
+  deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
+-- 建立與刪除的結果(graph-core/F008)
+
+-- | 新節要落在哪裡(契約 E,2026-08-25 裁決)。
+--
+-- 用__封閉 sum__ 而不是 @Maybe Id@:落點種類日後若要再長(例如「插在某個兄弟
+-- 之前」),編譯器會列出所有待處理處 ——與 'Aapms.Core.AnyNode.AnyNode' \/
+-- 'Aapms.Md.Render.NewSectionPayload' \/ 'DeleteMode' 同一個模式。
+data SectionPlacement
+  = -- | 追加在檔尾('Aapms.Md.Render.appendSection')
+    AtEnd
+  | -- | 插在指定父節點的子樹之後,成為它的最後一個子節點
+    -- ('Aapms.Md.Render.insertSection')。__只有 @LevelDoc@ 用得到__:另外三種
+    -- 文件的節是平的
+    UnderParent Id
+  deriving stock (Show, Eq)
+
+-- | 新產生的節點。
+--
+-- @crId@ 是呼叫端唯一拿不到其他來源的資訊 —— 少了它,@service@ 與 CLI 只能重讀
+-- 檔案猜「最後一節就是剛剛那個」。
+data CreateResult = CreateResult
+  { crId :: Id
+  , crPath :: FilePath
+  -- ^ Vault 相對路徑
+  , crRevision :: Revision
+  -- ^ 寫入後檔案層主體的 revision(新檔為 @Revision 1@)
+  , crIssues :: [IndexIssue]
+  }
+  deriving stock (Show, Eq)
+
+-- | 被指向時要擋下來,還是照刪並回報斷點。
+data DeleteMode = DeleteSafe | DeleteForce
+  deriving stock (Show, Eq)
+
+data DeleteResult = DeleteResult
+  { drPath :: FilePath
+  , drRemovedIds :: [Id]
+  -- ^ 刪整份檔案或整棵子樹時不只一個,依文件順序
+  , drBrokenLinks :: [(Id, Link)]
+  -- ^ 'DeleteForce' 打斷的關聯(來源節點, 那一筆關聯)
+  , drIssues :: [IndexIssue]
   }
   deriving stock (Show, Eq)

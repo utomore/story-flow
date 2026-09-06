@@ -49,6 +49,7 @@ import Aapms.Core.Id (VaultId (..))
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Fixtures
 import Aapms.Workspace.Hub
+import Aapms.Workspace.Hub.File (loadHub, saveHub)
 import Aapms.Workspace.Types
 
 import System.Directory (doesDirectoryExist)

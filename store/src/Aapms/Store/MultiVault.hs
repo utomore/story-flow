@@ -96,10 +96,9 @@ import Aapms.Store.Row
   , inList
   , nodeColumns
   , rowToMeta
-  , sInt
-  , sText
   , toLink
   )
+import Aapms.Store.Row.Sql (sInt, sText)
 
 --------------------------------------------------------------------------------
 -- VaultSet

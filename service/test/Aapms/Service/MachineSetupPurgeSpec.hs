@@ -19,7 +19,7 @@ import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
 import Aapms.Workspace.Lifecycle (purge, setupHub)
-import Aapms.Workspace.Location (hubLocation)
+import Aapms.Workspace.Hub.File (hubLocation)
 import Aapms.Workspace.Types
   ( PurgeReport (..)
   , SetupReport (..)

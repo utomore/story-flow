@@ -42,7 +42,8 @@ import Data.Time (UTCTime, getCurrentTime)
 import System.Directory (canonicalizePath, doesDirectoryExist)
 
 import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, renderId)
-import Aapms.Workspace.Hub (removeProject, saveHub, upsertProject)
+import Aapms.Workspace.Hub (removeProject, upsertProject)
+import Aapms.Workspace.Hub.File (saveHub)
 import Aapms.Workspace.Types
   ( Hub
   , HubLocation

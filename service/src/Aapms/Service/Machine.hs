@@ -126,7 +126,8 @@ import Aapms.Workspace.Lifecycle
   , purge
   , setupHub
   )
-import Aapms.Workspace.Location (hubLocation, thumbCachePath)
+import Aapms.Workspace.Hub.File (hubLocation)
+import Aapms.Workspace.Location (thumbCachePath)
 import Aapms.Workspace.Projects (forgetProject, registerProject)
 import Aapms.Workspace.Tools (detectSevenZip)
 import Aapms.Workspace.Types

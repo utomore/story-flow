@@ -12,10 +12,10 @@
 -- __本模組不做業務判斷__(契約卡「明確不做」):名稱是否全域唯一由 @service@
 -- 在呼叫之前以 'Aapms.Store.Query.lookupByName' 查過;本模組只負責把值寫下去。
 module Aapms.Store.Write
-  ( -- * 結果(定義在內部模組 "Aapms.Store.Edit",由本模組帶進門面)
+  ( -- * 結果(定義在型別層的 "Aapms.Store.Types",由本模組帶進門面)
     WriteResult (..)
 
-    -- * asset 的人給欄位
+    -- * asset 的人給欄位(同上,定義在 "Aapms.Store.Types")
   , AssetPatch (..)
 
     -- * Meta
@@ -40,8 +40,8 @@ import Data.List (find)
 import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime, utctDay)
 import Database.SQLite.Simple (Only (..), query)
-import Aapms.Core.Asset (Asset (..), LogicalName (..))
-import Aapms.Core.Id (Id, IdPrefix (..), Ref, VaultId, newId, renderId)
+import Aapms.Core.Asset (Asset (..))
+import Aapms.Core.Id (Id, IdPrefix (..), VaultId, newId, renderId)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Link (Link (..))
 import Aapms.Core.Meta (Meta (..), Revision (..), Source (..), Status (..), TypeKey (..), bumpRevision)
@@ -63,9 +63,7 @@ import Aapms.Md.Render
   )
 import Aapms.Md.Parse (toLicenses)
 import Aapms.Store.Edit
-  ( Located (..)
-  , WriteResult (..)
-  , checkRevision
+  ( checkRevision
   , commit
   , currentAssetAt
   , currentMetaAt
@@ -79,29 +77,7 @@ import Aapms.Store.Edit
   )
 import Aapms.Store.Error (StoreError (..), trySqlite)
 import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
-
--- asset 的人給欄位 ---------------------------------------------------------------
-
--- | 'Aapms.Store.Write.writeAssetFields' 能改的__全部__欄位。
---
--- @sha256@ \/ @entry@ \/ @ext@ \/ @meta@ __不在這裡,而且是刻意的__:那四欄是
--- 掃描器(@asset-ingest@)從檔案本身算出來的事實,不是人給的意見。「拒絕改」
--- 因此不是一個執行期檢查,而是__型別上表達不出來__ ——檔案換了就是換了一筆
--- asset,要走 'Aapms.Store.Create.addSection' \/ 'Aapms.Store.Create.deleteNode'。
---
--- 每一欄的外層 'Maybe' 是「這次動不動它」,內層 'Maybe' 是「要設成什麼」:
--- @apName = Nothing@ 不動、@apName = Just Nothing@ 清空、
--- @apName = Just (Just n)@ 設成 @n@。兩層合在一起才表達得出「清空」,少一層就
--- 只能把「不動」與「清空」混為一談。
-data AssetPatch = AssetPatch
-  { apName :: Maybe (Maybe LogicalName)
-  , apLicense :: Maybe (Maybe Ref)
-  , apAuthor :: Maybe (Maybe Text)
-  , apTags :: Maybe [Text]
-  -- ^ @tags@ 住在 'Aapms.Core.Meta.Meta' 而不是 asset 專屬表,但它是人給欄位,
-  -- 所以與另外三欄一起走這條路徑;@Just []@ = 清空
-  }
-  deriving stock (Show, Eq)
+import Aapms.Store.Types (AssetPatch (..), Located (..), WriteResult (..))
 
 -- Meta ------------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
--- | 中樞 @config.toml@ 四段的解析與序列化、原子寫入,以及對 'Hub' 值的純增刪
+-- | 中樞 @config.toml@ 四段的解析與序列化,以及對 'Hub' 值的純增刪
 -- (design.md「內部模組劃分」的 Hub)。
 --
 -- 擁有的事實(唯一真相來源):__中樞記了什麼__——@[[vaults]]@ \/ @[[projects]]@ \/
@@ -8,12 +8,15 @@
 -- marker(graph-core)。本模組存的是__快取__,'Aapms.Workspace.Discovery'
 -- (F002)每次重讀真相。
 --
--- __不建立任何目錄或檔案__:'saveHub' 只覆寫既有位置的 @config.toml@,中樞目錄
+-- __本模組是純的__:它只做「文字 ↔ 'Hub' 值」與對 'Hub' 值的增刪,不開檔、
+-- 不讀環境變數、不 import 任何 IO 模組。碰檔案的那一半('Aapms.Workspace.Hub.File.loadHub' \/
+-- 'Aapms.Workspace.Hub.File.saveHub')住 "Aapms.Workspace.Hub.File" ——
+-- 它__不建立任何目錄或檔案__:@saveHub@ 只覆寫既有位置的 @config.toml@,中樞目錄
 -- 與 @cache\/@ 的建立是 F004 的 @setupHub@。
 module Aapms.Workspace.Hub
-  ( -- * 載入與寫回
-    loadHub
-  , saveHub
+  ( -- * 文字 ↔ 'Hub' 值
+    parseHubText
+  , renderHub
 
     -- * 契約 B 的四個 getter(自 'Aapms.Workspace.Types' 轉出)
   , hubVaults
@@ -45,13 +48,9 @@ import Aapms.Core.Id
   , renderId
   , renderIdPrefix
   )
-import Aapms.Store.Atomic (atomicWriteText, readTextFile)
-import Aapms.Store.Error (renderStoreError)
-import Aapms.Store.Schema (parseVaultKind, renderVaultKind)
-import Aapms.Workspace.Location (configPath)
+import Aapms.Store.Types (parseVaultKind, renderVaultKind)
 import Aapms.Workspace.Types
   ( Hub
-  , HubLocation
   , LlmSection (..)
   , ProjectEntry (..)
   , ToolsConfig (..)
@@ -64,34 +63,20 @@ import Aapms.Workspace.Types
   , hubVaults
   , mkHub
   )
-import System.Directory (doesFileExist)
 import System.FilePath (isAbsolute)
 
--- 讀 -----------------------------------------------------------------------
+-- 解析 ---------------------------------------------------------------------
 
--- | 讀 @\<hlPath\>\/config.toml@ 並解析四段。
+-- | @config.toml@ 的文字 → 'Hub' 的四段。第一個參數是這份文字的來源路徑,
+-- 只用來組錯誤訊息。
 --
--- * 檔案不存在 → @Left ('Aapms.Workspace.Types.HubNotFound' fp)@,
---   __不回空中樞__(system.md 全域錯誤策略第 3 條)
--- * 讀不進來或 TOML 解不開 → @Left ('Aapms.Workspace.Types.HubUnreadable' fp _)@
+-- * TOML 解不開 → @Left ('Aapms.Workspace.Types.HubUnreadable' fp _)@
 -- * 解得開但欄位不合規 → @Left ('Aapms.Workspace.Types.HubMalformed' fp _)@
 --
--- 成功時 'Aapms.Workspace.Types.hubSourceText' 帶著這次讀到的原始檔案文字,
--- 'saveHub' 靠它保住註解與空白行。
-loadHub :: HubLocation -> IO (Either WorkspaceError Hub)
-loadHub loc = do
-  let fp = configPath loc
-  exists <- doesFileExist fp
-  if not exists
-    then pure (Left (HubNotFound fp))
-    else do
-      txtR <- readTextFile fp
-      case txtR of
-        Left e -> pure (Left (HubUnreadable fp (renderStoreError e)))
-        Right txt -> pure (parseHub fp txt)
-
-parseHub :: FilePath -> Text -> Either WorkspaceError Hub
-parseHub fp txt = case (TOML.decode txt :: Either TOML.TOMLError TOML.Value) of
+-- 成功時 'Aapms.Workspace.Types.hubSourceText' 帶著傳進來的原始檔案文字,
+-- 'renderHub' 靠它保住註解與空白行。
+parseHubText :: FilePath -> Text -> Either WorkspaceError Hub
+parseHubText fp txt = case (TOML.decode txt :: Either TOML.TOMLError TOML.Value) of
   Left e -> Left (HubUnreadable fp (TOML.renderTOMLError e))
   Right (TOML.Table tbl) -> do
     vaults <- parseVaultsSection fp tbl
@@ -214,22 +199,6 @@ findDuplicate = go []
 unVaultId :: VaultId -> Text
 unVaultId (VaultId t) = t
 
--- 寫 -----------------------------------------------------------------------
-
--- | 把 'Hub' 原子寫回 @\<hlPath\>\/config.toml@(沿用
--- 'Aapms.Store.Atomic.atomicWriteText',__不另寫一份__)。
---
--- __既有列的相對順序、使用者寫的註解與空白行原樣保留__(ADR-017 決策二的
--- 「可手寫」):序列化自己寫,不用泛型 encoder。寫入失敗回
--- @Left ('Aapms.Workspace.Types.HubWriteFailed' fp _)@。
-saveHub :: HubLocation -> Hub -> IO (Either WorkspaceError ())
-saveHub loc hub = do
-  let fp = configPath loc
-  r <- atomicWriteText fp (renderHub hub)
-  pure $ case r of
-    Left e -> Left (HubWriteFailed fp (renderStoreError e))
-    Right () -> Right ()
-
 -- 底稿式序列化 ---------------------------------------------------------------
 --
 -- 'hubSourceText' 被切成一串「段落」('Segment'):檔案開頭到第一個表頭之前是
@@ -248,6 +217,10 @@ data Segment = Segment
   -- ^ 這個段落涵蓋的原始行(含終止符),依序串接後與這段原文逐字相同。
   }
 
+-- | 'Hub' → @config.toml@ 的完整文字。
+--
+-- __既有列的相對順序、使用者寫的註解與空白行原樣保留__(ADR-017 決策二的
+-- 「可手寫」):序列化自己寫,不用泛型 encoder。
 renderHub :: Hub -> Text
 renderHub hub = T.concat (concatMap segLines finalSegs)
   where
@@ -437,7 +410,8 @@ renderProjectSeg eol e =
 
 -- | TOML 基本字串的完整逸出:雙引號、反斜線、六個具名逸出序列,其餘
 -- U+0000–U+001F 與 U+007F 一律 @\\uXXXX@(四位大寫十六進位)。__控制字元不逸出
--- 就是非法 TOML__——'saveHub' 寫出這種內容,下一次 'loadHub' 會回
+-- 就是非法 TOML__——'Aapms.Workspace.Hub.File.saveHub' 寫出這種內容,下一次
+-- 'Aapms.Workspace.Hub.File.loadHub' 會回
 -- 'HubUnreadable',等於工具寫出一份自己讀不回來的中樞。
 quoteText :: Text -> Text
 quoteText t = "\"" <> T.concatMap esc t <> "\""

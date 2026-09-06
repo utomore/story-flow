@@ -32,6 +32,7 @@ library
         Aapms.Workspace.Types
         Aapms.Workspace.Location
         Aapms.Workspace.Hub
+        Aapms.Workspace.Hub.File
         Aapms.Workspace.Discovery
         Aapms.Workspace.Scope
         Aapms.Workspace.Lifecycle
@@ -66,6 +67,7 @@ test-suite aapms-workspace-test
         Aapms.Workspace.Types
         Aapms.Workspace.Location
         Aapms.Workspace.Hub
+        Aapms.Workspace.Hub.File
         Aapms.Workspace.Discovery
         Aapms.Workspace.Scope
         Aapms.Workspace.Lifecycle

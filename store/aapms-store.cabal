@@ -26,6 +26,7 @@ library
         Aapms.Store
         Aapms.Store.Atomic
         Aapms.Store.Create
+        Aapms.Store.Editing
         Aapms.Store.Error
         Aapms.Store.Index
         Aapms.Store.Marker
@@ -39,6 +40,7 @@ library
         Aapms.Store.Edit
         Aapms.Store.Node
         Aapms.Store.Row
+        Aapms.Store.Row.Sql
         Aapms.Store.Walk
     build-depends:
         , aeson

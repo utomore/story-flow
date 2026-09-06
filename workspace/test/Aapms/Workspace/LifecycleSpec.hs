@@ -155,7 +155,7 @@ import Aapms.Store.Marker (VaultMarker (..), indexDbPath, initVaultAt, initVault
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Discovery (lookupSelector)
 import Aapms.Workspace.Fixtures
-import Aapms.Workspace.Hub (loadHub, saveHub)
+import Aapms.Workspace.Hub.File (loadHub, saveHub)
 import Aapms.Workspace.Lifecycle
 import Aapms.Workspace.Location (thumbCacheDir)
 import Aapms.Workspace.Types
@@ -1133,13 +1133,17 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
 
   --------------------------------------------------------------------------
   describe "LAW-42(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
-    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Discovery" $ do
+    -- 2026-09-06 純函式重構:'Aapms.Workspace.Hub' 的 IO 面(loadHub \/ saveHub)
+    -- 搬到 'Aapms.Workspace.Hub.File',Hub 本身變成純模組。Lifecycle 要的
+    -- saveHub 因此改從 Hub.File 取,允許清單多這一項;判準(只准 Types \/
+    -- Location \/ Hub 家族 \/ Discovery,下游模組一律不准)不變。
+    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Hub.File\\/Discovery" $ do
       importLines <- lifecycleImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
       mapM_
         ( \l ->
             moduleNameOf l
-              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Discovery"])
+              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File", "Aapms.Workspace.Discovery"])
         )
         sibling
 

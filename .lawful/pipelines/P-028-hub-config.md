@@ -23,6 +23,7 @@ updated: 2026-09-06
 | 9 | `removeVault :: VaultId -> Hub -> Hub` | 依 `veId` 刪整列;沒有該 id 時原樣回傳 | `Aapms.Workspace.Hub` | pure |
 | 10 | `upsertProject :: ProjectEntry -> Hub -> Hub` | 依 `peId` 覆寫既有列;沒有該 id 時追加到末尾 | `Aapms.Workspace.Hub` | pure |
 | 11 | `removeProject :: Id -> Hub -> Hub` | 依 `peId` 刪整列;沒有該 id 時原樣回傳 | `Aapms.Workspace.Hub` | pure |
+| o | `applyHubEdits :: [HubEdit] -> Hub -> Hub` | 觀察:依序套用 upsert / remove 增刪(HubEdit 是四個增刪的 sum,住 Aapms.Workspace.Types) | `Aapms.Workspace.Hub`(願望) | pure |
 | = | `renderHub :: Hub -> Text` | 純的整條:以 `hubSourceText` 為底稿逐段比對,未變動的段落、註解與空白行逐字沿用 | `Aapms.Workspace.Hub` | pure |
 
 ## Laws
@@ -30,13 +31,13 @@ updated: 2026-09-06
   - forall fp in FilePath, txt in Text, h in rights [parseHubText fp txt]
   - |- renderHub h == txt
 - LAW-2 [roundtrip] 渲染再解析,四段逐欄相等(清單含順序)
-  - forall fp in FilePath, h in Hub, h2 in rights [parseHubText fp (renderHub h)]
+  - forall fp in FilePath, txt in Text, h0 in rights [parseHubText fp txt], edits in [HubEdit], h in [applyHubEdits edits h0], h2 in rights [parseHubText fp (renderHub h)]
   - |- hubVaults h2 == hubVaults h and hubProjects h2 == hubProjects h and hubLlm h2 == hubLlm h and hubTools h2 == hubTools h
 - LAW-3 [total] 工具寫得出來的中樞,工具一定讀得回來
   - forall fp in FilePath, h in Hub
   - given isRight (parseHubText fp (hubSourceText h))
-  - given all (not . null) (map veName (hubVaults h))
-  - given all (not . null) (map peName (hubProjects h))
+  - given all (not . null . words) (map veName (hubVaults h))
+  - given all (not . null . words) (map peName (hubProjects h))
   - given nub (map veId (hubVaults h)) == map veId (hubVaults h)
   - given nub (map peId (hubProjects h)) == map peId (hubProjects h)
   - |- isRight (parseHubText fp (renderHub h))
@@ -83,9 +84,9 @@ updated: 2026-09-06
 - LAW-16 [roundtrip] 建構入口與五個 selector 互逆
   - forall vs in [VaultEntry], ps in [ProjectEntry], llm in Maybe LlmSection, tools in ToolsConfig, txt in Text
   - |- hubVaults (mkHub vs ps llm tools txt) == vs and hubProjects (mkHub vs ps llm tools txt) == ps and hubLlm (mkHub vs ps llm tools txt) == llm and hubTools (mkHub vs ps llm tools txt) == tools and hubSourceText (mkHub vs ps llm tools txt) == txt
-- LAW-17 [invariant] 載入得起來的中樞,每一列的名稱都非空(workspace F001 ASM-3)
+- LAW-17 [invariant] 載入得起來的中樞,每一列的名稱去前後空白後都非空(workspace F001 ASM-3)
   - forall fp in FilePath, txt in Text, h in rights [parseHubText fp txt]
-  - |- all (not . null) (map veName (hubVaults h)) and all (not . null) (map peName (hubProjects h))
+  - |- all (not . null . words) (map veName (hubVaults h)) and all (not . null . words) (map peName (hubProjects h))
 - LAW-18 [invariant] 鍵是 id,不是名稱也不是路徑:載入得起來的中樞裡 id 唯一,名稱與路徑都可以重複(ADR-017)
   - forall fp in FilePath, txt in Text, h in rights [parseHubText fp txt]
   - |- nub (map veId (hubVaults h)) == map veId (hubVaults h) and nub (map peId (hubProjects h)) == map peId (hubProjects h)
@@ -99,7 +100,6 @@ updated: 2026-09-06
 |---|---|---|---|
 | EX-1 | 空字串 `""`;以及只有 `# 空的中樞\n` 一行的檔案 | 兩者都是 `Right`;四段分別是 `[]` / `[]` / `Nothing` / `ToolsConfig Nothing`(「四段都缺席」是合法的空中樞) | LAW-4、LAW-16 |
 | EX-2 | `[[vaults` (TOML 語法錯) | `Left (HubUnreadable fp _)`;不拋例外 | LAW-4 |
-| EX-3 | 最上層不是 TOML 表的檔案 | `Left (HubMalformed fp "檔案的最上層不是 TOML 表")` | LAW-4 |
 | EX-4 | 一列 `[[vaults]]` 只有 `name` / `kind` / `path`,缺 `id` | `Left (HubMalformed fp msg)`,`msg` 含 `id` | LAW-4 |
 | EX-5 | 一列 `[[vaults]]` 的 `kind = "media"`;另一份的 `path = "assets/lib"`(相對路徑);另一份的 `id = "prj-91c0aa12"`(前綴錯) | 三者都是 `Left (HubMalformed fp msg)`,`msg` 依序含 `media` / `assets/lib` / `vlt` 與 `prj-91c0aa12` | LAW-4 |
 | EX-6 | 一列 `[[vaults]]` 的 `name = "   "`(全空白);另一份的 `[[projects]]` 的 `name = ""` | 兩者都是 `Left (HubMalformed fp msg)`,`msg` 指出名稱不得為空 | LAW-17 |
@@ -138,4 +138,7 @@ updated: 2026-09-06
 - **中樞存的是快取不是真相:vault 的 `id` / `kind` / `name` / `refs` 屬各 vault 的 marker,每次探測重讀。** 否決:以中樞為準。理由:marker 才跟著目錄走,中樞只是索引;兩者不一致時要看得出漂移,而不是讓中樞蓋掉事實。證據:ADR-017-unified-marker-id-registry-read-across-write-single
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 qa 提問 GAP-1「EX-3 的輸入在 toml-reader 0.3.0.0 產不出來」、GAP-2「veName = \"   \" 同時滿足 given 又該被拒收」、GAP-3「mkHub 可以拼出底稿與四段矛盾的快照」):刪 EX-3;LAW-3 的 given 與 LAW-17 的 |- 改成去前後空白後非空;LAW-2 的 forall 加前提 h 來自 parseHubText 再經 applyHubEdits,並加觀察點 applyHubEdits
+  - 動到:LAW-2、LAW-3、LAW-17、EX-3(刪除)
+  - 保護:LAW-1、LAW-4 到 LAW-16、LAW-18、LAW-19
+  - 重委派:qa(LAW-2、LAW-3、LAW-17、EX-3)

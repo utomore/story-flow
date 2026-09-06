@@ -4,6 +4,7 @@ type: feature
 title: api-types-and-openapi
 description: servant 路由型別、`HttpApiData`、`ToSchema`、OpenAPI 3 輸出、`ToJSON` ↔ `ToSchema` 逐欄對齊
 status: planned
+rev: 0
 stage: S3
 modules: [Api.Routes, Api.Instances, Api.OpenApi]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「OpenAPI」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段一
 - **負責模組**:Api.Routes、Api.Instances、Api.OpenApi
 - **實作的 Level 2 介面**:契約 C 的路由表全部條目與四個參數(`{ref}` / `{selector}` /

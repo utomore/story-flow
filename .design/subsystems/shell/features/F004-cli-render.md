@@ -4,6 +4,7 @@ type: feature
 title: cli-render
 description: 唯一的人類可讀渲染器:作用中 vault 的開頭行、節點 / 清單 / 樹 / 搜尋結果、警告與 `ScopeIssue`
 status: planned
+rev: 0
 stage: S3
 modules: [Cli.Render]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「人類可讀輸出的編碼(`hSetEncoding` + Windows console code page)」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段二
 - **負責模組**:Cli.Render
 - **實作的 Level 2 介面**:契約 B 的「非 `--json` 模式第一行是作用中的 vault」;使用 `service` 的

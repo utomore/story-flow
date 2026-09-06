@@ -6,7 +6,7 @@ description: 素材與故事設定共用一份片段圖譜的工作室資產管�
 status: active
 mode: greenfield
 created: 2026-08-16
-updated: 2026-09-04
+updated: 2026-09-05
 subsystems: [graph-core, workspace, service, asset-ingest, conflict, ai, project, shell]
 ---
 
@@ -34,14 +34,21 @@ subsystems: [graph-core, workspace, service, asset-ingest, conflict, ai, project
 > 也不預留相容層(唯一例外是外部系統既有的契約)。
 > ③ **兩類 v1 spec 不回頭改寫**——(a) v2 要求每條 `LAW-` / `REG-` 底下寫滿「量詞 / 定義域 / 前提 /
 > 觀察點」四格,而 S1 與 S3 已交付的 14 份 spec 共 337 條法條寫的是 v1 的粗體散文式;(b) graph-core 的
-> `F001-core-unified-meta` / `F002-registry-family-and-naming` / `F003-manifest-schema-v2` /
-> `F005-store-vault-handle` / `F006-store-unified-index` 這五份更早,建於 spec 驅動三角色流程之前,
+> `F001-core-unified-meta` / `F002-registry-family-and-naming` / `F003-manifest-schema-v2`
+> 這三份更早,建於 spec 驅動三角色流程之前,
 > 整份沒有 `## Laws`,規格以「TodoList + 1-to-1 測試對照表」的形式存在(`/arch-audit status` 會把它們
 > 列成「done 卻沒有 ## Laws」)。兩類都**照舊可讀、不強制回頭改**:那些法條都已翻成測試並驗過,事後
 > 補四格或補寫 Laws 等於替已交付的規格重新編造量化條件,而編錯了沒有任何東西會抱怨(與 v2 對舊式編號
 > `L1` / `E1` 的處理同一條原則)。`graph-core/E001-store-internal-module-boundary` 是唯一被
 > `lint-laws.mjs` 抓到的一份(它已用 `LAW-` / `REG-` 詞首碼),已補齊四格與 `檔案#符號` 的骨架位置。
 > **新寫的 spec 一律用 v2 格式**,`lint-laws.mjs` 會擋。
+>
+> **2026-09-05 更新(2.2.1 核心功能模型遷移)**:上面 (b) 原本列五份,其中
+> `F005-store-vault-handle` 與 `F006-store-unified-index` 已經有 `## Laws` 了——
+> `graph-core/E002-init-vault-at-explicit-time` 摺回 F005(REV-1)、
+> `graph-core/E001-store-internal-module-boundary` 摺回 F006(REV-1)時,把那兩輪已交付並驗過的
+> LAW / REG / EX 一併帶了進去。**那不是回頭補寫**:條文是當初真的寫過、翻成測試跑綠的原文,
+> 只是換了一份檔存放。剩下的三份沒有任何 E 可以供給條文,維持不改。
 > ④ **四個子系統都不寫「模組群」表**——`graph-core`(core → types → md → store)、`service`、`shell`、
 > `workspace` 的內部模組都是同一條資料流管線上的環節,不是平行領域;v2 明訂只有一個領域時整張表可省略。
 > 每個子系統的 feature 都已在名冊上鑄號建檔,沒有「還沒開工、又不在分母裡」的那一群。
@@ -614,7 +621,7 @@ status: canon
 source: scan
 revision: 4
 created: 2026-08-10
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Kenney UI Pack

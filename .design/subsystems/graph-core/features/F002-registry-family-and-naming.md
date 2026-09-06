@@ -4,6 +4,7 @@ type: feature
 title: registry-family-and-naming
 description: 型別註冊表加 family 與 asset 八族、naming.toml 詞彙(kinds/domains/states)、命名文法改吃注入詞彙並語意區分 variant/state
 status: done
+rev: 0
 created: 2026-08-23
 updated: 2026-09-04
 stage: S1
@@ -50,6 +51,7 @@ DEC-1(委派決策記錄):graph-core 以外的程式碼(`service` / `conflict` /
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「宣告式型別註冊表(含 asset 族)」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段一
 - **負責模組**:Registry 載入(`aapms-types`)、Registry 純驗證、Naming(`aapms-core`)
 - **驗收標準**(契約卡原文):`types/registry/` 含原五種 entity 族 + 八種 asset 族 + `naming.toml`;`asset-pack` /

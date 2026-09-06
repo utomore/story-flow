@@ -4,6 +4,7 @@ type: feature
 title: md-unified-sections
 description: 分節引擎接統一 Meta;新增 pack.md/licenses.md 解析與位元組保留寫回
 status: done
+rev: 0
 created: 2026-08-23
 updated: 2026-09-04
 stage: S1
@@ -99,6 +100,7 @@ frontmatter 寫出去再讀回來,七個欄位逐欄相等。判準沿用 GAP-2 
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「兩種 vault 的 Markdown 解析與寫回」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段二
 - **負責模組**:分節引擎、文件轉換(`aapms-md`)
 - **驗收標準**(契約卡原文):四種文件 roundtrip(解析 → 寫回 → 再解析)不失真;未修改區塊位元組相同(S0 契約測試

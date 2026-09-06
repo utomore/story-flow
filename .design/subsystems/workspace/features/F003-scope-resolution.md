@@ -4,6 +4,7 @@ type: feature
 title: scope-resolution
 description: "resolveRead / resolveWrite / resolvePipeline、refs 遞移展開與擋環、保序去重"
 status: done
+rev: 0
 created: 2026-08-29
 updated: 2026-09-04
 stage: S3
@@ -86,6 +87,7 @@ code-paths: [workspace/aapms-workspace.cabal, workspace/src/Aapms/Workspace/Scop
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「解析「這次指令對哪些 vault 生效」(讀跨寫單一的裁決點)」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段一
 - **負責模組**:Scope
 - **驗收標準**(契約卡原文):- 對任意中樞,`resolveRead hub Nothing` 的 `rsVaults` 的 id 集合 = 全部**讀得到 marker 的**

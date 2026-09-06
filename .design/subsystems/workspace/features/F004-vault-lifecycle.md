@@ -4,8 +4,9 @@ type: feature
 title: vault-lifecycle
 description: "中樞建立、vault 的 init/adopt/add/forget、體檢與回寫、purge 清理"
 status: done
+rev: 1
 created: 2026-08-29
-updated: 2026-09-04
+updated: 2026-09-05
 stage: S3
 modules: [Lifecycle]
 depends-on: [workspace/F001, workspace/F002]
@@ -100,6 +101,7 @@ Lifecycle 擁有的唯一事實是 **「撤除的分層界線」**——什麼�
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「`setup` / `init`(含 `--adopt`)/ `add` / `forget` / `check` / `purge` 生命週期」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段二
 - **負責模組**:Lifecycle
 - **驗收標準**(契約卡原文):- `setupHub` 冪等:第一次跑後 `spHubCreated == True`,同一位置再跑一次 `spHubCreated == False`
@@ -418,6 +420,15 @@ purge loc hub scope
 模組匯出清單只有這七個函式;型別一律讓消費端從 `Aapms.Workspace.Types` 取,本模組**不轉出**任何
 型別(與 Discovery / Scope 同一個做法)。
 
+### REV-1 併入:`initVaultWith`(遷移自 workspace/E001-init-vault-explicit-time)
+
+| 項目 | 動作 | 簽名 / 定義 | 語意 | 骨架位置 |
+|---|---|---|---|---|
+| `initVaultWith` | 新增(進契約 D) | `initVaultWith :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> UTCTime -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))` | 在一個目錄上建立 vault 並登錄進中樞,**新 vault 的 id 由呼叫端給的時間決定**;前置檢查、撞號處置、回滾與 `AdoptNotice` 的語意與 `initVault` 完全相同 | `workspace/src/Aapms/Workspace/Lifecycle.hs#initVaultWith` |
+| `initVault` | 修改(簽名逐字不變) | `initVault :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))` | 取當下時間後轉呼 `initVaultWith`;對外行為完全不變。唯一呼叫端 `service/src/Aapms/Service/Machine.hs` 未改 | `workspace/src/Aapms/Workspace/Lifecycle.hs#initVault` |
+| `Aapms.Workspace.Lifecycle` 匯出清單 | 修改 | 「vault 的建立與納管」段新增 `initVaultWith` | 本套件七個模組全部 `exposed`,匯出即進契約 D | `workspace/src/Aapms/Workspace/Lifecycle.hs#Aapms.Workspace.Lifecycle` |
+| `Lifecycle.hs` 的 `Aapms.Store.Marker` import 行 | 修改 | `import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)` | 多放行 `initVaultAtWith` 一個名字;`vmRefs` / `openVault` / `closeVault` / `configPath` 仍不放行。**本列即 LAW-53,取代 LAW-42(b) 的舊字串** | `workspace/src/Aapms/Workspace/Lifecycle.hs#Aapms.Workspace.Lifecycle` |
+
 ## 數據
 
 本 feature **不新增、不修改、不刪除任何型別**。
@@ -696,6 +707,70 @@ example 必須從一份真的有註解的 `config.toml` 經 `loadHub` 造 `Hub`,
 > **WAVE-4 對紅綠預期的唯一影響**:LAW-42(b) 的逐字字串多了一個 `readMarker`。它仍是條件式、
 > 仍**兩個階段都預期綠**——骨架階段照樣沒有那一行。綠的條數不變(六條)。
 
+### REV-1 併入:明碼時間版本 `initVaultWith`(遷移自 workspace/E001-init-vault-explicit-time)
+
+> 下列 REG-1–REG-6 與 LAW-48–LAW-54 於 2026-09-05 隨 REV-1 併入。編號依本檔既有上限重配:
+> E001 原文的 LAW-1–LAW-7 → LAW-48–LAW-54、EX-1–EX-10 → EX-46–EX-55;REG- 本檔原先沒有,沿用原號。
+> 文中出現的 LAW-18 / LAW-19 / LAW-20 / LAW-42 / LAW-44 與 EX-18 / EX-19 / EX-41 是**本檔自己的**編號,未動。
+> **LAW-53 取代 LAW-42(b) 的逐字 import 字串**(多放行 `initVaultAtWith` 一個名字,其餘一條不放寬)。
+
+### 回歸 law(改完必須一模一樣的現有行為)
+
+- **REG-1(簽名不動)**:`initVault` 的型別簽名逐字等於
+  `initVault :: HubLocation -> Hub -> FilePath -> VaultKind -> Text -> InitMode -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))`。
+  這條是 `service` 一行不改的前提
+- **REG-2(前置檢查四條不變)**:對任意輸入,下列判定順序與結果與現況相同,且**一個位元組都不寫**:
+  名稱去空白後為空 → `Left (InvalidName name)`(帶**原始**字串);目標目錄已有 `.aapms/` →
+  `Left (VaultAlreadyInitialized dir')`(兩種 `InitMode` 都是);`FreshVault` 對存在且非空的目錄 →
+  `Left (VaultDirNotEmpty dir')`;`AdoptExisting` 對不存在的目錄 → `Left (VaultDirMissing dir')`
+- **REG-3(成功時身分逐欄來自 marker)**:成功時回傳的 `VaultEntry` 滿足 `veId == vmId m`、
+  `veName == vmName m`、`veKind == vmKind m`、`vePath == dir'`,其中 `m` 是 `dir'` 的 marker
+- **REG-4(`initVault` 仍然每次取當下時間)**:對同一個 `name`、兩個各自為空且互不相同的目錄,
+  連續兩次 `initVault` 產生**不同**的 `veId`。這條防止實作把時間改成常數來湊 LAW-48
+- **REG-5(`initVault` 建檔失敗 → `VaultInitFailed`,且不留半成品)**:呼叫 **`initVault`**
+  (**不是** `initVaultWith`)時,若它內部用來建 marker 的那一步回 `Left err`,則 `initVault` 回
+  `Left (VaultInitFailed dir' err)`——`err` 是**原件**(不轉字串、不翻譯);
+  且 `markerDir dir'` 在呼叫後**不存在**、`dir'` 底下其餘檔案逐位元組相同、中樞檔案位元組不變。
+  **不得**回 `MarkerUnreadable`。
+  〔**這是 F004 的 LAW-44 / EX-41 原文**,主詞就是 `initVault`。現況程式碼已經正確,本條是**回歸 law**:
+  從第一天就該綠,收掉 `LifecycleSpec.hs:485` 那條 `pendingWith`——GAP-5 的 workspace 側尾巴。
+  `initVaultWith` 的同一個行為由 **LAW-54** 管,兩者分開,不要合寫成一條〕
+- **REG-6(LAW-42 的另外五條不放寬)**:`Lifecycle.hs` 的 import 行仍滿足 F004 的 LAW-42 (a)(c)(d)(e)(f)
+  ——本套件內只 import `Types` / `Location` / `Hub` / `Discovery` 四個;`Aapms.Store.Schema` 的
+  import 行逐字是 `import Aapms.Store.Schema (VaultKind)`;完全不得 import `Aapms.Store.Atomic`、
+  不得 import `Aapms.Store` 門面與 `Index` / `MultiVault` / `Query` / `Write` / `Create` / `Edit`、
+  不得 import `System.Process`
+
+### 新 law(這次優化才成立的性質)
+
+- **LAW-48(決定性)**:對任意 `kind`、任意去空白後非空的 `name`、任意 `t`,與任意兩個各自為空且
+  互不相同的目錄 `d1` / `d2`,兩次 `initVaultWith … t` 成功時回傳的 `veId` **相同**
+- **LAW-49(id 的來源逐字可算)**:`initVaultWith loc hub d kind name mode t` 成功時,
+  `veId == VaultId (renderId (newId PVlt (T.strip name) t 0))`。`newId` 是 graph-core 契約 B 的
+  公開純函式,呼叫端算得出期望值,**不需要讀 graph-core 的實作**——GAP-4 要的就是這一條
+- **LAW-50(薄包裝等價)**:`initVault loc hub d kind name mode` 的結果,除了 `veId` 之外,與
+  `initVaultWith loc hub d kind name mode t`(任意 `t`)逐欄相同:`veName` / `veKind` / `vePath`
+  一致、`AdoptNotice` 一致、落地的檔案集合一致、中樞新增的列數一致
+- **LAW-51(撞號的三個值)**:若中樞 `hubVaults hub` 中某一列 `e` 的 `veId` 等於
+  `VaultId (renderId (newId PVlt (T.strip name) t 0))`,則 `initVaultWith … t` 回
+  `Left (VaultIdCollision thatId (vePath e) dir')`——**第二個是中樞裡既有那個 vault 的路徑、
+  第三個是這次要建立的路徑**,兩者順序不可互換;`renderWorkspaceError` 的輸出同時含這兩個路徑。
+  〔F004 的 LAW-18,本次才第一次可斷言〕
+- **LAW-52(撞號要回滾)**:承 LAW-51,`markerDir dir'` 在呼叫後**不存在**,且 `dir'` 底下其餘檔案逐位元組
+  相同、中樞檔案位元組不變。因此**對同一個目錄改用 `initVault` 立刻重跑一次,不會撞到
+  `VaultAlreadyInitialized`**。〔F004 的 LAW-19 + LAW-20,本次才第一次可斷言〕
+- **LAW-53(import 行的新逐字字串)**:`Lifecycle.hs` 的 `Aapms.Store.Marker` import 行**必須逐字是**
+  `import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)`
+  ——比對前先去除行尾 `\r`(F004 LAW-42 的 CRLF 規則沿用)。放寬成 `VaultMarker (..)`、
+  或多列 `vmRefs` / `openVault` / `closeVault` / `VaultHandle` / `configPath` 任何一個名字都要紅
+- **LAW-54(`initVaultWith` 建檔失敗 → `VaultInitFailed`,且不留半成品)**:`initVaultAtWith` 回
+  `Left err` 時,`initVaultWith` 回 `Left (VaultInitFailed dir' err)`——`err` 是**原件**;
+  且 `markerDir dir'` 在呼叫後**不存在**、`dir'` 底下其餘檔案逐位元組相同、中樞檔案位元組不變;
+  **不得**回 `MarkerUnreadable`。
+  〔**與 REG-5 是同一個行為的兩個入口**:REG-5 打 `initVault`(現況、綠),本條打 `initVaultWith`
+  (新增、骨架階段紅)。兩條都要,因為兩個入口在 impl 之後才會共用同一段本體——**在那之前
+  沒有任何東西保證它們一致**,而 LAW-50「薄包裝等價」只寫了成功情況,接不住失敗路徑〕
+
 ## Examples
 
 | # | 輸入 | 預期 | 覆蓋的 law |
@@ -745,6 +820,31 @@ example 必須從一份真的有註解的 `config.toml` 經 `loadHub` 造 `Hub`,
 | EX-43 | 同一情境改用 `KeepIndex` | `Right`,中樞少一列,`P/.aapms/index.db` 與 `config.toml` 都還在——**完全不讀 marker**,漂移不影響 | LAW-45(`KeepIndex` 分支) |
 | EX-44 | 中樞兩列,第一列身分相符、第二列 id 漂移;`purge loc hub PurgeAllVaults` | `Left (DeleteTargetIdDrift …)`,且中樞 `config.toml`、`cache/thumbs/` 與**兩個** `index.db` 全都還在(全有或全無) | LAW-46 |
 | EX-45 | 中樞那列的 `vePath` 指向一個不存在的路徑;`forgetVault … DeleteIndex` | `Right`——讀不到就照刪(沒東西可刪也不失敗),中樞那一列照樣被移除 | LAW-45(a), LAW-47 |
+
+**REV-1 併入的 Examples**(遷移自 workspace/E001-init-vault-explicit-time,EX-1–EX-10 重配為 EX-46–EX-55):
+
+| # | 輸入 | 預期輸出 | 覆蓋的邊界 |
+|---|---|---|---|
+| EX-46 | 空目錄 `d`、`AssetVault`、`"alchbees-assets"`、`FreshVault`,呼叫 `initVault` | `Right (hub', entry, AdoptNotice [])`;`entry` 四欄如 REG-3;中樞多一列 | REG-3(**= 現況**) |
+| EX-47 | 名稱 `"   "`(去空白後為空),呼叫 `initVault` | `Left (InvalidName "   ")`——帶**原始**字串;中樞檔案位元組不變 | REG-2(**= 現況**) |
+| EX-48 | 兩個空目錄 `d1` ≠ `d2`,同樣 `StoryVault` / `"liftgame"` / `FreshVault` / 同一個 `t`,各呼叫一次 `initVaultWith` | 兩次都 `Right`,且 `veId` **相同** | LAW-48(撞號可重現) |
+| EX-49 | 空目錄 `d`、`StoryVault`、`"liftgame"`、`FreshVault`、`t`,呼叫 `initVaultWith` | `veId == VaultId (renderId (newId PVlt "liftgame" t 0))` | LAW-49(期望值可獨立算出) |
+| EX-50 | 先算出 `i = VaultId (renderId (newId PVlt "liftgame" t 0))`,把 `VaultEntry i "old" StoryVault O` 放進中樞;對空目錄 `V` 呼叫 `initVaultWith … "liftgame" … t` | `Left (VaultIdCollision i O V')`——第二個是 `O`、第三個是 `V'`;`renderWorkspaceError` 的輸出同時含這兩個路徑 | LAW-51(= F004 EX-18) |
+| EX-51 | 承 EX-50,檢查 `V` 與中樞 | `V/.aapms` **不存在**(已回滾),`V` 底下其餘檔案逐位元組不變,中樞檔案位元組不變;接著對 `V` 呼叫 `initVault` 得到 `Right` | LAW-52(= F004 EX-19) |
+| EX-52 | `blocker` 是一個**一般檔案**,對 `blocker/sub` 呼叫 **`initVault`**(`FreshVault`) | `Left (VaultInitFailed V' err)`,`err` 與直接呼叫 `initVaultAt V' kind name'` 得到的 `Left` **逐欄相同**;`V/.aapms` 不存在;中樞檔案位元組不變 | REG-5(**= 現況**;= F004 EX-41,GAP-5 尾巴) |
+| EX-53 | 對 EX-46 產生的 `d` 再呼叫一次 `initVault`(換一個名字、`AdoptExisting`) | `Left (VaultAlreadyInitialized d')`;`d/.aapms/config.toml` 逐位元組不變 | REG-2(**= 現況**) |
+| EX-54 | 同一個 `name`、兩個空目錄,連續兩次 `initVault` | 兩次 `veId` **不同** | REG-4(薄包裝仍取當下時間) |
+| EX-55 | 同 EX-52 的建構(`blocker` 是一般檔案),改對 `blocker/sub` 呼叫 **`initVaultWith … t`**(`FreshVault`) | `Left (VaultInitFailed V' err)`,`err` 與直接呼叫 `initVaultAtWith V' kind name' t` 得到的 `Left` **逐欄相同**;`V/.aapms` 不存在;中樞檔案位元組不變 | LAW-54(新入口的同一條錯誤路徑) |
+
+**Laws ↔ Examples 自洽對照**:EX-46←REG-3、EX-47←REG-2、EX-48←LAW-48、EX-49←LAW-49、EX-50←LAW-51、EX-51←LAW-52、**EX-52←REG-5**、EX-53←REG-2、
+EX-54←REG-4、**EX-55←LAW-54**。EX-52 與 EX-55 是**同一個建構、兩個入口**:EX-52 打 `initVault`(現況程式碼,綠)、
+EX-55 打 `initVaultWith`(骨架 `undefined`,紅);兩者的預期輸出形狀相同但**期望值各自從自己那條
+law 推出**,不互相引用——`initVault` 的 `err` 對照 `initVaultAt`,`initVaultWith` 的對照
+`initVaultAtWith`。
+EX-50 的預期輸出由 LAW-49(算得出 `i`)與 LAW-51(撞號的三個值)共同推出,兩條一致;EX-51 的「重跑得到
+`Right`」由 LAW-52 的回滾推出,與 REG-2 的 `VaultAlreadyInitialized` 不衝突——因為回滾後 `.aapms/`
+已經不在。LAW-50 由 EX-46 與 EX-48/EX-49 對照覆蓋(同一組輸入、兩個入口),LAW-53 由 import 行斷言直接覆蓋。
+
 
 ## 依賴方向
 
@@ -1186,3 +1286,10 @@ cabal build aapms-workspace:lib:aapms-workspace
     - **`WriteTargetIdDrift` 在本 feature 之後不再出現於任何 law 或 example**——它與
       `ScopeIssue.VaultIdDrift`、`DeleteTargetIdDrift` 三者各管一條路徑:降級(查詢)/
       硬失敗(寫入目標)/ 硬失敗(刪除目標)。
+
+## 修訂記錄
+- REV-1(2026-09-05,依 遷移自 workspace/E001-init-vault-explicit-time):initVault 的時間提成明碼參數,讓撞號與建檔失敗兩條分支驗得到
+  - 動到:「## Laws」增一小節「REV-1 併入」(REG-1–REG-6、LAW-48–LAW-54);「## Examples」增 EX-46–EX-55;「## 新增的介面」增一小節「REV-1 併入:initVaultWith」(新增 1:`initVaultWith`;修改 3:`initVault` 退成薄包裝、`Aapms.Workspace.Lifecycle` 匯出清單、`Aapms.Store.Marker` 的逐字 import 行)。編號重配:E001 原文 LAW-1–LAW-7 → LAW-48–LAW-54、EX-1–EX-10 → EX-46–EX-55,REG- 沿用原號(本檔原先沒有 REG-)。**LAW-53 取代 LAW-42(b) 的逐字 import 字串**,多放行 `initVaultAtWith` 一個名字,其餘一條不放寬
+  - 保護:REG-1–REG-6 —— `initVault` 簽名逐字不變(`service` 一行不改的前提)、四條前置檢查的順序與結果不變且不寫任何位元組、成功時 `VaultEntry` 四欄逐欄來自 marker、`initVault` 仍每次取當下時間(防止實作把時間改成常數來湊 LAW-48)、`initVault` 建檔失敗回 `VaultInitFailed` 且不留半成品、LAW-42 的 (a)(c)(d)(e)(f) 五條不放寬
+  - 重委派:無 —— workspace/E001-init-vault-explicit-time 已於 2026-08-30 交付且全綠(`aapms-workspace-test` 319 / 0 failures / 0 pending),本次只把文字搬進本檔,程式碼與測試一行未動。惟 LAW-50(薄包裝等價)的條文不可滿足、LAW-48–LAW-54 這一組的 `vePath` 覆蓋缺口與 REG-1 的驗證手段落差,已另記為 workspace/GAP-6 與 workspace/GAP-7,要開發者裁決後才知道要不要重委派
+  - 連動:已點名並對帳,不需改——service/F002-workspace-facade 是唯一的下游,它不引用 `initVaultWith`(`initVault` 的簽名逐字未變,由 REG-1 守著)。本次只把 workspace/E001-init-vault-explicit-time 的文字搬進本檔,程式碼與介面一行未動

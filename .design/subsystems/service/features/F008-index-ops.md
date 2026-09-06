@@ -4,6 +4,7 @@ type: feature
 title: index-ops
 description: `reindex` / `refreshIndex` / `IndexReport`
 status: planned
+rev: 0
 stage: S3
 modules: [Machine, Scope]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 …… index …… 的全部操作(本份是索引維護)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段三
 - **負責模組**:Machine、Scope
 - **實作的 Level 2 介面**:契約 E 的 `reindex` / `refreshIndex` / `IndexReport`;模組間公開介面的

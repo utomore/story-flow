@@ -1,16 +1,19 @@
 ---
 id: E002
-type: enhance
+type: archive
 title: init-vault-with-path-and-signature-coverage
 description: 補 initVaultWith 的 vePath 斷言,並修 LAW-3 不可滿足的措辭
 status: planned
+parent: workspace
 created: 2026-08-30
-updated: 2026-09-04
+updated: 2026-09-05
 depends-on: [workspace/E001, workspace/F004]
 related-adr: [ADR-017]
 related-feature: [workspace/F004]
 code-paths: []
 ---
+
+> 2.2.1 遷移:本檔自宣「只記錄發現與依據,不是 spec」,依 dev-flow 2.2.1「既有功能的問題開 GAP,不開 E」,兩條發現已搬進 workspace/spec-gaps.md 的 GAP-6 與 GAP-7(掛 workspace/F004-vault-lifecycle)。號 E002 永久空缺。留在 archive 只為查「當初怎麼寫的」。
 
 # E002:`initVaultWith` 的 `vePath` 覆蓋缺口,與 LAW-3 的措辭修正
 

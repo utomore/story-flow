@@ -4,6 +4,7 @@ type: feature
 title: search-facade
 description: `search` 一次回 asset 與 entity 兩種、facet、每筆帶 vault
 status: planned
+rev: 0
 stage: S3
 modules: [Read]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 …… search …… 的全部操作(本份是檢索門面)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段三
 - **負責模組**:Read
 - **實作的 Level 2 介面**:契約 D 的 `search` / `SearchView` / `SearchHitView`;使用 service/F003-node-read 的

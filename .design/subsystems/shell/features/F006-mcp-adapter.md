@@ -4,6 +4,7 @@ type: feature
 title: mcp-adapter
 description: stdio JSON-RPC、tool 映射與命名、雙模式
 status: planned
+rev: 0
 stage: S3
 modules: [Mcp.Tools, Mcp.Rpc]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「MCP tool 映射」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段二
 - **負責模組**:Mcp.Tools、Mcp.Rpc
 - **實作的 Level 2 介面**:契約 D 全部;使用 shell/F001-api-types-and-openapi 的路由型別與 shell/F002-backend-dispatch 的 `runOp`(無新增)

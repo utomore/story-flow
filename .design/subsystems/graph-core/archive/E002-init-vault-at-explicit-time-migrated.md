@@ -1,16 +1,19 @@
 ---
 id: E002
-type: enhance
+type: archive
 title: init-vault-at-explicit-time
 description: initVaultAt 的時間提成明碼參數,並讓它不再逸出 IOException
 status: done
+parent: graph-core
 created: 2026-08-29
-updated: 2026-09-04
+updated: 2026-09-05
 depends-on: [graph-core/F001, graph-core/F005]
 related-adr: [ADR-013, ADR-017]
 related-feature: [graph-core/F005]
 code-paths: [store/src/Aapms/Store/Marker.hs, store/test/Aapms/Store/MarkerSpec.hs]
 ---
+
+> 2.2.1 遷移:本檔已摺回 graph-core/F005-store-vault-handle(REV-1),號 E002 永久空缺。留在 archive 只為查「當初怎麼寫的」。
 
 # E002:`initVaultAt` 的明碼時間版本,兼修 `IOException` 逸出
 

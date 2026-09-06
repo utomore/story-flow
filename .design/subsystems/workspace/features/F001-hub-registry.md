@@ -4,6 +4,7 @@ type: feature
 title: hub-registry
 description: "中樞位置解析、config.toml 四段的讀寫與可手寫保留、載入失敗即失敗;Types 一次寫齊契約 A–F 的全部型別"
 status: done
+rev: 0
 created: 2026-08-29
 updated: 2026-09-04
 stage: S3
@@ -59,6 +60,7 @@ feature 建立,本 feature 只把它們會用到的**型別**一次宣告到位�
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「中樞註冊表讀寫」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段一
 - **負責模組**:Types(**一次寫齊**契約 A–F 的全部型別與 `WorkspaceError` 的全部建構子)、Location、Hub
 - **驗收標準**(契約卡原文):- `AAPMS_HOME` 設為非空字串時 `hlSource == FromEnv` 且 `hlPath` 等於該字串的絕對化;未設或空字串時

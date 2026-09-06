@@ -4,6 +4,7 @@ type: feature
 title: level-and-node
 description: Level 與 Node 的建立 / 刪除、樹視圖
 status: planned
+rev: 0
 stage: S3
 modules: [Write, Read]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 …… level / node …… 的全部操作(本份是場景樹那一組)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段二
 - **負責模組**:Write、Read
 - **實作的 Level 2 介面**:契約 E 的 `createLevel` / `deleteLevel` / `addNode` / `removeNode` 與

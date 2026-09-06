@@ -4,6 +4,7 @@ type: feature
 title: service-env-and-scope
 description: "Env(中樞 + 註冊表 + handle 快取 + 全域鎖)、openEnv / runService / closeEnv / withEnv、三個範圍取得口、ServiceError 前四個建構子與 errorCode / renderServiceError"
 status: done
+rev: 0
 created: 2026-08-30
 updated: 2026-09-04
 stage: S3
@@ -68,6 +69,7 @@ workspace/F003]`——design.md「功能規劃」階段一表 #1 的「依賴」
 
 ## 契約
 
+- **核心判準**:少了它,service 就無法「以 `ServiceM` 定義 …… 註冊的全部操作(本份是 `ServiceM` 與 `Env` 本身)」(system.md「子系統劃分」§service 職責)
 - **階段**:階段一
 - **負責模組**:Types(建立骨架,後續 feature 各自擴充建構子)、Monad、Scope
 - **驗收標準**(契約卡原文):- `openEnv` 成功回傳後**尚未開任何 vault 索引**(可觀察:任一 vault 的 `index.db` 檔案 mtime 不變,

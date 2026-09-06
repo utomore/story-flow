@@ -4,6 +4,7 @@ type: feature
 title: cli-options-and-envelope
 description: optparse 指令樹與全域旗標互斥、統一信封、exit code、輸出編碼
 status: planned
+rev: 0
 stage: S3
 modules: [Cli.Options, Cli.Envelope, Cli.Encoding]
 created: 2026-09-04
@@ -18,6 +19,7 @@ code-paths: []
 
 ## 契約
 
+- **核心判準**:少了它,shell 就無法「參數解析;統一信封、exit code、錯誤格式」(system.md「子系統劃分」§shell 職責)
 - **階段**:階段二
 - **負責模組**:Cli.Options、Cli.Envelope、Cli.Encoding
 - **實作的 Level 2 介面**:契約 A 全部(`Envelope` / `ErrorBody` / `ExitKind` 與兩張表);

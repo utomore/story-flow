@@ -4,6 +4,7 @@ type: feature
 title: vault-discovery
 description: "向上探測 .aapms/、selector 解析、重讀 marker 取權威身分、不可達降級"
 status: done
+rev: 0
 created: 2026-08-29
 updated: 2026-09-04
 stage: S3
@@ -64,6 +65,7 @@ code-paths: [workspace/aapms-workspace.cabal, workspace/src/Aapms/Workspace/Disc
 
 ## 契約
 
+- **核心判準**:少了它,workspace 就無法「vault 探測(`--vault` → 註冊表、否則向上找 `.aapms/`)」(system.md「子系統劃分」§workspace 職責)
 - **階段**:階段一
 - **負責模組**:Discovery
 - **驗收標準**(契約卡原文):- `detectVault` 從一個位於 vault 內任意深度的子目錄出發,回傳**含 `.aapms/` 的那一層**的絕對路徑;

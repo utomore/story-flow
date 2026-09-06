@@ -4,6 +4,7 @@ type: feature
 title: core-unified-meta
 description: 統一六種節點共用的 Meta、短 id、Link 詞彙與 aeson 編碼規則
 status: done
+rev: 0
 created: 2026-08-23
 updated: 2026-09-04
 stage: S1
@@ -47,6 +48,7 @@ DEC-1(委派決策記錄):下游套件已從 `cabal.project` 凍結,本 feature 
 
 ## 契約
 
+- **核心判準**:少了它,graph-core 就無法「統一 `Meta` 與核心型別的純函式」(system.md「子系統劃分」§graph-core 職責)
 - **階段**:階段一
 - **負責模組**:Meta 與節點型別、Id、Tree、Json(`aapms-core`)
 - **驗收標準**(契約卡原文):六種節點共用同一個 `Meta` 型別;`Status` / `Source` / `LinkKind` 的 JSON 與文字表示

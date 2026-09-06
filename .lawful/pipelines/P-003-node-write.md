@@ -35,7 +35,7 @@ updated: 2026-09-06
 | 21 | `now :: Clock :> es => Eff es UTCTime` | 配號與 updated 欄的時間 | `Aapms.Store.Effect.Clock`(願望) | effects |
 | 22 | `allocateFreshId :: Index :> es => IdPrefix -> Text -> UTCTime -> Eff es (Either StoreError Id)` | 同一個 t 之下以 salt 遞增重試到不撞號;碰撞查詢失敗即失敗 | `Aapms.Store.Editing`(願望) | pure |
 | 23 | `planEdit :: TypeRegistry -> UTCTime -> Located -> Document -> WriteOp -> Either StoreError (Document, WriteOutcome)` | 既有檔的純核心:4 → 5 / 6 → 7 / 8 / 9 / 11..14 → 新 Document 與結果;失敗即 Left,文件不動 | `Aapms.Store.Editing`(願望) | pure |
-| 24 | `planCreate :: TypeRegistry -> VaultId -> UTCTime -> Id -> WriteOp -> Either StoreError (FilePath, Document, WriteOutcome)` | 建新檔的純核心:落點目錄 17 → 檔名 16 → newDocument;Level 檔含唯一根 Node | `Aapms.Store.Editing`(願望) | pure |
+| 24 | `planCreate :: TypeRegistry -> VaultId -> UTCTime -> [Id] -> WriteOp -> Either StoreError (FilePath, Document, WriteOutcome)` | 建新檔的純核心:落點目錄 17 → 檔名 16 → newDocument;Level 檔含唯一根 Node;`[Id]` 是 `allocateFreshId` 配好、長度為 `idsNeeded op` 的新 id(CreateLevel 兩個:Level 與根 Node),不夠回 Left | `Aapms.Store.Editing`(願望) | pure |
 | 25 | `writeMarkdown :: VaultFs :> es => FilePath -> Text -> Eff es (Either StoreError ())` | 原子寫入(真解譯器:暫存檔 + rename) | `Aapms.Store.Effect.VaultFs`(願望) | effects |
 | 26 | `deleteMarkdown :: VaultFs :> es => FilePath -> Eff es (Either StoreError ())` | 刪整份檔(刪除檔案層主體時) | `Aapms.Store.Effect.VaultFs`(願望) | effects |
 | 27 | `indexPath :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> FilePath -> Eff es (Either StoreError [IndexIssue])` | 寫完只重索引這一份檔 | `Aapms.Store.Indexing`(願望,見 P-001-index-rebuild) | pure |
@@ -49,25 +49,26 @@ updated: 2026-09-06
 | o | `opRevision :: WriteOp -> Maybe Revision` | 觀察:請求帶的 expected revision | `Aapms.Store.Types`(願望) | types |
 | o | `isInsertOp :: WriteOp -> Bool` | 觀察:是不是會插入新節的請求(增節、建檔) | `Aapms.Store.Types`(願望) | types |
 | o | `isDeleteOp :: WriteOp -> Bool` | 觀察:是不是會刪掉節的請求(刪節,含 DeleteForce 連子樹一起刪) | `Aapms.Store.Types`(願望) | types |
+| o | `idsNeeded :: WriteOp -> Int` | 觀察:這個請求要配幾個新 id(建檔 1,CreateLevel 2,其餘 0) | `Aapms.Store.Types`(願望) | types |
 | o | `outcomeRevision :: WriteOutcome -> Revision` | 觀察:結果的新 revision | `Aapms.Store.Types`(願望) | types |
 | o | `outcomePath :: WriteOutcome -> FilePath` | 觀察:結果落地的檔 | `Aapms.Store.Types`(願望) | types |
 | o | `outcomeId :: WriteOutcome -> Id` | 觀察:結果的節點 id(建檔為新檔主體) | `Aapms.Store.Types`(願望) | types |
 | o | `removedIds :: WriteOutcome -> [Id]` | 觀察:刪除結果消失的 id | `Aapms.Store.Types`(願望) | types |
 | o | `brokenLinks :: WriteOutcome -> [(Id, Link)]` | 觀察:刪除結果列出的斷點 | `Aapms.Store.Types`(願望) | types |
-| o | `documentAt :: VaultFiles -> FilePath -> Maybe Document` | 觀察:記憶體 vault 裡某檔解析後的文件 | `Aapms.Store.Types`(願望) | types |
-| o | `sectionBytes :: VaultFiles -> FilePath -> [(Id, Text)]` | 觀察:某檔每一節渲染後的位元組 | `Aapms.Store.Types`(願望) | types |
+| o | `documentAt :: VaultFiles -> FilePath -> Maybe Document` | 觀察:記憶體 vault 裡某檔解析後的文件 | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `sectionBytes :: VaultFiles -> FilePath -> [(Id, Text)]` | 觀察:某檔每一節渲染後的位元組 | `Aapms.Store.Editing.Internal`(願望) | pure |
 | o | `locatedFile :: IndexState -> Id -> Maybe FilePath` | 觀察:索引裡節點所在檔 | `Aapms.Store.Types`(願望) | types |
-| o | `metaAt :: VaultFiles -> IndexState -> Id -> Maybe Meta` | 觀察:從檔案重讀節點目前的 Meta | `Aapms.Store.Types`(願望) | types |
-| o | `assetAt :: VaultFiles -> IndexState -> Id -> Maybe Asset` | 觀察:從 pack 檔重讀 asset 目前的欄位 | `Aapms.Store.Types`(願望) | types |
-| o | `licensesAt :: VaultFiles -> [License]` | 觀察:licenses.md 解出的授權清單 | `Aapms.Store.Types`(願望) | types |
-| o | `assetIdsAt :: VaultFiles -> FilePath -> [Id]` | 觀察:某 pack 檔的 asset id 依文件順序 | `Aapms.Store.Types`(願望) | types |
-| o | `packAt :: VaultFiles -> FilePath -> Maybe Pack` | 觀察:某 pack 檔的檔案層 Pack | `Aapms.Store.Types`(願望) | types |
-| o | `levelAt :: VaultFiles -> FilePath -> Maybe (Level, [Node])` | 觀察:某 Level 檔解出的場景與節點 | `Aapms.Store.Types`(願望) | types |
+| o | `metaAt :: VaultFiles -> IndexState -> Id -> Maybe Meta` | 觀察:從檔案重讀節點目前的 Meta | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `assetAt :: VaultFiles -> IndexState -> Id -> Maybe Asset` | 觀察:從 pack 檔重讀 asset 目前的欄位 | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `licensesAt :: VaultFiles -> [License]` | 觀察:licenses.md 解出的授權清單 | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `assetIdsAt :: VaultFiles -> FilePath -> [Id]` | 觀察:某 pack 檔的 asset id 依文件順序 | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `packAt :: VaultFiles -> FilePath -> Maybe Pack` | 觀察:某 pack 檔的檔案層 Pack | `Aapms.Store.Editing.Internal`(願望) | pure |
+| o | `levelAt :: VaultFiles -> FilePath -> Maybe (Level, [Node])` | 觀察:某 Level 檔解出的場景與節點 | `Aapms.Store.Editing.Internal`(願望) | pure |
 | o | `packFields :: Pack -> PackFields` | 觀察:pack 七個專屬欄位 | `Aapms.Store.Types`(願望) | types |
 | o | `newPackFields :: NewPack -> PackFields` | 觀察:請求裡的同七欄 | `Aapms.Store.Types`(願望) | types |
 | o | `patchedName :: AssetPatch -> Maybe LogicalName -> Maybe LogicalName` | 觀察:三態補丁套在舊值上 | `Aapms.Store.Types`(願望) | types |
 | o | `fileStatsOf :: IndexState -> [(FilePath, FileStat)]` | 觀察:索引記錄的每檔指紋 | `Aapms.Store.Types`(願望) | types |
-| o | `levelOf :: Document -> Maybe (Level, [Node])` | 觀察:Level 檔文件解出的場景與節點 | `Aapms.Store.Types`(願望) | types |
+| o | `levelOf :: Document -> Maybe (Level, [Node])` | 觀察:Level 檔文件解出的場景與節點 | `Aapms.Store.Editing.Internal`(願望) | pure |
 | o | `lvlRoot :: Level -> Id` | 觀察:Level 的根 Node id | `Aapms.Core.Level` | types |
 | o | `stripStamps :: Text -> Text` | 觀察:去掉 revision 與 updated 兩行 | `Aapms.Store.Types`(願望) | types |
 | o | `allocateN :: Int -> IdPrefix -> Text -> UTCTime -> IndexState -> [Id]` | 觀察:同一個 t 連續配 n 次、每次寫進索引後拿到的 id | `Aapms.Store.Editing.Internal`(願望) | pure |
@@ -81,7 +82,7 @@ updated: 2026-09-06
   - |- runResult run == Left (RevisionMismatch i r (metaRevision m)) and runFiles run == vf and runIndex run == ix
 - LAW-2 [relation] 成功時 revision 恰好加一,且重讀檔案得到的 revision 等於回傳的
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, op in WriteOp, i in Id, n in Int, run in simulateWrite t vf ix (applyWrite reg vid op), o in rights [runResult run]
-  - given opTarget op == Just i and opRevision op == Just (Revision n)
+  - given opTarget op == Just i and opRevision op == Just (Revision n) and not (isDeleteOp op)
   - |- outcomeRevision o == Revision (n + 1) and fmap metaRevision (metaAt (runFiles run) (runIndex run) i) == Just (Revision (n + 1))
 - LAW-3 [invariant] 位元組保留:不插入也不刪除節的請求成功後,目標節以外每一節的位元組不變(ADR-010)
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, op in WriteOp, i in Id, p in FilePath, run in simulateWrite t vf ix (applyWrite reg vid op)
@@ -135,7 +136,7 @@ updated: 2026-09-06
   - |- removedIds o == victims and (isLeft (runResult runS) == not (null (brokenLinks o))) and (isLeft (runResult runS) => runFiles runS == vf)
 - LAW-16 [relation] 根 Node 刪不得,兩種模式皆然
   - forall t in UTCTime, vf in VaultFiles, ix in IndexState, reg in TypeRegistry, vid in VaultId, i in Id, r in Revision, mode in DeleteMode, p in FilePath, d0 in maybe [] pure (documentAt vf p), run in simulateWrite t vf ix (applyWrite reg vid (DeleteNode i r mode))
-  - given locatedFile ix i == Just p and isRootNode p d0 i == Right True
+  - given locatedFile ix i == Just p and docKind d0 == LevelDoc and isRootNode p d0 i == Right True
   - |- runResult run == Left (CannotDeleteRootNode i) and runFiles run == vf
 - LAW-17 [invariant] 同一個時間連續配號 n 次全部成功且兩兩相異、前綴正確(salt 遞增是唯一機制)
   - forall n in Int, pre in IdPrefix, c in Text, t in UTCTime, ix in IndexState, ids in [allocateN n pre c t ix]
@@ -216,3 +217,7 @@ updated: 2026-09-06
   - 動到:LAW-3、EX-20、觀察點 `isDeleteOp`(新增)
   - 保護:LAW-1、LAW-2、LAW-4 到 LAW-25、其餘 EX
   - 重委派:qa(LAW-3、EX-20);impl 尚未派,骨架由 conductor 同步
+- REV-2(2026-09-06,依 impl 提問 GAP-1「LAW-2 的 given 沒排除刪除,而 Deleted 型別上沒有 revision、刪掉之後 metaAt 必為 Nothing」、GAP-2「documentAt 等九個觀察點非解析不可,住 types 層卻要 import pure 層的 Aapms.Md.Parse / Render」、GAP-3「LAW-16 的 given 沒限定 Level 檔,與 LAW-1 在『主題檔第一節 + revision 不符』互斥」、GAP-4「planCreate 只收一個 Id,CreateLevel 的根 Node id 沒經過 idTaken」):LAW-2 加 given `not (isDeleteOp op)`;九個解析類觀察點搬到 pure 層的 `Aapms.Store.Editing.Internal`(簽名不變);LAW-16 加 given `docKind d0 == LevelDoc`;第 24 列 `planCreate` 改收 `[Id]`,加觀察點 `idsNeeded`,每個新 id 都經 `allocateFreshId`(ADR-014 的唯一性由建構保證,不靠雜湊碰運氣)
+  - 動到:Stages 第 24 列、九個觀察點的模組與層、觀察點 `idsNeeded`(新增)、LAW-2、LAW-16
+  - 保護:LAW-1、LAW-3 到 LAW-15、LAW-17 到 LAW-25、全部 EX
+  - 重委派:impl(觀察點搬家、`planCreate` 與 `applyWrite` 的配號);qa(LAW-2、LAW-16、觀察點的 import)

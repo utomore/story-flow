@@ -137,6 +137,7 @@ updated: 2026-09-06
 - **`Aapms.Workspace.Hub` 整個模組是 pure 的:它只做「文字 ↔ `Hub` 值」與對 `Hub` 值的增刪,碰檔案的 `loadHub` / `saveHub` 住 shell 的 `Aapms.Workspace.Hub.File`。** 否決:解析、序列化與讀寫檔案住同一個模組。理由:`=` 列是純的整條,而端到端的位元組恆等與往返只有在純函式上才驗得到;IO 那一半留在同一個模組會把整個模組拉進 shell 層,每一條 law 都得先造一個暫存目錄
 - **`saveHub` 寫出的 TOML 基本字串做完整逸出(`\b` / `\t` / `\n` / `\f` / `\r` / `\"` / `\\`,其餘 U+0000–U+001F 與 U+007F 用 `\uXXXX`)。** 否決:只逸出雙引號與反斜線。理由:控制字元不逸出就是非法 TOML,等於工具寫出一份自己讀不回來的中樞;LAW-3 的定義域因此是完整的「去空白後非空」而不是「不含控制字元」
 - **中樞存的是快取不是真相:vault 的 `id` / `kind` / `name` / `refs` 屬各 vault 的 marker,每次探測重讀。** 否決:以中樞為準。理由:marker 才跟著目錄走,中樞只是索引;兩者不一致時要看得出漂移,而不是讓中樞蓋掉事實。證據:ADR-017-unified-marker-id-registry-read-across-write-single
+- **`[llm]` 與 `[tools]` 只由底稿承載:沒有編輯函數會改它們,`renderHub` 不從值渲染這兩段,`mkHub` 拼出「底稿沒有 `[tools]` 但值有」的快照不在型別不變量之內(四段與底稿出自同一次載入)。** 否決:`renderHub` 從 `Hub` 值重生四段。理由:P-028 REV-1 已把 LAW-2 的域收到 `parseHubText` 再經 `applyHubEdits` 的快照;`SetupHub` 寫出的空中樞也走同一條路。(P-005 qa 在 EX-20 撞到,2026-09-06)
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「EX-3 的輸入在 toml-reader 0.3.0.0 產不出來」、GAP-2「veName = \"   \" 同時滿足 given 又該被拒收」、GAP-3「mkHub 可以拼出底稿與四段矛盾的快照」):刪 EX-3;LAW-3 的 given 與 LAW-17 的 |- 改成去前後空白後非空;LAW-2 的 forall 加前提 h 來自 parseHubText 再經 applyHubEdits,並加觀察點 applyHubEdits

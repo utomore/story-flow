@@ -183,7 +183,7 @@ lawsSpec = do
         let vw = scWorld s
             h = scHub s
             run = runOp t hw vw h (InitVault d k name mode)
-            chk = checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
+            chk = checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
         cover 20 "前置檢查不通過" (isLeft chk)
         case chk of
           Right _ -> success
@@ -228,7 +228,7 @@ lawsSpec = do
         let vw = scWorld s
             h = scHub s
             run = runOp t hw vw h (InitVault d k name mode)
-            chk = checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
+            chk = checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
         cover 20 "init 成功" (isRight (lcResult run))
         case (lcResult run, chk) of
           (Right o, Right stripped) -> case outcomeEntry o of
@@ -247,7 +247,7 @@ lawsSpec = do
         oldName <- forAll genName
         oldKind <- forAll genKind
         let vw = scWorld s
-            chk = checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
+            chk = checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)
         stripped <- expectRight "checkInit(前提:前置檢查要通過)" chk
         let collId = VaultId (renderId (newId PVlt stripped t 0))
             old = VaultEntry collId oldName oldKind oldPath
@@ -308,11 +308,12 @@ lawsSpec = do
         t <- forAll genTime
         s <- forAll genScenario
         hw <- forAll (genHubWorld s)
-        d <- forAll (genAnyDir s)
+        d <- forAll (genUnreadableBiasedDir s)
         let vw = scWorld s
             h = scHub s
             run = runOp t hw vw h (AddVault d)
-        cover 20 "那個路徑讀不到 marker" (unreadableAt vw d)
+        -- REV-2:產生器把「讀不到 marker」那一支拉到實測約六成,門檻取 20% 的一半。
+        cover 10 "那個路徑讀不到 marker" (unreadableAt vw d)
         case vwMarker vw d of
           Just (Left err) -> do
             lcResult run === Left (MarkerUnreadable d err)
@@ -764,11 +765,14 @@ examplesSpec = do
       fmap (fmap prVaultIndexesRemoved . outcomePurge) (lcResult runHubOnly)
         `shouldBe` Right (Just [])
       lcVaults runHubOnly `shouldBe` purgeWorld
-    it "AllVaults:只多刪兩個 index.db,library 與 .md 不變" $ do
+    it "AllVaults:只多刪兩個 <vault 根>/.aapms/index.db,library 與 .md 不變" $ do
       case fmap (fmap prVaultIndexesRemoved . outcomePurge) (lcResult runAll) of
         Right (Just ps) -> do
+          -- REV-2:路徑逐字是 @<vault 根>/.aapms/index.db@,拆成三層比對
+          -- (分隔字元契約沒定,見模組頭)。
           map takeFileName ps `shouldBe` ["index.db", "index.db"]
-          map takeDirectory ps `shouldBe` [purgeV1, purgeV2]
+          map (takeFileName . takeDirectory) ps `shouldBe` [".aapms", ".aapms"]
+          map (takeDirectory . takeDirectory) ps `shouldBe` [purgeV1, purgeV2]
         other -> expectationFailure ("預期兩個 index.db,實際:" <> show other)
       map (vwHasIndex (lcVaults runAll)) [purgeV1, purgeV2] `shouldBe` [False, False]
       vwWithout [purgeV1, purgeV2] (lcVaults runAll)
@@ -913,7 +917,7 @@ worldOf ds =
       _ -> Left (VaultMarkerMissing (dsPath d))
 
 hubDir :: FilePath
-hubDir = "H"
+hubDir = "C:/H"
 
 hubLoc :: HubLocation
 hubLoc = HubLocation hubDir FromEnv
@@ -932,7 +936,8 @@ brokenHubWorld = HubWorld (Just brokenHubText) hubLoc False []
 
 -- | 產生器用的縮圖固定小池('thumbsIn' 取它的子序列)。
 thumbPool :: [FilePath]
-thumbPool = ["H/cache/thumbs/t1.png", "H/cache/thumbs/t2.png", "H/cache/thumbs/t3.png"]
+thumbPool =
+  ["C:/H/cache/thumbs/t1.png", "C:/H/cache/thumbs/t2.png", "C:/H/cache/thumbs/t3.png"]
 
 emptyHub :: Hub
 emptyHub = mkHub [] [] Nothing (ToolsConfig Nothing) ""
@@ -944,16 +949,25 @@ brokenHubText = "id = \"vlt-"
 -- 固定的路徑、id 與時間
 --------------------------------------------------------------------------------
 
+-- __路徑一律是絕對路徑__(REV-2):中樞的 @path@ 會被 'renderHub' 寫出去再由
+-- 'parseHubText' 讀回來(LAW-18、EX-20),而 P-028-hub-config 的 'parseHubText'
+-- 只收絕對 @path@;Windows 上 @C:\/...@ 也算絕對。世界裡的目錄樹用同一組路徑,
+-- 才不會有一半絕對一半相對的世界。
 freshDir, goneDir, busyDir, fullDir, legacyDir, occupiedOther :: FilePath
-freshDir = "T/fresh"
-goneDir = "T/gone"
-busyDir = "T/busy"
-fullDir = "T/full"
-legacyDir = "T/legacy"
-occupiedOther = "T/elsewhere"
+freshDir = "C:/T/fresh"
+goneDir = "C:/T/gone"
+busyDir = "C:/T/busy"
+fullDir = "C:/T/full"
+legacyDir = "C:/T/legacy"
+occupiedOther = "C:/T/elsewhere"
+
+-- | 世界裡那兩個根目錄(第一層的名字掛在它們底下)。
+vaultRootDir, projRootDir :: FilePath
+vaultRootDir = "C:/T"
+projRootDir = "C:/P"
 
 slotPaths :: [FilePath]
-slotPaths = ["T/v0", "T/v1", "T/v2", "T/v3"]
+slotPaths = ["C:/T/v0", "C:/T/v1", "C:/T/v2", "C:/T/v3"]
 
 idPool :: [VaultId]
 idPool = map (VaultId . ("vlt-" <>)) ["aaaa1111", "bbbb2222", "cccc3333", "dddd4444"]
@@ -965,7 +979,7 @@ namePool :: [Text]
 namePool = ["a", "b", "dup", "lore"]
 
 projPathPool :: [FilePath]
-projPathPool = ["P/demo", "P/other", "P/dup1", "P/dup2"]
+projPathPool = ["C:/P/demo", "C:/P/other", "C:/P/dup1", "C:/P/dup2"]
 
 projIdPool :: [Id]
 projIdPool = map (mkPid . ("prj-" <>)) ["91c0aa12", "0000abcd", "7777feed"]
@@ -994,7 +1008,7 @@ fixedT = UTCTime (fromGregorian 2026 9 6) (secondsToDiffTime 0)
 exWorld :: VaultWorld
 exWorld =
   worldOf
-    [ plainDir "T" ["fresh", "busy", "full", "legacy", "elsewhere"]
+    [ plainDir vaultRootDir ["fresh", "busy", "full", "legacy", "elsewhere"]
     , plainDir freshDir []
     , missingDir goneDir
     , vaultDir busyDir (Right (VaultMarker spareId AssetVault "busy" []))
@@ -1017,16 +1031,22 @@ exHubWorld = hubWorldOf exHub
 
 -- | EX-1 \/ EX-2:setup 只碰中樞。
 setupWorld :: VaultWorld
-setupWorld = worldOf [plainDir "T" []]
+setupWorld = worldOf [plainDir vaultRootDir []]
 
 -- | EX-6 \/ EX-20:空目錄上建全新 vault。
+--
+-- 'ToolsConfig' 留空是為了讓這個快照__合法__:'Aapms.Workspace.Types.Hub' 的
+-- 不變量是「'hubSourceText' 與四段結構化內容出自同一次載入」,而空的
+-- 'hubSourceText' 依型別層的註解代表「全新中樞(尚無檔案)」——那樣的中樞不可能
+-- 帶著使用者寫在 @[tools]@ 裡的 7-Zip 路徑。EX-20 的「三段相等」照原文比對,
+-- 只是 @tools@ 這一段在這個例子裡兩邊都是空的(見回報的 GAP-2)。
 ex6Hub :: Hub
 ex6Hub =
   mkHub
     [VaultEntry (idPool !! 1) "other" AssetVault occupiedOther]
-    [ProjectEntry (head projIdPool) "Circle" "P/demo"]
+    [ProjectEntry (head projIdPool) "Circle" projP]
     Nothing
-    (ToolsConfig (Just "C:/Program Files/7-Zip/7z.exe"))
+    (ToolsConfig Nothing)
     ""
 
 ex6HubWorld :: HubWorld
@@ -1041,13 +1061,13 @@ ex9Id :: VaultId
 ex9Id = VaultId "vlt-7f3b2a91"
 
 ex9Old, ex9New :: FilePath
-ex9Old = "T/old"
-ex9New = "T/new"
+ex9Old = "C:/T/old"
+ex9New = "C:/T/new"
 
 ex9World :: VaultWorld
 ex9World =
   worldOf
-    [ plainDir "T" ["new"]
+    [ plainDir vaultRootDir ["new"]
     , missingDir ex9Old
     , vaultDir ex9New (Right (VaultMarker ex9Id AssetVault "real" []))
     ]
@@ -1068,9 +1088,9 @@ dupHubWorld = hubWorldOf dupHub
 
 -- | EX-12:三列,forget 中間那一列。
 three0Path, three1Path, three2Path :: FilePath
-three0Path = "T/w0"
-three1Path = "T/w1"
-three2Path = "T/w2"
+three0Path = "C:/T/w0"
+three1Path = "C:/T/w1"
+three2Path = "C:/T/w2"
 
 three0, three1, three2 :: VaultEntry
 three0 = VaultEntry (idPool !! 0) "m0" AssetVault three0Path
@@ -1089,7 +1109,7 @@ markerFor e = VaultMarker (veId e) (veKind e) (veName e) []
 threeWorld :: VaultWorld
 threeWorld =
   worldOf
-    ( plainDir "T" ["w0", "w1", "w2"]
+    ( plainDir vaultRootDir ["w0", "w1", "w2"]
         : [vaultDir (vePath e) (Right (markerFor e)) | e <- [three0, three1, three2]]
     )
 
@@ -1097,7 +1117,7 @@ threeWorld =
 threeWorldNoDb :: VaultWorld
 threeWorldNoDb =
   worldOf
-    ( plainDir "T" ["w0", "w1", "w2"]
+    ( plainDir vaultRootDir ["w0", "w1", "w2"]
         : [ (vaultDir (vePath e) (Right (markerFor e))) {dsIndex = vePath e /= three1Path}
           | e <- [three0, three1, three2]
           ]
@@ -1105,12 +1125,16 @@ threeWorldNoDb =
 
 -- | EX-13:正常、路徑不見、id 漂移。
 chkP2 :: FilePath
-chkP2 = "T/c2"
+chkP2 = "C:/T/c2"
+
+chkP1, chkP3 :: FilePath
+chkP1 = "C:/T/c1"
+chkP3 = "C:/T/c3"
 
 chkE1, chkE2, chkE3 :: VaultEntry
-chkE1 = VaultEntry (idPool !! 0) "c1" AssetVault "T/c1"
+chkE1 = VaultEntry (idPool !! 0) "c1" AssetVault chkP1
 chkE2 = VaultEntry (idPool !! 1) "c2" AssetVault chkP2
-chkE3 = VaultEntry (idPool !! 2) "c3" StoryVault "T/c3"
+chkE3 = VaultEntry (idPool !! 2) "c3" StoryVault chkP3
 
 chkDriftId :: VaultId
 chkDriftId = VaultId "vlt-99998888"
@@ -1124,11 +1148,11 @@ chkHubWorld = hubWorldOf chkHub
 chkWorld :: VaultWorld
 chkWorld =
   worldOf
-    [ plainDir "T" ["c1", "c3"]
+    [ plainDir vaultRootDir ["c1", "c3"]
     , -- c1 的 refs 指向一個中樞裡沒有的 id:checkVaults 不展開 refs
-      vaultDir "T/c1" (Right (VaultMarker (idPool !! 0) AssetVault "c1" [spareId]))
+      vaultDir chkP1 (Right (VaultMarker (idPool !! 0) AssetVault "c1" [spareId]))
     , missingDir chkP2
-    , vaultDir "T/c3" (Right (VaultMarker chkDriftId StoryVault "c3" []))
+    , vaultDir chkP3 (Right (VaultMarker chkDriftId StoryVault "c3" []))
     ]
 
 checkRun :: LifecycleRun (Either WorkspaceError LifecycleOutcome)
@@ -1139,7 +1163,7 @@ syncId :: VaultId
 syncId = idPool !! 0
 
 syncPath :: FilePath
-syncPath = "T/s0"
+syncPath = "C:/T/s0"
 
 syncStaleHub :: Hub
 syncStaleHub =
@@ -1148,7 +1172,7 @@ syncStaleHub =
 syncWorld :: VaultWorld
 syncWorld =
   worldOf
-    [ plainDir "T" ["s0"]
+    [ plainDir vaultRootDir ["s0"]
     , vaultDir syncPath (Right (VaultMarker syncId AssetVault "real" []))
     ]
 
@@ -1167,8 +1191,8 @@ syncCleanRun = runOp fixedT syncCleanHubWorld syncWorld syncCleanHub SyncHub
 
 -- | EX-15:中樞列兩個 vault。
 purgeV1, purgeV2 :: FilePath
-purgeV1 = "T/p1"
-purgeV2 = "T/p2"
+purgeV1 = "C:/T/p1"
+purgeV2 = "C:/T/p2"
 
 purgeHub :: Hub
 purgeHub =
@@ -1183,7 +1207,7 @@ purgeHub =
 
 -- | EX-15 的中樞:config.toml 加兩張縮圖(notes.txt 不是縮圖,purge 不碰)。
 purgeThumbs :: [FilePath]
-purgeThumbs = ["H/cache/thumbs/p1.png", "H/cache/thumbs/p2.png"]
+purgeThumbs = ["C:/H/cache/thumbs/p1.png", "C:/H/cache/thumbs/p2.png"]
 
 purgeHubWorld :: HubWorld
 purgeHubWorld = HubWorld (Just (renderHub purgeHub)) hubLoc True purgeThumbs
@@ -1191,7 +1215,7 @@ purgeHubWorld = HubWorld (Just (renderHub purgeHub)) hubLoc True purgeThumbs
 purgeWorld :: VaultWorld
 purgeWorld =
   worldOf
-    [ plainDir "T" ["p1", "p2"]
+    [ plainDir vaultRootDir ["p1", "p2"]
     , (vaultDir purgeV1 (Right (VaultMarker (idPool !! 0) AssetVault "p1" [])))
         {dsEntries = [".aapms", "library", "notes.md"]}
     , (vaultDir purgeV2 (Right (VaultMarker (idPool !! 1) StoryVault "p2" [])))
@@ -1200,17 +1224,17 @@ purgeWorld =
 
 -- | EX-16 \/ EX-18:專案。
 projP, projQ :: FilePath
-projP = "P/demo"
-projQ = "P/gone"
+projP = "C:/P/demo"
+projQ = "C:/P/gone"
 
 projWorld :: VaultWorld
 projWorld =
   worldOf
-    [ plainDir "P" ["demo", "other", "dup1", "dup2"]
+    [ plainDir projRootDir ["demo", "other", "dup1", "dup2"]
     , plainDir projP []
-    , plainDir "P/other" []
-    , plainDir "P/dup1" []
-    , plainDir "P/dup2" []
+    , plainDir "C:/P/other" []
+    , plainDir "C:/P/dup1" []
+    , plainDir "C:/P/dup2" []
     , missingDir projQ
     ]
 
@@ -1222,8 +1246,8 @@ projHubWorld = hubWorldOf projHub
 
 projDemo, projDup1, projDup2 :: ProjectEntry
 projDemo = ProjectEntry (projIdPool !! 0) "demo" projP
-projDup1 = ProjectEntry (projIdPool !! 1) "dup" "P/dup1"
-projDup2 = ProjectEntry (projIdPool !! 2) "dup" "P/dup2"
+projDup1 = ProjectEntry (projIdPool !! 1) "dup" "C:/P/dup1"
+projDup2 = ProjectEntry (projIdPool !! 2) "dup" "C:/P/dup2"
 
 projDupHub :: Hub
 projDupHub = mkHub [] [projDemo, projDup1, projDup2] Nothing (ToolsConfig Nothing) ""
@@ -1301,18 +1325,18 @@ slotDir s = case slotState s of
 -- 以及專案用的那幾個。
 fixedDirs :: [DirSpec]
 fixedDirs =
-  [ plainDir "T" ["fresh", "busy", "full", "legacy", "elsewhere"]
+  [ plainDir vaultRootDir ["fresh", "busy", "full", "legacy", "elsewhere"]
   , plainDir freshDir []
   , missingDir goneDir
   , vaultDir busyDir (Right (VaultMarker spareId AssetVault "busy" []))
   , plainDir fullDir ["a.md"]
   , plainDir legacyDir ["library", "notes.md", ".assetdb", "sub"]
   , vaultDir occupiedOther (Right (VaultMarker spareId AssetVault "elsewhere" []))
-  , plainDir "P" ["demo", "other", "dup1", "dup2"]
-  , plainDir "P/demo" []
-  , plainDir "P/other" []
-  , plainDir "P/dup1" []
-  , plainDir "P/dup2" []
+  , plainDir projRootDir ["demo", "other", "dup1", "dup2"]
+  , plainDir projP []
+  , plainDir "C:/P/other" []
+  , plainDir "C:/P/dup1" []
+  , plainDir "C:/P/dup2" []
   , missingDir projQ
   ]
 
@@ -1426,6 +1450,21 @@ genHubWorldWith txt = do
 genAnyDir :: Scenario -> Gen FilePath
 genAnyDir s =
   Gen.element (map slotPath (scSlots s) <> [freshDir, goneDir, busyDir, fullDir, legacyDir])
+
+-- | LAW-20 的定義域:同 'genAnyDir',但一半的機率直接抽「marker 讀不到」的那些
+-- 路徑(不存在的 @goneDir@ 與 SMissing \/ SBroken 的 slot),把該分支的實測覆蓋率
+-- 從約兩成拉到約六成,'cover' 的門檻才不會貼著實測值隨種子翻紅(REV-2)。
+genUnreadableBiasedDir :: Scenario -> Gen FilePath
+genUnreadableBiasedDir s =
+  Gen.frequency
+    [ (1, genAnyDir s)
+    , (1, Gen.element (goneDir : unreadableSlotPaths s))
+    ]
+
+-- | 世界裡 marker 讀數是 @Left@ 的那些 slot 路徑。
+unreadableSlotPaths :: Scenario -> [FilePath]
+unreadableSlotPaths s =
+  [slotPath sl | sl <- scSlots s, slotState sl == SMissing || slotState sl == SBroken]
 
 -- | 一定是既存目錄的路徑。
 genExistingDir :: Scenario -> Gen FilePath

@@ -84,10 +84,10 @@ updated: 2026-09-06
   - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), o in rights [lcResult run], e in maybe [] pure (outcomeEntry o), h2 in maybe [] pure (outcomeHub o), m in rights (maybe [] pure (vwMarker (lcVaults run) d))
   - |- veId e == vmId m and veKind e == k and veName e == vmName m and vePath e == d and vwHasIndex (lcVaults run) d and hubVaults h2 == hubVaults h ++ [e] and hubProjects h2 == hubProjects h and hubLlm h2 == hubLlm h and hubTools h2 == hubTools h
 - LAW-5 [relation] id 決定性且可算:同一個時間與名稱建出的 marker id 等於 newId PVlt name t 0
-  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), o in rights [lcResult run], e in maybe [] pure (outcomeEntry o), stripped in rights [checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)]
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode)), o in rights [lcResult run], e in maybe [] pure (outcomeEntry o), stripped in rights [checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)]
   - |- veId e == VaultId (renderId (newId PVlt stripped t 0))
 - LAW-6 [relation] 撞號:新 marker 的 id 等於中樞既有列(路徑不同)就回 VaultIdCollision 三個值,剛建的 .aapms 回滾,中樞不動
-  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, old in hubVaults h, stripped in rights [checkInit name mode (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)], run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode))
+  - forall t in UTCTime, hw in HubWorld, vw in VaultWorld, h in Hub, d in FilePath, k in VaultKind, name in Text, mode in InitMode, old in hubVaults h, stripped in rights [checkInit name mode d (vwMarkerDir vw d) (vwDirExists vw d) (vwEntries vw d)], run in simulateLifecycle t hw vw h (applyLifecycle h (InitVault d k name mode))
   - given veId old == VaultId (renderId (newId PVlt stripped t 0)) and vePath old /= d
   - |- lcResult run == Left (VaultIdCollision (veId old) (vePath old) d) and not (vwMarkerDir (lcVaults run) d) and lcHubText run == hubTextIn hw
 - LAW-7 [relation] AdoptExisting 不動既有內容,AdoptNotice 恰是第一層的舊 marker 目錄,固定順序不遞迴
@@ -183,6 +183,6 @@ updated: 2026-09-06
   - 保護:LAW-1 到 LAW-12、LAW-14 到 LAW-20、全部 EX
   - 重委派:qa(LAW-13、EX-15、`HubWorld` 產生器);impl 尚未派
 - REV-2(2026-09-06,依 impl 提問 GAP-1「`checkInit` 收不到 vault 根目錄,但它要回的 `VaultAlreadyInitialized` / `VaultDirNotEmpty` / `VaultDirMissing` 都捧著那個路徑;第五個參數是第一層裸名還原不出路徑,而 LAW-3 要求整條結果逐值等於它的錯誤」與「EX-15 的 `prVaultIndexesRemoved` 路徑形狀原文沒定」):第 15 列 `checkInit` 在 `InitMode` 之後加 `FilePath`(vault 根目錄);LAW-3 的呼叫式同步;EX-15 明寫 `<vault 根>/.aapms/index.db`。另 qa 重派時一併處理:EX-20 的世界要用絕對路徑(P-028-hub-config 的 `parseHubText` 只收絕對 `path`),LAW-20 的 `cover` 門檻貼著實測值會隨種子翻紅
-  - 動到:Stages 第 15 列、LAW-3 的 forall、EX-15
+  - 動到:Stages 第 15 列、LAW-3 / LAW-5 / LAW-6 的 forall(呼叫式補 d)、EX-15
   - 保護:LAW-1、LAW-2、LAW-4 到 LAW-20、其餘 EX
   - 重委派:impl(`checkInit` 與 `applyLifecycle` 的呼叫點);qa(LAW-3、EX-15、EX-20 的世界、LAW-20 的 cover)

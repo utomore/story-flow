@@ -35,7 +35,6 @@ module Aapms.Workspace.Hub
   ) where
 
 import Data.Char (toUpper)
-import Data.List (find)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -206,11 +205,10 @@ unVaultId (VaultId t) = t
 --
 -- 'hubSourceText' 被切成一串「段落」('Segment'):檔案開頭到第一個表頭之前是
 -- 前導段(comment、空白行),之後每個表頭(@[key]@ 或 @[[key]]@)開一個新段落,
--- 涵蓋到下一個表頭之前的所有行。__vaults__ \/ __projects__ 段落逐一比對現在的
--- 'hubVaults' \/ 'hubProjects':id 還在且欄位沒變 → 原樣沿用;id 還在但欄位變了
--- → 重新產生那一段;id 不在了 → 整段刪除。原本不存在的新 id 被追加到對應段落的
--- 最後一段之後。@[llm]@ \/ @[tools]@ \/ 前導段 \/ 未知段落一律不動——本 feature
--- 沒有任何函式會修改它們的內容。
+-- 涵蓋到下一個表頭之前的所有行。__vaults__ \/ __projects__ 的段落被當成一排
+-- 「槽」,第 i 個槽放清單的第 i 列('fillSlots');清單比槽多的追加在最後一個槽
+-- 之後,槽比清單多的整段丟掉。@[llm]@ \/ @[tools]@ \/ 前導段 \/ 未知段落一律不動
+-- ——本 feature 沒有任何函式會修改它們的內容。
 
 data Segment = Segment
   { segKind :: Maybe (Bool, Text)
@@ -250,18 +248,22 @@ renderHub hub
     isVaultsSeg s = segKind s == Just (True, "vaults")
     isProjectsSeg s = segKind s == Just (True, "projects")
 
-    (afterVaults, vaultIdsSeen) =
-      mapAccumSegs isVaultsSeg (matchVault eol vaults) segs
-    (afterProjects, projectIdsSeen) =
-      mapAccumSegs isProjectsSeg (matchProject eol projects) afterVaults
-
-    newVaults = filter (\e -> veId e `notElem` vaultIdsSeen) vaults
-    newProjects = filter (\e -> peId e `notElem` projectIdsSeen) projects
-
-    withNewVaults =
-      insertAfterLastKind eol isVaultsSeg (map (renderVaultSeg eol) newVaults) afterProjects
+    afterVaults =
+      fillSlots
+        eol
+        isVaultsSeg
+        (renderVaultSeg eol)
+        (segEntry parseVaultsSection)
+        vaults
+        segs
     finalSegs =
-      insertAfterLastKind eol isProjectsSeg (map (renderProjectSeg eol) newProjects) withNewVaults
+      fillSlots
+        eol
+        isProjectsSeg
+        (renderProjectSeg eol)
+        (segEntry parseProjectsSection)
+        projects
+        afterVaults
 
 -- | 把整份原始文字切成段落,段落邊界只在「表頭行」(去頭尾空白後以 @[@ 開頭、
 -- 以 @]@ 或 @]]@ 收尾、其餘只有選填的行內 comment 的那一行)。
@@ -319,39 +321,55 @@ classifyHeader raw =
           then Just (n == 2, T.strip name)
           else Nothing
 
--- | 在符合 'isTarget' 的段落上跑 @f@,不符合的段落原樣通過。@f@ 回傳
--- @(Nothing, _)@ 代表整段刪除;@Just seg'@ 代表沿用或替換成 @seg'@。第二個回傳值
--- 收集每個「仍然存在」的段落所帶的識別碼(給呼叫端算出「新出現的」)。
-mapAccumSegs
-  :: (Segment -> Bool)
-  -> (Segment -> (Maybe Segment, Maybe a))
+-- | 讓某一類段落渲染出來的__順序等於清單的順序__(LAW-2「清單含順序」)。
+--
+-- 走訪底稿的段落:不屬於這一類的原位不動(LAW-11 \/ LAW-15);屬於這一類的每個
+-- 段落算一個「槽」,第 @i@ 個槽放清單的第 @i@ 列。清單比槽多的追加在最後一個槽
+-- 之後(沒有任何槽時追加到檔尾),槽比清單多的整段丟掉。
+--
+-- 一個槽要放的那一列怎麼寫回去,依序試三種:
+--
+-- 1. 槽原本裝的就是這一列(逐欄相等)→ __沿用它原本的段落文字__,使用者寫在
+--    鍵後面的行內註解與段內空白行因此逐字保住(LAW-1、EX-13)。
+-- 2. 這一列原本裝在__別的槽__裡(中間某一列被刪掉、或列被重排時會這樣)→ 把那
+--    一段的原文搬過來,一樣保住它的註解。
+-- 3. 都不是(欄位改了、或整列是新的)→ 重新序列化一段。
+--
+-- 舊寫法是「以 id 對應、照原檔位置保留」:一個 id 被 'removeProject' 掉又被
+-- 'upsertProject' 加回來時,清單裡它已經在末尾,渲染出來卻還停在它原檔的位置,
+-- 再解析的順序就與 'hubProjects' 不同(REV-2、EX-27)。槽的位置由清單決定、
+-- 只有段落文字向底稿借,兩件事因此不再打架。
+fillSlots
+  :: Eq a
+  => Text
+  -> (Segment -> Bool)
+  -> (a -> Segment)
+  -> (Segment -> Maybe a)
+  -> [a]
   -> [Segment]
-  -> ([Segment], [a])
-mapAccumSegs isTarget f = foldr step ([], [])
+  -> [Segment]
+fillSlots eol isSlot render readSeg entries segs =
+  insertAfterLastKind eol isSlot (map reuseOrRender leftover) filled
   where
-    step s (accSegs, accIds)
-      | isTarget s =
-          let (mSeg, mId) = f s
-          in (maybe accSegs (: accSegs) mSeg, maybe accIds (: accIds) mId)
-      | otherwise = (s : accSegs, accIds)
+    -- 每個段落只解析一次;不是這一類的段落連解析都不做。
+    annotated = [(s, if isSlot s then readSeg s else Nothing) | s <- segs]
+    originals = [(e, s) | (s, Just e) <- annotated]
 
-matchVault :: Text -> [VaultEntry] -> Segment -> (Maybe Segment, Maybe VaultId)
-matchVault eol current seg = case segEntry parseVaultsSection seg of
-  Nothing -> (Just seg, Nothing)
-  Just e0 -> case find ((== veId e0) . veId) current of
-    Nothing -> (Nothing, Nothing)
-    Just e
-      | e == e0 -> (Just seg, Just (veId e0))
-      | otherwise -> (Just (renderVaultSeg eol e), Just (veId e0))
+    reuseOrRender e = maybe (render e) id (lookup e originals)
 
-matchProject :: Text -> [ProjectEntry] -> Segment -> (Maybe Segment, Maybe Id)
-matchProject eol current seg = case segEntry parseProjectsSection seg of
-  Nothing -> (Just seg, Nothing)
-  Just e0 -> case find ((== peId e0) . peId) current of
-    Nothing -> (Nothing, Nothing)
-    Just e
-      | e == e0 -> (Just seg, Just (peId e0))
-      | otherwise -> (Just (renderProjectSeg eol e), Just (peId e0))
+    (filled, leftover) = go entries annotated
+
+    go rest [] = ([], rest)
+    go rest ((s, mOrig) : ss)
+      | isSlot s = case rest of
+          [] -> go [] ss
+          (e : es) ->
+            let s' = if mOrig == Just e then s else reuseOrRender e
+                (ss', extra) = go es ss
+            in (s' : ss', extra)
+      | otherwise =
+          let (ss', extra) = go rest ss
+          in (s : ss', extra)
 
 -- | 把一個段落的原文單獨交給 __解析全檔用的同一組解析器__,取出它代表的那一列。
 -- 段落不是合法 TOML、或那一段不是恰好一列時回 'Nothing'(呼叫端把它當「認不得,

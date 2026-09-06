@@ -1,7 +1,7 @@
 ---
 id: P-028
 description: 中樞 TOML 文字解析成 Hub 值與渲染回去;vault / project 的 upsert 與 remove 保序
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-028-hub-config:中樞 TOML 文字解析成 Hub 值與渲染回去;vault / project 的 upsert 與 remove 保序

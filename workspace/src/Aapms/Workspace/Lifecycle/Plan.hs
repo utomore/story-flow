@@ -91,21 +91,18 @@ import System.FilePath ((</>))
 -- LAW-3 要求整條的結果__逐值等於__本函式的錯誤,所以這裡不能回一個「之後由
 -- 'applyLifecycle' 補上路徑」的半成品;暫以空路徑佔位,等簽名補上 @FilePath@。
 checkInit :: Text -> InitMode -> FilePath -> Bool -> Bool -> [FilePath] -> Either WorkspaceError Text
-checkInit name mode occupied exists entries
+checkInit name mode d occupied exists entries
   | T.null stripped = Left (InvalidName name)
-  | occupied = Left (VaultAlreadyInitialized unknownDir)
+  | occupied = Left (VaultAlreadyInitialized d)
   | otherwise = case mode of
       FreshVault
-        | exists && not (null entries) -> Left (VaultDirNotEmpty unknownDir)
+        | exists && not (null entries) -> Left (VaultDirNotEmpty d)
         | otherwise -> Right stripped
       AdoptExisting
         | exists -> Right stripped
-        | otherwise -> Left (VaultDirMissing unknownDir)
+        | otherwise -> Left (VaultDirMissing d)
   where
     stripped = T.strip name
-
-    -- GAP-1 的佔位:本簽名沒有收到 vault 根目錄。
-    unknownDir = ""
 
 -- | 目錄第一層裡的 @.assetdb@ \/ @.storyflow@,固定順序,不遞迴。
 --
@@ -194,7 +191,7 @@ applyLifecycle hub = \case
     occupied <- markerDirExists d
     exists <- dirExists d
     entries <- listEntries d
-    case checkInit name mode occupied exists entries of
+    case checkInit name mode d occupied exists entries of
       Left err -> pure (Left err)
       Right nm -> do
         t <- now

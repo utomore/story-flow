@@ -1,7 +1,7 @@
 ---
 id: P-003
 description: 寫入請求經樂觀鎖、位元組保留的 Markdown 編輯、寫檔前驗證、原子寫入、單檔重索引,回新 revision
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-003-node-write:寫入請求經樂觀鎖、位元組保留的 Markdown 編輯、寫檔前驗證、原子寫入、單檔重索引,回新 revision

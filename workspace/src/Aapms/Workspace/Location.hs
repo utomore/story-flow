@@ -16,15 +16,19 @@ module Aapms.Workspace.Location
 import qualified Data.Text as T
 
 import Aapms.Core.Asset (Sha256 (..))
-import Aapms.Workspace.Types (HubLocation (..))
+import Aapms.Workspace.Types (HubLocation (..), hubConfigPath)
 import System.FilePath ((</>))
 
 -- | 中樞註冊表檔案:@\<hlPath\>\/config.toml@。
 --
 -- 'Aapms.Workspace.Hub' 靠本函式取得檔案位置,__自己不解析中樞位置__
 -- (design.md「模組間公開介面」的 @Hub → Location@)。
+--
+-- P-004-vault-scope REV-3 起這個事實由觀察點
+-- 'Aapms.Workspace.Types.hubConfigPath' 擁有(它得住 types 層才能寫進 law),
+-- 本函式是它的別名,現有呼叫端因此不必跟著搬。
 configPath :: HubLocation -> FilePath
-configPath loc = hlPath loc </> "config.toml"
+configPath = hubConfigPath
 
 -- | 縮圖快取根目錄:@\<hlPath\>\/cache\/thumbs@(ADR-017 決策七,內容定址、跨
 -- vault 共用)。

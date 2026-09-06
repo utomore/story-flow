@@ -1,7 +1,7 @@
 ---
 id: P-002
 description: 查詢字串經 CJK 分詞路由到 trigram 與 unicode61 雙 FTS,跨 vault 合併去重排序分頁,每筆帶 vault
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-002-search:查詢字串經 CJK 分詞路由到 trigram 與 unicode61 雙 FTS,跨 vault 合併去重排序分頁,每筆帶 vault

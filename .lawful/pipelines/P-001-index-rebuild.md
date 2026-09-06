@@ -1,7 +1,7 @@
 ---
 id: P-001
 description: vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-001-index-rebuild:vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價

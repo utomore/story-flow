@@ -14,14 +14,11 @@
 -- (ADR-023-effectful-effects-layer)。
 --
 -- __與純解譯器的分工__:純世界裡「中樞檔」只有一份,
--- 'Aapms.Workspace.Types.HubWorld' 直接捧著它的文字,@ReadHub@ 的路徑參數因此只是
--- __錯誤訊息的標籤__(純解譯器把它原樣放進
--- 'Aapms.Workspace.Types.HubNotFound')。本模組的實體與標籤__都__是這個位置底下的
--- @config.toml@('Aapms.Workspace.Location.configPath'):
--- 'Aapms.Service.Session.openSession' 傳進來的是 'Aapms.Workspace.Types.hlPath',
--- 而在真實世界那是中樞__根目錄__,拿它當錯誤訊息會叫使用者去看一個目錄。
--- 兩邊因此在「錯誤裡印哪一個路徑」上有一格差(見回報的 GAP-1);「檔在不在、
--- 讀不讀得到、內容是什麼」的語意完全相同。
+-- 'Aapms.Workspace.Types.HubWorld' 直接捧著它的文字。@ReadHub@ 讀哪一個檔__由效果
+-- 綁的資源決定__,呼叫端不傳路徑(P-004-vault-scope REV-3);兩個解譯器讀的實體與
+-- 錯誤裡印的標籤都是 'Aapms.Workspace.Types.hubConfigPath' 算出的那一個
+-- @config.toml@,「檔在不在、讀不讀得到、內容是什麼、錯誤印哪一個路徑」因此逐字
+-- 相同。
 module Aapms.Workspace.Effect.HubFile.IO
   ( runHubFileIO
   ) where
@@ -44,8 +41,8 @@ import System.FilePath (takeDirectory, (</>))
 import Aapms.Store.Atomic (atomicWriteText, readTextFile)
 import Aapms.Store.Error (renderStoreError)
 import Aapms.Workspace.Effect.HubFile (HubFile (..))
-import Aapms.Workspace.Location (configPath, thumbCacheDir)
-import Aapms.Workspace.Types (HubLocation, WorkspaceError (..))
+import Aapms.Workspace.Location (thumbCacheDir)
+import Aapms.Workspace.Types (HubLocation, WorkspaceError (..), hubConfigPath)
 
 -- | 以真的檔案系統跑 'HubFile'。
 --
@@ -53,7 +50,8 @@ import Aapms.Workspace.Types (HubLocation, WorkspaceError (..))
 -- @Aapms.Workspace.Lifecycle@ 的 @setupHub@ \/ @purge@):
 --
 -- * @HubPath@ → 資源參數原樣捧出;位置的解析在進入點只做一次,本層不再查環境變數
--- * @ReadHub@ → 檔案不在回 'Aapms.Workspace.Types.HubNotFound',讀不進來回
+-- * @ReadHub@ → 讀 @'Aapms.Workspace.Types.hubConfigPath' loc@;檔案不在回
+--   'Aapms.Workspace.Types.HubNotFound',讀不進來回
 --   'Aapms.Workspace.Types.HubUnreadable'(訊息委派
 --   'Aapms.Store.Error.renderStoreError',這一層不翻譯);__解析不在這裡__,
 --   那是 "Aapms.Workspace.Hub" 的純函式
@@ -61,26 +59,28 @@ import Aapms.Workspace.Types (HubLocation, WorkspaceError (..))
 -- * @WriteHub@ → 先把中樞根目錄建出來(對照舊 @setupHub@:第一次 setup 時那個
 --   目錄還不存在,少了這一步連暫存檔都開不起來),再
 --   'Aapms.Store.Atomic.atomicWriteText'(暫存檔 + rename)
--- * @EnsureCacheDir@ → 回「__本來不在才建__」,與純解譯器同一個 'Bool'
+-- * @EnsureCacheDir@ → 回 @Right@「__本來不在才建__」,與純解譯器同一個 'Bool';
+--   建不出來回 'Aapms.Workspace.Types.HubWriteFailed'(對照舊 @setupHub@ 的包法),
+--   __例外不逸出__(P-005-vault-lifecycle REV-3)
 -- * @PurgeHubFiles@ → 先數快取樹底下的檔案數,再刪 @config.toml@ 與__整棵__
 --   @cache\/thumbs@(對照舊 @purge@ 的 @removePathForcibly@);
 --   @library\/@ 與任何 @.md@ 一律不碰
 runHubFileIO :: IOE :> es => HubLocation -> Eff (HubFile : es) a -> Eff es a
 runHubFileIO loc = interpret $ \_ op -> liftIO $ case op of
   HubPath -> pure loc
-  ReadHub p -> readHubFile p
+  ReadHub -> readHubFile
   HubExists -> doesFileExist hubFile
   WriteHub txt -> writeHubFile txt
   EnsureCacheDir -> ensureCache
   PurgeHubFiles -> purgeFiles
   where
-    hubFile = configPath loc
+    hubFile = hubConfigPath loc
     thumbsDir = thumbCacheDir loc
 
-    -- 路徑參數只用來確認呼叫端問的是「這個位置的中樞檔」;錯誤裡印的是
-    -- 真的那一個檔(舊碼 @Aapms.Workspace.Hub.File.loadHub@ 的兩個建構子)。
-    readHubFile :: FilePath -> IO (Either WorkspaceError Text)
-    readHubFile _p = do
+    -- 讀的實體與錯誤裡印的路徑都是 'hubConfigPath'(舊碼
+    -- @Aapms.Workspace.Hub.File.loadHub@ 的兩個建構子)。
+    readHubFile :: IO (Either WorkspaceError Text)
+    readHubFile = do
       exists <- doesFileExist hubFile
       if not exists
         then pure (Left (HubNotFound hubFile))
@@ -101,14 +101,16 @@ runHubFileIO loc = interpret $ \_ op -> liftIO $ case op of
             Left e -> Left (HubWriteFailed hubFile (renderStoreError e))
             Right () -> Right ()
 
-    ensureCache :: IO Bool
+    ensureCache :: IO (Either WorkspaceError Bool)
     ensureCache = do
       existed <- doesDirectoryExist thumbsDir
       if existed
-        then pure False
+        then pure (Right False)
         else do
-          createDirectoryIfMissing True thumbsDir
-          pure True
+          mk <- try (createDirectoryIfMissing True thumbsDir)
+          pure $ case mk :: Either IOException () of
+            Left e -> Left (HubWriteFailed thumbsDir (T.pack (show e)))
+            Right () -> Right True
 
     purgeFiles :: IO (Bool, Int)
     purgeFiles = do

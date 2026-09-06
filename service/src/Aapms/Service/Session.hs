@@ -56,7 +56,7 @@ openSession
   -> Eff es (Either ServiceError Session)
 openSession sel cwd = do
   loc <- hubPath
-  textResult <- readHub (hlPath loc)
+  textResult <- readHub
   case textResult of
     Left err -> pure (Left (WorkspaceFailed err))
     Right txt -> case parseHubText (hlPath loc) txt of

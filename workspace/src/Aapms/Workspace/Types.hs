@@ -78,6 +78,7 @@ module Aapms.Workspace.Types
 
     -- * P-004-vault-scope:'Aapms.Workspace.Effect.HubFile' 的世界(觀察點)
   , HubWorld (..)
+  , hubConfigPath
 
     -- * P-005-vault-lifecycle:請求、結果與 'Aapms.Workspace.Effect.VaultDir' 的世界
   , LifecycleOp (..)
@@ -104,6 +105,8 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import System.FilePath ((</>))
+
 import Aapms.Core.Id (Id, VaultId (..), renderId)
 import Aapms.Store.Types (StoreError, VaultKind, VaultMarker (..), renderStoreError, renderVaultKind)
 import qualified TOML
@@ -117,6 +120,17 @@ data HubLocation = HubLocation
   , hlSource :: HubSource
   }
   deriving stock (Show, Eq)
+
+-- | 觀察:中樞位置底下的中樞註冊表檔案,@\<hlPath\>\/config.toml@
+-- (P-004-vault-scope REV-3)。
+--
+-- 'hlPath' 指的是中樞__根目錄__,真正被讀寫的檔是它底下的 @config.toml@;
+-- 'Aapms.Workspace.Effect.HubFile.readHub' 的兩個解譯器都以本函式的結果當
+-- 'HubNotFound' 的路徑,純世界與真實世界因此印同一個字串。
+-- "Aapms.Workspace.Location" 的 @configPath@ 是本函式的別名(同一個事實只定義
+-- 一次),差別只在本模組住 types 層、觀察點得從這裡匯出。
+hubConfigPath :: HubLocation -> FilePath
+hubConfigPath loc = hlPath loc </> "config.toml"
 
 -- | 中樞位置的來源。解析順序固定兩層,__沒有第三層、不搜尋、不猜__。
 data HubSource

@@ -174,13 +174,16 @@ applyLifecycle hub = \case
     case written of
       Left err -> pure (Left err)
       Right hubCreated -> do
-        cacheCreated <- ensureCacheDir
-        pure
-          ( Right
+        -- 快取目錄建不出來就是整條 SetupHub 的錯誤,與 writeHub 失敗同形
+        -- (P-005-vault-lifecycle REV-3)。
+        cached <- ensureCacheDir
+        pure $ case cached of
+          Left err -> Left err
+          Right cacheCreated ->
+            Right
               emptyOutcome
                 { outcomeSetup = Just (SetupReport (hlPath loc) hubCreated cacheCreated)
                 }
-          )
   InitVault dir kind name mode -> do
     d <- canonicalPath dir
     occupied <- markerDirExists d

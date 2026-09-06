@@ -24,37 +24,81 @@ module Aapms.Service.Machine.View
   ) where
 
 import Data.Either (lefts)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Effectful (Eff, (:>))
 
-import Aapms.Service.Types (DoctorView, Session (sessionCwd, sessionHub), VaultView)
+import Aapms.Service.Types
+  ( DoctorView (..)
+  , Session (sessionCwd, sessionHub, sessionLocation, sessionSource)
+  , VaultView (..)
+  )
+import Aapms.Store.Types (VaultMarker (vmId, vmKind, vmName))
 import Aapms.Workspace.Effect.Markers (Markers, detectRoot)
 import Aapms.Workspace.Effect.ToolProbe (ToolProbe, pathDirs)
 import Aapms.Workspace.Resolve (refAt, refOfEntry)
 import Aapms.Workspace.Tools.Plan (detectTool)
 import Aapms.Workspace.Types
-  ( ScopeIssue
+  ( HubLocation (hlPath, hlSource)
+  , ScopeIssue
   , ToolSearchPlan (..)
   , ToolStatus
-  , VaultEntry
-  , VaultRef (vrEntry)
+  , VaultEntry (veId, veKind, veName, vePath)
+  , VaultRef (vrEntry, vrMarker, vrPath)
+  , hubLlm
   , hubTools
   , hubVaults
+  , unreachableIds
   )
 
 -- | 中樞一列的投影:@registered@ 恒真,@reachable@ = 沒有
 -- 'Aapms.Workspace.Types.VaultPathMissing' \/
 -- 'Aapms.Workspace.Types.VaultMarkerBroken' 指到它。
+-- 前四欄逐字來自中樞那一列(marker 只用來判可達,__不覆蓋顯示值__:中樞的
+-- @veName@ \/ @veKind@ 是快取,而這一份投影說的是「中樞現在記著什麼」)。
 registeredVaultView :: [ScopeIssue] -> VaultEntry -> VaultView
-registeredVaultView _issues _e = error "P-006#registeredVaultView stub"
+registeredVaultView issues e =
+  VaultView
+    { vvId = veId e
+    , vvName = veName e
+    , vvKind = veKind e
+    , vvPath = vePath e
+    , vvRegistered = True
+    , vvReachable = veId e `notElem` unreachableIds issues
+    }
 
 -- | 探測到的未註冊 vault:欄位全來自 marker,@registered@ 假、@reachable@ 真。
+--
+-- 這一筆沒有中樞那一列可抄,身分與顯示值只能來自 marker;它是「剛剛才讀成功」
+-- 的那份 marker,所以 @reachable@ 恒真。
 discoveredVaultView :: VaultRef -> VaultView
-discoveredVaultView _ref = error "P-006#discoveredVaultView stub"
+discoveredVaultView ref =
+  VaultView
+    { vvId = vmId m
+    , vvName = vmName m
+    , vvKind = vmKind m
+    , vvPath = vrPath ref
+    , vvRegistered = False
+    , vvReachable = True
+    }
+  where
+    m = vrMarker ref
 
 -- | 六欄投影:hub 路徑與來源、註冊表來源、vaults、issues、tools、@[llm]@ 有無。
+--
+-- 全部逐欄搬運,__本函數一個判斷都不做__,唯二的例外是把單一
+-- 'Aapms.Workspace.Types.ToolStatus' 裝進單元素清單(目前只探測 7-Zip 一個工具),
+-- 以及 @[llm]@ 收成一個 'Bool' ——鍵與值一律不進診斷輸出。
 doctorOf :: Session -> [VaultView] -> [ScopeIssue] -> ToolStatus -> DoctorView
-doctorOf _s _vs _issues _ts = error "P-006#doctorOf stub"
+doctorOf s vs issues ts =
+  DoctorView
+    { dvHubPath = hlPath (sessionLocation s)
+    , dvHubSource = hlSource (sessionLocation s)
+    , dvRegistry = sessionSource s
+    , dvVaults = vs
+    , dvScopeIssues = issues
+    , dvTools = [ts]
+    , dvLlmConfigured = isJust (hubLlm (sessionHub s))
+    }
 
 -- | 純的整條:對中樞每一列重讀 marker 再投影;起點向上探測到未註冊的 vault 就
 -- 多一筆;@PATH@ 拆開後三層探測 7-Zip;最後收成 'Aapms.Service.Types.DoctorView'。

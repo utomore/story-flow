@@ -721,5 +721,13 @@ data ToolWorld = ToolWorld
 
 -- | 觀察:'VaultPathMissing' 與 'VaultMarkerBroken' 點到的列的 id
 -- ('VaultIdDrift' 不算)。
+--
+-- 只有這兩個建構子代表「路徑不在或 marker 讀不開」;'VaultIdDrift' 是身分問題
+-- (路徑在、檔案讀得開),'RefVaultNotRegistered' 根本沒指到中樞的某一列。
+-- 順序同輸入,__不去重__:這是一份「被點到的 id」清單,消費端只問成員資格。
 unreachableIds :: [ScopeIssue] -> [VaultId]
-unreachableIds _iss = error "P-006#unreachableIds stub"
+unreachableIds = concatMap $ \case
+  VaultPathMissing e _ -> [veId e]
+  VaultMarkerBroken e _ -> [veId e]
+  VaultIdDrift _ _ -> []
+  RefVaultNotRegistered _ _ -> []

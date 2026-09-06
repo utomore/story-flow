@@ -14,16 +14,52 @@ module Aapms.Service.Machine.Internal
   , markerIssues
   ) where
 
-import Effectful (Eff)
+import Data.Maybe (catMaybes)
+import Effectful (Eff, runPureEff)
 
-import Aapms.Workspace.Effect.Markers (Markers)
-import Aapms.Workspace.Effect.ToolProbe (ToolProbe)
-import Aapms.Workspace.Types (Hub, MarkerWorld, ScopeIssue, ToolWorld)
+import Aapms.Store.Types (VaultMarker (vmId))
+import Aapms.Workspace.Effect.Markers (Markers, dirExists, readMarkerAt, runMarkersPure)
+import Aapms.Workspace.Effect.ToolProbe (ToolProbe, runToolProbePure)
+import Aapms.Workspace.Types
+  ( Hub
+  , MarkerWorld
+  , ScopeIssue (VaultIdDrift, VaultMarkerBroken, VaultPathMissing)
+  , ToolWorld
+  , VaultEntry (veId, vePath)
+  , hubVaults
+  )
 
 -- | 觀察:'Markers' 與 'ToolProbe' 的純解譯器跑到底。
+--
+-- 兩層效果都被解掉之後就沒有效果了,所以拿得到裸的結果——里程碑 @=@ 列的 law
+-- 因此完全不碰 IO。解的順序與堆疊順序一致('Markers' 在外、'ToolProbe' 在內),
+-- 兩者互不影響:一個只讀 marker 表,一個只讀可執行檔表。
 simulateDoctor :: MarkerWorld -> ToolWorld -> Eff '[Markers, ToolProbe] a -> a
-simulateDoctor _w _tw _act = error "P-006#simulateDoctor stub"
+simulateDoctor w tw act = runPureEff (runToolProbePure tw (runMarkersPure w act))
 
 -- | 觀察:參考實作,中樞順序逐列重讀 marker 的降級清單。
+--
+-- __不呼叫 "Aapms.Workspace.Resolve"__(rules\/roles.md:拿受測程式當參考就沒有
+-- 參考可言):它直接對 'Aapms.Workspace.Effect.Markers' 的兩個操作重寫一次三種
+-- 降級的判定——先問路徑是不是既存目錄('Aapms.Workspace.Types.VaultPathMissing')、
+-- 再讀 marker('Aapms.Workspace.Types.VaultMarkerBroken')、最後比 id
+-- ('Aapms.Workspace.Types.VaultIdDrift'),依序、互斥,順序同
+-- 'Aapms.Workspace.Types.hubVaults'。
+--
+-- 走純解譯器而不是自己查 'Aapms.Workspace.Types.MarkerWorld',是因為
+-- 「路徑不在表上算不算讀不到 marker」「目錄怎麼比對」是那個__世界__的語意,不是
+-- 受測程式的自由度;參考實作要重寫的是降級規則,不是世界。
 markerIssues :: MarkerWorld -> Hub -> [ScopeIssue]
-markerIssues _w _h = error "P-006#markerIssues stub"
+markerIssues w h = runPureEff (runMarkersPure w (catMaybes <$> mapM issueOf (hubVaults h)))
+  where
+    issueOf e = do
+      exists <- dirExists (vePath e)
+      if not exists
+        then pure (Just (VaultPathMissing e (vePath e)))
+        else do
+          markerR <- readMarkerAt (vePath e)
+          pure $ case markerR of
+            Left err -> Just (VaultMarkerBroken e err)
+            Right m
+              | vmId m /= veId e -> Just (VaultIdDrift e (vmId m))
+              | otherwise -> Nothing

@@ -25,9 +25,10 @@ module Aapms.Workspace.Effect.ToolProbe
   ) where
 
 import Effectful (Eff, Effect, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect_)
 
-import Aapms.Workspace.Types (ToolWorld)
+import Aapms.Workspace.Types (ToolWorld, executables, twPathDirs)
 
 -- | 外部工具探測的兩個操作。
 data ToolProbe :: Effect where
@@ -43,5 +44,20 @@ isExecutable :: ToolProbe :> es => FilePath -> Eff es Bool
 pathDirs :: ToolProbe :> es => Eff es [FilePath]
 
 -- | 觀察:'ToolProbe' 的純解譯器(可執行檔集合、@PATH@ 目錄)。
+--
+-- 兩個操作的純語意:
+--
+-- * @IsExecutable@ 是「這個路徑在不在
+--   'Aapms.Workspace.Types.executables' 裡」,比對__逐字__(不走
+--   'System.FilePath.equalFilePath'、不正規化):候選路徑是
+--   'Aapms.Workspace.Tools.Plan.probes' 逐字拼出來的,世界那一側也逐字給,
+--   兩邊同一套字串才對得起來。目錄不會出現在可執行檔集合裡,所以「目錄不算」
+--   在純世界是自動成立的。
+-- * @PathDirs@ 直接捧出 'Aapms.Workspace.Types.twPathDirs',__保序__。
+--
+-- 世界是不可變的參數,所以這個解譯器一個字都寫不出去——「診斷唯讀」在純這一側
+-- 由型別本身守住。
 runToolProbePure :: ToolWorld -> Eff (ToolProbe : es) a -> Eff es a
-runToolProbePure _tw _act = error "P-006#runToolProbePure stub"
+runToolProbePure tw = interpret $ \_ op -> case op of
+  IsExecutable p -> pure (p `elem` executables tw)
+  PathDirs -> pure (twPathDirs tw)

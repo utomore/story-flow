@@ -171,8 +171,8 @@ data ProjectView = ProjectView
 -- 資源生命週期,快照則是「一次載入的不變量」。註冊表與命名詞彙來自__同一次__
 -- 載入,所以一起帶。
 --
--- __沒有 @Show@ \/ @Eq@__:'TypeRegistry' 兩者都沒有。要比較兩份快照時比它的投影
--- (@listTypes . sessionRegistry@ 等)。
+-- __有 @Show@ \/ @Eq@__:'TypeRegistry' 自 P-004-vault-scope 的骨架起 derive 兩者,
+-- 整份快照可以直接比;law 裡比投影(@listTypes . sessionRegistry@)的寫法仍然成立。
 data Session = Session
   { sessionHub :: Hub
   -- ^ 觀察:快照裡的中樞。

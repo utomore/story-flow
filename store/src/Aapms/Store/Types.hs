@@ -129,8 +129,8 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.AnyNode (AnyNode, anyMeta)
-import Aapms.Core.Asset (Asset, LogicalName (..), Sha256)
+import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
+import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256)
 import Aapms.Core.Id (Id, IdPrefix, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (Level, Node, NodeKind, TreeError, renderTreeError)
 import Aapms.Core.License (License)
@@ -736,37 +736,48 @@ type VaultFiles = Map FilePath (FileStat, Text)
 emptyIndex :: IndexState
 emptyIndex = IndexState Map.empty
 
--- | 記憶體 vault 裡的路徑,已排序。
+-- | 記憶體 vault 裡的路徑,已排序('Map' 的鍵序就是字母序遞增)。
 vaultPaths :: VaultFiles -> [FilePath]
-vaultPaths _vf = error "P-001#vaultPaths stub"
+vaultPaths = Map.keys
 
 -- | 記憶體 vault 裡某路徑的指紋與內容。
+--
+-- 只在 @p in 'vaultPaths' vf@ 時有意義;不在裡面時回一個中性值而不是拋例外
+-- ——觀察點不該是部分函數。
 fileAt :: VaultFiles -> FilePath -> (FileStat, Text)
-fileAt _vf _p = error "P-001#fileAt stub"
+fileAt vf p = Map.findWithDefault (FileStat 0 0, T.empty) p vf
 
 -- | 兩份 vault 同路徑內容不同時指紋也不同。
+--
+-- 只看兩邊都有的路徑:只出現在一邊的路徑沒有「同路徑」可比。
 statsDistinguish :: VaultFiles -> VaultFiles -> Bool
-statsDistinguish _a _b = error "P-001#statsDistinguish stub"
+statsDistinguish a b =
+  and
+    [ st1 /= st2
+    | (p, (st1, t1)) <- Map.toList a
+    , (st2, t2) <- maybe [] pure (Map.lookup p b)
+    , t1 /= t2
+    ]
 
--- | 索引裡有記錄的路徑。
+-- | 索引裡有記錄的路徑,已排序。
 indexedPaths :: IndexState -> [FilePath]
-indexedPaths _ix = error "P-001#indexedPaths stub"
+indexedPaths (IndexState m) = Map.keys m
 
--- | 索引裡全部節點。
+-- | 索引裡全部節點,路徑遞增、檔內依文件順序。
 indexedNodes :: IndexState -> [AnyNode]
-indexedNodes _ix = error "P-001#indexedNodes stub"
+indexedNodes (IndexState m) = [inNode n | fi <- Map.elems m, n <- fiNodes fi]
 
 -- | 索引裡全部節點的 id。
 indexedIds :: IndexState -> [Id]
-indexedIds _ix = error "P-001#indexedIds stub"
+indexedIds = map (metaId . anyMeta) . indexedNodes
 
 -- | 索引裡已命名 asset 的邏輯名稱。
 assetNames :: IndexState -> [LogicalName]
-assetNames _ix = error "P-001#assetNames stub"
+assetNames ix = [nm | NAsset a <- indexedNodes ix, nm <- maybe [] pure (astName a)]
 
 -- | 'MetaWarningsFound' 點到的節點 id。
 warnedIds :: [IndexIssue] -> [Id]
-warnedIds _is = error "P-001#warnedIds stub"
+warnedIds is = [i | MetaWarningsFound _ i _ <- is]
 
 --------------------------------------------------------------------------------
 -- 搜尋的觀察點(P-002-search)

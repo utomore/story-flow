@@ -25,11 +25,13 @@ module Aapms.Store.Effect.VaultFs
   , runVaultFsPure
   ) where
 
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Effectful (Eff, Effect, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect_)
 
-import Aapms.Store.Types (FileStat, StoreError, VaultFiles)
+import Aapms.Store.Types (FileStat, StoreError (..), VaultFiles, vaultPaths)
 
 -- | vault 目錄的六個操作。@ListMarkdown@ 已排序、略過 @.@ 開頭目錄。
 data VaultFs :: Effect where
@@ -61,5 +63,30 @@ writeMarkdown :: VaultFs :> es => FilePath -> Text -> Eff es (Either StoreError 
 deleteMarkdown :: VaultFs :> es => FilePath -> Eff es (Either StoreError ())
 
 -- | 觀察:'VaultFs' 的純解譯器,跑在記憶體裡的檔案表上。
+--
+-- * @ListMarkdown@ 回 'Aapms.Store.Types.vaultPaths'('Data.Map.Strict.Map' 的
+--   鍵序,已是字母序遞增)。__不再過濾副檔名與 @.@ 開頭目錄__:記憶體 vault
+--   沒有目錄可走,它「就是」那份已經列好的清單;真解譯器(@directory@)才要
+--   自己走目錄樹並過濾。P-001-index-rebuild 的 LAW-3 / LAW-6 以
+--   'Aapms.Store.Types.vaultPaths' 為分母,兩者必須逐字相同。
+-- * @StatFile@ \/ @ReadMarkdown@ 查不到路徑時回
+--   'Aapms.Store.Types.FileReadFailed',與真解譯器讀不到檔時同一個建構子。
+-- * 本解譯器的簽名不帶狀態出口,所以是__唯讀__的:@WriteMarkdown@ \/
+--   @DeleteMarkdown@ 一律回 'Aapms.Store.Types.FileWriteFailed'。
+--   P-001-index-rebuild 的整條流程只讀不寫;會寫的 P-003-node-write 另有自己
+--   帶檔案表出口的解譯器。
 runVaultFsPure :: VaultFiles -> Eff (VaultFs : es) a -> Eff es a
-runVaultFsPure _vf _act = error "P-001#runVaultFsPure stub"
+runVaultFsPure vf = interpret $ \_ op -> case op of
+  ListMarkdown -> pure (vaultPaths vf)
+  StatFile p -> pure $ case Map.lookup p vf of
+    Nothing -> Left (FileReadFailed p missing)
+    Just (st, _) -> Right st
+  ReadMarkdown p -> pure $ case Map.lookup p vf of
+    Nothing -> Left (FileReadFailed p missing)
+    Just (_, txt) -> Right txt
+  FileExists p -> pure (Map.member p vf)
+  WriteMarkdown p _ -> pure (Left (FileWriteFailed p readOnly))
+  DeleteMarkdown p -> pure (Left (FileWriteFailed p readOnly))
+  where
+    missing = "記憶體 vault 裡沒有這個路徑"
+    readOnly = "runVaultFsPure 是唯讀的純解譯器"

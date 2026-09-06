@@ -89,7 +89,7 @@ updated: 2026-09-06
 |---|---|---|---|
 | EX-1 | 空 vault:`simulate mempty emptyIndex (rebuild reg vid)` | `(Right [], emptyIndex)`;再跑一次相同 | LAW-1、LAW-2 |
 | EX-2 | 一份主題檔 `characters/琳達.md`(主體加兩個片段) | `indexedPaths` 為 `["characters/琳達.md"]`,`indexedNodes` 三個,與逐檔 `indexPath` 相同 | LAW-3、LAW-6 |
-| EX-3 | Level 檔的 `nod-b` 以自己為 parent(成環) | 該檔不在 `indexedPaths`,issues 含 `TreeInvalid`;同 vault 另一份主題檔照進 | LAW-6 |
+| EX-3 | Level 檔有兩個最淺層級的節(`## nod-a` 與 `## nod-b` 同層,兩個根) | 該檔不在 `indexedPaths`,issues 含 `TreeInvalid`(`MultipleRoots`);同 vault 另一份主題檔照進 | LAW-6 |
 | EX-4 | 兩份 pack 檔各有一個 asset,邏輯名稱同為 `ui_gui_frame_001`,路徑字母序 `a/pack.md` 在前 | 只有 `a/pack.md` 在索引,issues 含 `DuplicateAssetName "b/pack.md"`;`assetNames` 只有一個 | LAW-8 |
 | EX-5 | 主題檔的 `type` 是註冊表沒有的 `ghost` | issues 含 `MetaWarningsFound`,該節點 id 仍在 `indexedIds` | LAW-12 |
 | EX-6 | 重建後把 `lore/history.md` 的正文改一字並讓 size 變 | `refresh` 後的索引與對新 vault 從空重建相同;issues 為 `Right []` | LAW-5 |
@@ -116,3 +116,7 @@ updated: 2026-09-06
   - 動到:Stages 第 11 列、觀察點 `runIndexPure` 的模組與層、觀察點 `clashesEarlier`(新增)、LAW-6
   - 保護:LAW-1 到 LAW-5、LAW-7 到 LAW-12
   - 重委派:qa(LAW-6、EX-8);impl 尚未派,骨架簽名由 conductor 同步
+- REV-2(2026-09-06,依 impl 回報「EX-3 的『以自己為 parent(成環)』在已 frozen 的 P-025-md-document 裡造不出來:`toLevel` 依 ADR-009 由標題階層推導 parent,`Cycle` 在這條流上不可達」;conductor 歸因為 example 寫錯):EX-3 的輸入改成可達的樹違規——兩個最淺層級的節(`MultipleRoots`),後件不變
+  - 動到:EX-3
+  - 保護:LAW-1 到 LAW-12、其餘 EX
+  - 重委派:qa(EX-3)

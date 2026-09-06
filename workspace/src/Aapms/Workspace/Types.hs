@@ -7,6 +7,11 @@
 -- 做法是把全部純型別與錯誤型別收在這裡,它只依賴 @aapms-core@ 與 @aapms-store@
 -- 的型別,其餘六個模組全部往這裡依賴,型別歸屬圖因此是一棵樹。
 --
+-- 「只依賴型別」這句話現在由 import 行本身守住:@aapms-store@ 那一邊統一走
+-- "Aapms.Store.Types"(該套件全部對外型別的宣告處,零 IO),不再 import
+-- "Aapms.Store.Error" \/ "Aapms.Store.Marker" \/ "Aapms.Store.Schema" ——那三個模組
+-- 各自帶著 sqlite 與檔案系統,拿一個型別要付整條 IO 相依鏈。
+--
 -- __一次寫齊,不由各 feature 逐波擴充__(build-log DEC-2):契約 A–F 的型別與
 -- 'WorkspaceError' 的全部建構子都在 F001 寫完。階段二的三個 feature 平行執行,
 -- 若各自往本檔加建構子,那是同一個檔案的併發寫入——互蓋當下不會有任何錯誤訊息。
@@ -54,16 +59,57 @@ module Aapms.Workspace.Types
     -- * 契約 F:錯誤
   , WorkspaceError (..)
   , renderWorkspaceError
+
+    -- * 純增刪的請求(P-028-hub-config 的觀察點 applyHubEdits 用)
+  , HubEdit (..)
+
+    -- * P-029-scope-resolve:裁決的類別與結果
+  , ScopeKind (..)
+  , Scope (..)
+  , scopeRefs
+  , scopeIssues
+  , refIds
+  , isRefNotRegistered
+  , selectorHits
+
+    -- * P-029-scope-resolve:'Aapms.Workspace.Effect.Markers' 的世界(觀察點)
+  , MarkerWorld (..)
+  , worldMarker
+
+    -- * P-004-vault-scope:'Aapms.Workspace.Effect.HubFile' 的世界(觀察點)
+  , HubWorld (..)
+  , hubConfigPath
+
+    -- * P-005-vault-lifecycle:請求、結果與 'Aapms.Workspace.Effect.VaultDir' 的世界
+  , LifecycleOp (..)
+  , LifecycleOutcome (..)
+  , LifecycleRun (..)
+  , VaultWorld (..)
+  , vwEntries
+  , vwMarkerDir
+  , vwMarker
+  , driftAt
+  , vwHasIndex
+  , vwDirExists
+  , vwWithout
+
+    -- * P-006-workspace-doctor:工具探測的計畫與 'Aapms.Workspace.Effect.ToolProbe' 的世界
+  , ToolSearchPlan (..)
+  , ToolWorld (..)
+  , unreachableIds
   ) where
 
 import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import System.FilePath ((</>))
+
 import Aapms.Core.Id (Id, VaultId (..), renderId)
-import Aapms.Store.Error (StoreError, renderStoreError)
-import Aapms.Store.Marker (VaultMarker)
-import Aapms.Store.Schema (VaultKind, renderVaultKind)
+import Aapms.Store.Types (StoreError, VaultKind, VaultMarker (..), renderStoreError, renderVaultKind)
 import qualified TOML
 
 -- 契約 A:中樞位置與載入 -------------------------------------------------------
@@ -75,6 +121,17 @@ data HubLocation = HubLocation
   , hlSource :: HubSource
   }
   deriving stock (Show, Eq)
+
+-- | 觀察:中樞位置底下的中樞註冊表檔案,@\<hlPath\>\/config.toml@
+-- (P-004-vault-scope REV-3)。
+--
+-- 'hlPath' 指的是中樞__根目錄__,真正被讀寫的檔是它底下的 @config.toml@;
+-- 'Aapms.Workspace.Effect.HubFile.readHub' 的兩個解譯器都以本函式的結果當
+-- 'HubNotFound' 的路徑,純世界與真實世界因此印同一個字串。
+-- "Aapms.Workspace.Location" 的 @configPath@ 是本函式的別名(同一個事實只定義
+-- 一次),差別只在本模組住 types 層、觀察點得從這裡匯出。
+hubConfigPath :: HubLocation -> FilePath
+hubConfigPath loc = hlPath loc </> "config.toml"
 
 -- | 中樞位置的來源。解析順序固定兩層,__沒有第三層、不搜尋、不猜__。
 data HubSource
@@ -450,3 +507,266 @@ renderWorkspaceError = \case
     unVaultId (VaultId t) = t
     ambiguousEntry e = unVaultId (veId e) <> "(" <> pack (vePath e) <> ")"
     ambiguousProjectEntry e = renderId (peId e) <> "(" <> pack (pePath e) <> ")"
+
+-- | 對 'Hub' 值的四種純增刪,依序套用(P-028-hub-config 的 LAW-2 前提:
+-- 快照來自 'Aapms.Workspace.Hub.parseHubText' 再經這些增刪)。
+data HubEdit
+  = PutVault VaultEntry
+  | DropVault VaultId
+  | PutProject ProjectEntry
+  | DropProject Id
+  deriving stock (Show, Eq)
+
+-- P-029-scope-resolve:裁決的類別與結果 ----------------------------------------
+
+-- | 這一次裁決要的是哪一種範圍。三種 scope 共用 selector 解析、重讀 marker 與
+-- @refs@ 展開,只在最後一步分流,所以收成一個標籤加一列
+-- 'Aapms.Workspace.Resolve.resolveScope'(P-029 的決定)。
+data ScopeKind
+  = -- | 查詢類:讀跨全部生效的 vault
+    ForRead
+  | -- | 寫入類:恰好一個寫入目標,加它的讀取範圍
+    ForWrite
+  | -- | 管線類:kind 相符的那些,各跑一次
+    ForPipeline VaultKind
+  deriving stock (Show, Eq)
+
+-- | 一次裁決的結果,與 'ScopeKind' 一一對應。
+data Scope
+  = SRead ReadScope
+  | SWrite WriteScope
+  | SPipeline PipelineScope
+  deriving stock (Show, Eq)
+
+-- | 觀察:三種 scope 的 vault 清單(寫入 scope 是目標開頭的 'wsRead')。
+scopeRefs :: Scope -> [VaultRef]
+scopeRefs = \case
+  SRead rs -> rsVaults rs
+  SWrite ws -> wsRead ws
+  SPipeline ps -> psRuns ps
+
+-- | 觀察:三種 scope 的降級紀錄。
+scopeIssues :: Scope -> [ScopeIssue]
+scopeIssues = \case
+  SRead rs -> rsIssues rs
+  SWrite ws -> wsIssues ws
+  SPipeline ps -> psIssues ps
+
+-- | 觀察:每個 ref 的 marker id。__身分來自 marker__,不是中樞那一列。
+refIds :: [VaultRef] -> [VaultId]
+refIds = map (vmId . vrMarker)
+
+-- | 觀察:是不是 'RefVaultNotRegistered'。
+isRefNotRegistered :: ScopeIssue -> Bool
+isRefNotRegistered = \case
+  RefVaultNotRegistered _ _ -> True
+  _ -> False
+
+-- | 觀察:selector 生效的命中集合(id 命中非空就是它,否則是 name 命中),
+-- 順序同 'hubVaults'。
+--
+-- 兩階段都__逐字精確__比對:不去空白、不忽略大小寫、不做前綴比對。這是
+-- 'Aapms.Workspace.Resolve.lookupSelector' 的判定依據,兩者必須是同一套規則。
+selectorHits :: Hub -> Text -> [VaultEntry]
+selectorHits h s
+  | not (null byId) = byId
+  | otherwise = byName
+  where
+    entries = hubVaults h
+    byId = filter ((== VaultId s) . veId) entries
+    byName = filter ((== s) . veName) entries
+
+-- P-029-scope-resolve:Markers 的世界 ------------------------------------------
+
+-- | 'Aapms.Workspace.Effect.Markers' 的純解譯器跑在這張表上:路徑 → marker 讀數,
+-- 加上「哪些路徑是既存目錄」。正規化在純世界裡是恆等,所以世界本身不記它。
+data MarkerWorld = MarkerWorld
+  { mwMarkers :: Map FilePath (Either StoreError VaultMarker)
+  -- ^ 路徑 → 那個路徑上讀 marker 的結果;不在表上 = 讀不到任何 marker。
+  , worldDirs :: [FilePath]
+  -- ^ 觀察:世界裡存在的目錄(含 @.aapms@ 這種 marker 目錄本身)。
+  }
+  deriving stock (Show, Eq)
+
+-- | 空世界:沒有任何 marker、沒有任何目錄。
+instance Monoid MarkerWorld where
+  mempty = MarkerWorld mempty []
+
+-- | 併兩個世界:marker 表左偏,目錄清單相接。
+instance Semigroup MarkerWorld where
+  a <> b = MarkerWorld (mwMarkers a <> mwMarkers b) (worldDirs a <> worldDirs b)
+
+-- | 觀察:某路徑在世界裡的 marker 讀數;@Nothing@ = 那個路徑上讀不到任何 marker。
+worldMarker :: MarkerWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
+worldMarker w p = Map.lookup p (mwMarkers w)
+
+-- P-004-vault-scope:HubFile 的世界 --------------------------------------------
+
+-- | 'Aapms.Workspace.Effect.HubFile' 的純解譯器跑在這上面:中樞位置固定,中樞檔
+-- 的全文有或沒有。
+data HubWorld = HubWorld
+  { hubTextIn :: Maybe Text
+  -- ^ 觀察:世界裡的中樞文字;@Nothing@ = 中樞檔不存在。
+  , hubLocationIn :: HubLocation
+  -- ^ 觀察:世界裡的中樞位置與它的來源。
+  , cacheDirIn :: Bool
+  -- ^ 觀察:世界裡縮圖快取目錄存不存在(P-005 的 SetupHub 第一次建、第二次不建)。
+  , thumbsIn :: [FilePath]
+  -- ^ 觀察:世界裡快取目錄下的縮圖檔(P-005 的 Purge 刪掉幾張就是它的長度)。
+  }
+  deriving stock (Show, Eq)
+
+-- P-005-vault-lifecycle:請求、結果與 VaultDir 的世界 --------------------------
+
+-- | 十個生命週期操作收成一個請求 sum(P-005 的決定):全部走「前置檢查 → 改 Hub
+-- 值 → 原子寫回」同一條紀律。
+data LifecycleOp
+  = -- | 建中樞目錄與縮圖快取;冪等,完全不碰既有的 @config.toml@
+    SetupHub
+  | -- | vault 目錄、種類、名稱、模式
+    InitVault FilePath VaultKind Text InitMode
+  | -- | 把一個已經是 vault 的目錄納管;身分一律來自 marker
+    AddVault FilePath
+  | -- | selector、要不要順手刪索引
+    ForgetVault Text DeleteIndex
+  | -- | 中樞逐列重讀 marker,只報告不回寫
+    CheckVaults
+  | -- | 以 marker 修中樞的 name \/ kind
+    SyncHub
+  | -- | 清理範圍
+    Purge PurgeScope
+  | -- | 專案目錄、專案名
+    RegisterProject FilePath Text
+  | -- | 專案 selector
+    ForgetProject Text
+  deriving stock (Show, Eq)
+
+-- | 一次生命週期請求的結果。每個欄位只有相關的請求會填,其餘是 @Nothing@ \/ 空。
+data LifecycleOutcome = LifecycleOutcome
+  { outcomeHub :: Maybe Hub
+  -- ^ 觀察:結果裡的新 'Hub' 值;@Nothing@ = 這個請求不改中樞。
+  , outcomeEntry :: Maybe VaultEntry
+  -- ^ 觀察:被加入或移除的 vault 列。
+  , outcomeNotice :: Maybe AdoptNotice
+  -- ^ 觀察:@--adopt@ 在目標目錄第一層發現的舊 marker。
+  , outcomeProject :: Maybe ProjectEntry
+  -- ^ 觀察:被加入或移除的專案列。
+  , outcomeIssues :: [ScopeIssue]
+  -- ^ 觀察:'CheckVaults' \/ 'SyncHub' 的漂移紀錄。
+  , outcomeSetup :: Maybe SetupReport
+  -- ^ 觀察:'SetupHub' 的報告。
+  , outcomePurge :: Maybe PurgeReport
+  -- ^ 觀察:'Purge' 的報告。
+  }
+  deriving stock (Show, Eq)
+
+-- | 'Aapms.Workspace.Effect.VaultDir' 的純解譯器跑在這棵記憶體目錄樹上。
+data VaultWorld = VaultWorld
+  { vwTree :: Map FilePath [FilePath]
+  -- ^ 目錄 → 它第一層的名字,保序;不在表上 = 那個路徑不是既存目錄。
+  , vwMarkers :: Map FilePath (Either StoreError VaultMarker)
+  -- ^ vault 根目錄 → 讀 marker 的結果。
+  , vwMarkerDirs :: Set FilePath
+  -- ^ @.aapms@ 這個路徑被佔用的 vault 根目錄(目錄或檔案都算)。
+  , vwIndexDbs :: Set FilePath
+  -- ^ 有 @index.db@ 的 vault 根目錄。
+  }
+  deriving stock (Show, Eq)
+
+-- | 觀察:目錄第一層的名字。__不在表上的路徑回空清單__(它不是既存目錄,
+-- 「第一層有什麼」的答案與空目錄一樣是「什麼都沒有」;要分辨兩者問
+-- 'vwDirExists')。
+vwEntries :: VaultWorld -> FilePath -> [FilePath]
+vwEntries vw d = Map.findWithDefault [] d (vwTree vw)
+
+-- | 觀察:@.aapms@ 路徑被佔用。
+vwMarkerDir :: VaultWorld -> FilePath -> Bool
+vwMarkerDir vw d = Set.member d (vwMarkerDirs vw)
+
+-- | 觀察:marker 讀數;@Nothing@ = 那個路徑上讀不到任何 marker。
+vwMarker :: VaultWorld -> FilePath -> Maybe (Either StoreError VaultMarker)
+vwMarker vw d = Map.lookup d (vwMarkers vw)
+
+-- | 這一列的路徑上 marker 讀得到且 id 與中樞不同時回實際的 id(P-005 REV-4 的守門)。
+--
+-- 三種「不算漂移」的情形一律 @Nothing@:路徑不在 'vwMarkers' 上(那裡沒有
+-- marker 檔)、marker 讀壞了('Left')、讀得到而 id 相符。__讀不到不是漂移__:
+-- 刪索引前的守門只擋「那個位置住著另一個 vault」,讀不到的情形由別的降級管道
+-- (@checkVaults@ 的 'VaultMarkerBroken')負責報告。
+driftAt :: VaultWorld -> VaultEntry -> Maybe VaultId
+driftAt vw e = case vwMarker vw (vePath e) of
+  Just (Right m) | vmId m /= veId e -> Just (vmId m)
+  _ -> Nothing
+
+-- | 觀察:@index.db@ 在不在。
+vwHasIndex :: VaultWorld -> FilePath -> Bool
+vwHasIndex vw d = Set.member d (vwIndexDbs vw)
+
+-- | 觀察:目錄在不在(等價於「它在 'vwTree' 上」)。
+vwDirExists :: VaultWorld -> FilePath -> Bool
+vwDirExists vw d = Map.member d (vwTree vw)
+
+-- | 觀察:拿掉這些路徑後的目錄樹(比較「其餘不動」用)。
+--
+-- 四張表全部以同一組路徑為鍵刪除:一個 vault 根目錄在世界裡的全部足跡(第一層
+-- 的名字、marker 讀數、@.aapms@ 佔用、@index.db@)因此一起消失,剩下的就是
+-- 「其餘」。
+vwWithout :: [FilePath] -> VaultWorld -> VaultWorld
+vwWithout ps vw =
+  VaultWorld
+    { vwTree = foldr Map.delete (vwTree vw) ps
+    , vwMarkers = foldr Map.delete (vwMarkers vw) ps
+    , vwMarkerDirs = foldr Set.delete (vwMarkerDirs vw) ps
+    , vwIndexDbs = foldr Set.delete (vwIndexDbs vw) ps
+    }
+
+-- | 一次 'LifecycleOp' 在純世界裡跑完之後看得到的三件事。
+data LifecycleRun a = LifecycleRun
+  { lcResult :: a
+  -- ^ 觀察:結果。
+  , lcHubText :: Maybe Text
+  -- ^ 觀察:最終中樞文字(沒有檔就 @Nothing@)。
+  , lcVaults :: VaultWorld
+  -- ^ 觀察:最終目錄樹。
+  , hubWorldAfter :: HubWorld
+  -- ^ 觀察:跑完之後的中樞世界(拿來接著跑下一個請求)。
+  }
+  deriving stock (Show, Eq)
+
+-- P-006-workspace-doctor:工具探測 ----------------------------------------------
+
+-- | 三層探測裡__可以被替換掉的那兩層__的來源(自 "Aapms.Workspace.Tools" 搬進
+-- 型別層:'Aapms.Workspace.Tools.Plan.probes' 是純函數,不能依賴 shell 模組)。
+data ToolSearchPlan = ToolSearchPlan
+  { tspExeExtension :: String
+  -- ^ 平台的可執行檔副檔名(Windows 是 @".exe"@,其他平台是 @""@)。這是 shell 才知道的
+  -- 平台事實,由 `!` 列用 @System.Directory.exeExtension@ 填進來;純層的 `probes` 只拿它拼路徑。
+  , tspPathDirs :: [FilePath]
+  -- ^ 第二層:要當成 @PATH@ 來掃的目錄清單,__保留順序__。真實呼叫時是 @PATH@
+  -- 環境變數切開的結果;該變數未設時是空清單(不是失敗)。
+  , tspCandidates :: [FilePath]
+  -- ^ 第三層:要逐一探測的__完整檔案路徑__清單,__保留順序__。
+  }
+  deriving stock (Show, Eq)
+
+-- | 'Aapms.Workspace.Effect.ToolProbe' 的純解譯器跑在這上面。
+data ToolWorld = ToolWorld
+  { executables :: [FilePath]
+  -- ^ 觀察:世界裡可執行的路徑。
+  , twPathDirs :: [FilePath]
+  -- ^ @PATH@ 拆開後的目錄清單,保序。
+  }
+  deriving stock (Show, Eq)
+
+-- | 觀察:'VaultPathMissing' 與 'VaultMarkerBroken' 點到的列的 id
+-- ('VaultIdDrift' 不算)。
+--
+-- 只有這兩個建構子代表「路徑不在或 marker 讀不開」;'VaultIdDrift' 是身分問題
+-- (路徑在、檔案讀得開),'RefVaultNotRegistered' 根本沒指到中樞的某一列。
+-- 順序同輸入,__不去重__:這是一份「被點到的 id」清單,消費端只問成員資格。
+unreachableIds :: [ScopeIssue] -> [VaultId]
+unreachableIds = concatMap $ \case
+  VaultPathMissing e _ -> [veId e]
+  VaultMarkerBroken e _ -> [veId e]
+  VaultIdDrift _ _ -> []
+  RefVaultNotRegistered _ _ -> []

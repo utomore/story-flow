@@ -1,7 +1,16 @@
--- | graph-core\/F008:契約 E 的改寫\/配號組——'writeMeta' \/ 'writeAssetFields' \/
--- 'writeBody' \/ 'addLink' \/ 'removeLink' \/ 'upsertLicense' \/ 'allocateId'。
+-- | graph-core\/F008:契約 E 的改寫\/配號組。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- 2026-09-06 退場波:舊的七個直接 IO 函式(@writeMeta@ \/ @writeAssetFields@ \/
+-- @writeBody@ \/ @addLink@ \/ @removeLink@ \/ @upsertLicense@ \/ @allocateId@)
+-- 退場,本檔改呼叫 P-003-node-write 的唯一進入點
+-- 'Aapms.Store.Write.applyWriteIO'(請求逐條對應
+-- 'Aapms.Store.Types.WriteOp' 的建構子)與
+-- 'Aapms.Store.Fixtures.allocateIdIO'(第 22 列 @allocateFreshId@),斷言不變。
+-- @writeMeta@ 原本收一個 @MetaOverride -> MetaOverride@ 函式,新請求收
+-- 'Aapms.Md.Inherit.MetaOverride' __值__(P-003 的決定),因此測試裡的
+-- @\\o -> o {moSummary = ...}@ 寫成 @emptyOverride {moSummary = ...}@。
+--
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-1   樂觀鎖:不符即拒且檔案未動                    -> test_EX5(writeMeta 案例)
@@ -30,14 +39,14 @@ import qualified Data.Text as T
 import Data.Time (UTCTime (..), fromGregorian)
 import Database.SQLite.Simple (execute, execute_, withTransaction)
 import Test.Hspec
-import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256 (..))
+import Aapms.Core.Asset (Asset (..), LogicalName (..))
 import Aapms.Core.Entity (Entity (..))
-import Aapms.Core.Id (Id, IdPrefix (PEnt), Ref, VaultId (..), idPrefix, localRef, newId)
+import Aapms.Core.Id (Id, IdPrefix (PEnt), VaultId (..), idPrefix, localRef, newId)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Link (Link (..), LinkKind (References))
 import Aapms.Core.Meta (Meta (..), Revision (..), Source (Human), Status (Canon), TypeKey (..))
 import Aapms.Md.Document (Document (..), Section (..))
-import Aapms.Md.Inherit (MetaOverride (..))
+import Aapms.Md.Inherit (MetaOverride (..), emptyOverride)
 import Aapms.Md.Parse (parseDocument, toLicenses, toPack, toTopic)
 import Aapms.Md.Render (renderSection)
 import Aapms.Store.Atomic (readTextFile)
@@ -46,9 +55,16 @@ import Aapms.Store.Fixtures
 import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault, vhConn, vhRoot)
 import Aapms.Store.Query (linksFrom)
-import Aapms.Store.Row (insertSql, nodeColumnList, nodeFields)
+import Aapms.Store.Row (nodeColumnList)
+import Aapms.Store.Row.Sql (insertSql, nodeFields)
 import Aapms.Store.Schema (VaultKind (AssetVault))
-import Aapms.Store.Write
+import Aapms.Store.Types
+  ( AssetPatch (..)
+  , WriteOp (..)
+  , outcomeId
+  , outcomeRevision
+  )
+import Aapms.Store.Write (applyWriteIO)
 import System.FilePath ((</>))
 
 --------------------------------------------------------------------------------
@@ -90,18 +106,18 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
             wrong = Revision (n0 + 5)
 
         -- EX-5:revision 不符
-        rBad <- writeMeta vh target wrong (\o -> o {moSummary = Just "不應該被寫入"})
+        rBad <- applyWriteIO vh (WriteMeta target wrong emptyOverride {moSummary = Just "不應該被寫入"})
         rBad `shouldBe` Left (RevisionMismatch target wrong r0)
         afterBadDoc <- rereadDoc vh topicPath
         sectionBytes afterBadDoc target `shouldBe` sectionBytes beforeDoc target
 
         -- LAW-1/LAW-2/LAW-3:revision 相符
-        r <- writeMeta vh target r0 (\o -> o {moSummary = Just "新的摘要"})
+        r <- applyWriteIO vh (WriteMeta target r0 emptyOverride {moSummary = Just "新的摘要"})
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right wr -> do
-            wrId wr `shouldBe` target
-            wrRevision wr `shouldBe` Revision (n0 + 1)
+            outcomeId wr `shouldBe` target
+            outcomeRevision wr `shouldBe` Revision (n0 + 1)
         afterDoc <- rereadDoc vh topicPath
         (_, fragsAfter) <- either (\e -> fail ("toTopic 失敗:" <> show e)) pure (toTopic afterDoc)
         case find ((== target) . metaId . entMeta) fragsAfter of
@@ -112,13 +128,13 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         -- LAW-3:除目標外,ent-00000003 的位元組不變
         sectionBytes afterDoc (idOf "ent-00000003") `shouldBe` sectionBytes beforeDoc (idOf "ent-00000003")
 
-  -- 'Aapms.Store.Edit.locate' 沒有獨立 law(見 "Aapms.Store.EditSpec" 頂端說明),依它自己的
-  -- haddock(骨架允許讀,見 delegation 指示)「查不到回 NodeNotFound」經由公開介面驗證。
-  describe "locate(經由 writeMeta 間接驗證,見 Aapms.Store.EditSpec 對 locate 的說明)" $
+  -- 定位(P-003-node-write 第 1 列 locateId)沒有獨立 law;「查不到回 NodeNotFound」
+  -- 經由公開介面驗證。
+  describe "定位(經由 WriteMeta 間接驗證)" $
     it "目標 id 不在索引裡時,回 Left (NodeNotFound i)" $
       withIndexedStoryVault $ \vh -> do
         let missing = idOf "ent-99999999"
-        r <- writeMeta vh missing (Revision 1) (\o -> o {moSummary = Just "不會被寫入"})
+        r <- applyWriteIO vh (WriteMeta missing (Revision 1) emptyOverride {moSummary = Just "不會被寫入"})
         r `shouldBe` Left (NodeNotFound missing)
 
   --------------------------------------------------------------------------------
@@ -138,14 +154,16 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
 
         -- 第一步:清空 name(apName = Just Nothing),設定 license(apLicense = Just (Just licRef))
         r1 <-
-          writeAssetFields
+          applyWriteIO
             vh
-            target
-            r0
-            AssetPatch {apName = Just Nothing, apLicense = Just (Just licRef), apAuthor = Nothing, apTags = Nothing}
+            ( WriteAssetFields
+                target
+                r0
+                AssetPatch {apName = Just Nothing, apLicense = Just (Just licRef), apAuthor = Nothing, apTags = Nothing}
+            )
         case r1 of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
-          Right wr -> wrRevision wr `shouldBe` Revision (n0 + 1)
+          Right wr -> outcomeRevision wr `shouldBe` Revision (n0 + 1)
         doc1 <- rereadDoc vh packPath
         (_, assets1) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc1)
         a1 <- case find ((== target) . metaId . astMeta) assets1 of
@@ -161,16 +179,18 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
 
         -- 第二步:設定新名字、新作者、新 tags;license 不動(apLicense = Nothing)應維持第一步設的值
         r2 <-
-          writeAssetFields
+          applyWriteIO
             vh
-            target
-            (metaRevision (astMeta a1))
-            AssetPatch
-              { apName = Just (Just (LogicalName "重新命名的資產"))
-              , apLicense = Nothing
-              , apAuthor = Just (Just "某人")
-              , apTags = Just ["t1", "t2"]
-              }
+            ( WriteAssetFields
+                target
+                (metaRevision (astMeta a1))
+                AssetPatch
+                  { apName = Just (Just (LogicalName "重新命名的資產"))
+                  , apLicense = Nothing
+                  , apAuthor = Just (Just "某人")
+                  , apTags = Just ["t1", "t2"]
+                  }
+            )
         case r2 of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right _wr -> pure ()
@@ -204,10 +224,10 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
           Nothing -> fail "找不到 ast-00000001"
         let r0 = metaRevision (astMeta a0)
 
-        r <- writeBody vh target r0 "新的說明"
+        r <- applyWriteIO vh (WriteBody target r0 "新的說明")
         case r of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
-          Right wr -> wrId wr `shouldBe` target
+          Right wr -> outcomeId wr `shouldBe` target
         doc1 <- rereadDoc vh packPath
         (_, assets1) <- either (\e -> fail ("toPack 失敗:" <> show e)) pure (toPack doc1)
         a1 <- case find ((== target) . metaId . astMeta) assets1 of
@@ -231,15 +251,15 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
         before <- linksFrom vh target
         before `shouldBe` []
 
-        r1 <- addLink vh target r0 l
+        r1 <- applyWriteIO vh (AddLink target r0 l)
         rev1 <- case r1 of
-          Right wr -> pure (wrRevision wr)
+          Right wr -> pure (outcomeRevision wr)
           Left e -> expectationFailure ("addLink 預期成功,得到 " <> show e) >> pure r0
 
         mid <- linksFrom vh target
         mid `shouldBe` [l]
 
-        r2 <- removeLink vh target rev1 l
+        r2 <- applyWriteIO vh (RemoveLink target rev1 l)
         case r2 of
           Left e -> expectationFailure ("removeLink 預期成功,得到 " <> show e)
           Right _ -> pure ()
@@ -256,7 +276,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
             notPresent = Link References (localRef (idOf "ent-00000001")) (Just "沒有這筆")
         r0 <- currentFragRevision vh topicPath target
         beforeRaw <- orDie =<< readTextFile (vhRoot vh </> topicPath)
-        r <- removeLink vh target r0 notPresent
+        r <- applyWriteIO vh (RemoveLink target r0 notPresent)
         r `shouldBe` Left (LinkNotFound target notPresent)
         afterRaw <- orDie =<< readTextFile (vhRoot vh </> topicPath)
         afterRaw `shouldBe` beforeRaw
@@ -272,10 +292,10 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
           Nothing -> fail "找不到 lic-0000000a"
 
         let updated1 = orig {licCommercial = False, licSourceUrl = Just "https://example.com/license"}
-        r1 <- upsertLicense vh updated1
+        r1 <- applyWriteIO vh (UpsertLicense updated1)
         case r1 of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
-          Right wr -> wrId wr `shouldBe` idOf "lic-0000000a"
+          Right wr -> outcomeId wr `shouldBe` idOf "lic-0000000a"
 
         doc1 <- rereadDoc vh licensesPath
         existing1 <- either (\e -> fail ("toLicenses 失敗:" <> show e)) pure (toLicenses doc1)
@@ -289,7 +309,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
 
         -- 對同一個 id 再呼叫一次(用剛讀回的 revision),節數應維持不變
         let updated2 = reread1 {licResaleAllowed = Just True}
-        r2 <- upsertLicense vh updated2
+        r2 <- applyWriteIO vh (UpsertLicense updated2)
         case r2 of
           Left e -> expectationFailure ("預期成功,得到 " <> show e)
           Right _ -> pure ()
@@ -317,7 +337,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
             expected = newId p c fixedT 2
         insertMinimalNode vh collide0
         insertMinimalNode vh collide1
-        r <- allocateId vh p c fixedT
+        r <- allocateIdIO vh p c fixedT
         case r of
           Right i -> do
             i `shouldBe` expected
@@ -329,7 +349,7 @@ spec = describe "graph-core/F008 Aapms.Store.Write" $ do
       withIndexedStoryVault $ \vh -> do
         execute_ (vhConn vh) "DROP TABLE nodes"
         let fixedT = UTCTime (fromGregorian 2026 8 25) 0
-        r <- allocateId vh PEnt "琳達" fixedT
+        r <- allocateIdIO vh PEnt "琳達" fixedT
         case r of
           Left (SqliteError _) -> pure ()
           other -> expectationFailure ("預期 Left (SqliteError _),得到 " <> show other)
@@ -399,7 +419,7 @@ allocateThreeDistinctIds vh fixedT = go 3 []
   where
     go 0 acc = pure (reverse acc)
     go n acc = do
-      r <- allocateId vh PEnt "配號測試" fixedT
+      r <- allocateIdIO vh PEnt "配號測試" fixedT
       case r of
         Left e -> fail ("allocateId 預期成功,得到 " <> show e)
         Right i -> do

@@ -21,6 +21,8 @@ import qualified Aapms.Md.RegressionLawsSpec
 import qualified Aapms.Md.RenderSpec
 import qualified Aapms.Md.YamlSpec
 import qualified Aapms.MdSpec
+import qualified Aapms.Lawful.P025Spec
+import qualified Aapms.Lawful.P026Spec
 import System.IO
 import Test.Hspec
 
@@ -29,6 +31,8 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
+    describe "lawful P026" Aapms.Lawful.P026Spec.spec
+    describe "lawful P025" Aapms.Lawful.P025Spec.spec
     describe "graph-core/F004 docKind(LAW-22/Example 10)" Aapms.Md.DocKindSpec.spec
     describe "STEP-1 Aapms.Md.Document" Aapms.Md.DocumentSpec.spec
     describe "STEP-2 Aapms.Md.Lexer / STEP-5 單一錯誤契約" Aapms.Md.LexerSpec.spec

@@ -1,0 +1,540 @@
+## lint sig:416 條不合規
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:15 listMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:16 statFile 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:17 readMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:25 indexDocument 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:26 replaceFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:27 removeFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:28 fileStats 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:29 staleFiles 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:30 indexPath 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:31 refresh 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:32 runVaultFsPure 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:33 runIndexPure 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:34 simulate 的模組 Aapms.Store.Indexing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:44 rebuild 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:17 passesFilter 的模組 Aapms.Store.Filter 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:18 ftsMatch 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:19 filterNodes 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:20 mergeScores 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:21 snippetFrom 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:22 rankHits 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:23 pageHits 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:24 facetsIn 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:25 mergeFacetCounts 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:26 searchVault 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:27 vaultIds 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:28 inVault 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:29 runVaultsPure 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:30 simulateVaults 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:31 hitsPerVault 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:32 structuralKeys 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:41 searchVaults 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:15 locateId 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:16 readMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:16 P-003-node-write#readMarkdown 程式碼裡找不到
+- ✗ .lawful/pipelines/P-003-node-write.md:18 checkRevision 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:19 currentMetaAt 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:20 currentAssetAt 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:23 P-003-node-write#insertSection 簽名不一致
+    文檔:insertSection :: Int -> NewSection -> Document -> Either MdError Document
+    程式碼:insertSection :: Id -> NewSection -> Document -> Either MdError Document(md/src/Aapms/Md/Render.hs:407)
+- ✗ .lawful/pipelines/P-003-node-write.md:30 sanitizeFileName 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:32 fileExists 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:33 idTaken 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:34 referrers 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:35 now 的模組 Aapms.Store.Effect.Clock 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:36 allocateId 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:36 P-003-node-write#allocateId 簽名不一致
+    文檔:allocateId :: (Index :> es) => IdPrefix -> Text -> UTCTime -> Eff es (Either StoreError Id)
+    程式碼:allocateId :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)(store/src/Aapms/Store/Write.hs:423)
+- ✗ .lawful/pipelines/P-003-node-write.md:37 planEdit 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:38 planCreate 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:39 writeMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:40 deleteMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:41 indexPath 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:41 P-003-node-write#indexPath 程式碼裡找不到
+- ✗ .lawful/pipelines/P-003-node-write.md:42 removeFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:42 P-003-node-write#removeFile 程式碼裡找不到
+- ✗ .lawful/pipelines/P-003-node-write.md:43 runClockPure 的模組 Aapms.Store.Effect.Clock 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:44 simulateWrite 的模組 Aapms.Store.Editing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:71 allocateN 的模組 Aapms.Store.Editing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:72 applyWrite 的模組 Aapms.Store.Editing 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:15 <name 是 P-005-vault-lifecycle 的 = 列;引用別條的 stage 要在模組欄註明「見 P-005-vault-lifecycle」
+- ✗ .lawful/pipelines/P-004-vault-scope.md:15 P-004-vault-scope#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-004-vault-scope.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:16 <name 是 P-005-vault-lifecycle 的 = 列;引用別條的 stage 要在模組欄註明「見 P-005-vault-lifecycle」
+- ✗ .lawful/pipelines/P-004-vault-scope.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:17 <name 是 P-005-vault-lifecycle 的 = 列;引用別條的 stage 要在模組欄註明「見 P-005-vault-lifecycle」
+- ✗ .lawful/pipelines/P-004-vault-scope.md:17 P-004-vault-scope#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-004-vault-scope.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:18 <name 是 P-005-vault-lifecycle 的 = 列;引用別條的 stage 要在模組欄註明「見 P-005-vault-lifecycle」
+- ✗ .lawful/pipelines/P-004-vault-scope.md:18 P-004-vault-scope#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-004-vault-scope.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:19 <name 是 P-005-vault-lifecycle 的 = 列;引用別條的 stage 要在模組欄註明「見 P-005-vault-lifecycle」
+- ✗ .lawful/pipelines/P-004-vault-scope.md:19 P-004-vault-scope#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:15 P-005-vault-lifecycle#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:17 P-005-vault-lifecycle#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:18 P-005-vault-lifecycle#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:19 P-005-vault-lifecycle#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:15 P-006-workspace-doctor#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:17 P-006-workspace-doctor#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:18 P-006-workspace-doctor#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:19 P-006-workspace-doctor#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-018-workshop.md:15 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-018-workshop.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-018-workshop.md:17 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-018-workshop.md:18 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-018-workshop.md:19 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-019-project-export.md:15 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-019-project-export.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-019-project-export.md:17 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-019-project-export.md:18 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-019-project-export.md:19 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-021-registry-build.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-021-registry-build.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-021-registry-build.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-021-registry-build.md:15 P-021-registry-build#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-021-registry-build.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-021-registry-build.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-021-registry-build.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-021-registry-build.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-021-registry-build.md:17 P-021-registry-build#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-021-registry-build.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-021-registry-build.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-021-registry-build.md:18 P-021-registry-build#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-021-registry-build.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-021-registry-build.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-021-registry-build.md:19 P-021-registry-build#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-022-logical-name.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-022-logical-name.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-022-logical-name.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-022-logical-name.md:15 P-022-logical-name#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-022-logical-name.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-022-logical-name.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-022-logical-name.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-022-logical-name.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-022-logical-name.md:17 P-022-logical-name#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-022-logical-name.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-022-logical-name.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-022-logical-name.md:18 P-022-logical-name#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-022-logical-name.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-022-logical-name.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-022-logical-name.md:19 P-022-logical-name#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-023-manifest-codec.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:15 P-023-manifest-codec#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:17 P-023-manifest-codec#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:18 P-023-manifest-codec#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-023-manifest-codec.md:19 P-023-manifest-codec#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-024-level-tree.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-024-level-tree.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-024-level-tree.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-024-level-tree.md:15 P-024-level-tree#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-024-level-tree.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-024-level-tree.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-024-level-tree.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-024-level-tree.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-024-level-tree.md:17 P-024-level-tree#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-024-level-tree.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-024-level-tree.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-024-level-tree.md:18 P-024-level-tree#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-024-level-tree.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-024-level-tree.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-024-level-tree.md:19 P-024-level-tree#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-025-md-document.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-025-md-document.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-025-md-document.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-025-md-document.md:15 P-025-md-document#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-025-md-document.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-025-md-document.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-025-md-document.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-025-md-document.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-025-md-document.md:17 P-025-md-document#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-025-md-document.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-025-md-document.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-025-md-document.md:18 P-025-md-document#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-025-md-document.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-025-md-document.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-025-md-document.md:19 P-025-md-document#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-026-md-edit.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-026-md-edit.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-026-md-edit.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-026-md-edit.md:15 P-026-md-edit#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-026-md-edit.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-026-md-edit.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-026-md-edit.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-026-md-edit.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-026-md-edit.md:17 P-026-md-edit#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-026-md-edit.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-026-md-edit.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-026-md-edit.md:18 P-026-md-edit#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-026-md-edit.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-026-md-edit.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-026-md-edit.md:19 P-026-md-edit#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:15 P-027-fts-tokenize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:17 P-027-fts-tokenize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:18 P-027-fts-tokenize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:19 P-027-fts-tokenize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-028-hub-config.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-028-hub-config.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-028-hub-config.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-028-hub-config.md:15 P-028-hub-config#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-028-hub-config.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-028-hub-config.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-028-hub-config.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-028-hub-config.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-028-hub-config.md:17 P-028-hub-config#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-028-hub-config.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-028-hub-config.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-028-hub-config.md:18 P-028-hub-config#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-028-hub-config.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-028-hub-config.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-028-hub-config.md:19 P-028-hub-config#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-029-scope-resolve.md 子流不碰 shell,不該有 ! 列
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:15 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:15 P-029-scope-resolve#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:16 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:17 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:17 P-029-scope-resolve#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:18 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:18 P-029-scope-resolve#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:19 <name 是 P-004-vault-scope 的 = 列;引用別條的 stage 要在模組欄註明「見 P-004-vault-scope」
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:19 P-029-scope-resolve#<name 程式碼裡找不到
+- · P-001-index-rebuild#listMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#statFile 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#readMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#indexDocument 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#replaceFile 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#removeFile 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#fileStats 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#staleFiles 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#indexPath 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#refresh 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#runVaultFsPure 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#runIndexPure 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#simulate 願望,待實作(目標 Aapms.Store.Indexing.Internal)
+- · P-001-index-rebuild#emptyIndex 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#vaultPaths 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#fileAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#statsDistinguish 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedPaths 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedNodes 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#assetNames 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#warnedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#rebuild 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-002-search#matchesQuery 願望,待實作(目標 Aapms.Store.Tokenize)
+- · P-002-search#passesFilter 願望,待實作(目標 Aapms.Store.Filter)
+- · P-002-search#ftsMatch 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-002-search#filterNodes 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-002-search#mergeScores 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#snippetFrom 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#rankHits 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#pageHits 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#facetsIn 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#mergeFacetCounts 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#searchVault 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#vaultIds 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#inVault 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#runVaultsPure 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#simulateVaults 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#hitsPerVault 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#structuralKeys 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#hitKey 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#nodeKey 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#allNodesIn 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#keysOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#wide 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#page 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#withTypes 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#withTags 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#searchVaults 願望,待實作(目標 Aapms.Store.Search)
+- · P-003-node-write#locateId 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#checkRevision 搬家:文檔 Aapms.Store.Editing → 程式碼 Aapms.Store.Edit(lawful sync 可改)
+- · P-003-node-write#currentMetaAt 搬家:文檔 Aapms.Store.Editing → 程式碼 Aapms.Store.Edit(lawful sync 可改)
+- · P-003-node-write#currentAssetAt 搬家:文檔 Aapms.Store.Editing → 程式碼 Aapms.Store.Edit(lawful sync 可改)
+- · P-003-node-write#sanitizeFileName 搬家:文檔 Aapms.Store.Editing → 程式碼 Aapms.Store.Create(lawful sync 可改)
+- · P-003-node-write#fileExists 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#idTaken 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#referrers 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#now 願望,待實作(目標 Aapms.Store.Effect.Clock)
+- · P-003-node-write#allocateId 搬家:文檔 Aapms.Store.Editing → 程式碼 Aapms.Store.Write(lawful sync 可改)
+- · P-003-node-write#planEdit 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#planCreate 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#writeMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#deleteMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#runClockPure 願望,待實作(目標 Aapms.Store.Effect.Clock)
+- · P-003-node-write#simulateWrite 願望,待實作(目標 Aapms.Store.Editing.Internal)
+- · P-003-node-write#runResult 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#runFiles 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#runIndex 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#opTarget 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#opRevision 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#isInsertOp 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomeRevision 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomePath 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomeId 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#removedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#brokenLinks 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#documentAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#sectionBytes 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#locatedFile 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#metaAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#assetAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#licensesAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#assetIdsAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#packAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#levelAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#packFields 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#newPackFields 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#patchedName 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#fileStatsOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#levelOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#stripStamps 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#allocateN 願望,待實作(目標 Aapms.Store.Editing.Internal)
+- · P-003-node-write#applyWrite 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#applyWriteIO 願望,待實作(目標 Aapms.Store.Write)
+- · P-004-vault-scope#<name 願望,待實作(目標 <Module>)
+- · P-005-vault-lifecycle#<name 願望,待實作(目標 <Module>)
+- · P-006-workspace-doctor#<name 願望,待實作(目標 <Module>)
+- · P-007-graph-read#<name 願望,待實作(目標 <Module>)
+- · P-008-graph-write#<name 願望,待實作(目標 <Module>)
+- · P-009-cli-shell#<name 願望,待實作(目標 <Module>)
+- · P-010-http-shell#<name 願望,待實作(目標 <Module>)
+- · P-011-mcp-shell#<name 願望,待實作(目標 <Module>)
+- · P-012-asset-scan#<name 願望,待實作(目標 <Module>)
+- · P-013-thumb-cache#<name 願望,待實作(目標 <Module>)
+- · P-014-name-cluster#<name 願望,待實作(目標 <Module>)
+- · P-015-pack-reorganize#<name 願望,待實作(目標 <Module>)
+- · P-016-conflict-check#<name 願望,待實作(目標 <Module>)
+- · P-017-ai-classify#<name 願望,待實作(目標 <Module>)
+- · P-018-workshop#<name 願望,待實作(目標 <Module>)
+- · P-019-project-export#<name 願望,待實作(目標 <Module>)
+- · P-021-registry-build#<name 願望,待實作(目標 <Module>)
+- · P-022-logical-name#<name 願望,待實作(目標 <Module>)
+- · P-023-manifest-codec#<name 願望,待實作(目標 <Module>)
+- · P-024-level-tree#<name 願望,待實作(目標 <Module>)
+- · P-025-md-document#<name 願望,待實作(目標 <Module>)
+- · P-026-md-edit#<name 願望,待實作(目標 <Module>)
+- · P-027-fts-tokenize#<name 願望,待實作(目標 <Module>)
+- · P-028-hub-config#<name 願望,待實作(目標 <Module>)
+- · P-029-scope-resolve#<name 願望,待實作(目標 <Module>)

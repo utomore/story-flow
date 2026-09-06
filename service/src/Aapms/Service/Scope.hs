@@ -17,7 +17,7 @@
 -- 原文,沒有一個帶 @['ScopeIssue']@。這不是遺漏——讀取路徑上 'ScopeIssue' 只要
 -- 「不中止」就夠了(design.md 契約 D),而要__呈現__它們的兩個操作
 -- (@workspaceDoctor@ \/ @vaultCheck@,F002)走的是本機管線,直接呼叫
--- 'Aapms.Workspace.Lifecycle.checkVaults',不經過本模組。
+-- 'Aapms.Workspace.Lifecycle.runLifecycle' 的 CheckVaults 請求,不經過本模組。
 module Aapms.Service.Scope
   ( -- * 模組間公開介面:Read \/ Write \/ Machine → Scope
     withRead

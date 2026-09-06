@@ -4,7 +4,7 @@
 -- WAVE-4 閘門追加的刪索引身分驗證(LAW-44-LAW-47\/EX-41-EX-45)、依賴方向與職責界線
 -- (LAW-42(a)-(f),__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F004-vault-lifecycle.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-005-vault-lifecycle.md@,
 -- 預期欄依 @spec-roles.md@「qa 的交付判準」逐條標:七個函式的本體全是 @undefined@,
 -- 所以除了 LAW-42(a)-(f) 之外__一律預期紅__):
 --
@@ -102,7 +102,7 @@
 -- __(以上 EX-18\/EX-19\/EX-41 三條 pending 已由 E001 收掉,見下方 E001 對照;
 -- 舊版「以固定時間\/名稱造出撞號」的非決定性構造說明已隨之作廢,不再適用。)__
 --
--- __E001__(@.design\/subsystems\/workspace\/enhancements\/E001-init-vault-explicit-time.md@):
+-- __E001__(@.lawful\/pipelines\/P-005-vault-lifecycle.md@):
 -- 新增 'initVaultWith'(@initVault@ 的明碼時間版本),收掉上面 F004 的三條
 -- @pendingWith@(GAP-4\/GAP-5 尾巴)。骨架只有 'initVaultWith' 是 @undefined@,其餘六個
 -- 函式(含 'initVault')本體都已是現況實作,__預期欄不再是一律紅__,逐條見下:
@@ -137,26 +137,43 @@
 -- 已被(併發的)impl 填上本體,不再是 @undefined@。委派模式下 qa 不保證骨架快照
 -- (@spec-roles.md@「骨架快照」);本檔如實記錄兩者,紅綠判定以編排者在骨架快照上
 -- 驗到的結果為準,不是本檔觀察到的這次執行結果。
+--
+-- __2026-09-06 P-005-vault-lifecycle 退場波__:'Aapms.Workspace.Lifecycle' 的七個
+-- 直接 IO 函式(@setupHub@ \/ @initVault@ \/ @addVault@ \/ @forgetVault@ \/
+-- @checkVaults@ \/ @syncHub@ \/ @purge@)已移除,唯一進入點是
+-- 'Aapms.Workspace.Lifecycle.runLifecycle' 加一個 'LifecycleOp'。本檔在下方以
+-- __同簽名的區域包裝__接上新進入點,__斷言一字未改__。兩處例外:
+--
+-- 1. @initVaultWith@(明碼時間版,E001)在新契約裡沒有對應的 shell 進入點——
+--    時間是 'Aapms.Store.Effect.Clock' 這個效果,明碼時間只在純解譯器上給得出來。
+--    原 STEP-4(EX-18 \/ EX-19)與 E001 的 LAW-1 \/ LAW-2 \/ LAW-3 \/ LAW-7
+--    共八條測試因此在本檔移除;等價的性質由 P-005-vault-lifecycle 的
+--    LAW-5(id 逐字等於 @newId PVlt name t 0@)與 LAW-6(撞號三個值 + 回滾 +
+--    中樞不動)在純側承接。
+-- 2. STEP-12(WAVE-4 裁決 B 的刪索引身分驗證)原封保留,__但新舊行為真的不同__:
+--    P-005-vault-lifecycle 的 @ForgetVault@ \/ @Purge@ 沒有
+--    'DeleteTargetIdDrift' 這條通道。EX-42 與 EX-44 因此紅,留給 conductor 仲裁。
 module Aapms.Workspace.LifecycleSpec (spec) where
 
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
-import Data.List (dropWhileEnd, isPrefixOf, sort, sortOn)
+import Data.List (dropWhileEnd, isPrefixOf, sortOn)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (Day (ModifiedJulianDay), UTCTime (..), getCurrentTime, secondsToDiffTime)
-import Hedgehog (Gen, annotate, failure, forAll, (===))
+import Hedgehog (annotate, failure, forAll, (===))
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Core.Id (IdPrefix (PVlt), VaultId (..), newId, renderId)
-import Aapms.Store.Marker (VaultMarker (..), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
+import Aapms.Core.Id (VaultId (..))
+import Aapms.Store.Marker (VaultMarker (..), indexDbPath, initVaultAt, markerDir, readMarker)
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Discovery (lookupSelector)
 import Aapms.Workspace.Fixtures
-import Aapms.Workspace.Hub (loadHub, saveHub)
-import Aapms.Workspace.Lifecycle
+import Aapms.Workspace.Hub.File (loadHub, saveHub)
+import Aapms.Workspace.Lifecycle (runLifecycle)
 import Aapms.Workspace.Location (thumbCacheDir)
 import Aapms.Workspace.Types
 
@@ -170,6 +187,81 @@ import System.Directory
   )
 import System.FilePath ((</>))
 import System.IO (IOMode (ReadMode), hGetContents', withBinaryFile)
+
+--------------------------------------------------------------------------------
+-- 2026-09-06 退場波:舊的直接 IO 路徑(@setupHub@ \/ @initVault@ \/ @initVaultWith@ \/
+-- @addVault@ \/ @forgetVault@ \/ @purge@ \/ @checkVaults@ \/ @syncHub@)已從
+-- "Aapms.Workspace.Lifecycle" 移除;同樣的事現在是 P-005-vault-lifecycle 的九種
+-- 'LifecycleOp' 請求,唯一進入點是 'runLifecycle'。
+--
+-- 下面七個區域函式是那七個舊函式的__同簽名__包裝(把 'LifecycleOutcome' 拆回舊的
+-- 回傳形狀),讓本檔的斷言一字不動。@initVaultWith@(明碼時間版)在新契約裡沒有
+-- 對應的進入點——時間是 'Aapms.Store.Effect.Clock' 這個效果,明碼時間只在純解譯器
+-- 上給得出來,那條路由 P-005-vault-lifecycle 的 LAW-5 \/ LAW-6 在純側承接。
+
+-- | 'LifecycleOutcome' 是九種請求共用的記錄,每種請求只填自己那幾格;呼叫端知道
+-- 自己送的是哪一種。
+expectOutcome :: (LifecycleOutcome -> Maybe a) -> LifecycleOutcome -> a
+expectOutcome field o = case field o of
+  Just v -> v
+  Nothing -> error "LifecycleSpec: LifecycleOutcome 缺對應欄位"
+
+setupHub :: HubLocation -> IO (Either WorkspaceError SetupReport)
+setupHub loc = fmap (fmap (expectOutcome outcomeSetup)) (runLifecycle loc emptySnapshot SetupHub)
+
+initVault
+  :: HubLocation
+  -> Hub
+  -> FilePath
+  -> VaultKind
+  -> Text
+  -> InitMode
+  -> IO (Either WorkspaceError (Hub, VaultEntry, AdoptNotice))
+initVault loc hub dir kind name mode =
+  fmap
+    ( fmap
+        ( \o ->
+            ( expectOutcome outcomeHub o
+            , expectOutcome outcomeEntry o
+            , expectOutcome outcomeNotice o
+            )
+        )
+    )
+    (runLifecycle loc hub (InitVault dir kind name mode))
+
+addVault :: HubLocation -> Hub -> FilePath -> IO (Either WorkspaceError (Hub, VaultEntry))
+addVault loc hub dir =
+  fmap (fmap hubAndEntry) (runLifecycle loc hub (AddVault dir))
+
+forgetVault
+  :: HubLocation -> Hub -> Text -> DeleteIndex -> IO (Either WorkspaceError (Hub, VaultEntry))
+forgetVault loc hub sel di =
+  fmap (fmap hubAndEntry) (runLifecycle loc hub (ForgetVault sel di))
+
+-- | @CheckVaults@ 不碰中樞檔,'HubLocation' 取哪一個都不影響結果(舊簽名沒有這個
+-- 參數,這裡補一個佔位的)。
+checkVaults :: Hub -> IO [ScopeIssue]
+checkVaults hub =
+  fmap (either (const []) outcomeIssues) (runLifecycle (locAt "") hub CheckVaults)
+
+-- | 沒有任何一列需要修正時 @SyncHub@ 不寫檔、也不交出新的 'Hub';舊簽名在那個情況
+-- 下回的是傳進去的那一份。
+syncHub :: HubLocation -> Hub -> IO (Either WorkspaceError (Hub, [ScopeIssue]))
+syncHub loc hub =
+  fmap
+    (fmap (\o -> (fromMaybe hub (outcomeHub o), outcomeIssues o)))
+    (runLifecycle loc hub SyncHub)
+
+purge :: HubLocation -> Hub -> PurgeScope -> IO (Either WorkspaceError PurgeReport)
+purge loc hub scope =
+  fmap (fmap (expectOutcome outcomePurge)) (runLifecycle loc hub (Purge scope))
+
+hubAndEntry :: LifecycleOutcome -> (Hub, VaultEntry)
+hubAndEntry o = (expectOutcome outcomeHub o, expectOutcome outcomeEntry o)
+
+-- | @SetupHub@ 完全不看中樞值(連既有的 @config.toml@ 都不解析)。
+emptySnapshot :: Hub
+emptySnapshot = mkHub [] [] Nothing (ToolsConfig Nothing) ""
 
 --------------------------------------------------------------------------------
 -- 本檔專用 helper(不匯出;Fixtures.hs 不可修改,共用邏輯在此各自複製一份)
@@ -188,14 +280,6 @@ moduleNameOf l = takeWhile (\c -> c /= ' ' && c /= '(') (drop (length ("import "
 
 lifecycleImportLines :: IO [String]
 lifecycleImportLines = importLinesOf "Aapms/Workspace/Lifecycle.hs"
-
--- | 任意的 'UTCTime',給 E001 LAW-1\/LAW-2\/LAW-3 的通用性質測試用(對照
--- "Aapms.Workspace.ProjectsSpec.genUTCTime";@Fixtures.hs@ 不可修改,本檔各自複製一份)。
-genUTCTime :: Gen UTCTime
-genUTCTime = do
-  d <- Gen.integral (Range.linear 60000 62000)
-  s <- Gen.integral (Range.linear 0 86399)
-  pure (UTCTime (ModifiedJulianDay d) (secondsToDiffTime s))
 
 -- | 只用得到 hubVaults 的最小 Hub(purge \/ checkVaults \/ syncHub \/ forgetVault 只讀
 -- hubVaults,其餘三段填什麼都不影響本 feature 的任何行為)。
@@ -539,55 +623,7 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
           afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
-  describe "STEP-4/LAW-18-LAW-20/EX-18-EX-19: initVault 撞號(E001 LAW-4/LAW-5 用 initVaultWith 決定性重建)" $ do
-    it "test_init_vault_id_collision_carries_both_paths (EX-18, LAW-18, E001 EX-5/LAW-4): \
-       \用同一個明碼 t 決定性造出撞號,回傳的三個值逐欄相符" $
-      -- E001 解掉 spec-gap 本次-1(F004 原本靠連續呼叫 initVaultAt 賭時間視窗,
-      -- 本機實測會產生不同 id、不可確定性重現)。改用 initVaultWith 收同一個明碼 t:
-      -- 先用 newId PVlt name t 0 算出「這次會產生的 id」(LAW-2 的公式,qa 不必讀
-      -- graph-core 實作),塞進中樞當既有列,再對一個空目錄以同一個 name/t 呼叫
-      -- initVaultWith,保證撞號。
-      withHubAndRoot $ \loc root -> do
-        t <- getCurrentTime
-        let vDir = root </> "v"
-            existingPath = "C:/somewhere/old"
-            existingId = VaultId (renderId (newId PVlt "same-name" t 0))
-            existingEntry = VaultEntry existingId "old" StoryVault existingPath
-            hub = hubWith [existingEntry]
-        canonV <- canonicalizePath vDir
-        r <- initVaultWith loc hub vDir AssetVault "same-name" FreshVault t
-        r `shouldBe` Left (VaultIdCollision existingId existingPath canonV)
-        let msg = renderWorkspaceError (VaultIdCollision existingId existingPath canonV)
-        msg `shouldSatisfy` T.isInfixOf (T.pack existingPath)
-        msg `shouldSatisfy` T.isInfixOf (T.pack canonV)
-
-    it "test_init_vault_id_collision_rolls_back (EX-19, LAW-19, LAW-20, E001 EX-6/LAW-5): \
-       \撞號後 .aapms\\/ 不存在、其餘檔案與中樞不變,重跑一次改用 initVault 得到 Right" $
-      withHubAndRoot $ \loc root -> do
-        t <- getCurrentTime
-        let vDir = root </> "v"
-            existingPath = "C:/somewhere/old"
-            existingId = VaultId (renderId (newId PVlt "same-name" t 0))
-            existingEntry = VaultEntry existingId "old" StoryVault existingPath
-            hub = hubWith [existingEntry]
-        canonV <- canonicalizePath vDir
-        beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
-        r <- initVaultWith loc hub vDir AssetVault "same-name" FreshVault t
-        case r of
-          Left (VaultIdCollision _ _ _) -> do
-            doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
-            remaining <- doesDirectoryExist canonV
-            if remaining then listDirectory canonV >>= (`shouldBe` []) else pure ()
-            afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
-            afterCfg `shouldBe` beforeCfg
-            r2 <- initVault loc hub vDir AssetVault "another-name" FreshVault
-            case r2 of
-              Right _ -> pure ()
-              Left err -> expectationFailure ("回滾後重跑 initVault 預期 Right,得到 " <> show err)
-          other -> expectationFailure ("預期 VaultIdCollision,得到 " <> show other)
-
-  --------------------------------------------------------------------------
-  describe "E001 REG-2-REG-4,LAW-1-LAW-3,LAW-7/EX-1,EX-3,EX-4,EX-8,EX-9,EX-10: initVaultWith 明碼時間版本" $ do
+  describe "E001 REG-2-REG-4/EX-1,EX-8,EX-9: initVault 的回歸 law" $ do
     it "test_init_vault_happy_path_alchbees_assets (EX-1, REG-3): 空目錄、AssetVault、\
        \\"alchbees-assets\"、FreshVault,initVault 成功,entry 四欄如 REG-3,中樞多一列" $
       withHubAndRoot $ \loc root -> do
@@ -626,95 +662,6 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         (_, e1, _) <- orDie =<< initVault loc (hubWith []) d1 AssetVault "same-name" FreshVault
         (_, e2, _) <- orDie =<< initVault loc (hubWith []) d2 AssetVault "same-name" FreshVault
         veId e1 `shouldNotBe` veId e2
-
-    it "test_init_vault_with_same_time_same_id (EX-3, LAW-1): 同一個 t、兩個相異空目錄,\
-       \兩次 initVaultWith 的 veId 相同" $
-      withHubAndRoot $ \loc root -> do
-        t <- getCurrentTime
-        let d1 = root </> "v1"
-            d2 = root </> "v2"
-        (_, e1, _) <- orDie =<< initVaultWith loc (hubWith []) d1 StoryVault "liftgame" FreshVault t
-        (_, e2, _) <- orDie =<< initVaultWith loc (hubWith []) d2 StoryVault "liftgame" FreshVault t
-        veId e1 `shouldBe` veId e2
-
-    it "LAW-1(property): 任意 kind\\/name\\/t\\/兩個相異空目錄,initVaultWith 的 veId 相同" $
-      hedgehog $ do
-        kind <- forAll genVaultKind
-        name <- forAll genName
-        t <- forAll genUTCTime
-        result <- liftIO $ withHubAndRoot $ \loc root -> do
-          let d1 = root </> "v1"
-              d2 = root </> "v2"
-          r1 <- initVaultWith loc (hubWith []) d1 kind name FreshVault t
-          r2 <- initVaultWith loc (hubWith []) d2 kind name FreshVault t
-          pure (r1, r2)
-        case result of
-          (Right (_, e1, _), Right (_, e2, _)) -> veId e1 === veId e2
-          other -> annotate (show other) >> failure
-
-    it "test_init_vault_with_id_matches_new_id_formula (EX-4, LAW-2): veId == VaultId (renderId (newId PVlt \"liftgame\" t 0))" $
-      withHubAndRoot $ \loc root -> do
-        t <- getCurrentTime
-        let vDir = root </> "v"
-        (_, e, _) <- orDie =<< initVaultWith loc (hubWith []) vDir StoryVault "liftgame" FreshVault t
-        veId e `shouldBe` VaultId (renderId (newId PVlt "liftgame" t 0))
-
-    it "LAW-2(property): 任意 kind\\/name\\/t,veId 逐字等於 newId 公式" $
-      hedgehog $ do
-        kind <- forAll genVaultKind
-        name <- forAll genName
-        t <- forAll genUTCTime
-        result <- liftIO $ withHubAndRoot $ \loc root -> do
-          let vDir = root </> "v"
-          initVaultWith loc (hubWith []) vDir kind name FreshVault t
-        case result of
-          Right (_, e, _) -> veId e === VaultId (renderId (newId PVlt (T.strip name) t 0))
-          other -> annotate (show other) >> failure
-
-    it "LAW-3(property): 任意 kind\\/name\\/t,initVault 與 initVaultWith 除 veId\\/vePath 外逐欄相同(薄包裝等價)" $
-      hedgehog $ do
-        kind <- forAll genVaultKind
-        name <- forAll genName
-        t <- forAll genUTCTime
-        outcome <- liftIO $ withHubAndRoot $ \loc root -> do
-          let d1 = root </> "v1"
-              d2 = root </> "v2"
-          r1 <- initVault loc (hubWith []) d1 kind name FreshVault
-          r2 <- initVaultWith loc (hubWith []) d2 kind name FreshVault t
-          case (r1, r2) of
-            (Right (hub1', e1, n1), Right (hub2', e2, n2)) -> do
-              files1 <- sort <$> listDirectory (markerDir (vePath e1))
-              files2 <- sort <$> listDirectory (markerDir (vePath e2))
-              pure $
-                Right
-                  ( (veName e1, veKind e1, n1, length (hubVaults hub1'), files1)
-                  , (veName e2, veKind e2, n2, length (hubVaults hub2'), files2)
-                  )
-            other -> pure (Left (show other))
-        case outcome of
-          Right (left', right') -> left' === right'
-          Left msg -> annotate msg >> failure
-
-    it "test_init_vault_with_init_failure_is_vault_init_failed (EX-10, LAW-7): V 的父層被一般檔案佔用,\
-       \initVaultAtWith 回 Left 時 initVaultWith 轉成 VaultInitFailed 且不留半成品" $
-      withHubAndRoot $ \loc _ ->
-        withTempHubDir $ \blockerRoot -> do
-          let blocker = blockerRoot </> "blocker"
-              vDir = blocker </> "sub"
-          writeFile blocker "not a directory"
-          canonV <- canonicalizePath vDir
-          t <- getCurrentTime
-          expected <- initVaultAtWith canonV AssetVault "name" t
-          beforeCfg <- doesFileExist (hubConfigFile (hlPath loc))
-          r <- initVaultWith loc (hubWith []) vDir AssetVault "name" FreshVault t
-          case (r, expected) of
-            (Left (VaultInitFailed p err), Left expectedErr) -> do
-              p `shouldBe` canonV
-              err `shouldBe` expectedErr
-            other -> expectationFailure ("預期 (VaultInitFailed, Left) 成對失敗,得到 " <> show other)
-          doesDirectoryExist (markerDir canonV) >>= (`shouldBe` False)
-          afterCfg <- doesFileExist (hubConfigFile (hlPath loc))
-          afterCfg `shouldBe` beforeCfg
 
   --------------------------------------------------------------------------
   describe "STEP-5/LAW-16/EX-15-EX-17: AdoptNotice" $ do
@@ -1133,13 +1080,24 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
 
   --------------------------------------------------------------------------
   describe "LAW-42(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
-    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Discovery" $ do
+    -- 2026-09-06 純函式重構:'Aapms.Workspace.Hub' 的 IO 面(loadHub \/ saveHub)
+    -- 搬到 'Aapms.Workspace.Hub.File',Hub 本身變成純模組。Lifecycle 要的
+    -- saveHub 因此改從 Hub.File 取,允許清單多這一項;判準(只准 Types \/
+    -- Location \/ Hub 家族 \/ Discovery,下游模組一律不准)不變。
+    -- 2026-09-06 P-005-vault-lifecycle 的骨架:進入點 runLifecycle 以三個真解譯器
+    -- 跑純層的 Aapms.Workspace.Lifecycle.Plan.applyLifecycle;允許清單因此多那四項,
+    -- 判準(只准型別層、純層與自己的 .IO 真解譯器,平行的 shell 模組一律不准)不變。
+    -- 2026-09-06 退場波:舊的直接 IO 路徑全數移除後,本模組只剩 runLifecycle 一個
+    -- 進入點,Aapms.Store.Marker 與 Aapms.Store.Schema 的 import 一併消失
+    -- (marker 的建立與 VaultKind 都只在純層 / 真解譯器裡出現)。(b) 與 (c) 的
+    -- 清單因此收成空;判準(不准繞過 marker 家族、不准條件式取用 Schema)不變。
+    it "test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\\/Location\\/Hub\\/Hub.File\\/Discovery\\/Lifecycle.Plan\\/Effect.*.IO" $ do
       importLines <- lifecycleImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
       mapM_
         ( \l ->
             moduleNameOf l
-              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Discovery"])
+              `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Location", "Aapms.Workspace.Hub", "Aapms.Workspace.Hub.File", "Aapms.Workspace.Discovery", "Aapms.Workspace.Lifecycle.Plan", "Aapms.Workspace.Effect.HubFile.IO", "Aapms.Workspace.Effect.Markers.IO", "Aapms.Workspace.Effect.VaultDir.IO"])
         )
         sibling
 
@@ -1152,10 +1110,11 @@ spec = describe "F004 Aapms.Workspace.Lifecycle" $ do
         `shouldSatisfy` all
           (== "import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)")
 
-    it "test_lifecycle_schema_import_is_type_only (c): 骨架階段起就是實斷言,只取 VaultKind" $ do
+    it "test_lifecycle_schema_import_is_type_only (c): 退場後不再 import Aapms.Store.Schema;\
+       \若有,也只能是逐字的 \"import Aapms.Store.Schema (VaultKind)\"" $ do
       importLines <- lifecycleImportLines
       let schemaLines = filter (\l -> moduleNameOf l == "Aapms.Store.Schema") importLines
-      schemaLines `shouldBe` ["import Aapms.Store.Schema (VaultKind)"]
+      schemaLines `shouldSatisfy` all (== "import Aapms.Store.Schema (VaultKind)")
 
     it "test_lifecycle_never_imports_atomic (d): 完全不得 import Aapms.Store.Atomic" $ do
       importLines <- lifecycleImportLines

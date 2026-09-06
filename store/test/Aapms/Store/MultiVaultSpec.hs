@@ -2,7 +2,7 @@
 -- 以及 "Aapms.Store.Error" 新增的 'TooManyVaults' \/ 'VaultIdCollision' 兩個
 -- 建構子的訊息。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F009-store-multi-vault-read.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-002-search.md@):
 --
 -- @
 -- LAW-1   openVaultSet 去重與上限(撞號優先於上限的分工見 LAW-1b)      -> prop_LAW1_dedupe_and_limit / test_LAW1_dedupe_at_limit_boundary
@@ -91,7 +91,7 @@ import Aapms.Core.Id (Id, IdPrefix (..), Ref (..), VaultId (..), idPrefix, rende
 import Aapms.Core.Link (Link (..), LinkKind (..))
 import Aapms.Core.Meta (Meta (..), Status (..), TypeKey (..))
 import Aapms.Store.Error
-import Aapms.Store.Fixtures (idOf, orDie, refOf, testRegistry, typeOf, writeFiles)
+import Aapms.Store.Fixtures (idOf, orDie, refOf, searchOne, testRegistry, typeOf, writeFiles)
 import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker
 import Aapms.Store.MultiVault
@@ -643,19 +643,19 @@ l2Spec = describe "LAW-2: closeVaultSet 之後,單一 vault 的讀取不受影�
 
 l3Spec :: Spec
 l3Spec = describe "LAW-3: VaultSet 不改變單一 vault 的讀取行為(任意次數的 *Across 之後)" $
-  it "listNodes hA f 與 search hA q 在多次 *Across 呼叫前後逐筆相同" $
+  it "listNodes hA f 與 searchOne hA q 在多次 *Across 呼叫前後逐筆相同" $
     withDualVaultSet $ \(vs, hA, _hB) -> do
       let f = wideFilter emptyNodeFilter
           q = wideQuery emptySearchQuery {sqText = Just "藥水"}
       nodesBefore <- listNodes hA f
-      searchBefore <- search hA q
+      searchBefore <- searchOne hA q
       _ <- listAcross vs f
       _ <- searchAcross vs q
       _ <- lookupRef vs vidA (refOf "ent-00000001")
       _ <- checkReferences vs hA
       _ <- listAcross vs f
       nodesAfter <- listNodes hA f
-      searchAfter <- search hA q
+      searchAfter <- searchOne hA q
       nodesAfter `shouldBe` nodesBefore
       searchAfter `shouldBe` searchBefore
 
@@ -882,8 +882,8 @@ l8Spec = describe "LAW-8: searchAcross 逐 vault 等價(四欄逐欄相同)" $
       let q' = (wideQuery emptySearchQuery {sqText = textM}) {sqFacets = False}
       (got, want) <- evalIO $ withDualVaultSet $ \(vs, hA, hB) -> do
         gotR <- searchAcross vs q'
-        wantA <- search hA q'
-        wantB <- search hB q'
+        wantA <- searchOne hA q'
+        wantB <- searchOne hB q'
         pure (gotR, srHits wantA ++ srHits wantB)
       sortOn byHitIdThenVault (srHits got) === sortOn byHitIdThenVault want
 
@@ -917,8 +917,8 @@ l10Spec = describe "LAW-10: searchAcross 分頁與 srTotal" $
         paged <- searchAcross vs qjk
         srHits paged `shouldBe` take k (drop j (srHits full))
         srTotal paged `shouldBe` srTotal full
-      totalA <- srTotal <$> search hA q
-      totalB <- srTotal <$> search hB q
+      totalA <- srTotal <$> searchOne hA q
+      totalB <- srTotal <$> searchOne hB q
       srTotal full `shouldBe` totalA + totalB
 
 l11Spec :: Spec
@@ -949,8 +949,8 @@ l12Spec = describe "LAW-12: facet" $ do
       let q = wideQuery emptySearchQuery {sqText = Just "藥水", sqFacets = True}
       r <- searchAcross vs q
       fc <- expectJustFacets r
-      totalA <- srTotal <$> search hA q
-      totalB <- srTotal <$> search hB q
+      totalA <- srTotal <$> searchOne hA q
+      totalB <- srTotal <$> searchOne hB q
       let VaultId va = vidA
           VaultId vb = vidB
           expected = [(va, totalA) | totalA > 0] ++ [(vb, totalB) | totalB > 0]
@@ -962,8 +962,8 @@ l12Spec = describe "LAW-12: facet" $ do
       let q = wideQuery emptySearchQuery {sqText = Nothing, sqFacets = True}
       r <- searchAcross vs q
       fc <- expectJustFacets r
-      fcA <- expectJustFacets =<< search hA q
-      fcB <- expectJustFacets =<< search hB q
+      fcA <- expectJustFacets =<< searchOne hA q
+      fcB <- expectJustFacets =<< searchOne hB q
       let sumOf sel = M.toList (M.unionWith (+) (M.fromList (sel fcA)) (M.fromList (sel fcB)))
       sortOn fst (fcTypes fc) `shouldBe` sortOn fst (sumOf fcTypes)
       sortOn fst (fcTags fc) `shouldBe` sortOn fst (sumOf fcTags)
@@ -986,13 +986,13 @@ l12Spec = describe "LAW-12: facet" $ do
     withDualVaultSet $ \(vs, hA, hB) -> do
       -- "琳達" 只出現在 F-A;F-B 對這個字完全沒有命中
       let q = wideQuery emptySearchQuery {sqText = Just "琳達", sqFacets = True}
-      totalB <- srTotal <$> search hB q
+      totalB <- srTotal <$> searchOne hB q
       totalB `shouldBe` 0 -- 確認 fixture 真的讓 B 零命中(非退化前提)
       r <- searchAcross vs q
       fc <- expectJustFacets r
       let VaultId vb = vidB
       lookup vb (fcVaults fc) `shouldBe` Nothing
-      totalA <- srTotal <$> search hA q
+      totalA <- srTotal <$> searchOne hA q
       totalA `shouldSatisfy` (> 0)
 
 e1Spec :: Spec
@@ -1247,7 +1247,7 @@ l19Spec = describe "LAW-19: 單一 vault 退化成 F006/F007" $
       map snd la `shouldBe` wantNodes
       forM_ la $ \(v, _) -> v `shouldBe` vidA
       sa <- searchAcross vs q
-      wantSearch <- search hA q
+      wantSearch <- searchOne hA q
       sa `shouldBe` wantSearch
       closeVaultSet vs
 
@@ -1269,7 +1269,7 @@ e10Spec = describe "EX-10: 空集合不是錯誤,空集合下 checkReferences �
 
 e11Spec :: Spec
 e11Spec = describe "EX-11: 單一 vault 退化" $
-  it "listAcross 逐筆等於 listNodes hA;每筆 fst == vidA;searchAcross 逐欄等於 search hA" $
+  it "listAcross 逐筆等於 listNodes hA;每筆 fst == vidA;searchAcross 逐欄等於 searchOne hA" $
     withVaultA $ \hA -> do
       vs <- orDie =<< openVaultSet [hA]
       la <- listAcross vs emptyNodeFilter
@@ -1278,7 +1278,7 @@ e11Spec = describe "EX-11: 單一 vault 退化" $
       forM_ la $ \(v, _) -> v `shouldBe` vidA
       let q = emptySearchQuery {sqText = Just "藥水", sqFacets = True}
       sa <- searchAcross vs q
-      wantSearch <- search hA q
+      wantSearch <- searchOne hA q
       sa `shouldBe` wantSearch
       closeVaultSet vs
 

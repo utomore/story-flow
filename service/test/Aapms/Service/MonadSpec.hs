@@ -2,7 +2,7 @@
 -- 'closeEnv'\/'withEnv')、handle 快取('handleFor'\/'indexIssuesFor')與八個
 -- 存取器。
 --
--- __spec 對照__(@.design\/subsystems\/service\/features\/F001-service-env-and-scope.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-004-vault-scope.md@,
 -- 「1-to-1 測試對照表」——除 LAW-23 外全部紅):
 --
 -- @

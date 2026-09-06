@@ -1,0 +1,94 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (file test\Aapms\Lawful\P020Spec.hs changed)
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+[18 of 23] Compiling Aapms.Lawful.P020Spec ( test\Aapms\Lawful\P020Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P022\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P020Spec.o ) [Source file changed]
+[20 of 23] Compiling Aapms.Lawful.P022Spec ( test\Aapms\Lawful\P022Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P022\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P022Spec.o ) [Source file changed]
+[23 of 23] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P022\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Main.o ) [Aapms.Lawful.P020Spec changed]
+[24 of 24] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P022\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test.exe [Objects changed]
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+lawful P022
+  P-022#LAW-1
+    拆解得開的名稱,依序拼回來就是原字串 [✔]
+      passed 100 tests.
+      parsed 100% ████████████████████ ✓ 60%
+  P-022#LAW-2
+    拆得開又在詞彙表內的名稱,建回去是同一個邏輯名稱 [✔]
+      passed 100 tests.
+      parsed with known kind 100% ████████████████████ ✓ 60%
+  P-022#LAW-3
+    kind 是封閉的:不在 nvKinds 內一律拒絕 [✔]
+      passed 100 tests.
+  P-022#LAW-4
+    state 也是封閉的:手工建構的 state 不在 nvStates 內一律拒絕 [✔]
+      passed 100 tests.
+  P-022#LAW-5
+    拼出來超過上限的組合一律拒絕,錯誤帶得出實際長度 [✔]
+      passed 100 tests.
+      rendered and overlong 100% ████████████████████ ✓ 80%
+  P-022#LAW-6
+    超過上限的輸入拆不出部位 [✔]
+      passed 100 tests.
+  P-022#LAW-7
+    任何文字丟給 parseLogicalName 都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-022#LAW-8
+    主體不會被當成 state 剝掉,即使它剛好是一個 state 詞 [✔]
+      passed 100 tests.
+      rendered and parsed 99% ███████████████████▊ ✓ 60%
+  P-022#LAW-9
+    validateLogicalName 不看 TypeKey:型別專屬的檢查不在這裡 [✔]
+      passed 100 tests.
+  P-022#LAW-10
+    segmentText 是 mkSegment 的左逆函式 [✔]
+      passed 100 tests.
+      valid segment 73% ██████████████▌····· ✓ 40%
+      rejected      27% █████▍·············· ✓ 10%
+  P-022#LAW-11
+    序號的定義域恰好是 0 到 999 [✔]
+      passed 100 tests.
+      in range     29% █████▊·············· ✓ 20%
+      out of range 71% ██████████████▏····· ✓ 20%
+  P-022#LAW-12
+    indexSegment 產出的分段一定長得像序號 [✔]
+      passed 100 tests.
+  P-022#EX-1
+    ui_gui_travel-book-frame_001 [✔]
+  P-022#EX-2
+    spr_char_hero_attack-01_up [✔]
+  P-022#EX-3
+    spr_char_up:單段主體剛好撞上 state 詞 [✔]
+  P-022#EX-4
+    ui_gui_holo-book-alert_01a_000:序號的下界 [✔]
+  P-022#EX-5
+    tex_ground_tileset-grass:剛好三段 [✔]
+  P-022#EX-6
+    ui_gui [✔]
+  P-022#EX-7
+    福岡廟宇:不自作主張音譯 [✔]
+  P-022#EX-8
+    65 個 a 是 Left;64 個 a 的錯誤不是 TooLong [✔]
+  P-022#EX-9
+    空分段、大寫、空白 [✔]
+  P-022#EX-10
+    mkSegment 的四個輸入 [✔]
+  P-022#EX-11
+    npKind 為 zzz [✔]
+  P-022#EX-12
+    npKind 為 spr、npState 為 Just zzz / Just up [✔]
+  P-022#EX-13
+    subject 為 61 個 a,拼出來 68 字元 [✔]
+  P-022#EX-14
+    indexSegment 的四個輸入 [✔]
+  P-022#EX-15
+    validateLogicalName 換 TypeKey 結果逐字相同 [✔]
+
+Finished in 0.0683 seconds
+27 examples, 0 failures
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P022\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

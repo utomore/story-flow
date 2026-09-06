@@ -13,6 +13,7 @@ import Aapms.Core.Link
 import Aapms.Core.Meta
 import Aapms.Core.Naming
 import Aapms.Core.Registry
+import Aapms.Core.Registry.Build
 import qualified Data.Text as T
 import Test.Hspec
 

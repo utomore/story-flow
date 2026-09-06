@@ -12,10 +12,21 @@
 -- 與一個觸發器,'schemaVersion' 因此 2 → 3。__ADR-016 第四條__:切詞規則
 -- ("Aapms.Store.Tokenize")改版一樣只 bump 這個數字讓索引整庫重建,不遷移。
 --
+-- P-002-search 把 reference 從「pack 節點自己的旗標」改成 __檔的屬性__:
+-- @files.is_reference@ 多一欄,'Aapms.Store.Filter.passesFilter' 與
+-- 'Aapms.Store.Query.whereOfIn' 因此是同一條規則(見 'Aapms.Store.Query' 的
+-- @referenceClause@),'schemaVersion' 3 → 4。欄位帶 @DEFAULT 0@ 只是為了讓
+-- 「不填這一欄」的插入語句仍然合法,舊索引一律走 'ensureSchema' 整庫重建。
+--
 -- 兩張 FTS 表的__列維護__也住在本模組('insertFtsRows'):FTS5 虛擬表沒有外鍵,
 -- 是整份 schema 裡唯一不能靠 @files@ → @nodes@ 的級聯自動清乾淨的東西,而
 -- @fts_map@ 的刪除觸發器(建在本模組的 DDL 裡)正是補上那條級聯的機制;
 -- 宣告表結構的人一併負責它的列生命週期,兩者分家就會漂移。
+--
+-- 'VaultKind' 與 'IndexIssue'(連同它們的 @render@ \/ @parse@)的__宣告__住
+-- "Aapms.Store.Types" ——它們是門面簽名上的名詞,消費端(@workspace@ \/
+-- @service@ 的 Types)只要型別、不要 sqlite;本模組原樣 re-export,匯出清單與
+-- 既有呼叫端逐字不變。
 module Aapms.Store.Schema
   ( -- * VaultKind
     VaultKind (..)
@@ -51,89 +62,23 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
-import Aapms.Core.Asset (LogicalName (..))
-import Aapms.Core.Id (Id, VaultId (..), renderId)
-import Aapms.Core.Meta (MetaWarning (..), TypeKey (..))
-import Aapms.Core.Tree (TreeError, renderTreeError)
-import Aapms.Md.Error (MdError, renderMdError)
+import Aapms.Core.Id (VaultId (..), renderId)
 import Aapms.Store.Error (StoreError, trySqlite)
 import Aapms.Store.Tokenize (FtsRow (..), FtsText (..))
-
--- | 一個 vault 主要裝什麼(ADR-017)。運維分界,不是資料模型分界。
-data VaultKind = AssetVault | StoryVault
-  deriving stock (Show, Eq)
-
-renderVaultKind :: VaultKind -> Text
-renderVaultKind AssetVault = "asset"
-renderVaultKind StoryVault = "story"
-
--- | 只認 @"asset"@\/@"story"@,其餘一律 'Nothing'。
-parseVaultKind :: Text -> Maybe VaultKind
-parseVaultKind "asset" = Just AssetVault
-parseVaultKind "story" = Just StoryVault
-parseVaultKind _ = Nothing
+import Aapms.Store.Types
+  ( IndexIssue (..)
+  , VaultKind (..)
+  , parseVaultKind
+  , renderIndexIssue
+  , renderVaultKind
+  )
 
 -- | graph-core\/F006 把業務表接上,shape 變了(1 → 2);graph-core\/F007 再加
--- 兩張 FTS5 虛擬表與 @fts_map@(2 → 3)。依 ADR-013 \/ ADR-016 第四條,舊索引
--- 一律視為需要重建,不寫 migration——__切詞規則改版也只 bump 這個數字__。
+-- 兩張 FTS5 虛擬表與 @fts_map@(2 → 3);P-002-search 讓 @files@ 多一欄
+-- @is_reference@(3 → 4)。依 ADR-013 \/ ADR-016 第四條,舊索引一律視為需要
+-- 重建,不寫 migration——__切詞規則改版也只 bump 這個數字__。
 schemaVersion :: Int
-schemaVersion = 3
-
--- | 索引重建\/索引時回報的問題。graph-core\/F005 只有 'SchemaRebuilt';
--- graph-core\/F006__擴充__加三個建構子(不重新定義,契約 G「骨架」原則):
--- 單檔解析\/驗證失敗時「整檔不進索引」的三種理由。
-data IndexIssue
-  = SchemaRebuilt
-      { irOldVersion :: Maybe Int
-      -- ^ @meta_info@ 讀到的舊值;'Nothing' 代表全新索引檔(表都還不存在)
-      , irNewVersion :: Int
-      }
-  | -- | 檔案、'Aapms.Md.Error.MdError'。@parseDocument@ 或 @to*@ 解析失敗,
-    -- 整檔不進索引
-    ParseFailed FilePath MdError
-  | -- | 檔案、'Aapms.Core.Tree.TreeError' 清單。@LevelDoc@ 的 @buildTree@
-    -- 驗證失敗,整檔不進索引
-    TreeInvalid FilePath [TreeError]
-  | -- | 檔案、撞名的 'LogicalName'。@assets.name UNIQUE@ 與既有索引衝突,
-    -- 整個 @indexOne@ transaction 回滾,整檔不進索引
-    DuplicateAssetName FilePath LogicalName
-  | -- | 檔案、節點 id、'Aapms.Core.Registry.checkMeta' 的警告清單。__不__讓
-    -- 該節點不進索引('checkMeta' 本身的契約是「只回警告,不決定要不要擋」)
-    -- ——節點正常寫入,警告只是附帶回報,供上層(@service@)決定怎麼辦
-    MetaWarningsFound FilePath Id [MetaWarning]
-  deriving stock (Show, Eq)
-
-renderIndexIssue :: IndexIssue -> Text
-renderIndexIssue (SchemaRebuilt old new) =
-  "索引已重建:schema 版本從 "
-    <> maybe "(全新索引檔)" (T.pack . show) old
-    <> " 變成 "
-    <> T.pack (show new)
-renderIndexIssue (ParseFailed fp e) =
-  T.pack fp <> ": 解析失敗,不進索引 —— " <> renderMdError e
-renderIndexIssue (TreeInvalid fp es) =
-  T.pack fp
-    <> ": Level 場景樹不合法,不進索引 —— "
-    <> T.intercalate "; " (map renderTreeError es)
-renderIndexIssue (DuplicateAssetName fp (LogicalName nm)) =
-  T.pack fp <> ": asset 名稱 `" <> nm <> "` 與既有索引重複,整檔不進索引"
-renderIndexIssue (MetaWarningsFound fp nodeId ws) =
-  T.pack fp
-    <> ": 節點 "
-    <> renderId nodeId
-    <> " 的型別檢查警告(不擋索引)—— "
-    <> T.intercalate "; " (map renderMetaWarning ws)
-
--- | 本模組自己的 'MetaWarning' 文字化——"Aapms.Core.Registry" 只匯出
--- 'checkMeta' 本身,沒有匯出對應的 render 函式(只有型別 'MetaWarning (..)'
--- 公開),索引層要顯示訊息只能自己寫一份。
-renderMetaWarning :: MetaWarning -> Text
-renderMetaWarning = \case
-  MissingRequiredField (TypeKey k) f -> "型別 " <> k <> " 缺少必填欄位 `" <> f <> "`"
-  LinkNotAllowed (TypeKey k) kind -> "型別 " <> k <> " 不允許關聯 `" <> kind <> "`"
-  UnknownNodeType (TypeKey k) -> "型別 `" <> k <> "` 不在註冊表內"
-  NameKindNotAllowed (TypeKey k) kind ->
-    "型別 " <> k <> " 的命名第一段 `" <> kind <> "` 不在允許的 name_kinds 內"
+schemaVersion = 4
 
 -- | 全部的表,順序固定(依外鍵相依順序:@files@ → @nodes@ → 其餘 → 三張
 -- FTS 相關表)。之後的 feature 加業務表時擴充這份清單,不是另開一份。
@@ -274,11 +219,17 @@ schemaDDL =
   [ "CREATE TABLE meta_info(\
     \  key TEXT PRIMARY KEY,\
     \  value TEXT NOT NULL)"
-  , "CREATE TABLE files(\
+  , -- P-002-search:reference 是__檔__的屬性(路徑落在 @library/reference/@ 之
+    -- 下,'Aapms.Store.Indexing.isReferencePath' 算的),不是 pack 節點自己的旗
+    -- 標。'Aapms.Store.Query.whereOfIn' 的 @referenceClause@ 靠這一欄把整份檔
+    -- 的每一個節點一起排除,與純的 'Aapms.Store.Filter.passesFilter' 同一條
+    -- 規則。@DEFAULT 0@ 讓不填這一欄的插入語句仍然合法。
+    "CREATE TABLE files(\
     \  path TEXT PRIMARY KEY,\
     \  mtime INTEGER NOT NULL,\
     \  size INTEGER NOT NULL,\
-    \  doc_kind TEXT NOT NULL)"
+    \  doc_kind TEXT NOT NULL,\
+    \  is_reference INTEGER NOT NULL DEFAULT 0)"
   , "CREATE TABLE nodes(\
     \  id TEXT PRIMARY KEY,\
     \  prefix TEXT NOT NULL,\

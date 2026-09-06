@@ -1,13 +1,22 @@
--- | 型別註冊表的純模型與純驗證(ADR-005),含 asset 族(ADR-012)與命名文法
--- (ADR-019)的整合。
+-- | 型別註冊表的純模型(ADR-005),含 asset 族(ADR-012)與命名文法(ADR-019)
+-- 整合後的宣告形狀。
 --
--- 讀 @types/registry/*.toml@ 是 IO,不在這裡——本模組只認識「已經解析成資料的
--- 型別宣告」,因此註冊表的所有規則都能在零 IO 的情況下被單元測試。載入層見
--- "Aapms.Types.Loader"。
+-- 本模組是__型別層__:型別宣告、它們的 smart constructor 與存取子,以及錯誤語彙
+-- 的文字投影,因此只依賴其他型別層模組('Aapms.Core.Meta' \/ 'Aapms.Core.Link' \/
+-- 'Aapms.Core.Name')。'buildRegistry' 留在這裡:'TypeRegistry' 的建構子不外露,
+-- 它就是__那個型別唯一的 smart constructor__ ——驗證與建構分家等於把不變量的
+-- 守門人搬出被守的型別之外。
+--
+-- __節點檢查不在這裡__:'Aapms.Core.Registry.Build.checkMeta' 要看
+-- 'Aapms.Core.AnyNode.AnyNode' 與 'Aapms.Core.Meta.Meta' 的內容做推導,住
+-- "Aapms.Core.Registry.Build";本模組__不__ import 它,否則型別層就反過來依賴
+-- 推導層了。
+--
+-- 讀 @types\/registry\/*.toml@ 是 IO,一樣不在這裡——載入層見 "Aapms.Types.Loader"。
 --
 -- 這是 graph-core\/F002 對 F001 刪除的舊 @Aapms.Core.Registry@ 的重建:五種
 -- entity 族之外加入 'FAsset' 族與 'tdNameKinds','checkEntity' 改成吃
--- 'Aapms.Core.AnyNode.AnyNode' 的 'checkMeta'。
+-- 'Aapms.Core.AnyNode.AnyNode' 的 @checkMeta@。
 module Aapms.Core.Registry
   ( -- * 家族
     Family (..)
@@ -26,29 +35,16 @@ module Aapms.Core.Registry
   , listTypes
   , lookupDir
 
-    -- * 檢查
-  , checkMeta
-
     -- * 錯誤
   , RegistryError (..)
   , renderRegistryError
   ) where
 
-import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
-import Aapms.Core.Asset (Asset (..), LogicalName (..))
-import Aapms.Core.Id (VaultId (..))
-import Aapms.Core.Link (Link (..), LinkKind, renderLinkKind)
-import Aapms.Core.Meta
-  ( Meta (..)
-  , MetaWarning (..)
-  , Timeline (..)
-  , TypeKey (..)
-  , metaFieldNames
-  )
-import Aapms.Core.Naming (Segment, segmentText)
+import Aapms.Core.Link (LinkKind)
+import Aapms.Core.Meta (TypeKey (..), metaFieldNames)
+import Aapms.Core.Name (Segment)
 import Data.List (nub, sortOn)
 import qualified Data.Map.Strict as M
-import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -74,10 +70,11 @@ parseFamily = \case
 --------------------------------------------------------------------------------
 -- 宣告
 
--- | 某個型別建議填寫的一個 'Meta' 欄位。
+-- | 某個型別建議填寫的一個 'Aapms.Core.Meta.Meta' 欄位。
 data FieldDecl = FieldDecl
   { fdName :: Text
-  -- ^ 對應 'Meta' 的欄位名,必須出現在 'metaFieldNames' 內
+  -- ^ 對應 'Aapms.Core.Meta.Meta' 的欄位名,必須出現在
+  -- 'Aapms.Core.Meta.metaFieldNames' 內
   , fdRequired :: Bool
   , fdHint :: Text
   -- ^ 給作者與 AI Agent 的提示(ADR-005)
@@ -99,7 +96,7 @@ data TypeDecl = TypeDecl
   , tdFields :: [FieldDecl]
   , tdNameKinds :: [Segment]
   -- ^ asset 族專用:命名文法第一段(@kind@)的合法值。entity 族一律 @[]@,
-  -- 'checkMeta' 只對 asset 族的分支使用它。
+  -- 'Aapms.Core.Registry.Build.checkMeta' 只對 asset 族的分支使用它。
   }
   deriving stock (Show, Eq)
 
@@ -108,6 +105,7 @@ data TypeDecl = TypeDecl
 
 -- | 不透明,內部是 @Map TypeKey TypeDecl@。
 newtype TypeRegistry = TypeRegistry (M.Map TypeKey TypeDecl)
+  deriving stock (Show, Eq)
 
 -- | 保留的型別鍵,不可出現在 @types\/registry\/@。
 --
@@ -118,6 +116,15 @@ reservedTypeKeys :: [TypeKey]
 reservedTypeKeys = [TypeKey "level", TypeKey "asset-pack", TypeKey "asset-license"]
 
 -- | 驗證一組型別宣告並建成註冊表。回傳__全部__錯誤而非第一個。
+--
+-- 這是 'TypeRegistry' 的 smart constructor:建構子不外露,拿得到一份
+-- 'TypeRegistry' 就代表這五條規則都過了(鍵非空、不撞保留鍵、不重複、宣告的
+-- 欄位名存在於 'Aapms.Core.Meta.metaFieldNames'、同一個 @owner_type@ 不被兩個
+-- @dir@ 認領)。它與型別住同一個模組,不是為了方便——把守門人搬到型別之外就
+-- 得開一個繞過驗證的建構入口,那個入口一旦存在,不變量就只剩註解在守。
+--
+-- 全部檢查都只看宣告本身(五個純清單運算 + 一張 'Aapms.Core.Meta.metaFieldNames'),
+-- 沒有一項需要離開型別層。
 buildRegistry :: [TypeDecl] -> Either [RegistryError] TypeRegistry
 buildRegistry decls
   | null errs = Right (TypeRegistry (M.fromList [(tdKey d, d) | d <- decls]))
@@ -172,85 +179,13 @@ lookupDir reg k = case lookupType reg k >>= tdDir of
     [] -> Nothing
 
 --------------------------------------------------------------------------------
--- 檢查
-
--- | 檢查一個節點是否符合其型別宣告:必填欄位有值、關聯在 @allowed_links@ 內、
--- (僅 asset)命名第一段在 @name_kinds@ 內。__只回警告__,不決定要不要擋
--- (那是 service 的事)。
-checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]
-checkMeta reg node =
-  case lookupType reg (metaType m) of
-    Nothing -> [UnknownNodeType (metaType m)]
-    Just decl -> missingFields decl ++ badLinks decl ++ badNameKind decl
-  where
-    m = anyMeta node
-
-    missingFields decl =
-      [ MissingRequiredField (tdKey decl) (fdName f)
-      | f <- tdFields decl
-      , fdRequired f
-      , not (fieldPresent (fdName f) m)
-      ]
-
-    -- allowed_links 為空視為「未宣告限制」,不產生任何關聯警告。
-    badLinks decl
-      | null (tdAllowedLinks decl) = []
-      | otherwise =
-          [ LinkNotAllowed (tdKey decl) (renderLinkKind (linkKind l))
-          | l <- metaLinks m
-          , linkKind l `notElem` tdAllowedLinks decl
-          ]
-
-    -- 只對「有命名」的 asset 檢查;tdNameKinds 空清單比照 allowed_links 的
-    -- 慣例視為「未宣告限制」(F002 待確認假設 ASM-3)。
-    --
-    -- 不呼叫完整 'parseLogicalName'(2026-08-23 階段一閘門後它需要
-    -- 'NamingVocab' 參數,而 'checkMeta' 的契約簽名沒有這個參數,見 F002
-    -- 待確認假設 ASM-6)——直接切 'LogicalName' 文字第一個 @_@ 之前的片段當
-    -- kind 文字用;'astName' 的建構子只經 'mkLogicalName' 取得,第一段合法性
-    -- ('nvKinds' 成員)已在寫入時保證過,這裡只需要文字本身,不需要重新驗證。
-    badNameKind decl = case node of
-      NAsset Asset {astName = Just (LogicalName nm)}
-        | not (null (tdNameKinds decl))
-        , kindTxt <- T.takeWhile (/= '_') nm
-        , kindTxt `notElem` map segmentText (tdNameKinds decl) ->
-            [NameKindNotAllowed (tdKey decl) kindTxt]
-      _ -> []
-
--- | 某個 'Meta' 欄位是否「有填」。
---
--- 對永遠有值的欄位(id / status / revision / 日期)一律為 'True'——把它們
--- 宣告成 required 沒有意義,但也不該因此產生假警告。
-fieldPresent :: Text -> Meta -> Bool
-fieldPresent name Meta {..} = case name of
-  "id" -> True
-  "vault" -> notBlank vaultText
-  "type" -> notBlank typeText
-  "title" -> notBlank metaTitle
-  "summary" -> notBlank metaSummary
-  "tags" -> not (null metaTags)
-  "status" -> True
-  "timeline" -> maybe False (\tl -> isJust (tlLabel tl) || isJust (tlOrder tl)) metaTimeline
-  "aliases" -> not (null metaAliases)
-  "links" -> not (null metaLinks)
-  "source" -> True
-  "revision" -> True
-  "created" -> True
-  "updated" -> True
-  _ -> False
-  where
-    notBlank = not . T.null . T.strip
-    vaultText = case metaVault of VaultId v -> v
-    typeText = case metaType of TypeKey v -> v
-
---------------------------------------------------------------------------------
 -- 錯誤
 
--- | 涵蓋純驗證('buildRegistry' \/ 'checkMeta')與 TOML 載入
--- ("Aapms.Types.Loader")兩類問題,是契約 G 唯一的 @RegistryError@。
+-- | 涵蓋純驗證('buildRegistry' \/ 'Aapms.Core.Registry.Build.checkMeta')與
+-- TOML 載入("Aapms.Types.Loader")兩類問題,是契約 G 唯一的 @RegistryError@。
 data RegistryError
   = DuplicateTypeKey TypeKey
-  | -- | 型別鍵、欄位名。TOML 寫了 'Meta' 上不存在的欄位名,一定是打錯
+  | -- | 型別鍵、欄位名。TOML 寫了 'Aapms.Core.Meta.Meta' 上不存在的欄位名,一定是打錯
     UnknownMetaField TypeKey Text
   | EmptyTypeKey
   | -- | 型別鍵佔用了引擎保留的鍵

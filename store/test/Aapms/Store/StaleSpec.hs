@@ -1,6 +1,6 @@
 -- | graph-core\/F006 STEP-7:@rm index.db@ 後 'Aapms.Store.Marker.openVault' +
 -- 'rebuildIndex' 與刪除前等價(S0 契約測試精神,套件內版本——見 F006 待確認
--- 假設 ASM-8)、'refreshStale' 只重讀改動過的檔、移除消失的檔案。
+-- 假設 ASM-8)、'Aapms.Store.Fixtures.refreshVault'(P-001-index-rebuild 第 17 列 refresh)只重讀改動過的檔、移除消失的檔案。
 module Aapms.Store.StaleSpec (spec) where
 
 import Data.List (sort)
@@ -10,7 +10,7 @@ import Database.SQLite.Simple (Only (..), query)
 import Aapms.Core.Id (renderId)
 import Aapms.Core.Meta (metaId)
 import Aapms.Store.Fixtures
-import Aapms.Store.Index (rebuildIndex, refreshStale)
+import Aapms.Store.Index (rebuildIndex)
 import Aapms.Store.Marker (VaultHandle, closeVault, indexDbPath, initVaultAt, openVault, vhConn, vhRoot)
 import Aapms.Store.Schema (VaultKind (StoryVault))
 import Aapms.Store.Query (emptyNodeFilter, linksFrom, listNodes)
@@ -41,7 +41,7 @@ spec = describe "graph-core/F006 過時偵測與 rm index.db 等價" $ do
       snapAfter `shouldBe` snapBefore
       closeVault vh2
 
-  it "STEP-7: 只改一個檔案的 mtime/size,refreshStale 只重讀那一個,其餘檔案不受影響" $
+  it "STEP-7: 只改一個檔案的 mtime/size,refresh 只重讀那一個,其餘檔案不受影響" $
     withStoryVault $ \vh -> do
       _ <- orDie =<< rebuildIndex vh
       beforeLevel <- summaryOf vh "lvl-00000001"
@@ -50,18 +50,18 @@ spec = describe "graph-core/F006 過時偵測與 rm index.db 等價" $ do
             Nothing -> error "fixture 缺少 characters/test-character.md"
           changed = T.replace "外貌片段" "改過的外貌片段" original
       writeFiles (vhRoot vh) [("characters/test-character.md", changed)]
-      _ <- orDie =<< refreshStale vh
+      _ <- orDie =<< refreshVault vh
       afterFrag <- summaryOf vh "ent-00000002"
       afterFrag `shouldBe` Just "改過的外貌片段"
       -- 沒被動到的 Level 檔內容不變
       afterLevel <- summaryOf vh "lvl-00000001"
       afterLevel `shouldBe` beforeLevel
 
-  it "STEP-7: 索引後刪除磁碟上一個檔案,refreshStale 把該檔案的記錄移除" $
+  it "STEP-7: 索引後刪除磁碟上一個檔案,refresh 把該檔案的記錄移除" $
     withStoryVault $ \vh -> do
       _ <- orDie =<< rebuildIndex vh
       removeFile (vhRoot vh </> "levels" </> "test-classroom.md")
-      _ <- orDie =<< refreshStale vh
+      _ <- orDie =<< refreshVault vh
       metas <- listNodes vh emptyNodeFilter
       any ((== idOf "lvl-00000001") . metaId) metas `shouldBe` False
 

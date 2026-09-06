@@ -1,0 +1,2109 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-contract-0.1.0.0 (test:aapms-contract-rules-test) (ephemeral targets)
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (ephemeral targets)
+ - aapms-md-0.1.0.0 (test:aapms-md-test) (ephemeral targets)
+ - aapms-service-0.1.0.0 (test:aapms-service-test) (ephemeral targets)
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (ephemeral targets)
+ - aapms-types-0.1.0.0 (test:aapms-types-test) (ephemeral targets)
+ - aapms-workspace-0.1.0.0 (test:aapms-workspace-test) (ephemeral targets)
+Preprocessing test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Building test suite 'aapms-contract-rules-test' for aapms-contract-0.1.0.0...
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Preprocessing test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Building test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Preprocessing test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Building test suite 'aapms-types-test' for aapms-types-0.1.0.0...
+Preprocessing test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+Running 1 test suites...
+Running 1 test suites...
+Test suite aapms-contract-rules-test: RUNNING...
+Test suite aapms-types-test: RUNNING...
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+graph-core/F002 STEP-12+STEP-13 Aapms.Types.Loader
+  loadRegistry —— 正常載入
+
+Aapms.Contract.CabalRulesSpec
+  相依方向(CabalSpec,逐字清單)
+
+STEP-1 Aapms.Core.Id
+  newId —— 相同輸入穩定、不同輸入分散
+    相同的 (prefix, 內容, 時間, salt) 得到相同 ID [✔]
+    內容不同則 ID 不同 [✔]
+    時間不同則 ID 不同 [✔]
+    salt 不同則 ID 不同 —— 這是碰撞重試的基礎 [✔]
+    salt 連續遞增可產生一整串相異 ID [✔]
+    前綴不同則 ID 不同 [✔]
+  newId 的輸出格式
+    一律是 <prefix>-<8 位小寫十六進位> [✔]
+    八種前綴都渲染成對應的三個字母(ADR-012 擴充後的節點種類) [✔]
+    恰好八種前綴 [✔]
+    各種內容都固定產生 8 位十六進位,不會因為雜湊值小而變短 [✔]
+  parseId
+    解析得回前綴與原字串 [✔]
+    newId 的輸出一定解析得回來 [✔]
+    接受 system.md 範例的短寫 id [✔]
+    八種前綴都能解析回來 [✔]
+    不認得的前綴回 UnknownIdPrefix [✔]
+    沒有連字號的字串回 BadIdFormat [✔]
+    十六進位部分超過 8 位回 BadIdFormat [✔]
+    十六進位部分有非法字元回 BadIdFormat [✔]
+    空的十六進位部分回 BadIdFormat [✔]
+  Ref —— 跨 Vault 定址(ADR-014:vault 段落本身是短 id)
+    "vlt-a0c4e1f8:ent-7f3b2a91" 解析為指定 Vault 的參照 [✔]
+    "ent-7f3b2a91" 的 refVault 為 Nothing,表示本 Vault [✔]
+    render . parse 對兩種形式都是恆等 [✔]
+    localRef 產生本 Vault 參照 [✔]
+    vault 段落為空回 BadRefFormat [✔]
+    超過一個冒號回 BadRefFormat [✔]
+    vault 段落前綴不是 vlt 時回 BadRefFormat [✔]
+    id 部分不合法時把 IdError 傳出來 [✔]
+  fnv1a64
+    對已知輸入產生教科書上的 FNV-1a 64-bit 值 [✔]
+STEP-2 Aapms.Core.Meta
+  Status —— 擴充成四值(加 Missing)
+    四個建構子的 render 與 parse 互為反函式 [✔]
+    渲染成小寫字串 [✔]
+    不認得的字串回 UnknownStatus [✔]
+  Source —— 擴充成五值(加 Scan/Ai)
+    render 與 parse 對五種來源互為反函式 [✔]
+    渲染成字串形式 [✔]
+    找得到套件(至少 aapms-core / aapms-service / aapms-contract) [✔]
+    冒號後為空時視為不合法 [✔]
+    不認得的前綴回 BadSource [✔]
+  Timeline —— 型別本身不變,哨兵語意移到 Meta 的 Maybe
+    兩個時間軸各自可建構、欄位可讀 [✔]
+  bumpRevision
+    revision 加一,updated 換成傳入的日期 [✔]
+    不動 created,也不動其他欄位 [✔]
+    連續呼叫兩次得 +2 [✔]
+  isCanon
+    只對 Canon 為真 [✔]
+  metaFieldNames
+    涵蓋欄位表的十四個欄位 [✔]
+STEP-3 Aapms.Core.Link
+  核心關聯詞彙
+    十個核心建構子的 parse . render 是恆等 [✔]
+    渲染成詞彙表的字串,含 uses / depicts [✔]
+    恰好十個 [✔]
+    isCoreKind 對十個核心為真、對 Custom 為假 [✔]
+  自訂關聯
+    未知字串解析為 Custom 且不失真 [✔]
+    Custom 的 render . parse 是恆等,原字串完整保留 [✔]
+    大小寫不同於核心關聯的字串仍是 Custom —— 引擎不猜 [✔]
+  suggestCoreKind —— ADR-005 的誤解緩解措施
+    「矛盾於」建議 Contradicts [✔]
+    「宿敵」沒有建議 [✔]
+    「師承於」沒有建議 [✔]
+    「取代」建議 Supersedes、「發生於」建議 OccursIn [✔]
+    大小寫與底線的差異不影響建議 [✔]
+    已經是核心關聯的字串不再給建議 [✔]
+    「使用」建議 Uses、「描繪」建議 Depicts(ADR-012 新增的兩個核心關聯) [✔]
+  LinkGraph —— 型別別名,只留資料結構(待確認假設 ASM-2)
+    可放入 Map.fromList 並依 Id 查詢 [✔]
+STEP-4+STEP-8 Aapms.Core.Entity / .Level / .Node
+  Entity —— 以新 Meta 建構(STEP-4)
+    由 Meta 加 body 組成,兩者都取得回來 [✔]
+    Meta 的十四個欄位對照欄位表逐項存在 [✔]
+  Level —— 以新 Meta/Id 建構(STEP-8)
+    有 Meta 與 root 兩部分 [✔]
+  Node —— 以新 Meta/Id 建構(STEP-8)
+    有 level / parent / order / kind / entities 五個專屬欄位 [✔]
+    根節點的 parent 為 Nothing [✔]
+  NodeKind —— 沿用不變
+    恰好六個建構子 [✔]
+    六個建構子的 render 與 parse 互為反函式 [✔]
+    渲染成字串 [✔]
+    不認得的字串回 UnknownNodeKind [✔]
+STEP-5 Aapms.Core.Asset
+  Asset —— 全欄位建構與存取
+    專屬欄位全部可存取 [✔]
+    astMeta 是完整的 Meta,與其餘節點共用同一份型別 [✔]
+    Sha256 建構子可直接使用(委派決策記錄:具名純量建構子匯出) [✔]
+    LogicalName 建構子可直接使用 [✔]
+STEP-6 Aapms.Core.Pack
+  Pack —— 全欄位建構
+    專屬欄位全部可存取 [✔]
+    AiDisclosure 四值可用 [✔]
+    Author 三欄位可建構與讀取 [✔]
+    pckArchive = Nothing 表示散檔目錄 [✔]
+STEP-7 Aapms.Core.License
+  License —— 9 個欄位(不含 licMeta)全部可建構與讀取
+    全欄位可存取 [✔]
+STEP-9 Aapms.Core.AnyNode
+  AnyNode
+    anyMeta 對六種建構子回傳正確的 Meta [✔]
+    prefixOf 對六種建構子回傳對應的 IdPrefix [✔]
+STEP-10 Aapms.Core.Tree
+  buildTree —— 合法的教室場景
+    建樹成功 [✔]
+    根是 Level 宣告的 nod-0001 [✔]
+    根的子節點依 order 排序:出場人物(1)在鏡頭(2)之前 [✔]
+    九個節點全部進了樹 [✔]
+  buildTree —— 五條不變量各有一條反例
+    兩個 parent = Nothing 的節點回 MultipleRoots [✔]
+    一個根都沒有時回 NoRoot [✔]
+    指向不存在的父節點回 OrphanNode [✔]
+    三個檔載入成功,typeKeys 得三筆 [✔]
+    A → B → A 的環回 Cycle [✔]
+    同一個父節點下兩個子節點 order 相同回 DuplicateOrder [✔]
+    同一個 id 出現兩次回 DuplicateNodeId [✔]
+    Level 宣告的 root 與實際根不符回 RootMismatch [✔]
+    一次放入多個錯誤時全部回報,而不是只回第一個 [✔]
+  走訪 —— preorder
+    順序符合前序且同層依 order [✔]
+  走訪 —— subtreeAt
+    nod-0002 的子樹只含它自己與它的後代 [✔]
+    葉節點的子樹只有它自己 [✔]
+    不存在的節點回 Nothing [✔]
+  走訪 —— pathTo
+    nod-0005 得到根到該節點的完整路徑 [✔]
+    根自己的路徑就是它自己 [✔]
+    不存在的節點回 Nothing [✔]
+  走訪 —— nodesOfKind
+    KBranch 得到兩個分支節點 [✔]
+    KScene 只有根 [✔]
+  走訪 —— entitiesIn
+    含琳達與塔主,且重複出現的琳達只算一次 [✔]
+    子樹只回傳該子樹內的 Entity [✔]
+  走訪 —— convergenceReport(ADR-004:合流是標註不是結構)
+    找出 nod-0009 → nod-0010 且標記為存在 [✔]
+    指向不存在的 Node 時標記為 False [✔]
+    指向其他 Vault 的 Node 一律視為不存在 [✔]
+    convergesTo 不影響樹的結構 —— nod-0009 的父節點仍是 nod-0007 [✔]
+STEP-12 Aapms.Core.Json
+  round-trip —— decode . encode == Just x,eitherDecodeStrictText 相同
+    Meta [✔]
+    Entity [✔]
+    Level [✔]
+    Node [✔]
+    Asset [✔]
+    Pack [✔]
+    License [✔]
+    AnyNode(六種建構子各一次) [✔]
+    欄位、關聯、階段都完整讀進來 [✔]
+    規則 1:契約層單向——aapms-service 不 import 任何領域或外殼套件 [✔]
+    Link(核心、帶 note、自訂、uses) [✔]
+    Status 四種 [✔]
+    Source 五種 [✔]
+    Timeline 四種組合 [✔]
+    Ref(本 Vault 與跨 Vault) [✔]
+    Id [✔]
+    VaultId [✔]
+    TypeKey [✔]
+    Revision [✔]
+    Sha256 / LogicalName [✔]
+    AiDisclosure 四種 [✔]
+    NodeKind 六種 [✔]
+    LinkKind 十個核心加自訂 [✔]
+  編碼形狀
+    Ref 編碼為單一字串而非物件 [✔]
+    Id 編碼為單一字串 [✔]
+    Status / Source / NodeKind / LinkKind 都編碼為字串 [✔]
+    Timeline 兩欄皆 Nothing 時編碼為空物件 [✔]
+    Timeline 為 Nothing 時 Meta 不出現 timeline 鍵 [✔]
+    Timeline 為 Just 時 Meta 出現 timeline 鍵 [✔]
+    Link 沒有 note 時不產生 note 鍵 [✔]
+    Entity 是扁平的 —— Meta 欄位與 body 同一層 [✔]
+    Level 的 root 與 Meta 欄位同一層 [✔]
+    Node 的專屬欄位與 Meta 欄位同一層 [✔]
+    根節點沒有 parent 鍵 [✔]
+    Asset 是扁平的,kind 專屬 meta 與 body 同一層 [✔]
+    Pack 是扁平的,ai_disclosure 與 body 同一層 [✔]
+    License 是扁平的,commercial 與 attribution_required 一定出現 [✔]
+    AnyNode 依 id 前綴解碼回正確的建構子 [✔]
+  解碼的寬容度
+    選填欄位可省略,取預設值 [✔]
+    id 格式不合法時解碼失敗 [✔]
+    status 不認得時解碼失敗 [✔]
+    ai_disclosure 不認得時解碼失敗 [✔]
+    不認得的關聯字串解碼為 Custom,不失敗 [✔]
+STEP-13+STEP-14 aapms-core.cabal
+  aapms-core.cabal —— graph-core/F001 契約卡驗收
+    build-depends 不含 8 項禁用套件(CabalSpec 斷言,驗收標準 6) [✔]
+    exposed-modules 含 Asset / Pack / License / AnyNode / Naming / Registry [✔]
+    空目錄回空註冊表,不是錯誤(naming.toml 仍要有) [✔]
+    exposed-modules 含 Aapms.Core.Manifest(graph-core/F003) [✔]
+    exposed-modules 不含已刪除的 Graph [✔]
+graph-core/F001 STEP-6 輸出編碼
+  測試進入點的輸出編碼
+    stdout 已設為 UTF-8 [✔]
+    stderr 已設為 UTF-8 [✔]
+    繁體中文描述可正常輸出,例如「埃提亞崩塌前的織紋刀」 [✔]
+graph-core/F002 STEP-1+STEP-9 Aapms.Core.Naming
+  STEP-1 test_segment_and_nameparts_shape
+    mkSegment 接受小寫英數字與連字號連接的分段 [✔]
+    mkSegment 拒絕空字串 [✔]
+    mkSegment 拒絕大寫 [✔]
+    mkSegment 拒絕開頭、結尾、連續的連字號 [✔]
+    segmentText 是 mkSegment 的左逆函式 [✔]
+    NameParts 可以直接建構與逐欄存取,npVariant / npState 是獨立欄位 [✔]
+  STEP-9 test_parselogicalname_vocab_driven
+    三段(無 variant/state、無序號)正確拆解 [✔]
+    尾段剛好三位數字被剝成 npIndex [✔]
+    規則 2:地基不認識上面——graph-core / workspace 不 import service 以上 [✔]
+    候選段落不在 nvStates 內時落回 npVariant(開放,不查表) [✔]
+    spr_char_hero_attack-01_up 拆出 npVariant = attack-01、npState = up [✔]
+    variant/state/index 同時出現時順序不亂 [✔]
+    ASM-4 guard:單段 subject 剛好是 state 詞時不誤判成 TooFewSegments [✔]
+    3 段以上非 index 尾段回 AmbiguousTrailing [✔]
+    少於三段回 TooFewSegments [✔]
+    非 ASCII 回 NoAsciiContent [✔]
+    超過 64 字元回 TooLong [✔]
+    空段(連續底線)回 EmptySegment [✔]
+    renderParts . parseLogicalName == id(限定合法輸入) [✔]
+    mkLogicalName:kind 在 nvKinds 內時成功 [✔]
+    mkLogicalName:kind 不在 nvKinds 內時回 UnknownKindPrefix [✔]
+    mkLogicalName:手工建構的 npState 不在 nvStates 內時回 UnknownState [✔]
+    mkLogicalName:npState 在 nvStates 內時成功 [✔]
+  renderParts
+    依序拼回 kind_domain_subject + variant + state + index(補零到三位) [✔]
+  validateLogicalName(契約卡驗收標準 5)
+    對 ui_gui_travel-book-frame_001 通過 [✔]
+    對非 ASCII 拒絕 [✔]
+    對超過 64 字元拒絕 [✔]
+    對少於三段拒絕 [✔]
+graph-core/F002 STEP-10 naming-cases.txt fixture
+  STEP-10 test_naming_cases_fixture
+    naming-cases.txt 全部 ok 案例以 naming.toml 詞彙(含 states)驗證通過 [✔]
+    spr_char_hero_attack-01_up 額外斷言 npVariant / npState 拆分正確 [✔]
+    naming-cases.txt 全部 bad 案例被對應 NameError 拒絕 [✔]
+graph-core/F002 STEP-2+STEP-3+STEP-11 Aapms.Core.Registry
+  STEP-2 test_family_and_typedecl
+    renderFamily / parseFamily 互為反函式 [✔]
+    parseFamily 對未知字串回 Nothing [✔]
+    reservedTypeKeys 含 level / asset-pack / asset-license 三項 [✔]
+    buildRegistry 對合法宣告成功,lookupType / listTypes 查得回來 [✔]
+    buildRegistry 對重複鍵回 DuplicateTypeKey [✔]
+    buildRegistry 對空鍵回 EmptyTypeKey [✔]
+    buildRegistry 對三個保留鍵各回 ReservedTypeKey [✔]
+    buildRegistry 對不存在的 Meta 欄位名回 UnknownMetaField [✔]
+    buildRegistry 對同一個 owner_type 兩種 dir 回 ConflictingOwnerDir [✔]
+    buildRegistry 一次回報全部問題,不是只回第一個 [✔]
+    lookupDir 對主體型別鍵走 owner_type 那一半 [✔]
+    renderRegistryError 對 RegistryErrors 逐行攤平 [✔]
+  STEP-3 test_checkmeta_entity_and_asset
+    非 .toml 的檔案被忽略 [✔]
+    型別不在註冊表內回 UnknownNodeType [✔]
+    目錄不存在時回 RegistryDirMissing [✔]
+    entity:缺必填欄位回 MissingRequiredField [✔]
+  loadRegistry —— naming.toml
+    entity:必填欄位有值時不產生 MissingRequiredField [✔]
+    entity:關聯不在 allowed_links 內回 LinkNotAllowed [✔]
+    entity:allowed_links 空清單視為未宣告限制,不產生 LinkNotAllowed [✔]
+    asset:name_kinds 內的 LogicalName 不產生 NameKindNotAllowed [✔]
+    asset:name_kinds 外的 LogicalName 產生 NameKindNotAllowed [✔]
+    asset:astName = Nothing 不產生 NameKindNotAllowed [✔]
+    asset:tdNameKinds 空清單視為未宣告限制(asset-archive,待確認假設 ASM-3) [✔]
+graph-core/F003 STEP-1~STEP-8 Aapms.Core.Manifest
+  STEP-1 型別建構
+    ManifestAsset / Manifest / ManifestPack / ManifestLicense 全部欄位可存取 [✔]
+    StoryManifest / StoryManifestEntry 全部欄位可存取 [✔]
+    ImageMeta / AudioMeta 可建構 [✔]
+    AssetKey 可比較與排序(Ord) [✔]
+  STEP-2 JSON 欄位名
+    toJSON ManifestAsset 恰好九個鍵(id/key/path/type/sha256/vault/pack/license/meta) [✔]
+    toJSON StoryManifestEntry 恰好五個鍵(ref/title/summary/purpose/revision) [✔]
+    Manifest / StoryManifest round-trip(decode . encode == Just x) [✔]
+  ManifestAsset pack / license 為 Ref(F003 階段一閘門 ASM-2)
+    toJSON 編碼為 "<vault>:<id>" [✔]
+    FromJSON 接受不帶 vault 前綴的裸 id,視為本 vault 參照(refVault = Nothing) [✔]
+  manifest 內部引用圖 vault 化(二輪裁決補述,ManifestPack/ManifestLicense.id 改 Ref)
+    asset 的 pack 能以 Ref 相等唯一對應到頂層 packs 的某一筆(不剝前綴比 Id) [✔]
+    兩個不同 vault 的同號 pack 在同一份 manifest 裡是兩筆可區分的項目 [✔]
+  STEP-4 golden files 是合法 JSON 且 schemaVersion = 2
+    manifest.golden.json [✔]
+    規則 3:重量級相依隔離——api / server / mcp 不依賴 archive / ingest / reorg 與影像、壓縮、子程序套件 [✔]
+    story-manifest.golden.json [✔]
+  STEP-5 golden roundtrip
+    manifest.golden.json decode -> encode 與原始檔語意相同 [✔]
+    story-manifest.golden.json decode -> encode 與原始檔語意相同 [✔]
+  STEP-6 schemaVersion 錯誤路徑
+    Manifest 對 schemaVersion = 1 / 3 回 Left,訊息含「請重新產生」 [✔]
+    StoryManifest 對 schemaVersion = 1 / 3 回 Left,訊息含「請重新產生」 [✔]
+  STEP-7 manifestIndex
+    以 AssetKey 建表,查得到已知 key、查不到不存在的 key [✔]
+  STEP-8 imageMeta / audioMeta 型別化讀取
+    合法 image Value 回 Just 且四欄正確 [✔]
+    imColorCount 缺漏時 imageMeta 仍解析成功(Nothing) [✔]
+    合法 audio Value 回 Just 且三欄正確 [✔]
+    image Value 餵給 audioMeta 回 Nothing(反之亦然) [✔]
+
+Finished in 0.0221 seconds
+224 examples, 0 failures
+    缺少 naming.toml 回 NamingFileMissing [✔]
+    規則 4:aapms-core 的 build-depends 只能是逐字清單上的純套件 [✔]
+    自檢:契約測試本身不依賴任何 aapms-* library [✔]
+
+Finished in 0.0310 seconds
+6 examples, 0 failures
+    kinds 不是字串陣列時回 BadFieldType [✔]
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+    kinds 內有分段格式不合法的值時回 BadFieldType [✔]
+    認不得的鍵時回 UnknownKey [✔]
+    kinds / domains / states 都能正確讀出(對照專案的 naming.toml 內容) [✔]
+Test suite aapms-contract-rules-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-contract-0.1.0.0\t\aapms-contract-rules-test\test\aapms-contract-0.1.0.0-aapms-contract-rules-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+    states 不是字串陣列時回 BadFieldType [✔]
+  loadRegistry —— family
+    缺少 family 回 MissingField [✔]
+    family 不是 entity / asset 時回 UnknownFamily [✔]
+    asset 族沒明寫 depicts 時載入器自動補上 [✔]
+    asset 族已明寫 depicts 時不重複 [✔]
+    entity 族不會被自動加上 depicts [✔]
+  loadRegistry —— 錯誤一次回報,且一律帶檔名
+    某檔語法錯誤回 TomlParseError 並帶該檔名 [✔]
+    某檔壞掉時其餘檔案仍被讀取,錯誤一次回報 [✔]
+    缺少 key 回 MissingField 並帶檔名 [✔]
+    同一個檔缺多個必填鍵時全部都回報 [✔]
+    欄位型別不對回 BadFieldType 並帶檔名與欄位名 [✔]
+    allowed_links 誤寫在 [[fields]] 之後時回 UnknownKey 而非靜默忽略 [✔]
+    最上層出現認不得的鍵時回 UnknownKey [✔]
+    重複型別鍵回 DuplicateTypeKey [✔]
+    asset-pack / asset-license / level 出現在註冊表是載入錯誤 [✔]
+    renderRegistryError 的訊息一定含檔名 [✔]
+  STEP-12 —— naming.toml 與 family 的整合
+    缺 naming.toml 回 NamingFileMissing(與上方一致,單獨掛在驗收清單下) [✔]
+    13 份 fixture TOML(5 entity + 8 asset)整批可載入,TypeRegistry 含全部鍵 [✔]
+    locateRegistry 環境變數指向不存在的目錄時回 RegistryNotFound 並列出查過的路徑 [✔]
+  STEP-13 —— 專案實際的 types/registry/
+    loadRegistry 對真實目錄成功,13 個型別鍵(5 entity + 8 asset) [✔]
+    NamingVocab 的 nvKinds 恰好 12 個,nvDomains 為空,nvStates 恰好 37 個 [✔]
+    沒有型別佔用保留鍵 level / asset-pack / asset-license [✔]
+    5 個 entity 族的 dir / owner_type 與既有規格相符 [✔]
+    8 個 asset 族的 tdFamily = FAsset、tdDir = Nothing、name_kinds 與對照表相符 [✔]
+    8 個 asset 族的 allowed_links 都含 depicts(載入器自動補上) [✔]
+  defaultRegistryDir
+    環境變數優先 [✔]
+    環境變數指向不存在的目錄時回 Nothing,不偷偷退回 data-files [✔]
+    沒設環境變數時走 cabal 的 data-files,而且那裡有專案的 13 份宣告 [✔]
+  locateRegistry(G-E002)
+    環境變數優先,連執行檔旁都不看 [✔]
+    沒設環境變數時,執行檔旁的 registry/ 先於 data-files [✔]
+    執行檔旁沒有 registry/ 就退到 data-files [✔]
+    環境變數指向不存在的目錄時回 RegistryNotFound,不往執行檔旁退 [✔]
+
+Finished in 0.1772 seconds
+42 examples, 0 failures
+Test suite aapms-types-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-types-0.1.0.0\t\aapms-types-test\test\aapms-types-0.1.0.0-aapms-types-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+Running 1 test suites...
+Test suite aapms-md-test: RUNNING...
+
+graph-core/F004 docKind(LAW-22/Example 10)
+  docKind(graph-core/F004,Example 10)
+    type: level -> LevelDoc [✔]
+    type: asset-pack -> PackDoc [✔]
+    type: asset-license -> LicenseDoc [✔]
+    type: character(非保留字)-> TopicDoc [✔]
+    完全沒有 type 欄位 -> TopicDoc(fallback) [✔]
+STEP-1 Aapms.Md.Document
+  Document / Section 欄位
+    六個 Document 欄位都可建構且可取出 [✔]
+    七個 Section 欄位都可建構且可取出 [✔]
+  sectionById
+    命中時回傳該節 [✔]
+    未命中時回傳 Nothing [✔]
+    對真實檔案的兩節都命中 [✔]
+  detectLineEnding 取多數
+    全 LF 檔判為 LF [✔]
+    全 CRLF 檔判為 CRLF [✔]
+    混合行尾以多數決:CRLF 較多時為 CRLF [✔]
+    混合行尾以多數決:LF 較多時為 LF [✔]
+    平手時取 LF [✔]
+    沒有換行的單行檔取 LF [✔]
+  docKind
+    主題檔(非保留 type)判為 TopicDoc [✔]
+    type: level 判為 LevelDoc [✔]
+    type: asset-pack 判為 PackDoc [✔]
+    type: asset-license 判為 LicenseDoc [✔]
+STEP-2 Aapms.Md.Lexer / STEP-5 單一錯誤契約
+  琳達範例檔的切塊
+    frontmatter 切出 11 行內容(不含兩條 --- 界線) [✔]
+    preamble 收下 # 琳達 與它的概述(第一個帶 {#id} 的標題才開始分節) [✔]
+    切出 2 個 Section [✔]
+    secLine 是標題行在原檔的行號 [✔]
+    secMetaRaw 含前後 fence 行 [✔]
+    secBodyRaw 是 meta 區塊之後到下一個標題之前 [✔]
+  frontmatter 的錯誤
+    沒有 frontmatter → NoFrontmatter [✔]
+    空檔 → NoFrontmatter [✔]
+    只有開頭 --- → UnterminatedFrontmatter [✔]
+    frontmatter 層級的錯誤行號為 1 [✔]
+  meta 區塊
+    ```meta 未關閉 → UnterminatedMetaBlock,行號指向開頭 fence [✔]
+    正文中的程式碼區塊不被誤判為 meta 區塊,也不被誤判為標題 [✔]
+    沒有 meta 區塊的節,secMetaRaw 為 Nothing [✔]
+  單一錯誤契約
+    標題缺 {#id}(第 5 行)與重複 id(第 10 行)同時存在時,回報第 5 行的那個 [✔]
+    沒有 frontmatter 時只回一筆,不產生次生錯誤 [✔]
+    frontmatter 的 YAML 壞掉時只回一筆 [✔]
+STEP-3 節標題 {#id}
+  parseHeadingLine
+    ## 外貌 {#ent-7f3b} 得層級 2、標題「外貌」與 id ent-7f3b [✔]
+    沒有 {#id} 的標題仍是標題,只是沒有 id [✔]
+    標題文字含 # 字元時不誤切 [✔]
+    六級標題可辨識,七個 # 不是標題 [✔]
+    # 後面沒有空白不是標題 [✔]
+    id 中間有空白時不當成 id [✔]
+  id 的錯誤
+    第一個節之後的標題缺 {#id} → HeadingWithoutId [✔]
+    {#id} 不是合法 ID 時同樣是 HeadingWithoutId [✔]
+    同一份檔案兩節同 id → DuplicateSectionId [✔]
+    Entity 檔的節用 {#nod-0001} → IdPrefixMismatch [✔]
+    Level 檔的節用 {#ent-0001} → IdPrefixMismatch [✔]
+  琳達範例檔的 id
+    兩節的 id 分別是 ent-7f3b 與 ent-7f3c [✔]
+STEP-4 Aapms.Md.Yaml
+  meta 區塊的解析
+    type / summary / tags 逐欄正確 [✔]
+    timeline 的純字串簡寫解成 label(entity-graph-core/F003 實作備註 1) [✔]
+    timeline 的物件形式一樣收 [✔]
+    三筆 links 的 kind / target / note 都對 [✔]
+    未寫的欄位是 Nothing,交給繼承規則 [✔]
+    未知欄位被忽略不報錯 [✔]
+    target 為 vlt-a0c4e1f8:ent-1234 時解析為跨 Vault Ref(vault 段落須為合法 vlt- id,ADR-014) [✔]
+    未知的關聯字串成為 Custom,不報錯 [✔]
+    kind 欄位(Level 檔的節)可解出 NodeKind [✔]
+    空的 meta 區塊視為所有欄位未寫 [✔]
+    只有註解的 meta 區塊也視為所有欄位未寫 [✔]
+  frontmatter 的解析
+    琳達檔案層的 Meta 逐欄正確 [✔]
+    YAML 註解與縮排風格不影響解析結果 [✔]
+  YAML 語法錯誤
+    節的 YAML 壞掉 → SectionYaml,帶該節 id 與 HsYAML 的訊息 [✔]
+STEP-1/STEP-3 Aapms.Md.Inherit
+  STEP-1:MetaOverride 型別修正後往返不失真
+    overrideOf 展開的 moType / moVault / moRevision 型別正確且值相符 [✔]
+    applyOverride 疊回去後與原本的 Meta 相等(overrideOf . applyOverride 是 id) [✔]
+    applyOverride 只覆蓋有給的欄位,type/vault/revision 型別正確 [✔]
+  STEP-3:type 是否繼承
+    typeInherits = True 且節層未寫 type 時繼承檔案層 [✔]
+    typeInherits = True 且節層寫了 type 時以節層為準 [✔]
+    typeInherits = False 且節層未寫 type → Left (SectionFieldMissing i "type") [✔]
+    typeInherits = False 且節層寫了 type 時正常成功 [✔]
+  toTopic / toLevel 不再有警告通道
+    toTopic 的回傳型別是 Either MdError (Entity, [Entity]),編譯期即保證沒有警告位置 [✔]
+  繼承的欄位
+    vault / status / timeline / source / created / updated 全部繼承檔案層 [✔]
+  覆寫
+    節層寫了就以節層為準 [✔]
+  不繼承的欄位
+    id 與 title 來自節標題 [✔]
+    aliases 不繼承,節層未寫即空 [✔]
+    links 不繼承,節層未寫即空 [✔]
+    revision 不繼承,未寫時為 1 而非檔案層的 7 [✔]
+    revision 節層寫了就用節層的 [✔]
+  tags 聯集去重
+    檔案層與節層的標籤合併 [✔]
+    重複的標籤只留一份 [✔]
+    節層沒寫時就是檔案層的標籤 [✔]
+  summary(不繼承,MdWarning 通道已移除)
+    summary 不繼承 [✔]
+    節層未寫 summary 時不再是錯誤,只是空字串(警告改由 checkMeta 負責) [✔]
+STEP-8 toTopic
+  檔案的判別
+    type 不是保留鍵時 docKind 為 TopicDoc [✔]
+  主體 Entity
+    得 1 個主體 + 2 個片段 [✔]
+    主體逐欄比對 frontmatter [✔]
+    主體的 body 是 preamble [✔]
+  片段 ent-7f3b(外貌)
+    id / title 來自節標題 [✔]
+    type 被節層覆寫,vault / status / 日期繼承檔案層 [✔]
+    summary / tags / links 逐欄正確 [✔]
+    revision 不繼承主體的 3,為 1 [✔]
+    aliases 不繼承 [✔]
+    body 是該節的正文 [✔]
+  片段 ent-7f3c(與塔主的過節)
+    id 與 timeline 正確 [✔]
+    三筆 links 的 kind / target / note 都對 [✔]
+    tags 為節層的兩個標籤(檔案層沒有標籤) [✔]
+  沒有警告通道(graph-core/F004)
+    琳達範例檔兩節解析成功,回傳型別不含警告(編譯期即保證) [✔]
+STEP-8 toLevel
+  檔案的判別
+    frontmatter 的 type: level 判為 LevelDoc [✔]
+  Level 本身
+    lvlMeta 逐欄比對 frontmatter [✔]
+    frontmatter 沒寫 root 時以第一個節填入,作者不必手寫 [✔]
+    frontmatter 寫了相符的 root 時照收 [✔]
+    frontmatter 的 root 與第一個節不符 → RootMismatch [✔]
+  標題階層 → parent / order
+    解出 6 個 Node(教室範例檔的六個標題) [✔]
+    根節點 nod-0001 的 parent 是 Nothing [✔]
+    nod-0002 與 nod-0003 的 parent 皆為 nod-0001 [✔]
+    同一父節點下的 order 依文件順序為 1、2 [✔]
+    層級 +1 即子節點:nod-0004 → nod-0002、nod-0005 → nod-0004 [✔]
+    nod-0007 的 parent 為 nod-0005 [✔]
+    每個節都是它父節點下的第 1 個子節點時 order 為 1 [✔]
+  kind 與 entities
+    kind 由 meta 區塊填入 [✔]
+    entities 由 involves 推導:nod-0002 指向琳達與塔主 [✔]
+    entities 也收 references:nod-0005 指向對話 Entity [✔]
+    沒有 involves / references 的節,entities 為空 [✔]
+    所有 Node 的 level 都是本 Level 的 id [✔]
+    缺 kind → MissingNodeKind [✔]
+  標題層級的錯誤
+    ## 之後直接接 #### → HeadingSkip [✔]
+    根層級之上的標題 → HeadingAboveRoot [✔]
+  與 core 的接點
+    產出的 [Node] 餵給 buildTree 成功建樹,前序走訪得 6 個節點 [✔]
+STEP-9 toPack
+  檔案的判別
+    type: asset-pack 判為 PackDoc [✔]
+  檔案層直接解成 Pack
+    Meta 欄位逐一比對 [✔]
+    pack 專屬欄位逐一比對 [✔]
+    body 是 preamble 的內容 [✔]
+  得 2 個 Asset
+    asset 數量正確 [✔]
+  asset 節 ast-3f9c1d20(panel_book.png)
+    type 由節層寫明(不繼承 asset-pack) [✔]
+    vault / status 繼承檔案層 [✔]
+    tags 聯集去重(檔案層「商用」+ 節層「gui, book」) [✔]
+    asset 專屬欄位:name / sha256 / entry / kind meta [✔]
+  asset 節 ast-3f9c1d21(panel_scroll.png,只有必填欄位)
+    name 缺漏是 Nothing [✔]
+    sha256 / entry 仍正確讀出 [✔]
+    tags 只有節層自己的(檔案層的「商用」仍聯集進來) [✔]
+  節缺 type → SectionFieldMissing(不繼承,design.md 表格)
+    asset 節沒寫 type 時回 SectionFieldMissing [✔]
+  節缺 sha256 / entry → 錯誤
+    缺 sha256 時解析失敗 [✔]
+    缺 entry 時解析失敗 [✔]
+  節 id 前綴必須是 ast
+    節用 {#ent-0001} → IdPrefixMismatch [✔]
+STEP-10 toLicenses
+  檔案的判別
+    type: asset-license 判為 LicenseDoc [✔]
+  容器本身不出現在回傳的 [License] 裡
+    得 2 筆 License(檔案層只是容器,不是第 3 筆) [✔]
+  CC0(lic-0000000a,只寫兩個必填維度)
+    commercial / attribution_required 逐值正確 [✔]
+    其餘六維缺漏是 Nothing [✔]
+    type 繼承容器的 asset-license [✔]
+    full_text 節層不出現,一律 Nothing [✔]
+  CC-BY 4.0(lic-0000000b,八維度全寫)
+    全部維度逐值正確 [✔]
+  缺 commercial / attribution_required → SectionFieldMissing
+    缺 commercial [✔]
+    缺 attribution_required [✔]
+  SectionFieldMissing 的訊息
+    renderMdError 印出節 id [✔]
+  節 id 前綴必須是 lic
+    節用 {#ent-0001} → IdPrefixMismatch [✔]
+STEP-2/STEP-7/STEP-15 renderDocument
+  STEP-15:renderDocument . parseDocument == id(位元組相等,四種文件)
+    琳達範例檔(LF、檔尾有換行,主題檔) [✔]
+    琳達範例檔(CRLF) [✔]
+    琳達範例檔(檔尾無換行) [✔]
+    教室 Level 檔(LF) [✔]
+    教室 Level 檔(CRLF) [✔]
+    pack.md(LF) [✔]
+    pack.md(CRLF) [✔]
+    licenses.md(LF) [✔]
+    licenses.md(CRLF) [✔]
+    YAML 含註解、縮排 4 空白、正文含程式碼區塊 [✔]
+    同上的 CRLF 版 [✔]
+    preamble 為空 [✔]
+    僅 frontmatter 無節 [✔]
+    混合行尾(frontmatter LF、正文 CRLF) [✔]
+  再解析一次仍相等(解析 → 寫回 → 再解析不失真)
+    琳達範例檔(LF、檔尾有換行,主題檔) [✔]
+    琳達範例檔(CRLF) [✔]
+    琳達範例檔(檔尾無換行) [✔]
+    教室 Level 檔(LF) [✔]
+    教室 Level 檔(CRLF) [✔]
+    pack.md(LF) [✔]
+    pack.md(CRLF) [✔]
+    licenses.md(LF) [✔]
+    licenses.md(CRLF) [✔]
+    YAML 含註解、縮排 4 空白、正文含程式碼區塊 [✔]
+    同上的 CRLF 版 [✔]
+    preamble 為空 [✔]
+    僅 frontmatter 無節 [✔]
+    混合行尾(frontmatter LF、正文 CRLF) [✔]
+  切片的組成
+    renderSection 是三段原始切片接起來 [✔]
+    docFinalNL 反映原檔是否以換行結尾 [✔]
+    混合行尾檔的 docEnding 取多數,但寫回仍逐字保留兩種行尾 [✔]
+  renderFrontmatter
+    欄位順序等於 frontmatterFieldOrder [✔]
+    逐行輸出與預期一致 [✔]
+    metaFieldOrder 去掉 kind 之後是 frontmatterFieldOrder 的子序列 [✔]
+    空值照樣輸出 —— frontmatter 要自我說明有哪些欄位 [✔]
+    type / vault / revision 是純量文字,不是 newtype 的 derived Show [✔]
+    含冒號 / 前導 - / 數字樣貌的 title 被正確加引號 [✔]
+    CRLF 文件產生 CRLF 的 frontmatter [✔]
+    不含 --- 界線(那兩行由 renderDocument 重生) [✔]
+  newDocument
+    產出的文字經 parseDocument → toTopic 後 Meta 與輸入相等 [✔]
+    空值的 Meta 也 round-trip 得回來 [✔]
+    newDocument PackDoc meta body 建出的 Document,docKind 立即回 PackDoc [✔]
+    renderDocument 產物能再被 parseDocument 解回、docKind 仍是 PackDoc [✔]
+    型別是 level 時 docKind 判為 LevelDoc [✔]
+    三段切片依 renderDocument 的重組規則填 [✔]
+    一律固定用 LF,不受呼叫端影響(design.md:CRLF 情境走 updateFrontmatter/updateSection 編輯路徑) [✔]
+STEP-13 updateSection / updateSectionBody / removeSection
+  updateSection
+    改 ent-7f3b 的 summary 後,逐行比對只有該節 meta 區塊的 summary 那一行不同 [✔]
+    行數不變(沒有多寫或漏寫欄位) [✔]
+    改完仍可再被 parseDocument 解析,且新值讀得回來 [✔]
+    另一節完全沒被碰到 [✔]
+    操作不存在的 id 回 Left [✔]
+    原本沒有 meta 區塊的節會補上一個 [✔]
+    Example 1:pack.md asset 節改 summary 後,sha256/entry 兩行逐字保留、toPack 讀回不變 [✔]
+    Example 6:註冊表自訂欄位 battle_power 在 updateSection 之後逐字保留 [✔]
+    Example 8:區塊風格巢狀值(meta: + 兩行縮排)在 updateSection 之後逐字保留、順序不變 [✔]
+  updateSectionExtras
+    Example 7:只換 license,sha256/entry 逐字不變,overrideAt 與正文/標題不受影響 [✔]
+    操作不存在的 id 回 Left [✔]
+  renderMetaBlock
+    欄位順序固定,且與 system.md 的範例一致 [✔]
+    type / vault / revision 是純量文字,不是 newtype 的 derived Show [✔]
+    值為 Nothing 的欄位不輸出 [✔]
+    同一份資料連續序列化兩次結果相同 [✔]
+    CRLF 文件產生 CRLF 的區塊 [✔]
+    需要跳脫的字串才加引號 [✔]
+    流式上下文裡的逗號會被引號保護 [✔]
+    序列化後再解析回來,欄位一致(round-trip) [✔]
+    MetaExtras 非空時,逐字接在 Meta 欄位之後、fence 之前 [✔]
+  removeSection
+    移除節連同它的 meta 區塊與正文 [✔]
+    移除不存在的 id 回 Left [✔]
+  updateFrontmatter
+    改 metaTitle 後,每一節的三段切片逐字不變 [✔]
+    只有 frontmatter 那一段改變,節與 preamble 一個位元組都沒動 [✔]
+    改完仍可再被 parseDocument 解析,新值讀得回來 [✔]
+    id 也改得動 —— 這正是 MetaOverride 表達不了、非用 Meta -> Meta 不可的欄位 [✔]
+    frontmatter YAML 壞掉時回 Left,不覆寫、d 本身不受影響(純函式) [✔]
+    CRLF 檔改寫後仍是 CRLF [✔]
+  updateSectionBody
+    目標節的 secBodyRaw 換掉,secHeadingRaw 與 secMetaRaw 逐字不變 [✔]
+    新正文不以行尾結尾時自動補,下一節的標題不黏連 [✔]
+    最後一節不補 —— 檔尾本來就可以沒有換行 [✔]
+    改完仍可再被解析,entBody 是新值 [✔]
+    指定不存在的 id 回 Left [✔]
+  replacePreamble
+    只換主體正文,節一個位元組都沒動 [✔]
+    結尾界線的行尾被保留 —— 否則 --- 會與正文黏成一行 [✔]
+    後面沒有節時不補多餘的空行 [✔]
+    空正文時 preamble 只剩界線的行尾與一行空白 [✔]
+    CRLF 檔換完仍是 CRLF [✔]
+STEP-12 appendSection
+  appendSection 一般情形
+    插在最後一節之後,插完可再被 parseDocument 解析 [✔]
+    前面既有的節逐字不變 [✔]
+    沒有任何節時插在最前面(preamble 之後) [✔]
+    重複 id 回 DuplicateSectionId [✔]
+    原檔尾沒有換行時會補到剛好隔一個空行,新節不會黏在最後一行後面 [✔]
+    Example 2:空 pack.md 追加一個 asset 節,能再被 toPack 解回,長度為 1 [✔]
+  appendSection 對 1,693 節文件
+    docSections 數量從 1,693 變成 1,694 [✔]
+    追加後前面 1,693 節逐位元組不變、新節在最後 [✔]
+    前面文字位元組完全不變(原文件文字整段是結果的前綴) [✔]
+    結果能再被 parseDocument 解回,docKind 與節數正確 [✔]
+STEP-4/STEP-11 Aapms.Md.Error
+  renderMdError 的格式(STEP-4:不含檔名)
+    輸出「第 N 行:訊息」 [✔]
+    訊息不含冒號後路徑那種格式(不再有檔名可印) [✔]
+    每一種錯誤都有非空訊息 [✔]
+    跳級的訊息說得出是哪兩個層級 [✔]
+  SectionFieldMissing
+    renderMdError 印出行號與節 id [✔]
+    訊息說得出缺的是哪個欄位 [✔]
+  frontmatter 層級的錯誤只回一筆(不產生次生錯誤)
+    沒有 frontmatter 時只回一筆 [✔]
+    frontmatter 的 YAML 壞掉時只回一筆 [✔]
+  檔案層缺多個必填欄位時只回報第一個
+    id 之外全缺時回報 vault(requiredFrontFields 的第一個) [✔]
+entity-graph-core/F001 STEP-6 輸出編碼
+  stdout 已設為 UTF-8 [✔]
+  stderr 已設為 UTF-8 [✔]
+  可 import aapms-core,證明 md → core 的依賴方向已接上 [✔]
+  md 的公開介面可由門面模組取得 [✔]
+graph-core/F004 Laws: 單節編輯/meta 區塊(LAW-2-LAW-12)
+  graph-core/F004 重跑:單節編輯與 meta 區塊序列化 Laws
+    LAW-2: updateSection 保留其他節、以及該節標題/正文的位元組 [✔]
+      passed 100 tests.
+Running 1 test suites...
+Running 1 test suites...
+Test suite aapms-service-test: RUNNING...
+Test suite aapms-workspace-test: RUNNING...
+Running 1 test suites...
+Test suite aapms-store-test: RUNNING...
+
+F001 Aapms.Service.Types
+  LAW-19: errorCode 的形狀
+    prop_error_code_shape: 對任意 ServiceError,code 非空、只含 [a-z0-9_]、不以 story_flow 或 aapms 開頭 [✔]
+      passed 100 tests.
+  LAW-20: errorCode 只看建構子,不看酬載
+    prop_error_code_by_constructor_only: 兩個 ServiceError 的 code 相等 <=> 建構子相同 [✔]
+      passed 100 tests.
+  LAW-21: renderServiceError 逐字委派下層的 render*
+    prop_render_delegates_store: renderServiceError (StoreFailed e) == renderStoreError e [✔]
+      passed 100 tests.
+    prop_render_delegates_workspace: renderServiceError (WorkspaceFailed e) == renderWorkspaceError e [✔]
+      passed 100 tests.
+    LAW-3: updateSectionExtras 與 LAW-2 相同的保留條件 [✔]
+      passed 100 tests.
+    prop_render_delegates_registry: 兩個註冊表建構子都逐字委派 renderRegistryError [✔]
+      passed 100 tests.
+  LAW-22: renderServiceError 恆非空
+    prop_render_service_error_nonempty [✔]
+      passed 100 tests.
+  EX-21: 四個建構子的 errorCode 表(驗收標準 6)
+    test_error_code_table [✔]
+  EX-22: StoreFailed 的訊息委派(驗收標準 7)
+    test_render_store_failed_example [✔]
+  EX-23: 兩個註冊表建構子的訊息相同,code 相異
+    test_registry_constructors_same_message_different_code [✔]
+F001 Aapms.Service.Monad
+  LAW-1/EX-1: openEnv 不開任何 vault 索引
+    LAW-4(GAP-2 核心否證): updateSection 之後 extrasAt 不變 [✔]
+      passed 100 tests.
+
+F001 Aapms.Workspace.Types
+  LAW-14: renderWorkspaceError 全建構子非空、含中文、可行動、不含 show 痕跡
+    HubNotFound 的訊息合格 [✔]
+    HubUnreadable 的訊息合格 [✔]
+    HubMalformed 的訊息合格 [✔]
+    HubWriteFailed 的訊息合格 [✔]
+    VaultSelectorNotFound 的訊息合格 [✔]
+    VaultSelectorAmbiguous 的訊息合格 [✔]
+    VaultKindMismatch 的訊息合格 [✔]
+    NoWriteTarget 的訊息合格 [✔]
+    VaultAlreadyInitialized 的訊息合格 [✔]
+    VaultDirMissing 的訊息合格 [✔]
+    VaultDirNotEmpty 的訊息合格 [✔]
+    VaultIdCollision 的訊息合格 [✔]
+    WriteTargetIdDrift 的訊息合格 [✔]
+    MarkerUnreadable 的訊息合格 [✔]
+    ProjectSelectorNotFound 的訊息合格 [✔]
+    ProjectPathMissing 的訊息合格 [✔]
+    ProjectSelectorAmbiguous 的訊息合格 [✔]
+    ProjectAlreadyRegistered 的訊息合格 [✔]
+    VaultInitFailed 的訊息合格 [✔]
+    DeleteTargetIdDrift 的訊息合格 [✔]
+    InvalidName 的訊息合格 [✔]
+  LAW-15: renderWorkspaceError 含「訊息規格」表逐條列出的攜帶值
+    HubNotFound 訊息含全部攜帶值 [✔]
+    HubUnreadable 訊息含全部攜帶值 [✔]
+    HubMalformed 訊息含全部攜帶值 [✔]
+    HubWriteFailed 訊息含全部攜帶值 [✔]
+    VaultSelectorNotFound 訊息含全部攜帶值 [✔]
+    VaultSelectorAmbiguous 訊息含全部攜帶值 [✔]
+    VaultKindMismatch 訊息含全部攜帶值 [✔]
+    NoWriteTarget 訊息含全部攜帶值 [✔]
+    VaultAlreadyInitialized 訊息含全部攜帶值 [✔]
+    VaultDirMissing 訊息含全部攜帶值 [✔]
+    VaultDirNotEmpty 訊息含全部攜帶值 [✔]
+    VaultIdCollision 訊息含全部攜帶值 [✔]
+    WriteTargetIdDrift 訊息含全部攜帶值 [✔]
+    MarkerUnreadable 訊息含全部攜帶值 [✔]
+    ProjectSelectorNotFound 訊息含全部攜帶值 [✔]
+    ProjectPathMissing 訊息含全部攜帶值 [✔]
+    ProjectSelectorAmbiguous 訊息含全部攜帶值 [✔]
+    ProjectAlreadyRegistered 訊息含全部攜帶值 [✔]
+    VaultInitFailed 訊息含全部攜帶值 [✔]
+    DeleteTargetIdDrift 訊息含全部攜帶值 [✔]
+    InvalidName 訊息含全部攜帶值 [✔]
+  Examples EX-21-EX-26
+    EX-21: HubNotFound 訊息非空繁中、含路徑、含下一步指示 [✔]
+    EX-22: VaultSelectorAmbiguous 含 selector 字串與兩列各自的 veId/vePath [✔]
+    EX-23: VaultKindMismatch 含 id、asset、story,不含 Haskell 建構子名 [✔]
+    EX-24: VaultIdCollision 三個值都在 [✔]
+    EX-25: InvalidName 含以「」夾住的原始字串(全空白也驗得出來) [✔]
+    EX-26: MarkerUnreadable 含 root 與 renderStoreError 對該 StoreError 的輸出 [✔]
+  LAW-16(預期綠): mkHub 與五個 selector 互逆
+
+aapms-store 骨架
+  可 import aapms-core,證明 store → core 的依賴方向已接上 [✔]
+SQLite 建置環境
+  direct-sqlite 已編入 FTS5 且支援 trigram tokenizer [✔]
+  查詢字串少於 3 個字元時 trigram 不命中(已知限制) [✔]
+graph-core/F006+F007+F008 cabal 範圍
+  aapms-store.cabal 原始碼列出 Index/Query/Row/Tokenize/Create/Edit/Node/Write 與 aapms-md 依賴 [✔]
+graph-core/F005+F006 門面模組
+    對任意 vs/ps/llm/tools/txt,mkHub 之後五個 selector 原樣還回來 [✔]
+      passed 100 tests.
+  LAW-17(預期綠): 依賴方向與職責界線,以 import 清單驗證
+    test_types_imports_no_sibling_module(a): Types.hs 沒有任何 import Aapms.Workspace. 開頭的行 [✔]
+    test_location_does_not_import_hub(b): Location.hs 不 import Aapms.Workspace.Hub [✔]
+    test_location_and_hub_never_import_marker(c): Location.hs 與 Hub.hs 完全不得 import Aapms.Store.Marker [✔]
+    test_types_imports_marker_type_only(d): Types.hs 不再 import Aapms.Store.Marker;VaultMarker 改由 Aapms.Store.Types 取得,該 import 行逐字只列型別與 render,拿不到任何 marker 函式 [✔]
+    test_no_index_or_process_imports(e): 三個檔案的 import 行都不含 openIndexAt / closeIndex / System.Process [✔]
+F001 Aapms.Workspace.Location
+  LAW-1 / EX-1-EX-3: hubLocation 的兩層解析
+    test_hub_location_from_env: AAPMS_HOME 非空(無前後空白)時 FromEnv,hlPath 是它的絕對化 [✔]
+      passed 100 tests.
+    LAW-1(較嚴格): 前後帶空白但去除空白後非空,hlPath 仍是「原始 s」的絕對化(不是先去空白) [✔]
+      passed 100 tests.
+    test_hub_location_empty_env_falls_back: AAPMS_HOME 全空白(含空字串)時視同未設,走平台預設 [✔]
+      passed 100 tests.
+    test_hub_location_platform_default: AAPMS_HOME 未設時走平台預設 [✔]
+    EX-1: AAPMS_HOME = "D:\\hub" -> FromEnv,hlPath 是它的絕對化 [✔]
+    EX-2: AAPMS_HOME 未設 -> FromPlatformDefault,hlPath 絕對且以 aapms 結尾 [✔]
+    EX-3: AAPMS_HOME = "" 同 EX-2(空字串視同未設) [✔]
+    兩種情形的 hlPath 恆為絕對路徑 [✔]
+  LAW-2 / EX-19: configPath / thumbCacheDir 是純衍生、與 hlSource 無關
+    test_config_path_derivation: configPath == hlPath </> config.toml,兩種 hlSource 結果相同 [✔]
+      passed 100 tests.
+    test_thumb_cache_dir_derivation: thumbCacheDir == hlPath </> cache </> thumbs,與 hlSource 無關 [✔]
+      passed 100 tests.
+    EX-19: loc = HubLocation "C:\\hub" FromEnv 的字面例子 [✔]
+  LAW-3 / EX-20: thumbCachePath 的分片與前綴
+    test_thumb_cache_path_shard_and_prefix: 對任意 64 位十六進位字串,thumbCachePath 的分片是前兩碼、以 thumbCacheDir 為前綴 [✔]
+      passed 100 tests.
+    EX-20: thumbCachePath 的字面例子 [✔]
+F001 Aapms.Workspace.Hub
+  LAW-4/EX-4: loadHub 對不存在的檔案
+    test_load_hub_not_found: 回 HubNotFound,不是空 Hub [✔]
+  LAW-5/EX-5: TOML 語法錯
+    test_load_hub_unreadable_on_bad_toml [✔]
+  LAW-5/EX-6-EX-10: 欄位不合規
+    test_load_hub_malformed_missing_id: 缺 id [✔]
+    test_load_hub_malformed_bad_kind: kind 不是 asset/story [✔]
+    test_load_hub_malformed_relative_path: path 非絕對 [✔]
+    test_load_hub_malformed_wrong_prefix: id 前綴不是 vlt [✔]
+    test_load_hub_malformed_duplicate_id: 兩列同一個 id [✔]
+  LAW-6/EX-12: 四段全部缺席是合法的空中樞
+    test_load_hub_all_sections_absent [✔]
+  LAW-7/EX-13: hubLlm 三態可區分
+    EX-13: [llm] 存在但沒有任何鍵時,hubLlm 是 Just 空表,且 /= Nothing [✔]
+    test_hub_llm_three_states: [llm] 有 n 個鍵時,size 與鍵集合逐一相符 [✔]
+      passed 100 tests.
+  EX-11: 「數據」節樣本檔案的載入結果
+    test_load_hub_full_sample [✔]
+  LAW-8/EX-14: saveHub 對未修改的 Hub 是位元組恆等
+    test_save_hub_byte_identical_when_unmodified [✔]
+  LAW-9/EX-15: loadHub -> saveHub -> loadHub 逐欄相等
+    test_load_save_load_field_equal [✔]
+  LAW-10/EX-16: 改動後仍保留原有註解與空白行,新列附加在最後
+    test_save_hub_preserves_comments_after_upsert [✔]
+  EX-17: removeVault 後 saveHub,其餘三段與開頭註解逐字不變
+    test_save_hub_preserves_other_sections_after_remove [✔]
+  EX-27: saveHub 到父目錄不存在的位置
+    test_save_hub_does_not_create_directory [✔]
+  LAW-18/EX-28/EX-29: 名稱的完整定義域往返(含控制字元),回歸 law,預期綠
+    LAW-5(GAP-2 核心否證): updateSection 之後 toPack 讀回的 asset 專屬欄位不變 [✔]
+      passed 100 tests.
+    test_save_load_roundtrip_any_name_incl_control_chars: 對任意去空白後非空的 veName/peName(涵蓋 \n/\t/其他 C0 控制字元/DEL),saveHub -> loadHub 逐字讀回 [✔]
+      passed 100 tests.
+    test_save_load_roundtrip_newline_and_tab_name(EX-28): 空中樞 upsertVault 名稱含 實際的換行與 tab,saveHub -> loadHub 逐字讀回;寫出的檔案是逸出後的兩字元序列 [✔]
+    test_save_load_roundtrip_c0_control_name(EX-29): 名稱含 U+0001,saveHub -> loadHub 逐字讀回;寫出的是 \u0001(四位大寫十六進位);同一份中樞的 veName 與 peName 互不影響 [✔]
+  LAW-11: upsertVault 的語意(純函式,不碰檔案)
+    test_upsert_vault_appends: id 不在清單中時追加到末尾,其餘三段與 hubSourceText 不變 [✔]
+      passed 100 tests.
+    test_upsert_vault_replaces_in_place: id 已在清單中時就地取代、保序、等長 [✔]
+      passed 100 tests.
+  LAW-12: removeVault 的語意(純函式,不碰檔案)
+    test_remove_vault_preserves_order: 移除存在的 id,保序 [✔]
+      passed 100 tests.
+    test_remove_vault_absent_is_noop / EX-18: 不存在的 id 回傳與輸入相等的 Hub [✔]
+      passed 100 tests.
+  LAW-13: upsertProject / removeProject 對稱於 LAW-11 / LAW-12
+    test_project_ops_mirror_vault_ops(upsert 追加): id 不在清單中時追加到末尾,hubVaults 不變 [✔]
+      passed 100 tests.
+    test_project_ops_mirror_vault_ops(upsert 取代): id 已在清單中時就地取代、保序、等長 [✔]
+      passed 100 tests.
+    test_project_ops_mirror_vault_ops(remove 保序): 移除存在的 id,保序 [✔]
+      passed 100 tests.
+    test_project_ops_mirror_vault_ops(remove no-op): 不存在的 id 是 no-op [✔]
+      passed 100 tests.
+F002 Aapms.Workspace.Discovery
+  STEP-1/LAW-1-LAW-5/EX-1-EX-7: detectVault 向上探測
+    prop_open_env_does_not_open_index (LAW-1): 對任意 sel/cwd,呼叫前後 index.db 存在性不變 [✔]
+      passed 100 tests.
+    test_open_env_no_index_example (EX-1): openEnv Nothing <tmp>/va 之後兩個 index.db 都不存在 [✔]
+  LAW-2/EX-2: 中樞載不起來即失敗
+    test_detect_vault_from_nested_child (EX-1, LAW-1, LAW-3): 從 vault 內任意深度的子目錄回最近一層含 .aapms/ 的正規化路徑 [✔]
+      passed 100 tests.
+    test_detect_vault_at_root_itself (EX-2, LAW-3): 起點就是 vault 根,回自己 [✔]
+    test_detect_vault_normalizes_dotdot (EX-3, LAW-1): 起點含 ../ 之後正規化,不多走一層 [✔]
+    LAW-6(GAP-2 核心否證): updateSection 之後 toLicenses 讀回的八維度不變 [✔]
+      passed 100 tests.
+    LAW-7: extrasOf 的定義
+      鍵不在 metaFieldOrder 的頂層條目,逐字、順序不變地被取出(單行條目定義域) [✔]
+        passed 100 tests.
+      沒有 meta 區塊時回 MetaExtras [] [✔]
+        passed 100 tests.
+    LAW-8: updateSection i id 冪等 [✔]
+      passed 100 tests.
+    test_detect_vault_outside_returns_nothing (EX-4, LAW-2): 沒有任何祖先含 .aapms/ 時回 Nothing (前提同 spec X4:暫存目錄的祖先鏈本身沒有 .aapms/) [✔]
+      passed 100 tests.
+    LAW-9: renderMetaBlock 的行序列 = fence + M(依 metaFieldOrder)+ extras 尾段 + fence [✔]
+      passed 100 tests.
+    LAW-10(回歸): MetaExtras [] 時,fence 之間只有 M 這一段 [✔]
+      passed 100 tests.
+    LAW-11: payloadExtras 的鍵與 metaFieldOrder 不相交 [✔]
+      passed 100 tests.
+    LAW-12: mergeExtras 的鍵聯集、同鍵 a 贏、順序 a 在前 b 剩下在後 [✔]
+      passed 100 tests.
+graph-core/F004 Laws: NewSectionPayload/appendSection/mkSection(LAW-13-LAW-18,LAW-21)
+  graph-core/F004 重跑:NewSectionPayload / appendSection / mkSection Laws
+    prop_open_env_hub_missing_fails (LAW-2): 中樞 config.toml 不存在時,對任意 sel/cwd 一律 Left (WorkspaceFailed (HubNotFound _)) [✔]
+      passed 100 tests.
+    test_open_env_hub_missing_example (EX-2): 精確路徑 [✔]
+  LAW-3/EX-3: 註冊表定位不到即失敗
+    test_detect_vault_picks_nearest (EX-5, LAW-1(d)): 兩層都有 marker 時回最近的那一層 [✔]
+      passed 100 tests.
+    test_detect_vault_ignores_marker_file (EX-6, LAW-5): .aapms 是普通檔案時不算命中,一路到根都沒有 -> Nothing [✔]
+    LAW-5(續): .aapms 是檔案時越過它,繼續往上找到再上一層真正的 marker [✔]
+    test_detect_vault_creates_nothing (EX-7, LAW-4): 呼叫前後整棵目錄樹逐位元組相同 [✔]
+  STEP-2/LAW-6-LAW-9/EX-8-EX-13: lookupSelector selector 解析
+    test_lookup_selector_id_beats_name (EX-8, LAW-6): id 命中時 name 完全不參與 [✔]
+    LAW-6(property): byId 非空時,把 byName 那些列的 veName 任意換掉,結果不變 [✔]
+      passed 100 tests.
+    test_lookup_selector_ambiguous_lists_all (EX-9, LAW-7): 撞名回全部候選列,順序同中樞 [✔]
+    LAW-7(property): 任意 n>=2 列撞同一個 veName 時,Ambiguous 的清單逐列等於全部撞名列、順序不變 [✔]
+      passed 100 tests.
+    test_lookup_selector_not_found (EX-10, LAW-7): 兩階段都沒命中回 NotFound [✔]
+    LAW-7(property): 任意 hub 與任意兩階段都不命中的 s,回 VaultSelectorNotFound s [✔]
+      passed 100 tests.
+    test_lookup_selector_is_case_sensitive (EX-11, LAW-8): 大小寫不同時視為不同字串 [✔]
+    LAW-8(property): 任意 entry,veId 的大寫翻轉版本(vlt- 前綴保證與原字串不同)一律 NotFound [✔]
+      passed 100 tests.
+    test_lookup_selector_does_not_trim (EX-12, LAW-8): 前後空白不去除 [✔]
+    LAW-8(property): 任意 entry,veName 前後加空白後查詢一律 NotFound [✔]
+      passed 100 tests.
+    test_lookup_selector_ignores_other_sections (EX-13, LAW-9): 換掉 projects/llm/tools/原始文字,結果不變 [✔]
+      passed 100 tests.
+  STEP-3/LAW-10-LAW-13/EX-14-EX-18: readVaultRef 重讀 marker(已註冊的一列)
+    test_read_vault_ref_marker_is_truth (EX-14, LAW-10): vrMarker 一律來自檔案,中樞欄位換掉不影響 [✔]
+    LAW-13(GAP-1): appendSection(NSAsset)之後 toPack 讀回的新 Asset 與 na 逐欄相等 [✔]
+      passed 100 tests.
+  從 Aapms.Store(而非個別子模組)可以 import 並呼叫 openVault/initVaultAt/rebuildIndex/listNodes [✔]
+STEP-3 atomicWriteText
+  寫入後內容正確、UTF-8 且不加 BOM [✔]
+  覆蓋既有檔案成功(Windows 的關鍵驗證) [✔]
+  寫入後目錄下沒有殘留的暫存檔 [✔]
+  寫入失敗時回 FileWriteFailed(父目錄不存在) [✔]
+    prop_open_env_registry_unavailable_fails (LAW-3): STORYFLOW_REGISTRY 指向不存在的目錄時,對任意 sel/cwd 一律 Left (RegistryUnavailable _) [✔]
+      passed 100 tests.
+    LAW-10(property): 把 e 的 veName/veKind 換成與 marker 不同的任何值後重跑,vrMarker 逐欄不變 [✔]
+      passed 100 tests.
+  目標是既有目錄時回 FileWriteFailed,原內容不變且不留暫存檔 [✔]
+graph-core/F005 StoreError
+  六個建構子的訊息
+    VaultMarkerMissing 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+    VaultMarkerInvalid 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+    VaultAlreadyInitialized 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+    FileReadFailed 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+    FileWriteFailed 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+    SqliteError 的訊息非空、含中文、且不含原始 show 痕跡 [✔]
+  每一則都說得出下一步該做什麼 [✔]
+  VaultMarkerMissing 提到 vault init [✔]
+  VaultMarkerInvalid 把指出的欄位訊息原樣帶出來 [✔]
+  VaultAlreadyInitialized 帶出路徑 [✔]
+graph-core/F005 schema
+    test_open_env_registry_unavailable_example (EX-3) [✔]
+  LAW-4/EX-3b: 註冊表載入失敗即失敗
+  graph-core/F007: 15 張表全建齊(不含 FTS5 影子表),schemaVersion(3)寫入 meta_info [✔]
+  STEP-1: renderIndexIssue 對三個新建構子輸出非空、含中文、指出檔案路徑 [✔]
+  foreign_keys / journal_mode / busy_timeout 三個 PRAGMA 符合預期 [✔]
+  全新索引檔回報一筆 SchemaRebuilt Nothing schemaVersion [✔]
+  schema_version 被改成舊值後重新開啟會整庫重建並回報 [✔]
+  openIndexAt 完成後 meta_info 含正確的 vault_id/vault_kind/vault_name [✔]
+  VaultKind
+    renderVaultKind / parseVaultKind 互為反函式 [✔]
+    parseVaultKind 對其餘字串回 Nothing [✔]
+  renderIndexIssue
+    非空、含新舊版本 [✔]
+graph-core/F005 vault marker
+  initVaultAt
+    寫出 .aapms/config.toml 與空索引,四欄可被 readMarker 讀回 [✔]
+    對已有 marker 的目錄再次呼叫是錯誤,且不覆寫原有 config [✔]
+  readMarker
+    目錄沒有 marker 時回 VaultMarkerMissing,且不建立任何檔案 [✔]
+    缺少 id 時回 VaultMarkerInvalid,訊息含 id [✔]
+    id 前綴不對時回 VaultMarkerInvalid,訊息含 id [✔]
+    缺少 kind 時回 VaultMarkerInvalid,訊息含 kind [✔]
+    kind 值不對時回 VaultMarkerInvalid,訊息含 kind [✔]
+    缺少 name 時回 VaultMarkerInvalid,訊息含 name [✔]
+  openVault / closeVault
+    對合法 marker 開起 handle,關閉後連線失效 [✔]
+    openVault 把呼叫端給的 TypeRegistry 原樣放進 vhRegistry(DEC-9) [✔]
+  沒有任何程式路徑探測或讀中樞註冊表(驗收標準 6)
+    Marker.hs 原始碼不含探測相關字串 [✔]
+  indexTables(graph-core/F007 擴充後)
+    15 張表(F006 的 12 張 + F007 的 fts_tri/fts_cjk/fts_map),meta_info 仍是第一張,fts_map 是最後一張 [✔]
+  graph-core/E002 initVaultAtWith
+    回歸 law(REG-1-REG-5:initVaultAt 的現有行為不得變動)
+    LAW-14(GAP-1): appendSection(NSLicense)之後 toLicenses 讀回的新 License 與 nl 逐欄相等 [✔]
+      passed 100 tests.
+    test_read_vault_ref_fields_on_success (LAW-11): 成功時 vrEntry == Just e、vrPath 是正規化路徑、vmId == veId e [✔]
+      passed 100 tests.
+    test_read_vault_ref_path_missing (EX-15, LAW-12a): 路徑不存在回 VaultPathMissing e (正規化後的路徑) [✔]
+    LAW-12a(property): 任意 e 與任意不存在的路徑,回 VaultPathMissing e (p 的正規化) [✔]
+      passed 100 tests.
+    test_read_vault_ref_marker_broken_carries_original (EX-16, LAW-12b): .aapms/ 在但沒有 config.toml [✔]
+    EX-17/LAW-12b: kind 欄位不合規時,VaultMarkerBroken 捧著與 readMarker 逐欄相同的 StoreError [✔]
+    test_read_vault_ref_id_drift (EX-18, LAW-12c): marker 的 id 與中樞不符時回 VaultIdDrift,帶 marker 裡的 id [✔]
+    LAW-15(GAP-1): appendSection(NSNode)之後 toLevel 讀回的 nodKind == 給定的 kind,不論 moKind ov [✔]
+      passed 100 tests.
+    LAW-16: payloadOverride 的 moKind 規則(NSNode 由 NewNode 覆蓋),其餘十二欄不變 [✔]
+      passed 100 tests.
+    LAW-17: appendSection 保留既有節的 secHeadingRaw/secMetaRaw(僅最後節可能補尾),新節排最後 [✔]
+      passed 100 tests.
+    LAW-18: appendSection 撞號回 Left (mdError 1 (DuplicateSectionId (nsId ns))) [✔]
+      passed 100 tests.
+    LAW-21: mkSection 的 secMetaRaw 由 payloadOverride/payloadExtras 兩半組成;Nothing 時無 meta 區塊 [✔]
+      passed 100 tests.
+graph-core/F004 Laws: docKind(LAW-22)
+  graph-core/F004 重跑:docKind Law
+    LAW-22: docKind 只由檔案層 type 決定(三個保留字 / 其餘一律 TopicDoc) [✔]
+      passed 100 tests.
+graph-core/F004 Laws: 回歸(LAW-1,LAW-19,LAW-20,LAW-23-LAW-31)
+  graph-core/F004 重跑:回歸 Laws(本次未改動的函式)
+    prop_open_env_registry_load_failed (LAW-4): 註冊表目錄存在但缺 naming.toml 時,對任意 sel/cwd 一律 Left (RegistryLoadFailed _) [✔]
+      passed 100 tests.
+    test_open_env_registry_load_failed_example (EX-3b) [✔]
+  LAW-5/EX-9: closeEnv 釋放乾淨
+    LAW-1: renderDocument . parseDocument 位元組往返(ADR-010) [✔]
+      passed 100 tests.
+    LAW-19: removeSection 保留其他節,未知 id 回 Left [✔]
+      passed 100 tests.
+    LAW-19: 未知 id 回 Left (mdError 1 (UnknownSectionId i)) [✔]
+      passed 100 tests.
+    LAW-20: updateSectionBody 保留目標節的標題/meta,其他節逐位元組不變 [✔]
+      passed 100 tests.
+    LAW-23: inheritMeta 的節層繼承規則(design.md 表格) [✔]
+      passed 100 tests.
+    LAW-24: type 是否繼承依 typeInherits 旗標(pack.md 節不繼承且缺漏是錯誤) [✔]
+      passed 100 tests.
+    LAW-12c(property): 任意兩個不同 id,marker 用其一、中樞用另一,回 VaultIdDrift e (marker 的 id) [✔]
+      passed 100 tests.
+    test_read_vault_ref_creates_nothing (LAW-13): 無論成功或失敗,呼叫前後目錄樹逐位元組相同 [✔]
+    LAW-13(續): marker 讀不到(路徑不存在)時,readVaultRef 也不會把它建出來 [✔]
+  STEP-4/LAW-14-LAW-15/EX-19-EX-22: readVaultRefAt 重讀 marker(只知道路徑)
+    test_read_vault_ref_at_fills_entry_by_id (EX-19, LAW-14): 中樞有 veId 等於 marker id 的列時 vrEntry 是 Just 那一列 [✔]
+    LAW-25: newDocument 的 docKind 與 renderDocument 可再解析 [✔]
+      passed 100 tests.
+    LAW-26: updateFrontmatter 保留 docPreamble 與每一節 [✔]
+      passed 100 tests.
+    LAW-27: overrideAt 等於節的 meta 區塊解出的 MetaOverride(無區塊為 emptyOverride) [✔]
+      passed 100 tests.
+    LAW-27: 未知 id 回 Left (mdError 1 (UnknownSectionId i)) [✔]
+      passed 100 tests.
+    LAW-28: renameSection 只換標題文字,secMetaRaw/secBodyRaw/secId/secLevel 與其他節不變 [✔]
+      passed 100 tests.
+      REG-1: 任意空目錄/kind/非空 name,initVaultAt 成功後 config.toml 讀回的四欄符合 [✔]
+        passed 100 tests.
+    LAW-29: replacePreamble 保留各節與 docFrontRaw,結果仍可再解析 [✔]
+      passed 100 tests.
+    LAW-14(property): 多列同一個 veId 時,回中樞裡第一列滿足條件的那一列 [✔]
+      passed 100 tests.
+    test_read_vault_ref_at_unregistered_is_nothing (EX-20, LAW-14): 中樞沒有任何列符合時 vrEntry 是 Nothing,vrMarker 仍來自檔案 [✔]
+    test_read_vault_ref_at_ignores_path_match (EX-21, LAW-14): 中樞的 vePath 等於 V 但 veId 不同時,vrEntry 仍是 Nothing [✔]
+    test_read_vault_ref_at_marker_unreadable (EX-22, LAW-15): 路徑不存在時回 MarkerUnreadable,renderWorkspaceError 含路徑與原因 [✔]
+  STEP-5/LAW-16-LAW-17/EX-23-EX-24: 兩個讀取函式一致、refs 原樣捧著
+    LAW-30: renderFrontmatter 的鍵序等於 frontmatterFieldOrder,且往返不失真 [✔]
+      passed 100 tests.
+    LAW-31: renderSection 是三段切片的串接 [✔]
+      passed 100 tests.
+graph-core/F004(2026-08-25) insertSection(LAW-32-LAW-39,EX-11-EX-22)
+  graph-core/F004(2026-08-25):insertSection Laws(LAW-32-LAW-39)
+    LAW-32: 插入索引 k 符合 subtree 定義;有子節點時新節前一節是子樹最後一節 [✔]
+      passed 100 tests.
+    LAW-33(ADR-010): 除插入點前一節的正文尾端外,其餘節逐位元組不變;frontRaw/preamble 不變 [✔]
+      passed 100 tests.
+    LAW-34: 新節的標題\/meta\/層級\/標題文字\/id 與 mkSection 一致;正文依是否為最後一節套用 blankTail [✔]
+      passed 100 tests.
+    LAW-35(可解析:parseDocument/to* 在插入後仍成功,新節點 metaId 正確)
+    test_two_readers_agree (LAW-16 前半): readVaultRefAt 命中的那一列餵回 readVaultRef,兩者逐欄相同 [✔]
+      passed 100 tests.
+    test_two_readers_agree (EX-23, LAW-16 後半): readVaultRefAt 的 MarkerUnreadable 與 readVaultRef 的 VaultMarkerBroken 捧著同一個 err [✔]
+    EX-24(字面例子): refs = [vlt-11112222, vlt-33334444] 時 vmRefs 逐項相符 [✔]
+      TopicDoc(lindaMd, NSFragment) [✔]
+        passed 100 tests.
+    test_refs_carried_verbatim_not_expanded (LAW-17): vmRefs 逐項等於檔案裡的 refs,且不影響 vrEntry [✔]
+      passed 100 tests.
+  LAW-18(預期綠): 依賴方向與職責界線,以 import 行驗證
+    test_discovery_no_downstream_or_location_imports(a): 本套件內的 import 只能是 Aapms.Workspace.Types 或 Aapms.Workspace.Hub [✔]
+    test_discovery_marker_import_is_id_reader_only(b): 若有 import Aapms.Store.Marker,必須逐字是 "import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)" (守「Discovery 只讀 id」:VaultMarker (..) 或多列 vmKind/vmName/vmRefs 任何一個都要紅) [✔]
+    test_discovery_never_imports_atomic(c): 完全不得 import Aapms.Store.Atomic [✔]
+    test_discovery_never_imports_index_modules(d): 完全不得 import Aapms.Store 門面 / Schema / Index / MultiVault / Query / Write / Create [✔]
+    test_discovery_no_process_import(e): 完全不得 import System.Process [✔]
+F003 Aapms.Workspace.Scope
+  STEP-1/LAW-1,LAW-6/EX-1,EX-2,EX-14: resolveRead 無 selector = 全部已註冊
+    test_resolve_read_all_registered_in_hub_order (EX-1, LAW-3, LAW-6): rsVaults 依中樞順序,rsIssues 逐一列出不可達的三個 [✔]
+    test_resolve_read_independent_of_cwd (EX-2, LAW-6): 在 vault 內外各跑一次,結果逐欄相同 [✔]
+      PackDoc(packMd, NSAsset) [✔]
+        passed 100 tests.
+      REG-2a: 已有 marker 的目錄再次呼叫 initVaultAt 回 VaultAlreadyInitialized,且底下每個檔案逐位元組不變 [✔]
+        passed 100 tests.
+      LicenseDoc(licensesMd, NSLicense) [✔]
+        passed 100 tests.
+    test_scope_dedupes_by_vmid_keeping_first (EX-14, LAW-1): 重複 id 只出現一次,位置是第一次出現的位置 [✔]
+      passed 100 tests.
+  STEP-2/LAW-20,LAW-21,LAW-22/EX-8,EX-12,EX-34,EX-35,EX-36: refs 遞移展開(walkAll/expandRefs)
+      LevelDoc(classroomMd, NSNode) [✔]
+        passed 100 tests.
+    LAW-36: 樹合法性 — nodParent/nodKind/nodOrder 正確,既有節點不重編,buildTree 成功 [✔]
+      passed 100 tests.
+    LAW-37: 父節點是最後一節時,insertSection 與 appendSection 產生相同的 renderDocument [✔]
+      passed 100 tests.
+      REG-2b: 已有 marker 的目錄呼叫 initVaultAtWith 同樣回 VaultAlreadyInitialized,且底下每個檔案逐位元組不變(骨架未實作,預期紅) [✔]
+        passed 100 tests.
+    LAW-38: 四個檢查依序取第一個成立的分支(含 EX-19:撞號優先於層級) [✔]
+      passed 100 tests.
+    LAW-39: HeadingTooDeep 的訊息以「第 <l> 行:」開頭,含兩個 # 字串與下一步指引 [✔]
+      passed 100 tests.
+  graph-core/F004(2026-08-25):insertSection Examples(EX-11-EX-22)
+    EX-11: 插在子樹之後(而非父節點正後方) [✔]
+    EX-12: 格式正常(雙空行)的檔案上,插入點也一個位元組都不動 [✔]
+    EX-12 變體:nod-0020 只有單一空行時,只有它的 secBodyRaw 尾端補齊,其餘不變 [✔]
+      REG-3: initVaultAt 成功後 index.db 存在,且 openVault 開得起來 [✔]
+      REG-4: initVaultAt 的型別簽名逐字等於 FilePath -> VaultKind -> Text -> IO (Either StoreError VaultMarker)(骨架原文自身承載) [✔]
+    test_refs_expansion_is_transitive_and_cycle_safe (LAW-20, property): 對任意小型 refs 圖,展開結果的 id 集合等於圖上可達集合,且不重複 [✔]
+      passed 100 tests.
+    test_refs_self_loop_terminates (EX-12, LAW-20): 自環 refs = [自己] 仍終止,結果恰好一個 [✔]
+    test_refs_diamond_bfs_order (EX-34, LAW-1, LAW-7, LAW-20): 菱形 A->[B,C],B->[D],C->[D],D 只出現一次,BFS 順序 [A,B,C,D] [✔]
+    test_refs_unregistered_target_degrades (EX-8, LAW-21): refs 指向中樞查不到的 id,產生 RefVaultNotRegistered,其餘照常展開 [✔]
+    test_unreachable_node_refs_not_expanded (EX-35, LAW-22): refs 指向 marker 壞的 M,M 不進結果集,也不展開它自己的 refs [✔]
+    test_id_drift_node_refs_not_expanded (EX-36, LAW-22): refs 指向 id 漂移的 Z,Z 與它的 refs 目標(D)都不進結果集 [✔]
+  STEP-3/LAW-2,LAW-3,LAW-5,LAW-7,LAW-8,LAW-9/EX-3-EX-5,EX-6,EX-7,EX-9-EX-11,EX-13,EX-15: resolveRead 有 selector
+    test_resolve_read_selector_is_closure (EX-3, EX-5, LAW-7, LAW-20): {X} ∪ refs*(X),環終止不重複;無 refs 時恰好一個 [✔]
+    test_resolve_read_selector_by_id_equals_by_name (EX-4): 用 id 字串與用 name 字串查同一個 vault,結果逐欄相同 [✔]
+    test_resolve_read_selector_not_found_passthrough (EX-6, LAW-8): 兩階段都沒命中,原樣透傳 VaultSelectorNotFound [✔]
+    test_resolve_read_selector_ambiguous_passthrough (EX-7, LAW-8): 撞名原樣透傳 VaultSelectorAmbiguous,帶全部候選 [✔]
+    test_resolve_read_seed_unreachable_still_right (EX-9, EX-10, EX-11, LAW-3, LAW-9): 種子路徑不見/marker壞/id漂移時仍是 Right,空清單、恰一則 issue、不展開 [✔]
+    test_resolve_read_no_selector_never_expands_refs (EX-13, LAW-5): 無 selector 時即使某 vault 的 refs 指向未註冊 id,也不產生 RefVaultNotRegistered [✔]
+    test_resolve_read_marker_is_truth (EX-15, LAW-2): 中樞那一列的 veName/veKind 換掉,vrMarker 與 vmId 集合、issues 逐欄不變 [✔]
+  STEP-4/LAW-12,LAW-13(a),LAW-13(b),LAW-14,LAW-15/EX-17-EX-24: resolveWrite 的寫入目標
+    test_resolve_write_no_target_carries_canonical_start (EX-17, LAW-12): 探測不到 .aapms/ 時回 NoWriteTarget,訊息含正規化後的起點 [✔]
+    test_resolve_write_target_marker_unreadable_is_hard_error (EX-20, EX-21, EX-22, LAW-13a): 目標路徑不見/marker壞(含探測命中後才發現壞)都是硬失敗 MarkerUnreadable [✔]
+    test_resolve_write_id_drift_is_hard_error (EX-19, LAW-13b): selector 指到 id 漂移的 Z,回 WriteTargetIdDrift 三個值,訊息含全部三個 [✔]
+    test_resolve_write_unregistered_target_allowed (EX-18, LAW-14): 探測命中未註冊的 E 時 vrEntry 是 Nothing,wsRead 恰一個 [✔]
+    test_resolve_write_selector_ignores_start (EX-23, EX-24, LAW-10, LAW-15, LAW-23): selector 指定 B 時,結果與起點無關;A 只以唯讀身分經 refs 進來 [✔]
+  STEP-5/LAW-10,LAW-11,LAW-13(c),LAW-23/EX-16,EX-23,EX-25: resolveWrite 的 wsRead/wsIssues
+    test_resolve_write_target_never_from_refs (EX-16, EX-23, LAW-10, LAW-23): wsTarget 恒不來自 refs 展開,把__其他__ vault 的 refs 任意改寫也不換人、目標本身逐欄不變 [✔]
+    test_resolve_write_read_starts_with_target (EX-16, EX-23, LAW-11): wsRead 的第一個元素就是 wsTarget,其餘是 refs* 展開 [✔]
+    test_resolve_write_issues_never_describe_target (EX-25, LAW-13c, LAW-21): wsIssues 只裝 refs 展開的降級,不含描述 wsTarget 的任何一則 [✔]
+  STEP-6/LAW-16,LAW-17,LAW-18,LAW-19/EX-26-EX-31: resolvePipeline
+    test_resolve_pipeline_filters_by_kind (EX-26, EX-27, LAW-16): 無 selector 時只跑 vmKind 相符者,psIssues 與 resolveRead 的 rsIssues 逐欄相同 [✔]
+    test_resolve_pipeline_kind_mismatch_is_silent_without_selector (EX-26 續, LAW-16): kind 不符的 B 被靜默排除,不產生任何 ScopeIssue [✔]
+    test_resolve_pipeline_selector_is_single_run (EX-28, LAW-17): 有 selector 且 kind 相符時恰好一個,不展開 refs [✔]
+    EX-13: 1,693 節的合成 Level 檔,對中間有子樹的節插入,除插入點前一節外其餘 1,692 節逐位元組不變 [✔]
+    EX-14: 父節點是文件的最後一節時,insertSection 與 appendSection 產生相同的 renderDocument [✔]
+    EX-15: 新節插在中間、nsBody 不以行尾結尾,不會與下一節標題黏在一起 [✔]
+    EX-16: 父節點不存在回 UnknownSectionId [✔]
+    EX-17: nsLevel 不等於 secLevel(父)+1 時回 HeadingSkip [✔]
+    EX-18: 父節點在第 6 級,nsLevel = 7 時回 HeadingTooDeep(第 3 條檢查會過) [✔]
+    EX-19: nsId 撞號時優先於層級檢查,回 DuplicateSectionId [✔]
+    EX-20: 父節點在第 6 級但 nsLevel = 9(第 3 條先擋下),回 HeadingSkip 不是 HeadingTooDeep [✔]
+    EX-21: HeadingTooDeep 的訊息逐字相符(契約 G:下一步指引;LAW-39 原文轉錄) [✔]
+    EX-22: 既有(15 個)建構子的訊息與本輪之前逐字相同 [✔]
+graph-core/F004(2026-08-25 第三輪,GAP-17) 檔案層 extras(LAW-40-LAW-49,EX-23-EX-29)
+  graph-core/F004(2026-08-25 第三輪,GAP-17):檔案層 extras Laws(LAW-40-LAW-49)
+    test_resolve_pipeline_kind_mismatch_carries_three_values (EX-29, LAW-18): kind 不符回 VaultKindMismatch,帶 id、要求的 kind、實際的 kind [✔]
+    LAW-40: frontExtrasOf 恰好取出鍵不在 frontmatterFieldOrder 的頂層條目,逐字、順序不變 [✔]
+      passed 100 tests.
+    test_resolve_pipeline_unreachable_is_right (EX-30, LAW-19): 有 selector 但該 vault 不可達時回 Right + issue,不是 VaultKindMismatch [✔]
+    LAW-41: renderFrontmatterWith 的行序列 = F(依 frontmatterFieldOrder)+ lines fx 尾段 [✔]
+      passed 100 tests.
+    test_resolve_pipeline_selector_not_found_passthrough (EX-31, LAW-8): selector 解不開時原樣透傳 VaultSelectorNotFound [✔]
+  (全部)/LAW-4,LAW-24/EX-32,EX-33: 不動檔案系統、不判 ATTACH 上限
+    LAW-42(回歸): renderFrontmatterWith m emptyFront le 與 renderFrontmatter m le 逐位元組相同 [✔]
+      passed 100 tests.
+    LAW-43: newDocumentWith k m emptyFront b == newDocument k m b [✔]
+      passed 100 tests.
+    test_scope_touches_no_files (EX-33, LAW-4): 三個函式呼叫前後,T 底下整棵目錄樹逐位元組相同 [✔]
+    test_scope_has_no_attach_limit (EX-32, LAW-24): 11 個讀得到 marker 的 vault 仍全部回 Right,沒有任何數量上限錯誤 [✔]
+  LAW-25(預期綠): 依賴方向與職責界線,以 import 行驗證
+    test_scope_no_downstream_or_location_imports(a): 本套件內的 import 只能是 Aapms.Workspace.Types / Aapms.Workspace.Hub / Aapms.Workspace.Discovery [✔]
+    test_scope_marker_import_is_three_fields_only(b): 若有 import Aapms.Store.Marker,必須逐字是 "import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmRefs))" [✔]
+    test_scope_schema_import_is_type_only(c): import Aapms.Store.Schema 必須逐字是 "import Aapms.Store.Schema (VaultKind)"(骨架階段就有這一行) [✔]
+    test_scope_never_imports_store_internals(d): 完全不得 import Store 門面/Atomic/Error/Index/MultiVault/Query/Write/Create [✔]
+    test_scope_no_process_import(e): 完全不得 import System.Process [✔]
+    test_scope_directory_import_is_canonicalize_only(f): 若有 import System.Directory,必須逐字是 "import System.Directory (canonicalizePath)";System.FilePath 完全不需要出現 [✔]
+F004 Aapms.Workspace.Lifecycle
+  STEP-1/LAW-1-LAW-5/EX-1-EX-5: setupHub 中樞的建立
+    test_setup_hub_is_idempotent (EX-1, EX-2, LAW-1, LAW-3) [✔]
+    test_setup_hub_then_load_hub_succeeds (EX-3, LAW-2) [✔]
+    test_setup_hub_flags_reflect_prior_state (LAW-3): 兩個 Bool 分別反映呼叫前的存在性,呼叫後兩者都存在 [✔]
+    test_setup_hub_never_parses_existing_file (EX-4, LAW-4) [✔]
+    test_setup_hub_creates_only_two_things (EX-5, LAW-5) [✔]
+  STEP-2/LAW-6-LAW-11/EX-6-EX-10: initVault 前置檢查
+    test_init_vault_rejects_blank_name_first (EX-6, LAW-6, LAW-11) [✔]
+    LAW-6(property): 對任意 dir\/kind\/mode,空白名稱一律 InvalidName 帶原始字串,且不碰檔案系統 [✔]
+      passed 100 tests.
+    test_init_vault_already_initialized_both_modes (EX-7, LAW-7, LAW-10) [✔]
+    test_init_vault_marker_path_taken_by_file (EX-8, LAW-7) [✔]
+    test_init_vault_fresh_rejects_non_empty (EX-9, LAW-8, LAW-11) [✔]
+    test_init_vault_adopt_requires_existing_dir (EX-10, LAW-9, LAW-11) [✔]
+    test_init_vault_precheck_has_no_side_effects (LAW-10): 判定順序恆為名稱->\.aapms->模式,兩條同時成立回前面那個 [✔]
+  STEP-3/LAW-12-LAW-15,LAW-17,LAW-20,LAW-44/EX-11-EX-15,EX-41: initVault 成功路徑
+    test_init_vault_entry_mirrors_marker (EX-11, EX-12, LAW-12, LAW-17) [✔]
+    LAW-44(GAP-17 直接否證): newDocumentWith 帶 packFrontExtras npf,寫出去再讀回來七欄逐欄相等(npf 七欄皆非預設值) [✔]
+      passed 100 tests.
+    LAW-45(1/2,對著現行缺陷本體): updateFrontmatter 不吃掉檔案層專屬條目(以 packMd 既有的 4 個 extras 為證人) [✔]
+      passed 100 tests.
+    LAW-45(2/2,特別地子句): 對 LAW-44 的 d0 做 updateFrontmatter 後再 toPack,七欄仍等於 npf [✔]
+      passed 100 tests.
+    LAW-46(對著現行缺陷本體): updateFrontmatter id 冪等,且冪等點仍保有檔案層專屬條目 [✔]
+      passed 100 tests.
+    LAW-47: updateFrontmatterExtras 保留 Meta/docPreamble/各節,良型輸出時 frontExtrasOf 符合 g [✔]
+      passed 100 tests.
+    LAW-48: packFrontExtras 的鍵依序取自七個欄位、與 frontmatterFieldOrder 不相交,Nothing/AiUnknown 不產生行 [✔]
+      passed 100 tests.
+    LAW-49: mergeFrontExtras a b == FrontExtras (mergeExtras (unFrontExtras a) (unFrontExtras b)) [✔]
+      passed 100 tests.
+  graph-core/F004(2026-08-25 第三輪,GAP-17):檔案層 extras Examples(EX-23-EX-29)
+    EX-23: newDocumentWith 帶 packFrontExtras npf,七欄逐欄等於給進去的值(含 author 巢狀子欄位) [✔]
+    EX-24(對著現行缺陷本體): 檔案層版的 EX-1 — updateFrontmatter 之後七個 pack 專屬欄位逐字保留 [✔]
+    EX-25: npf 七欄全 Nothing/AiUnknown 時,packFrontExtras 是空 extras,newDocumentWith 與 newDocument 逐位元組相同 [✔]
+    EX-26(對著現行缺陷本體): 檔案層版的 EX-6 — 未知欄位逐字保留,再呼叫一次冪等 [✔]
+    EX-27: updateFrontmatterExtras (mergeFrontExtras (packFrontExtras npf')) 只換 license,其餘不變 [✔]
+    EX-28: frontmatter 的 YAML 壞掉時 updateFrontmatterExtras 回 Left(FrontmatterYaml),docFrontRaw 不覆蓋 [✔]
+    EX-29: mergeFrontExtras 與 mergeExtras 的結果相等(wrapper 沒有第二份實作) [✔]
+
+Finished in 9.0378 seconds
+327 examples, 0 failures
+Test suite aapms-md-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\test\aapms-md-0.1.0.0-aapms-md-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+    LAW-13(property): 任意 projects\/llm\/tools\/原始文字,initVault 成功後只有 hubVaults 多一列 [✔]
+      passed 100 tests.
+    test_init_vault_appends_one_row_only (EX-14, LAW-13) [✔]
+    test_init_vault_persists_and_keeps_comments (EX-13, LAW-14) [✔]
+    test_init_vault_adopt_keeps_existing_files (EX-15, LAW-15) [✔]
+    test_init_vault_creates_empty_index (EX-11, LAW-17) [✔]
+    test_init_vault_init_failure_is_vault_init_failed (EX-41, LAW-44, E001 EX-7/REG-5): V 的父層被一般檔案佔用,initVaultAt 回 Left 時 initVault 轉成 VaultInitFailed 且不留半成品 [✔]
+  STEP-4/LAW-18-LAW-20/EX-18-EX-19: initVault 撞號(E001 LAW-4/LAW-5 用 initVaultWith 決定性重建)
+    test_init_vault_id_collision_carries_both_paths (EX-18, LAW-18, E001 EX-5/LAW-4): 用同一個明碼 t 決定性造出撞號,回傳的三個值逐欄相符 [✔]
+    test_init_vault_id_collision_rolls_back (EX-19, LAW-19, LAW-20, E001 EX-6/LAW-5): 撞號後 .aapms\/ 不存在、其餘檔案與中樞不變,重跑一次改用 initVault 得到 Right [✔]
+  E001 REG-2-REG-4,LAW-1-LAW-3,LAW-7/EX-1,EX-3,EX-4,EX-8,EX-9,EX-10: initVaultWith 明碼時間版本
+    test_init_vault_happy_path_alchbees_assets (EX-1, REG-3): 空目錄、AssetVault、"alchbees-assets"、FreshVault,initVault 成功,entry 四欄如 REG-3,中樞多一列 [✔]
+    test_init_vault_rejected_when_already_initialized_by_prior_init (EX-8, REG-2): 對 initVault 成功建出的目錄,換個名字、AdoptExisting 再呼叫一次 [✔]
+      REG-5: 同一個 name 連續兩次呼叫 initVaultAt(不同空目錄),vmId 不同 [✔]
+        passed 100 tests.
+    新 law(LAW-1-LAW-5:initVaultAtWith,骨架未實作,預期紅)
+    test_init_vault_takes_current_time_each_call (EX-9, REG-4): 同一個 name、兩個空目錄,連續兩次 initVault 得到不同的 veId [✔]
+    test_init_vault_with_same_time_same_id (EX-3, LAW-1): 同一個 t、兩個相異空目錄,兩次 initVaultWith 的 veId 相同 [✔]
+    prop_close_env_releases_cleanly (LAW-5): 對任意一串 withRead/withWrite,closeEnv 後新 env' 重跑仍成功,暫存目錄可刪除 [✔]
+      passed 100 tests.
+    test_close_env_then_reopen_example (EX-9): withRead 一串操作後 closeEnv,刪除整個暫存目錄,新 env' 重跑仍成功 [✔]
+  LAW-6/EX-10: closeEnv 冪等
+    prop_close_env_idempotent (LAW-6): 對任意成功開出的 env,closeEnv 兩次與一次不可區分(不丟例外) [✔]
+      passed 100 tests.
+    test_close_env_idempotent_example (EX-10) [✔]
+  LAW-7/EX-11: withEnv = openEnv + closeEnv
+      LAW-1: 任意 kind/name/t,兩個不同空目錄各呼叫一次 initVaultAtWith,vmId 相同 [✔]
+        passed 100 tests.
+    prop_with_env_matches_open_close (LAW-7): openEnv 成功時 f 恰呼叫一次且回 Right;openEnv 失敗時 f 不被呼叫,回相同的 Left [✔]
+      passed 100 tests.
+    test_with_env_failure_path_example (EX-11): openEnv 會失敗時 withEnv 回相同的 Left 且 f 一次都沒被呼叫 [✔]
+  LAW-8/EX-7: handleFor 快取命中不再開檔
+    LAW-1(property): 任意 kind\/name\/t\/兩個相異空目錄,initVaultWith 的 veId 相同 [✔]
+      passed 100 tests.
+    test_init_vault_with_id_matches_new_id_formula (EX-4, LAW-2): veId == VaultId (renderId (newId PVlt "liftgame" t 0)) [✔]
+      LAW-2: initVaultAtWith 成功時 vmId == VaultId (renderId (newId PVlt name t 0)) [✔]
+        passed 100 tests.
+    LAW-2(property): 任意 kind\/name\/t,veId 逐字等於 newId 公式 [✔]
+      passed 100 tests.
+    prop_handle_for_cache_hit (LAW-8): 對任意一個 vault,同一個 env 上第二次 handleFor 回相同的 vhRoot/vmId,即使中間把 marker 刪掉 [✔]
+      passed 100 tests.
+    test_handle_for_cache_hit_survives_deleted_marker (EX-7) [✔]
+  LAW-9/EX-8: handleFor 開啟失敗即短路
+      LAW-3: initVaultAt 與 initVaultAtWith(任意 t)的結果除 vmId 外逐欄相同,落地檔案相對路徑集合一致 [✔]
+        passed 100 tests.
+      LAW-4: initVaultAt 對父層被一般檔案佔住的路徑不拋 IOException [✔]
+      LAW-4b: initVaultAtWith 對父層被一般檔案佔住的路徑不拋 IOException [✔]
+      EX-5/LAW-5: 父層被一般檔案佔住,initVaultAt 回 Left (FileWriteFailed (markerDir root) msg),msg 非空,不拋例外 [✔]
+    Examples(EX-2/EX-3/EX-6:骨架未實作,預期紅)
+      EX-2: 兩個不同空目錄、同 StoryVault/"liftgame"/同一個 t,各呼叫一次 initVaultAtWith,兩次都 Right 且 vmId 相同 [✔]
+      EX-3: initVaultAtWith d StoryVault "liftgame" t 的 vmId == VaultId (renderId (newId PVlt "liftgame" t 0)) [✔]
+      EX-6: 同 EX-5,改呼叫 initVaultAtWith … t,回傳與 initVaultAt 的 Left 逐欄相同 [✔]
+graph-core/F006 Index
+  STEP-3: vaultMarkdownFiles
+    略過 . 開頭目錄與非 .md 檔,只回排序後的 .md 相對路徑 [✔]
+  STEP-14: fixture 健檢
+    story vault 與 asset vault 的全部檔案能被 parseDocument + 對應 to* 成功解析 [✔]
+  STEP-4: indexOne(經 indexFile 驗證,兩者對單檔行為一致)
+    story vault 的主題檔索引後,nodes 有主體(owner NULL)+ 片段(owner = 主體 id) [✔]
+    asset vault 的 pack.md 索引後,nodes/assets 有 pack(owner NULL)+ 全部 asset(owner = pack id),含 status = missing 的那筆 [✔]
+    父節點不存在的 Level fixture 索引結果含 TreeInvalid,nodes 沒有該檔案的殘留 [✔]
+    YAML 壞掉的檔案索引結果含 ParseFailed,nodes 沒有殘留 [✔]
+    prop_handle_for_open_failure_short_circuits (LAW-9): 對任意指向非 vault 目錄的 ref,handleFor 以 StoreFailed 短路,後續動作不被執行 [✔]
+      passed 100 tests.
+    test_handle_for_manual_ref_example (EX-8) [✔]
+  LAW-10: indexIssuesFor 與開啟同步
+    兩個不同檔案的 asset 撞同一個 name,後索引的整檔回滾並回 DuplicateAssetName,先索引的保留 [✔]
+  STEP-5: indexFile / unindexFile
+    對已索引的檔案改內容後重新 indexFile,舊記錄被整檔替換而非疊加 [✔]
+    unindexFile 後該檔案的 nodes/assets/links/node_tags 等全部記錄消失,files 也消失 [✔]
+    對不存在的路徑呼叫 unindexFile 不報錯 [✔]
+graph-core/F006 rebuildIndex
+  STEP-6: story vault 與 asset vault 各跑兩次 rebuildIndex,listNodes/linksFrom/childrenOf 結果相同 [✔]
+  STEP-6: fixture 混入一個解析失敗的檔案,rebuildIndex 仍把其餘檔案正確索引且回傳含該筆 IndexIssue [✔]
+graph-core/F006 過時偵測與 rm index.db 等價
+  STEP-7: rm index.db 後 openVault + rebuildIndex 與刪除前的 listNodes/linksFrom 結果相同 [✔]
+  STEP-7: 只改一個檔案的 mtime/size,refreshStale 只重讀那一個,其餘檔案不受影響 [✔]
+  STEP-7: 索引後刪除磁碟上一個檔案,refreshStale 把該檔案的記錄移除 [✔]
+graph-core/F006 Query
+  STEP-8: NodeFilter
+    nfStatus = [] 排除 status = missing 的 asset,[Missing] 才回 [✔]
+    nfNamedOnly = True 只回 assets.name 非 NULL 的節點 [✔]
+    pack 路徑含 library/reference/ 的 fixture 預設被排除,nfIncludeReference = True 才回 [✔]
+    nfPrefixes/nfTypes/nfTags 組合驗證交集語意 [✔]
+  STEP-12: linksFrom / linksTo / loadLinkGraph
+    story vault 兩條關聯:linksFrom 依來源查、linksTo 依目標查(含 Meta 正確)、loadLinkGraph 一致 [✔]
+    空 vault 的 loadLinkGraph 不炸(asset vault 內全部關聯只在 links 欄位有值時才進圖) [✔]
+graph-core/F006 lookupNode / lookupByName / childrenOf
+  STEP-9: lookupNode 七種 prefix
+    PEnt(主體):回 NEntity,body 來自檔案的 docPreamble [✔]
+    PEnt(片段):回 NEntity,body 來自該節 [✔]
+    PAst:回 NAsset,索引欄位(name/sha256/entry)與回讀的 body 都正確 [✔]
+    PPck:回 NPack,body 為容器的 docPreamble [✔]
+    PLic:回 NLicense,純索引查詢(不回讀檔案) [✔]
+    PLvl:回 NLevel,lvlRoot 正確 [✔]
+    PNod:回 NNode,nodParent/nodOrder/nodKind/nodEntities 正確 [✔]
+    vlt-/prj- 開頭的 id 回 Nothing [✔]
+  STEP-10: lookupByName
+    已命名的 asset 查得到,未命名或不存在的名稱回 Nothing [✔]
+  STEP-11: childrenOf
+    對 pack id 回全部 asset、對主體 entity id 回全部片段,對沒有子節點的 id 回 [] [✔]
+graph-core/F006 Row
+  STEP-2: nodeFields 寫入 nodes + 附屬表後,hydrateMeta 讀回的 Meta 與原值相等 [✔]
+  STEP-2: parseDocKind . renderDocKind 對四種 DocKind 是 identity [✔]
+graph-core/F007 Tokenize
+  LAW-1-LAW-6: 字元判定與 CJK 預切(純函式)
+    LAW-1: cjkSegment 的每個 token 只由 isCjk 為真的字元組成,長度 1 或 2 [✔]
+      passed 100 tests.
+    LAW-2: 原文每個 CJK 字元都以一個長度 1 的 token 依序出現在 cjkSegment 裡 [✔]
+      passed 100 tests.
+    LAW-3: 長度 2 token 的多重集合 = 對每段 cjkRuns 取相鄰重疊字元對的多重集合 [✔]
+      passed 100 tests.
+    LAW-5: 不含 CJK 字元的文字(含空字串),cjkSegment 為空、hasCjk 為否 [✔]
+      passed 100 tests.
+    LAW-6: hasCjk t == T.any isCjk t == not (null (cjkRuns t)) [✔]
+      passed 100 tests.
+  LAW-7/LAW-8: 六欄投影(對 fixture vault 裡的每個既有節點逐一驗證。AnyNode/Meta/Entity/Asset 等 core 型別未給 deriving 子句,不確定有沒有 Show,避免依賴 hedgehog forAll 的 Show 限制,改用窮舉)
+    LAW-7: rawFtsText 的 ftTitle/ftSummary/ftAliases/ftTags/ftName/ftBody 符合投影規則 [✔]
+    LAW-8: ftsRowOf 的 frTri 是原文、frCjk 是 segmentFtsText 的結果 [✔]
+    LAW-8: segmentFtsText 的每一欄等於對應欄套用 cjkSegment 的結果 [✔]
+      passed 100 tests.
+  LAW-9-LAW-11: 查詢路由與 MATCH/字面字串運算式
+    LAW-9: usesTrigram/usesCjk 由 strip 後的字串長度與 hasCjk 決定 [✔]
+      passed 100 tests.
+    LAW-10: cjkMatchExpr/triMatchExpr 的 Just 條件 [✔]
+      passed 100 tests.
+    LAW-11: ftsQuoted 首尾各一個雙引號、內容跳脫;ftsPhrase == ftsQuoted . unwords . words [✔]
+      passed 100 tests.
+  Examples
+    EX-1: cjkSegment "金門建築" == "金 門 建 築 金門 門建 建築" [✔]
+    EX-2: cjkSegment "台灣 日本" == "台 灣 日 本 台灣 日本"(bigram 不跨越空白) [✔]
+    EX-3: 純 ASCII / 空字串 / 單一 CJK 字元 [✔]
+    EX-4: routeOf 三條路由各一 [✔]
+    EX-5: ftsQuoted 的 "-" 不被當 NOT、雙引號加倍跳脫 [✔]
+graph-core/F007 search
+  LAW-12-LAW-15/LAW-19/LAW-24: search 的通用行為(property)
+    LAW-12: 無文字條件(Nothing 或去頭尾空白後為空字串)時退化成 listNodes,分數與片段皆為預設值 [✔]
+      passed 100 tests.
+    LAW-13: 有文字條件時,每筆命中的 shScore > 0 [✔]
+      passed 100 tests.
+    LAW-14: 命中節點 id 兩兩相異、分數非遞增、同分時 id 遞增、重複查詢逐筆相同 [✔]
+      passed 100 tests.
+    LAW-15: srTotal 與分頁無關,srTotal >= 命中數,命中數 <= nfLimit [✔]
+      passed 100 tests.
+    LAW-19: 每筆 shVault 等於本 vault 的 vmId [✔]
+      passed 100 tests.
+    LAW-24: 純 ASCII 查詢字串,search 對 t 與對 T.toUpper t 回相同的 srHits [✔]
+      passed 100 tests.
+  LAW-20-LAW-22: 索引維護與 search 的一致性
+    LAW-3(property): 任意 kind\/name\/t,initVault 與 initVaultWith 除 veId\/vePath 外逐欄相同(薄包裝等價) [✔]
+      passed 100 tests.
+    test_init_vault_with_init_failure_is_vault_init_failed (EX-10, LAW-7): V 的父層被一般檔案佔用,initVaultAtWith 回 Left 時 initVaultWith 轉成 VaultInitFailed 且不留半成品 [✔]
+  STEP-5/LAW-16/EX-15-EX-17: AdoptNotice
+    test_adopt_notice_lists_legacy_markers (EX-15, LAW-16) [✔]
+    test_adopt_notice_order_is_fixed (EX-16, LAW-16) [✔]
+    LAW-20: 對同一檔案連續 indexFile 兩次,search vh q 的結果與只做一次時相同 [✔]
+    test_adopt_notice_is_not_recursive (EX-17, LAW-16) [✔]
+  STEP-6/LAW-21-LAW-24/EX-20-EX-24: addVault
+    test_add_vault_identity_from_marker (EX-20, LAW-21) [✔]
+    test_add_vault_unreadable_marker_is_hard_failure (EX-23, LAW-22) [✔]
+    LAW-21: unindexFile 之後,該檔案的節點不再出現在任何 search 結果的 srHits 裡 [✔]
+    test_add_vault_is_idempotent (EX-21, LAW-23) [✔]
+    test_add_vault_updates_path_on_move (EX-22, LAW-23) [✔]
+    test_add_vault_touches_nothing (EX-24, LAW-24) [✔]
+  STEP-7/LAW-25-LAW-30/EX-25-EX-29: forgetVault
+    LAW-22: schema_version 被改壞後重開 + rebuildIndex,search 結果不變且回報一筆 SchemaRebuilt [✔]
+  Examples
+    test_forget_vault_selector_rules (EX-25, LAW-25) [✔]
+    EX-6: 二字中文"藥水"命中含"魔法藥水瓶"的節點,snippet 含"藥水"(契約卡驗收標準) [✔]
+    EX-7: 二字中文"琳達"命中同名角色主體(契約卡驗收標準) [✔]
+    EX-8: 英文子字串"travel-book"命中 name 含該字串的 asset("-" 不被當運算子) [✔]
+    EX-9: 三字以上中文"魔法藥水"走 trigram 並有分數 [✔]
+    EX-10: 節點的 title 同時含"藥水"與 potion,查詢"藥水 potion" 只回一筆 [✔]
+    LAW-25(property): forgetVault 選中的列(或失敗)與 lookupSelector 的結果一致 [✔]
+      passed 100 tests.
+    test_forget_vault_selector_failure_has_no_side_effects (EX-26, LAW-26) [✔]
+    EX-12: emptySearchQuery 退化成純結構查詢 [✔]
+    test_forget_vault_keep_index (EX-27, LAW-27, LAW-30) [✔]
+    EX-13: 查無此文字時 srHits 為空、srTotal 為 0,不是錯誤 [✔]
+    test_forget_vault_delete_index_only_removes_index (EX-28, LAW-28) [✔]
+    EX-14: 純 ASCII 二字查詢"ui"因雙索引的已知代價回空結果(LIKE 已退場) [✔]
+graph-core/F007 facet
+    test_forget_vault_missing_index_is_ok (EX-29, LAW-29, LAW-30) [✔]
+  STEP-8/LAW-31-LAW-33/EX-30-EX-32: checkVaults
+    test_check_vaults_lists_issues_in_order (EX-30, LAW-31) [✔]
+  LAW-16: sqFacets 控制 srFacets 的 Just/Nothing;True 時 fcVaults 恰一筆,等於本 vault 的 vmId、計數等於 srTotal [✔]
+    passed 100 tests.
+    test_check_vaults_writes_nothing (EX-31, LAW-32) [✔]
+    test_check_vaults_does_not_expand_refs (EX-32, LAW-33) [✔]
+  STEP-9/LAW-34-LAW-36/EX-33-EX-36: syncHub
+    test_sync_hub_fixes_name_and_kind_only (EX-33, LAW-34) [✔]
+    test_sync_hub_issues_match_check_vaults (EX-34, LAW-34, LAW-35) [✔]
+    test_sync_hub_no_drift_no_write (EX-35, LAW-36) [✔]
+    test_sync_hub_never_writes_marker (EX-36, LAW-36) [✔]
+  STEP-10/LAW-37-LAW-41/EX-37-EX-40: purge
+    test_purge_hub_only_scope (EX-37, LAW-37) [✔]
+  LAW-17: facet 計數不受該 facet 自己的過濾條件影響(nfTypes/nfTags/nfOwner/nfLicense) [✔]
+    passed 100 tests.
+    test_purge_hub_only_leaves_vaults_alone (LAW-38) [✔]
+  LAW-18: fcTags/fcTypes/fcOwners/fcLicenses 每一筆的計數,等於疊加該值後的 listNodes 筆數(facet 受其他條件影響,不受自己影響) [✔]
+    test_purge_all_vaults_removes_indexes_only (EX-38, LAW-39, LAW-40) [✔]
+  EX-11: 有資料的 vault 開 facet,五個維度皆非空,fcVaults 恰一筆 [✔]
+graph-core/F008 LAW-15 renderStoreError 涵蓋 StoreError 全部 21 個建構子
+  LAW-15(非空):既有 6 個(F005,骨架已實作,應為綠)
+    VaultMarkerMissing 的 renderStoreError 非空 [✔]
+    VaultMarkerInvalid 的 renderStoreError 非空 [✔]
+    VaultAlreadyInitialized 的 renderStoreError 非空 [✔]
+    FileReadFailed 的 renderStoreError 非空 [✔]
+    FileWriteFailed 的 renderStoreError 非空 [✔]
+    SqliteError 的 renderStoreError 非空 [✔]
+  LAW-15(非空):新增 15 個(F008,骨架 undefined,應為紅)
+    NodeNotFound 的 renderStoreError 非空 [✔]
+    SectionMissing 的 renderStoreError 非空 [✔]
+    RevisionMismatch 的 renderStoreError 非空 [✔]
+    MdWriteFailed 的 renderStoreError 非空 [✔]
+    TreeInvalidOnWrite 的 renderStoreError 非空 [✔]
+    IndexUpdateFailed 的 renderStoreError 非空 [✔]
+    FileAlreadyExists 的 renderStoreError 非空 [✔]
+    RegistryDirUnknown 的 renderStoreError 非空 [✔]
+    NotAnAsset 的 renderStoreError 非空 [✔]
+    NotALicense 的 renderStoreError 非空 [✔]
+    BadSectionPayload 的 renderStoreError 非空 [✔]
+    LinkNotFound 的 renderStoreError 非空 [✔]
+    ReferencedBy 的 renderStoreError 非空 [✔]
+    CannotDeleteRootNode 的 renderStoreError 非空 [✔]
+    NodeDepthExceeded 的 renderStoreError 非空 [✔]
+  LAW-15(含以「請」起頭的子句,全部 21 個建構子一視同仁,無例外——2026-08-25 GAP-7 裁決)
+    VaultMarkerMissing 含以「請」起頭的子句 [✔]
+    VaultMarkerInvalid 含以「請」起頭的子句 [✔]
+    VaultAlreadyInitialized 含以「請」起頭的子句 [✔]
+    FileReadFailed 含以「請」起頭的子句 [✔]
+    EX-39: 其中一個 vault 的 index.db 事先刪掉;purge PurgeAllVaults 只列另一個 [✔]
+    FileWriteFailed 含以「請」起頭的子句 [✔]
+    SqliteError 含以「請」起頭的子句 [✔]
+    NodeNotFound 含以「請」起頭的子句 [✔]
+    SectionMissing 含以「請」起頭的子句 [✔]
+    RevisionMismatch 含以「請」起頭的子句 [✔]
+    MdWriteFailed 含以「請」起頭的子句 [✔]
+    TreeInvalidOnWrite 含以「請」起頭的子句 [✔]
+    IndexUpdateFailed 含以「請」起頭的子句 [✔]
+    FileAlreadyExists 含以「請」起頭的子句 [✔]
+    RegistryDirUnknown 含以「請」起頭的子句 [✔]
+    NotAnAsset 含以「請」起頭的子句 [✔]
+    NotALicense 含以「請」起頭的子句 [✔]
+    BadSectionPayload 含以「請」起頭的子句 [✔]
+    LinkNotFound 含以「請」起頭的子句 [✔]
+    ReferencedBy 含以「請」起頭的子句 [✔]
+    CannotDeleteRootNode 含以「請」起頭的子句 [✔]
+    NodeDepthExceeded 含以「請」起頭的子句 [✔]
+  EX-16: renderStoreError (VaultMarkerMissing "/tmp/v") 非空,且含以「請」起頭的子句 [✔]
+  EX-17: renderStoreError (SqliteError "no such table: nodes") 逐字等於新原文(GAP-7 裁決要改的既有訊息;改之前為紅,改完轉綠) [✔]
+  LAW-15 涵蓋的範圍是 StoreError 全部 21 個建構子(對帳用計數) [✔]
+graph-core/F008 Aapms.Store.Node (內部模組) + sanitizeFileName
+  LAW-21: headingDepthFor
+    對 goodLevelMd 裡每一個實際存在的節點,結果等於 secLevel + 1(或超過六級時回 NodeDepthExceeded) [✔]
+    父節點不在文件裡時回 Left (SectionMissing _ p) [✔]
+    EX-14 對應:六級標題(最深)底下再插入,回 NodeDepthExceeded _ 7 [✔]
+  LAW-22: subtreeIds 與 subtreeAfter 一致
+    對文件裡每一個實際節點與一個不存在的 id 都滿足 subtreeIds == i : map secId (subtreeAfter …),且子樹每節 secLevel 都嚴格大於 i 的 secLevel [✔]
+    序幕(根,2級)的子樹依序是開場、深一、深二、最深、收束(五節皆在其後且 secLevel > 2) [✔]
+    開場(3級)的子樹是深一、深二、最深(收束是它的兄弟,3級不 >3,不算子節點) [✔]
+    收束(3級,檔尾)的子樹為空 [✔]
+  LAW-23: validateLevelDoc 等價於「toLevel 成功且 buildTree 回 Right」
+    合法的 Level 檔:validateLevelDoc 回 Right () [✔]
+    雙根的 Level 檔:validateLevelDoc 回 Left (TreeInvalidOnWrite _ _) [✔]
+  LAW-24 / EX-18: isRootNode 的三種結果(2026-08-25 GAP-9 裁決)
+    EX-18 之一:id 是根(序幕,文件裡第一個節)→ Right True [✔]
+    EX-18 之二:id 存在但不是根(開場)→ Right False [✔]
+    EX-18 之三:id 不在文件裡 → Left (SectionMissing path id),不是 Right False(與 headingDepthFor 對稱) [✔]
+    LAW-24:對文件裡每一個實際節點,isRootNode 恰為 Right (secId == 該檔第一個節的 id) [✔]
+  LAW-20 / EX-11 / EX-19 / EX-20 / EX-21: sanitizeFileName(2026-08-25 GAP-13 裁決:替換策略,清空定義收窄)
+    EX-11: sanitizeFileName "第一章: 序幕 " "ent-7f3b2a91" == "第一章- 序幕" [✔]
+    EX-19: 全空白 / 全句點的 t 才算被清空 → 回 fb [✔]
+    EX-20: 全非法字元 → 對應數量的 "-"(不是 fb;GAP-13 裁決的分岔點) [✔]
+    EX-21: 只含合法字元、無頭尾空白/句點時逐字回傳(含詞中空白) [✔]
+    LAW-20 第 2 條:t 的每個字元都是空白或句點時(機械定義的「被清空」),結果等於 fb [✔]
+      passed 100 tests.
+    LAW-20 第 4 條:t 只含合法字元且無頭尾空白/句點時結果等於 t [✔]
+      passed 100 tests.
+    LAW-20 第 1 條:對任意 t 與合法 fb,結果不含非法字元/控制字元,且不以空白或句點開頭/結尾 [✔]
+      passed 100 tests.
+    LAW-20 第 3 條:t 只由非法字元組成時,r 是對應數量的 "-"(不算被清空,不回 fb) [✔]
+      passed 100 tests.
+graph-core/F008 Aapms.Store.Edit(內部模組)
+  LAW-1(部分): checkRevision
+    r == a 時回 Right () [✔]
+    r /= a 時回 Left (RevisionMismatch i r a) [✔]
+    對任意 i、r、a:checkRevision i r a == Right () 若且唯若 r == a,否則為 Left (RevisionMismatch i r a) [✔]
+      passed 100 tests.
+  LAW-19: sectionBodyRaw
+    對任意非空白 t 與行尾風格 le:sectionBodyRaw le t 以 renderLineEnding le 開頭且結尾,且 strip 後等於 T.strip t [✔]
+      passed 100 tests.
+  LAW-2 / LAW-16 / LAW-18(直接呼叫 commit)
+    test_purge_never_touches_library_or_md (LAW-40): 任何 PurgeScope 下 library\/ 與 .md 都不受影響 [✔]
+    test_purge_is_idempotent (EX-40, LAW-41) [✔]
+  STEP-11/LAW-43: 七個函式合起來的檔案系統足跡
+    commit 寫入 renderDocument 的位元組、回傳的 wrRevision 與傳入值一致,且 files 表裡其他檔案的 (path, mtime, size) 不變 [✔]
+graph-core/F008 Aapms.Store.Create
+  EX-1 / LAW-10: createTopicFile
+    EX-1: 落點依註冊表 dir,crPath = characters/琳達.md,crRevision = Revision 1,toTopic 解得 metaTitle == 琳達 [✔]
+    test_lifecycle_filesystem_footprint (LAW-43): 一組涵蓋七個函式的操作序列,(i)-(iv) 之外的路徑一個都沒動 [✔]
+  STEP-12/LAW-45-LAW-47/EX-42-EX-45: WAVE-4 裁決 B——刪索引前的身分驗證
+    test_forget_vault_delete_index_rejects_id_drift (EX-42, LAW-45b) [✔]
+    LAW-10: 對已知型別建檔,crPath 以該 dir 為前綴、以 .md 結尾;未知型別回 Left (RegistryDirUnknown t) 且不新增任何檔案 [✔]
+  EX-2 / LAW-11: createLevelFile
+    test_forget_vault_keep_index_ignores_drift (EX-43, LAW-45 KeepIndex 分支) [✔]
+    EX-2: 產生 levels/第一章.md;toLevel 回 Level 與恰好一個 Node,lvlRoot == 該 Node 的 metaId,根節點標題層級為 2 [✔]
+    test_purge_all_vaults_is_all_or_nothing (EX-44, LAW-46) [✔]
+    test_delete_index_still_proceeds_when_marker_unreadable (EX-45, LAW-45a, LAW-47) [✔]
+  LAW-42(預期綠): 依賴方向與職責界線,以 import 行驗證
+    test_lifecycle_no_sibling_imports (a): 本套件內的 import 只能是 Types\/Location\/Hub\/Discovery [✔]
+    test_lifecycle_marker_import_is_exact (E001 LAW-6,取代 F004 LAW-42(b)): 若有 import Aapms.Store.Marker,必須逐字是 "import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)" [✔]
+    test_lifecycle_schema_import_is_type_only (c): 骨架階段起就是實斷言,只取 VaultKind [✔]
+    test_lifecycle_never_imports_atomic (d): 完全不得 import Aapms.Store.Atomic [✔]
+    test_lifecycle_never_imports_index_modules (e): 完全不得 import Store 門面\/Index\/MultiVault\/Query\/Write\/Create\/Edit [✔]
+    test_lifecycle_no_process_import (f): 完全不得 import System.Process [✔]
+F005 Aapms.Workspace.Projects
+  STEP-1/LAW-1-LAW-3/EX-1-EX-5: allocateProjectId 純函式配號
+    test_allocate_project_id_no_collision_uses_salt_zero (EX-1, LAW-1, LAW-2): 沒撞就是 salt 0 [✔]
+    test_allocate_project_id_retries_on_collision (EX-2, LAW-2): 撞號跳到 salt 1,不是照發 salt 0 [✔]
+      passed 100 tests.
+    test_allocate_project_id_retries_twice (EX-3, LAW-2): salt 0/1 都撞了,得到 salt 2 [✔]
+      passed 100 tests.
+    test_allocate_project_id_ignores_other_fields (EX-4, LAW-3): peName/pePath 換成任何值,結果不變 [✔]
+      passed 100 tests.
+    test_allocate_project_id_shape_is_prj_plus_8_hex (EX-5, LAW-1): 對任意 existing/nm/t 恒成立 [✔]
+      passed 100 tests.
+  STEP-2/LAW-6,LAW-7,LAW-9,LAW-15,LAW-16/EX-9-EX-13,EX-17,EX-28-EX-30: registerProject 前置檢查
+    test_register_project_blank_name_is_invalid_name (EX-9, LAW-6, LAW-15, LAW-16): 全空白名稱 [✔]
+    test_register_project_empty_name_is_invalid_name (EX-10, LAW-6): 空字串 [✔]
+    LAW-11: 對多組標題,crPath 皆以 levels/ 為前綴,toLevel 成功、恰有一個 Node [✔]
+  EX-3 / LAW-9: createPackFile
+    test_register_project_missing_path (EX-11, LAW-7): 路徑不存在 [✔]
+    test_register_project_file_path_is_missing (EX-12, LAW-7): 路徑是普通檔案,不是目錄 [✔]
+    test_register_project_name_checked_before_path (EX-13, LAW-6): 名稱與路徑都錯,回 InvalidName [✔]
+    test_register_project_failure_writes_nothing (LAW-15, LAW-16): 三種前置檢查失敗都不寫任何檔案 [✔]
+    test_register_project_same_path_twice_is_already_registered (EX-17, LAW-9, LAW-16) [✔]
+    test_register_project_already_registered_detects_other_spelling (EX-28, LAW-9): 兩種寫法正規化成同一個字串 [✔]
+    test_register_project_does_not_renormalize_existing_rows (EX-29, LAW-9): 手寫未正規化路徑擋不住重複 [✔]
+    test_render_already_registered_has_id_and_path (EX-30, LAW-9): 訊息同時含 id 與路徑 [✔]
+  STEP-3/LAW-4,LAW-5,LAW-8,LAW-10/EX-6-EX-8,EX-14-EX-16,EX-18: registerProject 主線
+    test_register_project_success_fields (EX-6, LAW-4, LAW-5): 成功時四個欄位與其餘三段不變 [✔]
+    test_register_project_appends_at_end (EX-7, LAW-4d): 追加到既有列的末尾,既有列原樣 [✔]
+    EX-3: [sA,sB,sC](皆 NSAsset)保留給定順序 [✔]
+    test_register_project_stores_trimmed_name (EX-8, LAW-4b): 存進去的是去空白後的名稱 [✔]
+    test_register_project_normalizes_path (EX-14, LAW-4c): . / .. 被正規化,存進去的是絕對路徑 [✔]
+    test_register_project_roundtrips_through_load_hub (EX-15, LAW-8): 成功後 loadHub 讀得回同一份 projects [✔]
+    LAW-9: 對不同長度/順序的 [NewSection],toPack 解回的 asset 順序與長度都等於給定的 xs [✔]
+  LAW-25 / EX-22: createPackFile 的 pack 專屬七欄往返(GAP-17,現在會紅,見模組說明)
+    prop_index_issues_for_synced_with_open (LAW-10): 開啟前回 []、開啟後回這個全新 vault 首次開啟必有的 SchemaRebuilt [✔]
+      passed 100 tests.
+  LAW-11/EX-12: runService 互斥
+    EX-22: 七個 pack 專屬欄位全給非預設值,重讀後 toPack 解出的 Pack 七欄逐欄等於傳入的 NewPack [✔]
+  LAW-12a: addSection AtEnd 追加在檔尾、不動前面既有節(GAP-14 裁決:插入點前一段允許 blankTail 補行尾)
+    對主題檔追加一個片段:插入點之前的既有節(ent-00000003)至多差在補行尾,更早的節(ent-00000002)逐位元組不變,新節排在最後,toTopic 仍成功 [✔]
+  EX-10: addSection payload 與文件種類不符
+    對 pack.md 傳 NSFragment payload,回 Left (BadSectionPayload (nsId s) PackDoc),檔案不變 [✔]
+  LAW-12b / EX-12 / LAW-12c / EX-13 / EX-14: addSection UnderParent
+    EX-12/LAW-12b: 插在「開場」之後、「收束」之前;nsLevel(呼叫端故意給 2)被 headingDepthFor 推導的 4 覆寫;插入點之後逐位元組不變,插入點前一段(開場)至多差在補行尾 [✔]
+    EX-13: 父節點不在檔案裡,回 Left (SectionMissing path p),檔案不變 [✔]
+    EX-14: 父節點已是六級標題,回 Left (NodeDepthExceeded p 7),檔案不變 [✔]
+  EX-8: deleteNode 根 Node 刪不得(兩種模式皆擋)
+    DeleteSafe 與 DeleteForce 皆回 Left (CannotDeleteRootNode root),檔案不變 [✔]
+  LAW-13: deleteNode 的兩種模式(以主題檔的檔案層主體為目標)
+    DeleteSafe 對被引用的目標回 Left (ReferencedBy …) 且檔案不變;DeleteForce 照刪,drRemovedIds/drBrokenLinks 正確,檔案消失 [✔]
+graph-core/F008 Aapms.Store.Write
+  EX-5 / LAW-1 / LAW-2 / LAW-3: writeMeta
+    revision 不符時拒絕且檔案不變;revision 相符時 +1、重讀相符、其他節位元組不變 [✔]
+  locate(經由 writeMeta 間接驗證,見 Aapms.Store.EditSpec 對 locate 的說明)
+    目標 id 不在索引裡時,回 Left (NodeNotFound i) [✔]
+  EX-4 / LAW-4 / LAW-5: writeAssetFields
+    三態語意(不動/清空/設值)正確,且 sha256/entry/ext/kindMeta/body 全程不變 [✔]
+  EX-9 / LAW-3: writeBody
+    換掉 asset 節的正文,不吃掉 sha256/entry 等 payload 欄位,其他節位元組不變 [✔]
+  LAW-6 / LAW-7 / EX-7: addLink / removeLink
+    LAW-6: addLink 再 removeLink 同一筆關聯後,linksFrom 回到最初;檔案位元組除 revision/updated 外不變 [✔]
+    test_register_project_roundtrips_with_control_char_names (LAW-8): 完整定義域,含換行/tab/其他控制字元 [✔]
+      passed 100 tests.
+    test_register_project_preserves_comments_and_vaults (EX-16, LAW-5, LAW-8): 手寫的註解與 [[vaults]] 逐字保留 [✔]
+    test_register_project_save_failure_is_forwarded (EX-18, LAW-10, LAW-16): 中樞目錄不存在,原樣轉發 HubWriteFailed [✔]
+  STEP-4/LAW-11,LAW-12(b)(c),LAW-13,LAW-14/EX-19,EX-21-EX-25,EX-31: forgetProject selector
+    test_forget_project_id_beats_name (EX-19, LAW-11): id 命中時 name 完全不參與 [✔]
+    test_forget_project_ambiguous_name_lists_all (EX-21, LAW-12b): 撞名回 Ambiguous,列出全部 [✔]
+    test_forget_project_ambiguous_id_lists_all (EX-31, LAW-12b): mkHub 造出的重複 peId,兩階段同一套規則 [✔]
+    test_forget_project_ambiguous_removes_nothing (EX-21, LAW-12b): 撞名時中樞一列都沒少 [✔]
+    test_forget_project_not_found (EX-22, LAW-12c): 兩階段都沒命中 [✔]
+    EX-7/LAW-7: removeLink 對沒有的關聯回 Left (LinkNotFound i l),檔案不變 [✔]
+  LAW-8: upsertLicense
+    test_forget_project_is_case_sensitive (EX-23, LAW-13): 大小寫不同視為不命中 [✔]
+    test_forget_project_does_not_trim (EX-24, LAW-13): 前後空白視為不命中 [✔]
+    讀回相等(除 licMeta 的 metaRevision/metaUpdated 與 licFullText 外);對同一個 id 呼叫兩次節數不變 [✔]
+  LAW-14 / EX-6 / EX-15 / LAW-14b: allocateId(2026-08-25 GAP-8 裁決:t 是明碼參數)
+    test_forget_project_never_matches_without_exact_equality (LAW-13): 任意不逐字相等的 selector 都不命中 [✔]
+      passed 100 tests.
+    LAW-14: 固定同一個 t,連續呼叫 3 次(每次把結果寫進索引)全部成功、互異、idPrefix 皆等於 prefix [✔]
+    EX-6: 索引裡已存在 newId p c t 0 / newId p c t 1(同一個 t),allocateId vh p c t 回 Right (newId p c t 2) [✔]
+    EX-15/LAW-14b: nodes 表被 DROP 掉時,allocateId 回 Left (SqliteError _),不是 Right [✔]
+graph-core/F008 LAW-17 ADR-022 寫鎖預算(結構約束,可讀原始碼判定)
+  四個檔案的程式碼(排除 -- 註解)withTransaction 出現 0 次,不出現字面量 "BEGIN" / "COMMIT" [✔]
+  Database.SQLite.Simple 只在 Aapms.Store.Edit 與 Aapms.Store.Write 被 import(Node/Create 不 import) [✔]
+graph-core/F009 MultiVault
+  建立、上限與生命週期
+    LAW-1: 去重與上限(maxAttachedVaults == 10)
+      maxAttachedVaults == 10 [✔]
+      10 個兩兩相異的 vault 成功,vaultSetIds 依原順序 [✔]
+    test_forget_project_ignores_other_sections (EX-25, LAW-14): 回傳的 ProjectEntry 只由 [[projects]] 與 selector 決定 [✔]
+      passed 100 tests.
+  STEP-5/LAW-12(a),LAW-15,LAW-16/EX-20,EX-26,EX-27: forgetProject 主線
+      11 個兩兩相異的 vault -> TooManyVaults 11 10 [✔]
+    test_forget_project_removes_only_that_row (EX-20, LAW-12a): 只刪那一列,其餘三段不變 [✔]
+    test_forget_project_leaves_project_dir_untouched (EX-20, LAW-15): 專案目錄完全未動 [✔]
+    test_forget_project_roundtrips_through_load_hub (EX-26, LAW-12a, LAW-8): 成功後 loadHub 讀得回剩下那一列 [✔]
+    test_forget_project_save_failure_is_forwarded (EX-27, LAW-10): 中樞目錄不存在,原樣轉發且沒有落地 [✔]
+  LAW-17(預期綠): 依賴方向與職責界線,以 import 行驗證
+    test_projects_no_sibling_or_vault_imports(a): 本套件內的 import 只能是 Aapms.Workspace.Types 或 Aapms.Workspace.Hub [✔]
+    test_projects_never_imports_store(b): 完全不得出現任何 import Aapms.Store 開頭的行 [✔]
+    test_projects_core_id_import_is_allocation_only(c): 若有 import Aapms.Core.Id,匯入清單只能是 {Id, IdPrefix (PPrj), newId, renderId} 的子集 [✔]
+    test_projects_no_process_import(d): 完全不得 import System.Process [✔]
+    test_projects_never_reads_manifests(e): 除 Aapms.Core.Id 外不得 import 任何 Aapms.Core. 開頭的行,也不得 import Data.Aeson [✔]
+F006 Aapms.Workspace.Tools
+  Examples (EX-1-EX-16): detectSevenZipIn / detectSevenZip
+    test_ex1_override_hit_short_circuits (EX-1; LAW-1,LAW-2,LAW-5,LAW-6a,LAW-13) [✔]
+    test_ex2_override_hit_ignores_plan (EX-2; LAW-2) [✔]
+    test_ex3_override_miss_continues_to_path (EX-3; LAW-1,LAW-3,LAW-6b,LAW-7a) [✔]
+    test_ex4_path_layer_hit_second_dir (EX-4; LAW-1,LAW-6b,LAW-10) [✔]
+    test_ex5_probe_order_name_outer_dir_inner (EX-5; LAW-1,LAW-10) [✔]
+    test_ex6_candidate_layer_hit (EX-6; LAW-1,LAW-6c,LAW-10) [✔]
+    test_ex7_not_found_when_all_layers_miss (EX-7; LAW-4,LAW-5,LAW-12,LAW-13) [✔]
+    test_ex8_directory_never_qualifies (EX-8; LAW-7c,LAW-9) [✔]
+    test_ex9_non_executable_file_never_qualifies (EX-9; LAW-7b,LAW-9) [✔]
+    test_ex10_same_path_across_layers_dedupes (EX-10; LAW-9) [✔]
+    test_ex11_missing_path_dirs_do_not_throw_or_get_created (EX-11; LAW-11a,LAW-12) [✔]
+    test_ex12_never_executes_the_found_file (EX-12; LAW-11) [✔]
+    test_ex13_paths_are_verbatim_relative (EX-13; LAW-8) [✔]
+    test_ex14_paths_are_verbatim_windows_absolute (EX-14; LAW-8) [✔]
+    test_ex15_real_entry_matches_injected_plan (EX-15; LAW-14) [✔]
+    test_ex16_real_entry_config_override_short_circuits (EX-16; LAW-2,LAW-14) [✔]
+  Laws (property tests)
+      *非退化*:同一個 vault(同路徑)重複到清單長度 > 上限,但去重後 <= 上限時仍成功 [✔]
+    LAW-1b: 撞號(VaultIdCollision),優先於上限
+      兩個不同路徑帶著相同 vmId,且清單長度 <= 上限時 -> Left (VaultIdCollision v p q) [✔]
+    prop_matches_spec_model(LAW-1,LAW-4,LAW-5,LAW-6,LAW-9,LAW-10,LAW-13): 任意 world,detectSevenZipIn 與獨立翻譯 spec 的模型逐欄相同 [✔]
+      passed 100 tests.
+      *非退化*:撞號且清單長度 > 上限時仍是 VaultIdCollision,不是 TooManyVaults [✔]
+    LAW-2: closeVaultSet 之後,單一 vault 的讀取不受影響
+      closeVaultSet vs 之後 listNodes hA f 與之前逐筆相同,closeVault hA 仍正常完成 [✔]
+    LAW-3: VaultSet 不改變單一 vault 的讀取行為(任意次數的 *Across 之後)
+    prop_law2_override_hit_ignores_arbitrary_plan(LAW-2): 覆寫合格時,任意 plan(含另一個合格的競爭者)都不影響結果 [✔]
+      passed 100 tests.
+      listNodes hA f 與 search hA q 在多次 *Across 呼叫前後逐筆相同 [✔]
+    EX-6: 第 11 個 vault -> TooManyVaults,10 個成功
+    prop_law3_override_miss_diffs_only_in_searched_prefix(LAW-3): 覆寫不合格時不中止,結果除了 tsSearched 多了開頭的覆寫路徑外,其餘與沒有覆寫時逐欄相同 [✔]
+      passed 100 tests.
+      11 個 vmId 兩兩相異的把手 -> Left (TooManyVaults 11 10) [✔]
+    prop_run_service_mutual_exclusion (LAW-11): 對任意 n,並發 n 次 runService 做讀-改-寫,最終值恒為 n,臨界區不重疊 [✔]
+      passed 100 tests.
+    test_run_service_eight_concurrent_example (EX-12): n = 8 [✔]
+  LAW-12/EX-13: runService 錯誤傳播
+    prop_law5_path_and_origin_consistent(LAW-5): 任意 world,tsPath == Nothing 恰好對應 tsOrigin == NotFound [✔]
+      passed 100 tests.
+      其中任意 10 個 -> Right,長度 10 [✔]
+    EX-7: 同一個路徑重複傳 -> 保序去重
+    prop_law7_non_executable_and_missing_never_qualify(LAW-7b,LAW-7d): 任意存在但不可執行的檔案、任意不存在的路徑,一律不合格且不拋例外 [✔]
+      passed 100 tests.
+    prop_law8_candidate_paths_are_verbatim(LAW-8): 任意字串當候選路徑,tsSearched 對應項逐字不變(不正規化) [✔]
+      passed 100 tests.
+      openVaultSet [hA, hB, hA2](hA2 是對同路徑再開一次)-> vaultSetIds == [vidA, vidB] [✔]
+    EX-13: 異路徑撞號 -> VaultIdCollision(不是 Right、也不是去重後的成功)
+      openVaultSet [hA, hB, hA'] -> Left (VaultIdCollision vidA <hA 的 vhRoot> <hA' 的 vhRoot>) [✔]
+    EX-14: 撞號優先於上限
+      11 個 vmId 相異的把手,其中一個換成 F-A 的複製 -> Left (VaultIdCollision …),不是 TooManyVaults [✔]
+  listAcross
+    LAW-4: listAcross 的多重集合等於逐 vault listNodes 的多重集合
+      emptyNodeFilter(wide)下,listAcross 與逐 vault listNodes 串接後相同(視為多重集合) [✔]
+      *非退化*:8 個維度各自的非預設值也都跟逐 vault listNodes 一致,且對預設值造成真實差異 [✔]
+    LAW-5: 全域排序(metaId 遞增,平手比 vault)
+      listAcross vs (wide f) 相鄰兩筆滿足 metaId 遞增,或平手時 vault 遞增 [✔]
+    LAW-6: 分頁是對整體切窗
+      listAcross vs f{offset=j,limit=k} == take k (drop j (listAcross vs (wide f)))(涵蓋跨界與落在後段兩種窗) [✔]
+    LAW-7: listAcross 每筆的 vault 欄與 metaVault 一致
+      每筆 (v, m) 滿足 metaVault m == v,且 v 屬於 vaultSetIds vs [✔]
+    EX-2: 排序與分頁跨 vault
+      listAcross vsAB (nfPrefixes=[PEnt], nfLimit=10) 依序是 [A01,B01,B03,A05,A07] [✔]
+      第二次 listAcross vsAB (nfPrefixes=[PEnt], offset=1, limit=2) 是 [B01,B03] [✔]
+    EX-16: nfIncludeReference 的裸表名之一(packs 的 reference 子查詢)
+      預設排除兩個 vault 的 reference pack 與其 asset;True 時兩邊都回,差集恰是兩個 vault 的 reference 節點聯集 [✔]
+    EX-17: nfTags 的裸表名之二(node_tags 存在性子查詢)
+      nfTags=[琳達] 只回 A 的 ent-00000001 [✔]
+      nfTags=[藥水] 只回 B 的 ast-00000002 [✔]
+      nfTags=[canon] 兩筆都回(各一) [✔]
+    prop_run_service_error_propagation (LAW-12): 對任意 ServiceError e,runService env (throwService e) 回 Left e,逐欄相等 [✔]
+      passed 100 tests.
+      nfTags=[琳達,藥水](AND)回 [] [✔]
+  searchAcross
+    LAW-8: searchAcross 逐 vault 等價(四欄逐欄相同)
+    test_throw_service_example (EX-13) [✔]
+  EX-4/EX-5/EX-5b/EX-5c/EX-6: 八個 ask* 存取器與 reloadHub(L-,見 spec Laws 段末)
+    test_ask_selector_example (EX-4): askSelector 原樣捧著 selector [✔]
+    test_ask_registry_source_example (EX-5): askRegistrySource 回 Loader.FromEnv(STORYFLOW_REGISTRY 指到專案 types/registry/) [✔]
+    test_ask_hub_location_and_cwd_example (EX-5b): askHubLocation/askCwd 原樣捧著中樞位置與起點 [✔]
+    test_ask_registry_and_naming_example (EX-5c): askRegistry/askNaming 來自同一次 loadRegistry [✔]
+    test_ask_hub_and_reload_hub_example (EX-6): askHub 是舊快照,reloadHub 換成新的 [✔]
+  LAW-24/EX-26/EX-27: finallyService 兩條路徑都收尾恰好一次
+    prop_finally_service_success_runs_cleanup_once (LAW-24 成功路徑): 對任意 v,finallyService (pure v) fin 回 Right v、fin 恰好執行一次,且收尾發生在動作之後 [✔]
+      passed 100 tests.
+    prop_finally_service_short_circuit_runs_cleanup_once (LAW-24 短路路徑): 對任意 ServiceError e,finallyService (throwService e) fin 回 Left e(短路不被吞掉)、fin 恰好執行一次,且收尾發生在動作之後 [✔]
+      passed 100 tests.
+    test_finally_service_success_example (EX-26): runService env (finallyService (pure 42) fin),c 起始為 0 [✔]
+    test_finally_service_short_circuit_example (EX-27): 短路不被吞掉(與 EX-13 逐欄相同),c 起始為 0 [✔]
+F001 Aapms.Service.Scope
+  LAW-13/EX-14: withRead 的讀取範圍與 resolveRead 的裁決一致
+    prop_with_read_matches_scope_resolution (LAW-13): 對成功解析的 sel,withRead 兩個回傳與 resolveRead 的 rsVaults 三者的 vmId 清單相同 [✔]
+      passed 100 tests.
+    test_with_read_all_registered_example (EX-14): sel == Nothing 時兩個清單都等於中樞順序 [VA, VB] [✔]
+  LAW-14/EX-15/EX-16: ScopeIssue 不中止 withRead
+      srHits (searchAcross vs q') 的多重集合等於 concat [srHits (search h q') | h <- hs] 的多重集合 [✔]
+        passed 100 tests.
+    LAW-9: searchAcross 全域排序(score 遞減,平手比 metaId,再平手比 vault)
+      srHits 相鄰兩筆滿足排序關係(以「手記」為查詢字,詞頻/文件長度刻意不同以提高交錯機率) [✔]
+    LAW-10: searchAcross 分頁與 srTotal
+      分頁是對整體切窗;srTotal 對分頁不敏感;srTotal 等於逐 vault srTotal 之和 [✔]
+    LAW-11: searchAcross 每筆 vault 欄一致(檢索側)
+      每筆 x 滿足 metaVault (shMeta x) == shVault x,且 shVault x 屬於 vaultSetIds vs [✔]
+    LAW-12: facet
+    prop_with_read_scope_issue_does_not_abort (LAW-14): 中樞多一個路徑不存在的 vault 時,withRead 仍回 Right,壞的那個被排除 [✔]
+      passed 100 tests.
+    test_with_read_broken_vault_excluded_example (EX-15): 壞的 vault 被排除,vaultSetIds 只剩 [VA, VB] [✔]
+    test_with_read_empty_hub_example (EX-16): 中樞沒有任何 vault 時仍回 Right [],k 有被呼叫 [✔]
+  LAW-15: withRead 結束後 VaultSet 被關、handle 仍在快取
+      sqFacets 控制 srFacets 的 Just/Nothing [✔]
+        passed 100 tests.
+      fcVaults 恰是命中數 > 0 的 vault 各一筆,計數等於該 vault 單獨 srTotal,總和等於 srTotal [✔]
+      *非退化*:fcTypes/fcTags 的求和(canon 標籤兩邊都有,求和才與取其中一個不同) [✔]
+      facet 不因該維度自己的過濾條件改變(比照 F007 LAW-17) [✔]
+      *非退化*(零命中的 vault 不出現在 fcVaults):只有一個 vault 命中的查詢字 [✔]
+    EX-1: searchAcross 一次回兩種 vault
+      searchAcross vsAB {sqText = Just 藥水} 恰兩筆,各自 shVault/metaId 正確 [✔]
+    EX-12: facet 的 vault 維度跨 vault;VaultSet 不接管把手的生命週期
+      fcVaults 依值遞增(計數相同時);closeVaultSet 之後 hA 仍可正常讀取與關閉 [✔]
+  lookupRef
+    LAW-13: 帶 vault 的 Ref 只認自己那個 vault
+      lookupRef vs v (Ref (Just (vid h)) i) 等於 fmap ((,) (vid h)) <$> lookupNode h i(v == vid h 與 v /= vid h 都要驗) [✔]
+    LAW-14: 預設 vault
+      lookupRef vs v (Ref Nothing i) == lookupRef vs v (Ref (Just v) i) [✔]
+    LAW-15: vault 不在集合裡 -> Nothing
+      目標 vault 不屬於 vaultSetIds vs 時,即使 id 在集合裡的某個 vault 真的存在也回 Nothing [✔]
+    EX-3: 不帶 vault 的 Ref 以呼叫端指定的預設 vault 解析
+      lookupRef vsAB vidA (Ref Nothing ent-00000001) 與 lookupRef vsAB vidB (Ref Nothing ent-00000001) 分別是 A/B 的節點 [✔]
+    EX-4: 帶 vault 的 Ref 覆蓋預設 vault
+      lookupRef vsAB vidA (Ref (Just vidB) ent-00000001) -> Just (vidB, B 的節點) [✔]
+    EX-5: 目標 vault 不在集合裡
+    prop_with_read_closes_vault_set_not_handles (LAW-15): withRead 結束後同一個 env 再跑一次 withRead 仍成功 [✔]
+      passed 100 tests.
+  LAW-16/EX-17: 沒有寫入目標即失敗
+      lookupRef vsAB vidA (Ref (Just vidAbsent) ent-00000001) -> Nothing [✔]
+  checkReferences
+    LAW-16: checkReferences 完整且不多報
+      checkReferences vsAB hA(視為集合)等於用 loadLinkGraph/lookupRef/vaultSetIds 重新推導出的懸空清單 [✔]
+    LAW-17: renderDanglingRef
+      非空、含 renderId drSource 與 renderRef drTarget 子字串、至少一段以「請」起頭;兩種成因訊息不相等 [✔]
+    EX-8: 兩種懸空都找得到,解析得到的那一筆不會被誤報
+      checkReferences vsAB hA 恰兩筆(TargetNodeMissing 一筆、TargetVaultAbsent 一筆),uses 那筆不出現 [✔]
+    EX-9: renderDanglingRef 兩則訊息
+      兩則都非空、互不相等,各含 ent-00000001,分別含 vlt-aaaa0001:ent-0000dead 與 vlt-cccc0003:ent-00000001,都有以「請」起頭的子句 [✔]
+  退化情形
+    LAW-18: 空集合
+      openVaultSet [] -> Right vs,vaultSetIds == [],*Across 全空,lookupRef 全 Nothing,checkReferences 全 TargetVaultAbsent [✔]
+    LAW-19: 單一 vault 退化成 F006/F007
+      openVaultSet [hA] 之後,listAcross/searchAcross 逐筆等於 listNodes/search [✔]
+    EX-10: 空集合不是錯誤,空集合下 checkReferences 對每一筆關聯都回 TargetVaultAbsent
+      listAcross/searchAcross/lookupRef 全空;checkReferences hA 的每一筆(三筆)都是 TargetVaultAbsent [✔]
+    EX-11: 單一 vault 退化
+      listAcross 逐筆等於 listNodes hA;每筆 fst == vidA;searchAcross 逐欄等於 search hA [✔]
+  StoreError 新增建構子
+    LAW-20: TooManyVaults / VaultIdCollision 的 renderStoreError
+      非空、含指定的數字/路徑文字、至少一段以「請」起頭;n /= limit 且 p /= q 時兩則訊息互不相等 [✔]
+        passed 100 tests.
+    EX-15: renderStoreError 的兩則訊息
+      TooManyVaults 11 10 與 VaultIdCollision vlt-aaaa0001 C:/a C:/b [✔]
+graph-core/E001 Aapms.Store.Walk
+  REG-3 / EX-3 / EX-4: vaultMarkdownFiles
+    EX-3: 略過 . 開頭目錄與非 .md 檔,只回排序後的 .md 相對路徑(= 搬移前 IndexSpec STEP-3) [✔]
+    EX-4: 完全空的 vault 目錄回 [] [✔]
+    REG-3: 任意根層檔案與 . 開頭子目錄組合,回傳值 = 排序後、根層 .md 檔名的集合 [✔]
+      passed 100 tests.
+  REG-4 / EX-5: statOf
+    EX-5: 不存在的路徑回 Left 的 StoreError,不拋例外 [✔]
+    REG-4: 現存檔案 statOf 結果的第二個分量(size)= 檔案的實際位元組數 [✔]
+      passed 100 tests.
+    EX-6: 內容恰為 5 個位元組的檔,statOf 回 Right (m, 5)——第二個分量是 5 [✔]
+    REG-4: 同一個未變動的檔案重複 statOf 兩次,結果相同 [✔]
+      passed 100 tests.
+graph-core/E001 cabal 可見度界線
+  LAW-1 / LAW-2 / EX-1: library exposed-modules / other-modules
+    LAW-1: exposed-modules 不含 Aapms.Store.Edit / .Node / .Row / .Walk [✔]
+    LAW-2: other-modules 都含 Aapms.Store.Edit / .Node / .Row / .Walk [✔]
+    EX-1: exposed-modules 12 項 + other-modules 4 項 = 16,對帳 [✔]
+  LAW-3: aapms-store-test stanza
+    build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test [✔]
+  LAW-4: Aapms.Store.Index 匯出清單
+    匯出清單那一段(module ... 到 ) where 之前)不含 vaultMarkdownFiles / statOf [✔]
+  REG-1 / EX-2: 門面完整性
+    EX-2: 只 import Aapms.Store(...)列出契約 E 的全部符號各引用一次,編譯即通過 [✔]
+graph-core/B001 vault 目錄配置(system.md:439)
+  LAW-1 / LAW-2: 每一份 fixture 的檔案組都符合主架構
+    Fixtures.storyVaultFiles:licenses.md 在 library/ 下、pack.md 以 library/ 起頭 [✔]
+    Fixtures.assetVaultFiles:licenses.md 在 library/ 下、pack.md 以 library/ 起頭 [✔]
+    MultiVaultSpec.vaultAFiles:licenses.md 在 library/ 下、pack.md 以 library/ 起頭 [✔]
+    MultiVaultSpec.vaultBFiles:licenses.md 在 library/ 下、pack.md 以 library/ 起頭 [✔]
+    SearchSpec.ftsVaultFiles:licenses.md 在 library/ 下、pack.md 以 library/ 起頭 [✔]
+  EX-3: 判準本身抓得到違規
+    對刻意寫錯的檔案組,逐條回出 licenses.md 與 pack.md 的違規路徑 [✔]
+
+Finished in 35.2523 seconds
+294 examples, 0 failures
+Test suite aapms-store-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\test\aapms-store-0.1.0.0-aapms-store-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+    prop_with_write_no_target_fails (LAW-16): 起點在 outside/ 之下、sel == Nothing 時,withWrite 回 Left (WorkspaceFailed (NoWriteTarget _)),k 不被呼叫 [✔]
+      passed 100 tests.
+    test_with_write_outside_no_selector_example (EX-17): NoWriteTarget 帶正規化後的起點,k 一次都沒被呼叫 [✔]
+  LAW-17/EX-18: 寫入目標唯一
+    prop_with_write_target_matches_resolve (LAW-17): sel 解得到時,withWrite 交出去的目標 vmId 恆等於 resolveWrite 的 wsTarget,讀取範圍等於 wsRead [✔]
+      passed 100 tests.
+    test_with_write_selector_story_example (EX-18): withWrite 交出 (VA, [VA]) [✔]
+  LAW-18/EX-19/EX-20: withPipeline 只給符合 kind 的
+    prop_with_pipeline_filters_by_kind (LAW-18): 每個交給 k 的 handle 都符合要求的 kind [✔]
+      passed 100 tests.
+    test_with_pipeline_asset_example (EX-19): AssetVault + sel Nothing 只剩 VB [✔]
+    test_with_pipeline_story_empty_example (EX-20): 中樞只剩 VB 時 StoryVault 回空清單,k 仍被呼叫 [✔]
+F001 LAW-23: service/src/ 不得在 Monad.hs 之外提到 runService(骨架承載,預期綠)
+  test_law23_real_source_is_clean (EX-24, LAW-23): 對 service/src/ 的實況跑判準,違規清單為空 [✔]
+  test_law23_real_source_line_counts (EX-24): Types.hs/Scope.hs 各 0 行,Monad.hs 恰好 3 行(匯出清單、簽名、定義等式) [✔]
+  test_law23_synthetic_violation_detected (EX-25): 合成文字插入巢狀呼叫,判準恰好抓到那一行;插入的註解行不算 [✔]
+F001 LAW-25: service/src/ 不得宣告任何 instance,ServiceM 的 deriving 子句逐字釘死(骨架承載,預期綠)
+  test_law25_real_source_is_clean (EX-28, LAW-25): 對 service/src/ 的實況跑判準,違規清單為空 [✔]
+  test_law25_real_source_line_counts (EX-28): instance 0 行、StandaloneDeriving 0 行,其中含 Monad 的 deriving 恰好 1 行且逐字等於 canonical [✔]
+  test_law25_synthetic_extra_monaderror_instance_detected (EX-29a): 插入 deriving newtype instance MonadError …,判準恰好抓到那一行 [✔]
+  test_law25_synthetic_monaderror_appended_to_deriving_clause_detected (EX-29b): 把 ServiceM 的 deriving 子句改成多帶 MonadError ServiceError,判準恰好抓到被改掉的那一行 [✔]
+  test_law25_synthetic_hand_written_instance_detected (EX-29c): 插入 instance Semigroup (ServiceM ()) where,判準恰好抓到那一行;插入的註解行不算 [✔]
+F002 Aapms.Service.Machine: vaultList / vaultCheck
+  LAW-1/EX-1/EX-4: vaultList 逐列對應 hubVaults
+    prop_vault_list_matches_hub (LAW-1): 對 0..3 個額外 vault,vaultList 的長度、順序、四欄逐項等於 askHub 的 hubVaults [✔]
+      passed 100 tests.
+    test_vault_list_full_layout_example (EX-1): 兩筆,vvId 依序 [VA,VB],name/kind 相符,兩筆皆 registered/reachable [✔]
+    test_vault_list_empty_hub_example (EX-4): 中樞沒有 vault 時回 Right [] [✔]
+  LAW-2: vvRegistered 恒真
+    prop_vault_list_registered_always_true (LAW-2): 對 0..3 個額外 vault,vaultList 每一筆 vvRegistered == True [✔]
+      passed 100 tests.
+  LAW-3/EX-2/EX-3: vvReachable 的判準(恰等於 VaultPathMissing/VaultMarkerBroken 的集合)
+    prop_vault_reachable_matches_scope_issues (LAW-3): 不可達的 vvId 集合恰等於 PathMissing/MarkerBroken 那些 veId 的集合 [✔]
+      passed 100 tests.
+    test_vault_list_unreachable_example (EX-2): VC 那筆 vvReachable == False,其餘 True;vaultCheck 恰含一則 VaultPathMissing 且 veId 是 VC [✔]
+    test_vault_id_drift_still_reachable_example (EX-3): VaultIdDrift 出現在 vaultCheck,而 vvReachable 仍為 True [✔]
+  LAW-4: vaultCheck 原樣轉出 checkVaults
+    prop_vault_check_matches_checkVaults (LAW-4): vaultCheck 與同一份中樞快照上直接呼叫 checkVaults 逐項相同 [✔]
+      passed 100 tests.
+    test_vault_check_path_missing_example (EX-2): vaultCheck 恰含一則 VaultPathMissing [✔]
+    test_vault_check_id_drift_example (EX-3): vaultCheck 恰含一則 VaultIdDrift [✔]
+F002 Aapms.Service.Machine: workspaceDoctor / workspaceTools
+  LAW-5,EX-5-EX-8: DoctorView 六欄的來源
+    prop_doctor_six_fields_match (LAW-5): 對任意起點,doctor 的六欄逐一等於各自的來源 [✔]
+      passed 100 tests.
+  LAW-6,EX-5,EX-6: dvVaults 含 vaultList 全部,其後至多一筆
+    prop_doctor_dvVaults_prefix (LAW-6): 對任意起點,dvVaults 的前 n 筆逐欄等於 vaultList,其後至多一筆 [✔]
+      passed 100 tests.
+    test_doctor_outside_example (EX-6): 起點在 outside/ 之下,dvVaults 逐欄等於 vaultList,沒有 vvRegistered==False 的項目 [✔]
+  LAW-7,EX-5,EX-6: 未註冊那一筆的存在條件
+    prop_doctor_unregistered_row_iff (LAW-7): 起點在未註冊 vault 根目錄時恰多一筆,起點在 outside 時沒有 [✔]
+      passed 100 tests.
+    test_doctor_unregistered_va_example (EX-5): 未註冊那一筆是 VA,vvPath 是 <tmp>/va 的正規化路徑 [✔]
+  LAW-8,EX-7,EX-8: [llm] 內容不外洩
+    prop_llm_not_leaked (LAW-8): 對任意 [llm] 內容,show doctorView 不含它的子字串,dvLlmConfigured==True [✔]
+      passed 100 tests.
+    test_llm_configured_sentinel_example (EX-7): api_key 是特徵字串,show 整份報告不含它也不含 "api_key" [✔]
+    test_llm_absent_example (EX-8): 無 [llm] 段時 dvLlmConfigured == False [✔]
+  LAW-9,EX-9: 唯讀
+    prop_doctor_check_readonly (LAW-9): 對任意起點,doctor 與 check 執行前後,中樞與各 vault 的 .aapms/ 位元組不變 [✔]
+      passed 100 tests.
+    test_doctor_and_check_readonly_example (EX-9): 對 hub/、va/.aapms/、vb/.aapms/ 取兩次快照,doctor 與 check 之間位元組不變 [✔]
+  LAW-10,EX-10: workspaceTools 單筆、無失敗通道
+    prop_workspace_tools_matches_detect (LAW-10): workspaceTools 恆回長度 1 的清單,該筆等於 detectSevenZip (hubTools hub) [✔]
+      passed 100 tests.
+    test_workspace_tools_not_found_example (EX-10): [tools] 未設、PATH 清空後,回長度 1 的清單,三層(PATH、[tools]、內建安裝路徑)都嘗試過 [✔]
+F002 Aapms.Service.Machine: workspaceSetup / workspacePurge
+  LAW-11,EX-11,EX-11b: workspaceSetup 是逐欄投影,兩個參數不影響結果
+    prop_setup_matches_setupHub_report (LAW-11): 對兩個結構相同的獨立中樞位置(皆全新或皆已存在),workspaceSetup 與直接呼叫 setupHub 的兩個 *Created 欄一致 [✔]
+      passed 100 tests.
+    test_workspace_setup_first_time_then_idempotent_example (EX-11): 乾淨機器第一次 True/True,原封不動再跑一次 False/False,svHubPath 兩次相同 [✔]
+    test_workspace_setup_params_do_not_matter_example (EX-11b): 中樞早就在時,不同的 sel/cwd 得到逐欄相同的結果 [✔]
+  LAW-12,EX-12: workspacePurge 是逐欄投影
+    prop_purge_matches_purge_report (LAW-12): 對兩個結構相同的獨立佈局,workspacePurge 與直接呼叫 purge 的三欄一致;PurgeHubOnly 時 pvVaultIndexesRemoved == [] [✔]
+      passed 100 tests.
+    test_purge_hub_only_example (EX-12): pvHubRemoved==True、pvVaultIndexesRemoved==[];askHub 的 hubVaults 仍是兩筆(快照未被重載) [✔]
+  LAW-13: purge 不重載中樞快照
+    prop_purge_does_not_reload_snapshot (LAW-13): 對任意 scope,workspacePurge 成功後同一個 Env 的 askHub 與呼叫前逐欄相同 [✔]
+      passed 100 tests.
+F002 Aapms.Service.Machine: 五個寫中樞操作 / projectList
+  LAW-14,LAW-15,EX-13,EX-13b: vaultInit
+    prop_vault_init_visible_after (LAW-14): 對任意 kind,成功後同一個 Env 的 vaultList 看得到,且與重新 openEnv 的結果逐項相同 [✔]
+      passed 100 tests.
+    prop_vault_init_adopt_notice (LAW-15 第二個分量): AdoptExisting 之下,有 legacy 目錄時 AdoptNotice 非空,沒有時為空;第一個分量的欄位與參數一致 [✔]
+      passed 100 tests.
+    test_vault_init_fresh_example (EX-13): 乾淨目錄,vvKind/vvName/vvPath 相符,vvRegistered/vvReachable 皆 True,notice 為空,vaultList 三筆含它 [✔]
+    test_vault_init_adopt_with_legacy_example (EX-13b): .assetdb/ legacy marker 存在,notice 含它;legacy 目錄仍在 [✔]
+  LAW-14,LAW-15: vaultAdd
+    test_vault_add_example: 已是 vault 但未註冊的目錄,vaultAdd 之後 vaultList 看得到,欄位相符 [✔]
+  LAW-14,LAW-16,EX-14: vaultForget
+    prop_vault_forget_removed_row (LAW-14+LAW-16): 對任意一個 vault 與 DeleteIndex,forget 回被移除的那一筆,vaultList 只剩另一個 [✔]
+      passed 100 tests.
+    test_vault_forget_example (EX-14): forget "story" KeepIndex,vvId==VA、vvRegistered==False、vvReachable==True;vaultList 只剩 VB;marker 位元組不變 [✔]
+  LAW-17,EX-15: 失敗即原樣包、什麼都不動
+    prop_write_ops_failure_passthrough (LAW-17): vaultForget/projectForget 對不存在的 selector,回 Left,askHub 與中樞檔位元組不變 [✔]
+      passed 100 tests.
+    test_vault_forget_unknown_selector_example (EX-15): Left (WorkspaceFailed (VaultSelectorNotFound _)),中樞檔位元組不變 [✔]
+  LAW-18,LAW-19,EX-16,EX-17: projectList / projectRegister / projectForget
+    prop_project_list_matches_hub (LAW-18): 對 0..2 個已登錄的專案(目錄皆存在),projectList 逐項等於 hubProjects,pvReachable 皆 True [✔]
+      passed 100 tests.
+    test_project_round_trip_example (EX-16): register -> list -> forget -> list [✔]
+    test_project_path_missing_example (EX-17): 專案路徑消失後 pvReachable == False,其餘三欄不變 [✔]
+F002 Aapms.Service.Machine: vaultInfo
+  LAW-20,EX-20: viVault 與 selector
+    prop_vault_info_vault_matches_selector (LAW-20): 對 VA/VB 任一,viVault 逐欄等於 vaultList 裡對應的那一筆 [✔]
+      passed 100 tests.
+    test_vault_info_unknown_selector_example (EX-20): Left (WorkspaceFailed (VaultSelectorNotFound _)) [✔]
+  LAW-21,EX-18,EX-19: viCounts
+    prop_vault_info_counts_independent_of_scope (LAW-21/ASM-4): 對任一 --vault selector(含 Nothing),已索引 vault 的 viCounts 都相同 [✔]
+      passed 100 tests.
+    test_vault_info_empty_example (EX-18): 空 vault,viCounts == [] [✔]
+    test_vault_info_indexed_example (EX-19): 已索引一個 pck + 一個 ast,viCounts == [("ast",1),("pck",1)] [✔]
+  LAW-22,EX-18,EX-19b: viIssues
+    prop_vault_info_issues_matches_index_issues_for (LAW-22): 對 VA/VB 任一,viIssues 逐項等於同一個 env 的 indexIssuesFor [✔]
+      passed 100 tests.
+    test_vault_info_ignores_vault_scope_example (EX-19b): --vault story 之下 vaultInfo "assets" 仍算得出節點數,viIssues 與同一 env 的 indexIssuesFor 逐項相等 [✔]
+F002 Aapms.Service.Machine: listTypes / showType / thumbPath
+  LAW-23,EX-21: listTypes 逐項轉出
+    prop_list_types_matches_registry (LAW-23): listTypes 與 Aapms.Core.Registry.listTypes(同一份 askRegistry)逐項相同 [✔]
+      passed 100 tests.
+    test_list_types_matches_registry_example (EX-21): 兩份清單逐項相同、順序相同,長度 > 0 [✔]
+  LAW-24,EX-22,EX-23: showType 的兩條路
+    prop_show_type_two_paths (LAW-24): 命中回 Right d(逐欄相同);未命中回 Left (UnknownType t),t 就是那個鍵 [✔]
+      passed 100 tests.
+    test_show_type_hit_example (EX-22): showType (tdKey d) 回 Right d [✔]
+    test_show_type_miss_example (EX-23): showType (TypeKey "no-such-type-xyz") 回 Left (UnknownType "no-such-type-xyz") [✔]
+  LAW-25,EX-24: thumbPath 位置由 workspace 算,本層只判存在
+    prop_thumb_path_existence_and_content (LAW-25): 快取檔存在時回 Just p 且 p 逐字等於 thumbCachePath loc h,不存在時回 Nothing [✔]
+      passed 100 tests.
+    test_thumb_path_miss_then_hit_example (EX-24): 第一次 Right Nothing;手動建出快取檔後第二次 Right (Just p),p 讀得到剛寫入的位元組 [✔]
+  LAW-27,EX-27: UnknownType 的 errorCode/renderServiceError(骨架承載,預期綠)
+    prop_unknown_type_error_code_and_message (LAW-27): 對任意 t,code 逐字 unknown_type;訊息非空、含 t、含 "type list" [✔]
+      passed 100 tests.
+    test_unknown_type_error_code_and_message_example (EX-27) [✔]
+F002 LAW-26: service/src/ 不得出現五個帶引號的路徑字面(骨架承載,預期綠)
+  test_law26_real_source_is_clean (EX-25, LAW-26): 對 service/src/ 的實況跑判準,違規清單為空 [✔]
+  test_law26_synthetic_violation_detected (EX-26): 合成文字插入越界路徑字面,判準恰好抓到那一行;插入的註解行不算 [✔]
+
+Finished in 78.6272 seconds
+120 examples, 0 failures
+Test suite aapms-service-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\test\aapms-service-0.1.0.0-aapms-service-test.log
+1 of 1 test suites (1 of 1 test cases) passed.
+    prop_law11_filesystem_untouched(LAW-11): 任意 world,呼叫前後暫存目錄的檔案清單與內容逐位元組相同 [✔]
+      passed 100 tests.
+    prop_law12_missing_dirs_and_empty_string_do_not_throw(LAW-12): 任意由亂數片段組成的路徑(含空字串目錄),即使都不存在,也不拋例外、回 NotFound [✔]
+      passed 100 tests.
+    prop_law13_tsname_constant(LAW-13): 任意 world,tsName 恒為 "7-Zip" [✔]
+      passed 100 tests.
+    prop_law14_real_entry_matches_injected_plan_for_arbitrary_override(LAW-14): 任意(必不合格的)覆寫路徑,detectSevenZip 與注入相同 plan 的 detectSevenZipIn 逐欄相同 [✔]
+      passed 100 tests.
+  LAW-15(預期綠): 依賴方向與職責界線,以 import 行驗證
+    test_tools_no_sibling_module_imports(a): 本套件內的 import 只能是 Aapms.Workspace.Types 或 Aapms.Workspace.Hub;若有 Hub,匯入清單必須是 {hubTools} 的子集合 [✔]
+    test_tools_never_imports_process(b): 完全不得 import System.Process / System.Process.Typed / System.Posix.Process,或任何以 System.Process 開頭的模組 [✔]
+    test_tools_never_imports_store_or_core(c): 完全不得 import 任何 Aapms.Store.* 或 Aapms.Core.* 模組 [✔]
+    test_tools_directory_import_is_read_only(d): 若有 import System.Directory,匯入清單必須是 {doesFileExist, executable, exeExtension, getPermissions} 的子集合(2026-08-29 編排者裁決 spec-gaps G3:exeExtension 由 directory-1.3.10.0 的 System.Directory 匯出,不是 filepath;白名單已由 spec 修正移入這裡) [✔]
+    test_tools_environment_import_is_lookup_only(e): 若有 import System.Environment,匯入清單必須是 {lookupEnv} 的子集合 [✔]
+    test_tools_filepath_import_is_whitelisted(f): 若有 import System.FilePath,匯入清單必須是 {(</>), (<.>), splitSearchPath} 的子集合(2026-08-29 編排者裁決 spec-gaps G3:exeExtension 不屬於 filepath 的 System.FilePath,白名單已由 spec 修正移出這裡) [✔]
+  ToolSearchPlan(預期綠): 骨架原文自身承載的型別事實
+    test_tool_search_plan_fields: 建構子與兩個欄位的存取子 [✔]
+    test_tool_search_plan_eq_show: 有 Eq 與 Show 實例 [✔]
+
+Finished in 169.2693 seconds
+319 examples, 0 failures
+Test suite aapms-workspace-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\test\aapms-workspace-0.1.0.0-aapms-workspace-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

@@ -103,39 +103,34 @@ import Control.Monad.IO.Class (liftIO)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import Effectful (runEff)
 
 import Aapms.Core.Asset (Sha256)
 import Aapms.Core.Id (VaultId, idPrefix, renderIdPrefix)
 import Aapms.Core.Meta (Meta (metaId), TypeKey (..))
 import Aapms.Core.Registry (TypeDecl)
 import qualified Aapms.Core.Registry as Registry
-import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName))
 import Aapms.Store.Query (NodeFilter (..), emptyNodeFilter, listNodes)
 import Aapms.Store.Schema (IndexIssue (..), VaultKind (..))
 import Aapms.Workspace.Discovery
-  ( detectVault
-  , lookupSelector
+  ( lookupSelector
   , readVaultRef
   , readVaultRefAt
   )
-import Aapms.Workspace.Lifecycle
-  ( addVault
-  , checkVaults
-  , forgetVault
-  , initVault
-  , purge
-  , setupHub
-  )
-import Aapms.Workspace.Location (hubLocation, thumbCachePath)
-import Aapms.Workspace.Projects (forgetProject, registerProject)
-import Aapms.Workspace.Tools (detectSevenZip)
+import Aapms.Workspace.Effect.Markers.IO (runMarkersIO)
+import Aapms.Workspace.Effect.ToolProbe.IO (runToolProbeIO)
+import Aapms.Workspace.Lifecycle (runLifecycle)
+import Aapms.Workspace.Hub.File (hubLocation)
+import Aapms.Workspace.Location (thumbCachePath)
+import Aapms.Workspace.Tools (defaultToolSearchPlan, detectSevenZip)
 import Aapms.Workspace.Types
   ( AdoptNotice (..)
   , DeleteIndex (..)
   , Hub
-  , HubLocation (..)
   , HubSource (..)
   , InitMode (..)
+  , LifecycleOp (..)
+  , LifecycleOutcome (..)
   , ProjectEntry (..)
   , PurgeReport (..)
   , PurgeScope (..)
@@ -143,22 +138,22 @@ import Aapms.Workspace.Types
   , SetupReport (..)
   , ToolOrigin (..)
   , ToolStatus (..)
+  , ToolsConfig (..)
   , VaultEntry (..)
-  , VaultRef (..)
-  , hubLlm
   , hubProjects
   , hubTools
   , hubVaults
+  , mkHub
   )
 import System.Directory (doesDirectoryExist, doesFileExist)
 
+import Aapms.Service.Machine.View (doctor)
 import Aapms.Service.Monad
   ( ServiceM
-  , askCwd
   , askHub
   , askHubLocation
   , askRegistry
-  , askRegistrySource
+  , askSession
   , handleFor
   , indexIssuesFor
   , liftWorkspace
@@ -190,36 +185,29 @@ import Aapms.Service.Types
 workspaceSetup :: Maybe Text -> FilePath -> IO (Either ServiceError SetupView)
 workspaceSetup _sel _cwd = do
   loc <- hubLocation
-  result <- setupHub loc
+  result <- runLifecycle loc blankHub SetupHub
   pure $ case result of
     Left e -> Left (WorkspaceFailed e)
-    Right report ->
-      Right (SetupView (spHubPath report) (spHubCreated report) (spCacheCreated report))
+    Right outcome ->
+      let report = expectOutcome "SetupHub" outcomeSetup outcome
+      in Right (SetupView (spHubPath report) (spHubCreated report) (spCacheCreated report))
 
 -- | 彙總這台機器的狀態:中樞位置與來源、註冊表來源、全部 vault(含向上探測到
 -- 的那個未註冊 vault)、範圍降級紀錄、外部工具、以及中樞有沒有 @[llm]@ 段。
 --
 -- __不寫任何檔案__。
+-- __投影不住這裡__:六欄怎麼來、一個 vault 什麼時候算可達、起點探測到未註冊的
+-- vault 就多一筆,全在 P-006-workspace-doctor 的純整條
+-- 'Aapms.Service.Machine.View.doctor'。本函式只做兩件 shell 的事——把
+-- 'Aapms.Service.Monad.Env' 的快照與這台機器的
+-- 'Aapms.Workspace.Types.ToolSearchPlan' 湊齊,然後在真解譯器
+-- ('Aapms.Workspace.Effect.Markers.IO.runMarkersIO' \/
+-- 'Aapms.Workspace.Effect.ToolProbe.IO.runToolProbeIO')上跑它。
 workspaceDoctor :: ServiceM DoctorView
 workspaceDoctor = do
-  loc <- askHubLocation
-  hub <- askHub
-  regSrc <- askRegistrySource
-  issues <- liftIO (checkVaults hub)
-  let registered = map (vaultViewOf issues) (hubVaults hub)
-  cwd <- askCwd
-  extra <- liftIO (unregisteredVaultView hub cwd)
-  tools <- workspaceTools
-  pure
-    DoctorView
-      { dvHubPath = hlPath loc
-      , dvHubSource = hlSource loc
-      , dvRegistry = regSrc
-      , dvVaults = registered ++ maybe [] (: []) extra
-      , dvScopeIssues = issues
-      , dvTools = tools
-      , dvLlmConfigured = maybe False (const True) (hubLlm hub)
-      }
+  s <- askSession
+  plan <- liftIO defaultToolSearchPlan
+  liftIO (runEff (runMarkersIO (runToolProbeIO (doctor s plan))))
 
 -- | 探測這台機器上的外部工具。7-Zip 缺席__不是錯誤__。
 workspaceTools :: ServiceM [ToolStatus]
@@ -236,7 +224,8 @@ workspacePurge :: PurgeScope -> ServiceM PurgeView
 workspacePurge scope = do
   loc <- askHubLocation
   hub <- askHub
-  report <- liftWorkspace (purge loc hub scope)
+  outcome <- liftWorkspace (runLifecycle loc hub (Purge scope))
+  let report = expectOutcome "Purge" outcomePurge outcome
   pure
     (PurgeView (prHubRemoved report) (prThumbsRemoved report) (prVaultIndexesRemoved report))
 
@@ -255,24 +244,27 @@ vaultInit :: FilePath -> VaultKind -> Text -> InitMode -> ServiceM (VaultView, A
 vaultInit dir kind name mode = do
   loc <- askHubLocation
   hub <- askHub
-  (_, entry, notice) <- liftWorkspace (initVault loc hub dir kind name mode)
+  outcome <- liftWorkspace (runLifecycle loc hub (InitVault dir kind name mode))
   _ <- reloadHub
-  pure (registeredView entry, notice)
+  pure
+    ( registeredView (expectOutcome "InitVault" outcomeEntry outcome)
+    , expectOutcome "InitVault" outcomeNotice outcome
+    )
 
 -- | 把一個__已經是 vault__ 的目錄納管進中樞。不建立、不修改該目錄下的任何東西。
 vaultAdd :: FilePath -> ServiceM VaultView
 vaultAdd dir = do
   loc <- askHubLocation
   hub <- askHub
-  (_, entry) <- liftWorkspace (addVault loc hub dir)
+  outcome <- liftWorkspace (runLifecycle loc hub (AddVault dir))
   _ <- reloadHub
-  pure (registeredView entry)
+  pure (registeredView (expectOutcome "AddVault" outcomeEntry outcome))
 
 -- | 中樞裡的每一列各回一筆,順序同中樞。
 vaultList :: ServiceM [VaultView]
 vaultList = do
   hub <- askHub
-  issues <- liftIO (checkVaults hub)
+  issues <- checkVaultIssues hub
   pure (map (vaultViewOf issues) (hubVaults hub))
 
 -- | 一個 vault 的詳情。參數是 selector(比對規則由 @aapms-workspace@ 決定)。
@@ -288,7 +280,7 @@ vaultInfo sel = do
   handle <- handleFor ref
   metas <-
     liftIO (listNodes handle emptyNodeFilter {nfLimit = maxBound, nfIncludeReference = True})
-  issues <- liftIO (checkVaults hub)
+  issues <- checkVaultIssues hub
   issuesOut <- indexIssuesFor (veId entry)
   pure (VaultInfoView (vaultViewOf issues entry) (countByPrefix metas) issuesOut)
 
@@ -298,7 +290,8 @@ vaultForget :: Text -> DeleteIndex -> ServiceM VaultView
 vaultForget sel di = do
   loc <- askHubLocation
   hub <- askHub
-  (_, entry) <- liftWorkspace (forgetVault loc hub sel di)
+  outcome <- liftWorkspace (runLifecycle loc hub (ForgetVault sel di))
+  let entry = expectOutcome "ForgetVault" outcomeEntry outcome
   _ <- reloadHub
   reachable <- liftIO (reachableSingle entry)
   pure
@@ -315,7 +308,7 @@ vaultForget sel di = do
 vaultCheck :: ServiceM [ScopeIssue]
 vaultCheck = do
   hub <- askHub
-  liftIO (checkVaults hub)
+  checkVaultIssues hub
 
 --------------------------------------------------------------------------------
 -- 契約 C:專案登錄
@@ -325,9 +318,9 @@ projectRegister :: FilePath -> Text -> ServiceM ProjectView
 projectRegister dir name = do
   loc <- askHubLocation
   hub <- askHub
-  (_, entry) <- liftWorkspace (registerProject loc hub dir name)
+  outcome <- liftWorkspace (runLifecycle loc hub (RegisterProject dir name))
   _ <- reloadHub
-  liftIO (projectViewOf entry)
+  liftIO (projectViewOf (expectOutcome "RegisterProject" outcomeProject outcome))
 
 -- | 中樞裡的每一列各回一筆,順序同中樞。
 projectList :: ServiceM [ProjectView]
@@ -340,9 +333,9 @@ projectForget :: Text -> ServiceM ProjectView
 projectForget sel = do
   loc <- askHubLocation
   hub <- askHub
-  (_, entry) <- liftWorkspace (forgetProject loc hub sel)
+  outcome <- liftWorkspace (runLifecycle loc hub (ForgetProject sel))
   _ <- reloadHub
-  liftIO (projectViewOf entry)
+  liftIO (projectViewOf (expectOutcome "ForgetProject" outcomeProject outcome))
 
 --------------------------------------------------------------------------------
 -- 契約 C:型別註冊表
@@ -386,7 +379,33 @@ thumbPath h = do
 --------------------------------------------------------------------------------
 -- 私有 helper
 
--- | 依同一份 'checkVaults' 結果,判斷某個 vault 現在算不算「可達」(design.md
+-- | 中樞逐列重讀 marker 的降級清單(P-005-vault-lifecycle 的
+-- 'Aapms.Workspace.Types.CheckVaults')。__不寫任何檔案、沒有失敗通道__,
+-- 但進入點的簽名仍是 @Either@,所以照樣經 'liftWorkspace'。
+checkVaultIssues :: Hub -> ServiceM [ScopeIssue]
+checkVaultIssues hub = do
+  loc <- askHubLocation
+  outcome <- liftWorkspace (runLifecycle loc hub CheckVaults)
+  pure (outcomeIssues outcome)
+
+-- | 'workspaceSetup' 用的空中樞快照:@SetupHub@ 這個請求__完全不看__中樞值
+-- (它連既有的 @config.toml@ 都不解析),但 'Aapms.Workspace.Lifecycle.runLifecycle'
+-- 的簽名要一個 'Aapms.Workspace.Types.Hub';中樞還不存在時本層也拿不到別的。
+blankHub :: Hub
+blankHub = mkHub [] [] Nothing (ToolsConfig Nothing) ""
+
+-- | 'Aapms.Workspace.Types.LifecycleOutcome' 是九種請求共用的一個記錄,每種請求
+-- 只填自己那幾格。呼叫端知道自己送出的是哪一種請求,因此也知道哪一格一定是
+-- @Just@;取不到代表 'Aapms.Workspace.Lifecycle.Plan.applyLifecycle' 違反了
+-- P-005-vault-lifecycle 的契約,不是使用者錯誤,沒有對應的
+-- 'Aapms.Service.Types.ServiceError' 可以編。
+expectOutcome :: String -> (LifecycleOutcome -> Maybe a) -> LifecycleOutcome -> a
+expectOutcome op field outcome = case field outcome of
+  Just v -> v
+  Nothing ->
+    error ("Aapms.Service.Machine: P-005-vault-lifecycle 的 " <> op <> " 沒有填對應的 LifecycleOutcome 欄位")
+
+-- | 依同一份 'checkVaultIssues' 結果,判斷某個 vault 現在算不算「可達」(design.md
 -- 不可逆決定第二列:'VaultIdDrift' 仍算可達)。
 reachableFor :: VaultId -> [ScopeIssue] -> Bool
 reachableFor vid issues = maybe True reachableFromIssue (find (relatesTo vid) issues)
@@ -401,12 +420,12 @@ reachableFromIssue (VaultIdDrift _ _) = True
 reachableFromIssue (RefVaultNotRegistered _ _) = True
 reachableFromIssue _ = False
 
--- | 單一 vault 的可達性,不經整批 'checkVaults':'vaultForget' 移除中樞那一列
--- 之後,那一列已經不在 'checkVaults' 的掃描範圍裡,只能對它單獨重讀。
+-- | 單一 vault 的可達性,不經整批 'checkVaultIssues':'vaultForget' 移除中樞那一列
+-- 之後,那一列已經不在 CheckVaults 的掃描範圍裡,只能對它單獨重讀。
 reachableSingle :: VaultEntry -> IO Bool
 reachableSingle e = either reachableFromIssue (const True) <$> readVaultRef e (vePath e)
 
--- | 中樞一列 + 一份 'checkVaults' 結果 → 對外的 'VaultView'(已註冊)。
+-- | 中樞一列 + 一份 'checkVaultIssues' 結果 → 對外的 'VaultView'(已註冊)。
 vaultViewOf :: [ScopeIssue] -> VaultEntry -> VaultView
 vaultViewOf issues e =
   VaultView
@@ -428,30 +447,6 @@ registeredView e =
     , vvKind = veKind e
     , vvPath = vePath e
     , vvRegistered = True
-    , vvReachable = True
-    }
-
--- | @doctor@ 向上探測到的那一筆未註冊 vault(LAW-7):探測不到、或 marker 讀不開
--- 時回 'Nothing';探測到但其實已註冊時也回 'Nothing'。
-unregisteredVaultView :: Hub -> FilePath -> IO (Maybe VaultView)
-unregisteredVaultView hub cwd = do
-  mRoot <- detectVault cwd
-  case mRoot of
-    Nothing -> pure Nothing
-    Just root -> do
-      refR <- readVaultRefAt hub root
-      pure $ case refR of
-        Right ref@VaultRef {vrEntry = Nothing} -> Just (unregisteredView ref)
-        _ -> Nothing
-
-unregisteredView :: VaultRef -> VaultView
-unregisteredView VaultRef {vrPath = p, vrMarker = m} =
-  VaultView
-    { vvId = vmId m
-    , vvName = vmName m
-    , vvKind = vmKind m
-    , vvPath = p
-    , vvRegistered = False
     , vvReachable = True
     }
 

@@ -22,19 +22,37 @@ module Aapms.Store.Fixtures
   , withAssetVault
   , withIndexedStoryVault
   , withIndexedAssetVault
+
+    -- * 2026-09-06 退場波:舊的直接 IO 函式退場後,IO 測試改由這裡跑新核心
+  , indexOnePath
+  , unindexOnePath
+  , refreshVault
+  , searchOne
+  , allocateIdIO
   ) where
 
+import Control.Exception (bracket)
 import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import Aapms.Core.Id (Id, Ref, parseId, parseRef)
+import Data.Time (UTCTime)
+import Aapms.Core.Id (Id, IdPrefix, Ref, parseId, parseRef)
 import Aapms.Core.Meta (TypeKey (..))
 import Aapms.Core.Registry (TypeRegistry, buildRegistry)
-import Aapms.Store.Error (StoreError, renderStoreError)
+import Aapms.Store.Editing (allocateFreshId)
+import Aapms.Store.Effect.Index (removeFile)
+import Aapms.Store.Effect.Index.Sqlite (runIndexSqlite)
+import Aapms.Store.Effect.VaultFs.IO (runVaultFsIO)
+import Aapms.Store.Effect.Vaults.IO (closeVaultSet, openVaultSet)
+import Aapms.Store.Error (StoreError, renderStoreError, trySqlite)
 import Aapms.Store.Index (rebuildIndex)
-import Aapms.Store.Marker (VaultHandle, closeVault, initVaultAt, openVault)
-import Aapms.Store.Schema (VaultKind (..))
+import Aapms.Store.Indexing (indexPath, refresh)
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (vmId), closeVault, initVaultAt, openVault)
+import Aapms.Store.MultiVault (searchAcross)
+import Aapms.Store.Schema (IndexIssue, VaultKind (..))
+import Aapms.Store.Types (SearchQuery, SearchResult)
+import Effectful (runEff)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>), takeDirectory, takeFileName)
 import System.IO.Temp (withSystemTempDirectory)
@@ -307,9 +325,9 @@ writeFiles root = mapM_ writeOne
       BS.writeFile fp (TE.encodeUtf8 content)
 
 -- | 建一個全新的臨時 vault:@initVaultAt@ → 寫入 'storyVaultFiles' → @openVault@
--- (__不__自動 rebuild——'Aapms.Store.Index.rebuildIndex'\/'Aapms.Store.Index.refreshStale'
--- 是契約 E 的獨立函式,呼叫端自己決定何時索引,測試過時偵測\/rebuild 兩次等
--- 情境需要控制這個時機點)。收尾自動 'closeVault'。
+-- (__不__自動 rebuild——'Aapms.Store.Index.rebuildIndex' 與
+-- 'Aapms.Store.Indexing.refresh' 是獨立的進入點,呼叫端自己決定何時索引,
+-- 測試過時偵測\/rebuild 兩次等情境需要控制這個時機點)。收尾自動 'closeVault'。
 withStoryVault :: (VaultHandle -> IO a) -> IO a
 withStoryVault act = withTempVault $ \dir -> do
   _ <- orDie =<< initVaultAt dir StoryVault "story-fixture"
@@ -339,3 +357,47 @@ withIndexedAssetVault :: (VaultHandle -> IO a) -> IO a
 withIndexedAssetVault act = withAssetVault $ \h -> do
   _ <- orDie =<< rebuildIndex h
   act h
+
+--------------------------------------------------------------------------------
+-- 2026-09-06 退場波:舊的直接 IO 函式(indexFile / unindexFile / refreshStale /
+-- Query.search)退場後,原本直接呼叫它們的 IO 測試改走新核心。以下四個包裝
+-- 只做「把 P-001-index-rebuild / P-002-search 的 stage 跑在真解譯器上」,
+-- 不含任何判斷,測試的斷言逐字不變。
+
+-- | 單檔索引:P-001-index-rebuild 第 16 列 @indexPath@ 跑在真解譯器上。
+indexOnePath :: VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue])
+indexOnePath vh rel =
+  runEff
+    ( runVaultFsIO
+        (vhRoot vh)
+        (runIndexSqlite (vhConn vh) (indexPath (vhRegistry vh) (vmId (vhMarker vh)) rel))
+    )
+
+-- | 移除一份檔案的全部索引記錄:P-001-index-rebuild 第 13 列 @removeFile@。
+unindexOnePath :: VaultHandle -> FilePath -> IO ()
+unindexOnePath vh rel = runEff (runIndexSqlite (vhConn vh) (removeFile rel))
+
+-- | 過時刷新:P-001-index-rebuild 第 17 列 @refresh@ 跑在真解譯器上。
+refreshVault :: VaultHandle -> IO (Either StoreError [IndexIssue])
+refreshVault vh =
+  runEff
+    ( runVaultFsIO
+        (vhRoot vh)
+        (runIndexSqlite (vhConn vh) (refresh (vhRegistry vh) (vmId (vhMarker vh))))
+    )
+
+-- | 單一 vault 的全文檢索:P-002-search 的 @!@ 列 'searchAcross',集合裡只有
+-- 這一個 vault。
+searchOne :: VaultHandle -> SearchQuery -> IO SearchResult
+searchOne vh q =
+  openVaultSet [vh] >>= \case
+    Left e -> fail (T.unpack (renderStoreError e))
+    Right vs -> bracket (pure vs) closeVaultSet (`searchAcross` q)
+
+-- | 配號:P-003-node-write 第 22 列 @allocateFreshId@ 跑在真解譯器上,外層照
+-- 'Aapms.Store.Write.applyWriteIO' 包一層 'Aapms.Store.Error.trySqlite',讓
+-- SQLite 例外收斂成 'Aapms.Store.Types.SqliteError'。
+allocateIdIO :: VaultHandle -> IdPrefix -> Text -> UTCTime -> IO (Either StoreError Id)
+allocateIdIO vh pre c t =
+  either Left id
+    <$> trySqlite (runEff (runIndexSqlite (vhConn vh) (allocateFreshId pre c t)))

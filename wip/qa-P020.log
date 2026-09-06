@@ -1,0 +1,325 @@
+Warning: The package list for 'hackage.haskell.org' is 17 days old.
+Run 'cabal update' to get the latest list of available packages.
+Resolving dependencies...
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (lib) (first run)
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (first run)
+Configuring library for aapms-core-0.1.0.0...
+Preprocessing library for aapms-core-0.1.0.0...
+Building library for aapms-core-0.1.0.0...
+[ 1 of 16] Compiling Aapms.Core.Id    ( src\Aapms\Core\Id.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Id.o )
+[ 2 of 16] Compiling Aapms.Core.Link  ( src\Aapms\Core\Link.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Link.o )
+[ 3 of 16] Compiling Aapms.Core.Meta  ( src\Aapms\Core\Meta.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Meta.o )
+[ 4 of 16] Compiling Aapms.Core.License ( src\Aapms\Core\License.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\License.o )
+[ 5 of 16] Compiling Aapms.Core.Level ( src\Aapms\Core\Level.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Level.o )
+[ 6 of 16] Compiling Aapms.Core.Entity ( src\Aapms\Core\Entity.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Entity.o )
+[ 7 of 16] Compiling Aapms.Core.Asset ( src\Aapms\Core\Asset.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Asset.o )
+[ 8 of 16] Compiling Aapms.Core.Manifest ( src\Aapms\Core\Manifest.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Manifest.o )
+[ 9 of 16] Compiling Aapms.Core.Name  ( src\Aapms\Core\Name.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Name.o )
+[10 of 16] Compiling Aapms.Core.Naming ( src\Aapms\Core\Naming.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Naming.o )
+[11 of 16] Compiling Aapms.Core.Pack  ( src\Aapms\Core\Pack.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Pack.o )
+[12 of 16] Compiling Aapms.Core.AnyNode ( src\Aapms\Core\AnyNode.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\AnyNode.o )
+[13 of 16] Compiling Aapms.Core.Json  ( src\Aapms\Core\Json.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Json.o )
+[14 of 16] Compiling Aapms.Core.Registry ( src\Aapms\Core\Registry.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Registry.o )
+[15 of 16] Compiling Aapms.Core.Registry.Build ( src\Aapms\Core\Registry\Build.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Registry\Build.o )
+[16 of 16] Compiling Aapms.Core.Tree  ( src\Aapms\Core\Tree.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Tree.o )
+Configuring test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+[ 1 of 23] Compiling Aapms.Core.CabalSpec ( test\Aapms\Core\CabalSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\CabalSpec.o )
+test\Aapms\Core\CabalSpec.hs:52:68: warning: [GHC-18042] [-Wtype-defaults]
+    • Defaulting the type variable ‘a0’ to type ‘[Char]’ in the following constraints
+        (Show a0)
+          arising from a use of ‘shouldBe’
+          at test\Aapms\Core\CabalSpec.hs:52:68-77
+        (Eq a0)
+          arising from a use of ‘shouldBe’
+          at test\Aapms\Core\CabalSpec.hs:52:68-77
+        (ghc-internal-9.1401.0:GHC.Internal.Data.String.IsString a0)
+          arising from the literal ‘"Aapms.Core.Manifest"’
+          at test\Aapms\Core\CabalSpec.hs:52:6-26
+    • In a stmt of a 'do' block:
+        ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt)
+          `shouldBe` ("Aapms.Core.Manifest", True)
+      In the second argument of ‘($)’, namely
+        ‘do txt <- readCabal
+            ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt)
+              `shouldBe` ("Aapms.Core.Manifest", True)’
+      In a stmt of a 'do' block:
+        it "exposed-modules 含 Aapms.Core.Manifest(graph-core/F003)"
+          $ do txt <- readCabal
+               ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt)
+                 `shouldBe` ("Aapms.Core.Manifest", True)
+   |
+52 |     ("Aapms.Core.Manifest", "Aapms.Core.Manifest" `isInfixOf` txt) `shouldBe` ("Aapms.Core.Manifest", True)
+   |                                                                    ^^^^^^^^^^
+
+test\Aapms\Core\CabalSpec.hs:58:62: warning: [GHC-18042] [-Wtype-defaults]
+    • Defaulting the type variable ‘a0’ to type ‘[Char]’ in the following constraints
+        (Show a0)
+          arising from a use of ‘shouldBe’
+          at test\Aapms\Core\CabalSpec.hs:58:62-71
+        (Eq a0)
+          arising from a use of ‘shouldBe’
+          at test\Aapms\Core\CabalSpec.hs:58:62-71
+        (ghc-internal-9.1401.0:GHC.Internal.Data.String.IsString a0)
+          arising from the literal ‘"Aapms.Core.Graph"’
+          at test\Aapms\Core\CabalSpec.hs:58:6-23
+    • In a stmt of a 'do' block:
+        ("Aapms.Core.Graph", "Aapms.Core.Graph" `isInfixOf` txt)
+          `shouldBe` ("Aapms.Core.Graph", False)
+      In the second argument of ‘($)’, namely
+        ‘do txt <- readCabal
+            ("Aapms.Core.Graph", "Aapms.Core.Graph" `isInfixOf` txt)
+              `shouldBe` ("Aapms.Core.Graph", False)’
+      In a stmt of a 'do' block:
+        it "exposed-modules 不含已刪除的 Graph"
+          $ do txt <- readCabal
+               ("Aapms.Core.Graph", "Aapms.Core.Graph" `isInfixOf` txt)
+                 `shouldBe` ("Aapms.Core.Graph", False)
+   |
+58 |     ("Aapms.Core.Graph", "Aapms.Core.Graph" `isInfixOf` txt) `shouldBe` ("Aapms.Core.Graph", False)
+   |                                                              ^^^^^^^^^^
+
+[ 2 of 23] Compiling Aapms.Core.Fixtures ( test\Aapms\Core\Fixtures.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\Fixtures.o )
+[ 3 of 23] Compiling Aapms.Core.EntitySpec ( test\Aapms\Core\EntitySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\EntitySpec.o )
+[ 4 of 23] Compiling Aapms.Core.AssetSpec ( test\Aapms\Core\AssetSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\AssetSpec.o )
+[ 5 of 23] Compiling Aapms.Core.AnyNodeSpec ( test\Aapms\Core\AnyNodeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\AnyNodeSpec.o )
+[ 6 of 23] Compiling Aapms.Core.IdSpec ( test\Aapms\Core\IdSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\IdSpec.o )
+[ 7 of 23] Compiling Aapms.Core.JsonSpec ( test\Aapms\Core\JsonSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\JsonSpec.o )
+[ 8 of 23] Compiling Aapms.Core.LicenseSpec ( test\Aapms\Core\LicenseSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\LicenseSpec.o )
+[ 9 of 23] Compiling Aapms.Core.LinkSpec ( test\Aapms\Core\LinkSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\LinkSpec.o )
+[10 of 23] Compiling Aapms.Core.ManifestSpec ( test\Aapms\Core\ManifestSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\ManifestSpec.o )
+[11 of 23] Compiling Aapms.Core.MetaSpec ( test\Aapms\Core\MetaSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\MetaSpec.o )
+[12 of 23] Compiling Aapms.Core.NamingCasesSpec ( test\Aapms\Core\NamingCasesSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\NamingCasesSpec.o )
+[13 of 23] Compiling Aapms.Core.NamingSpec ( test\Aapms\Core\NamingSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\NamingSpec.o )
+test\Aapms\Core\NamingSpec.hs:69:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+   |
+69 |       let Right k = mkSegment "spr"
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:70:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+   |
+70 |           Right d = mkSegment "char"
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:71:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+   |
+71 |           Right s = mkSegment "hero"
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:180:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+180 |       let Right kind = mkSegment "zzz"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:181:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+181 |           Right dom = mkSegment "char"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:182:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+182 |           Right subj = mkSegment "hero"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:187:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+187 |       let Right kind = mkSegment "spr"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:188:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+188 |           Right dom = mkSegment "char"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:189:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+189 |           Right subj = mkSegment "hero"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:190:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+190 |           Right st = mkSegment "zzz"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:195:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+195 |       let Right kind = mkSegment "spr"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:196:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+196 |           Right dom = mkSegment "char"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:197:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+197 |           Right subj = mkSegment "hero"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:198:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+198 |           Right st = mkSegment "up"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:204:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+204 |       let Right kind = mkSegment "spr"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:205:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+205 |           Right dom = mkSegment "char"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:206:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+206 |           Right subj = mkSegment "hero"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:207:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+207 |           Right var = mkSegment "attack-01"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Core\NamingSpec.hs:208:11: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a pattern binding:
+        Patterns of type ‘Either NameError Segment’ not matched: Left _
+    |
+208 |           Right st = mkSegment "up"
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+[14 of 23] Compiling Aapms.Core.PackSpec ( test\Aapms\Core\PackSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\PackSpec.o )
+[15 of 23] Compiling Aapms.Core.RegistrySpec ( test\Aapms\Core\RegistrySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\RegistrySpec.o )
+[16 of 23] Compiling Aapms.Core.TreeSpec ( test\Aapms\Core\TreeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Core\TreeSpec.o )
+[17 of 23] Compiling Aapms.CoreSpec   ( test\Aapms\CoreSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\CoreSpec.o )
+[18 of 23] Compiling Aapms.Lawful.P020Spec ( test\Aapms\Lawful\P020Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P020Spec.o )
+[19 of 23] Compiling Aapms.Lawful.P021Spec ( test\Aapms\Lawful\P021Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P021Spec.o )
+[20 of 23] Compiling Aapms.Lawful.P022Spec ( test\Aapms\Lawful\P022Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P022Spec.o )
+[21 of 23] Compiling Aapms.Lawful.P023Spec ( test\Aapms\Lawful\P023Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P023Spec.o )
+[22 of 23] Compiling Aapms.Lawful.P024Spec ( test\Aapms\Lawful\P024Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Aapms\Lawful\P024Spec.o )
+[23 of 23] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test-tmp\Main.o )
+[24 of 24] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\build\aapms-core-test\aapms-core-test.exe
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+lawful P020
+  P-020#LAW-1
+    [roundtrip] 參照渲染成文字再解析,拿回同一個參照 [✔]
+      passed 100 tests.
+  P-020#LAW-2
+    [roundtrip] 合法的參照字串解析後渲染回來逐字相同,兩種寫法都是 [✔]
+      passed 100 tests.
+  P-020#LAW-3
+    [roundtrip] 八種前綴的文字表示與解析互為反函式 [✔]
+      passed 100 tests.
+  P-020#LAW-4
+    [roundtrip] id 渲染成文字再解析,拿回同一個 id [✔]
+      passed 100 tests.
+  P-020#LAW-5
+    [relation] 生出來的 id,前綴就是給它的那一個 [✔]
+      passed 100 tests.
+  P-020#LAW-6
+    [invariant] newId 一律產生三字母前綴加八位十六進位,全長固定 12 [✔]
+      passed 100 tests.
+  P-020#LAW-7
+    [relation] 同一組輸入換一個 salt 就得到不同的 id [✔]
+      passed 100 tests.
+  P-020#LAW-8
+    [relation] localRef 只換包裝:vault 段落是空的,id 原封不動 [✔]
+      passed 100 tests.
+  P-020#LAW-9
+    [total] 任何文字丟給 parseId 都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-020#LAW-10
+    [total] 任何文字丟給 parseRef 都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-020#LAW-11
+    [identity] 空的位元組序列不折疊任何東西,雜湊值就是 FNV-1a 的 offset basis [✔]
+      passed 100 tests.
+  P-020#EX-1
+    parseRef "vlt-a0c4e1f8:ent-7f3b2a91" 帶 vault 段落,renderRef 逐字回來 [✔]
+  P-020#EX-2
+    parseRef "ent-7f3b2a91" 是裸 id,vault 段落為 Nothing [✔]
+  P-020#EX-3
+    parseRef ":ent-7f3a" 的 vault 段落為空,是 BadRefFormat [✔]
+  P-020#EX-4
+    vault 段落的前綴不是 vlt、或多於一個冒號,都是 BadRefFormat [✔]
+  P-020#EX-5
+    八種前綴的文字表示,逐一 parseIdPrefix 回原值 [✔]
+  P-020#EX-6
+    parseId "nod-0001" 收下四位十六進位的短寫,renderId 逐字回來 [✔]
+  P-020#EX-7
+    沒有連字號、空的十六進位段、非法字元、超過八位,都是 BadIdFormat [✔]
+  P-020#EX-8
+    parseId "xyz-7f3a" 的前綴不是八種之一 [✔]
+  P-020#EX-9
+    同輸入換 salt 得到不同 id;salt 0..9 得到十個互不相同的 id [✔]
+  P-020#EX-10
+    newId 的文字:ent 起頭、連字號之後恰好八位小寫十六進位、全長 12 [✔]
+  P-020#EX-11
+    fnv1a64 的 offset basis 與單字元對照值 [✔]
+
+Finished in 0.0323 seconds
+22 examples, 0 failures
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P020\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

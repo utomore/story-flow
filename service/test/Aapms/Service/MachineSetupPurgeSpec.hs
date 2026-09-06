@@ -18,11 +18,21 @@ import System.FilePath ((</>))
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Workspace.Lifecycle (purge, setupHub)
-import Aapms.Workspace.Location (hubLocation)
+import Aapms.Workspace.Lifecycle (runLifecycle)
+import Aapms.Workspace.Hub.File (hubLocation)
 import Aapms.Workspace.Types
-  ( PurgeReport (..)
+  ( Hub
+  , HubLocation
+  , LifecycleOp (Purge, SetupHub)
+  , LifecycleOutcome
+  , PurgeReport (..)
+  , PurgeScope
   , SetupReport (..)
+  , ToolsConfig (ToolsConfig)
+  , WorkspaceError
+  , mkHub
+  , outcomePurge
+  , outcomeSetup
   )
 
 import Aapms.Service.Fixtures
@@ -34,6 +44,32 @@ import Aapms.Service.Machine
   , workspaceSetup
   )
 import Aapms.Service.Monad (askHub, runService)
+
+--------------------------------------------------------------------------------
+-- 本檔專用 helper
+--
+-- 2026-09-06 退場波:舊的 @Aapms.Workspace.Lifecycle.setupHub@ \/ @purge@ 已移除,
+-- 同兩件事現在是 P-005-vault-lifecycle 的 @SetupHub@ \/ @Purge@ 兩種請求(經
+-- 'Aapms.Workspace.Lifecycle.runLifecycle')。本檔在此重建兩個同簽名的區域版本,
+-- 當作「直接呼叫下層」的對照組,斷言一字不動。
+
+-- | @LifecycleOutcome@ 只有與該請求相關的欄位是 @Just@;對照組知道自己送的是哪一種。
+expectOutcome :: (LifecycleOutcome -> Maybe a) -> LifecycleOutcome -> a
+expectOutcome field o = case field o of
+  Just v -> v
+  Nothing -> error "MachineSetupPurgeSpec: LifecycleOutcome 缺對應欄位"
+
+-- | @SetupHub@ 完全不看中樞值(連既有的 @config.toml@ 都不解析)。
+setupHub :: HubLocation -> IO (Either WorkspaceError SetupReport)
+setupHub loc =
+  fmap (fmap (expectOutcome outcomeSetup)) (runLifecycle loc emptyHubSnapshot SetupHub)
+
+purge :: HubLocation -> Hub -> PurgeScope -> IO (Either WorkspaceError PurgeReport)
+purge loc hub scope =
+  fmap (fmap (expectOutcome outcomePurge)) (runLifecycle loc hub (Purge scope))
+
+emptyHubSnapshot :: Hub
+emptyHubSnapshot = mkHub [] [] Nothing (ToolsConfig Nothing) ""
 
 --------------------------------------------------------------------------------
 -- 佈局:一個空目錄當中樞位置(還沒 setup)

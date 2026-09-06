@@ -1,7 +1,7 @@
 -- | F002:'Aapms.Service.Machine.vaultList' \/ 'Aapms.Service.Types.VaultView' 與
 -- 'Aapms.Service.Machine.vaultCheck'。
 --
--- __spec 對照__(@.design\/subsystems\/service\/features\/F002-workspace-facade.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-006-workspace-doctor.md@,
 -- 「1-to-1 測試對照表」——全部紅:'vaultList' \/ 'vaultCheck' 本體皆 @undefined@):
 --
 -- @
@@ -26,16 +26,36 @@ import Test.Hspec.Hedgehog (hedgehog)
 
 import Aapms.Core.Id (VaultId (..))
 import Aapms.Store.Schema (VaultKind (..))
-import Aapms.Workspace.Lifecycle (checkVaults)
+import Aapms.Workspace.Hub.File (hubLocation)
+import Aapms.Workspace.Lifecycle (runLifecycle)
 import Aapms.Workspace.Types
-  ( ScopeIssue (..)
+  ( Hub
+  , LifecycleOp (CheckVaults)
+  , ScopeIssue (..)
   , VaultEntry (..)
   , hubVaults
+  , outcomeIssues
   )
 
 import Aapms.Service.Fixtures
 import Aapms.Service.Machine (VaultView (..), vaultCheck, vaultList)
 import Aapms.Service.Monad (askHub, runService)
+
+--------------------------------------------------------------------------------
+-- 本檔專用 helper
+
+-- | 中樞逐列重讀 marker 的降級清單。
+--
+-- 2026-09-06 退場波:舊的 @Aapms.Workspace.Lifecycle.checkVaults@ 已移除,同一件事
+-- 現在是 P-005-vault-lifecycle 的 @CheckVaults@ 請求(經
+-- 'Aapms.Workspace.Lifecycle.runLifecycle')。本檔在此重建一個同簽名的區域版本,
+-- 斷言一字不動。@CheckVaults@ 不碰中樞檔,所以 'Aapms.Workspace.Types.HubLocation'
+-- 取哪一個都不影響結果。
+checkVaults :: Hub -> IO [ScopeIssue]
+checkVaults hub = do
+  loc <- hubLocation
+  r <- runLifecycle loc hub CheckVaults
+  pure (either (const []) outcomeIssues r)
 
 --------------------------------------------------------------------------------
 -- 佈局:base VA\/VB 之外再加 n 個額外 vault(0..3),各自 marker 合法、可達

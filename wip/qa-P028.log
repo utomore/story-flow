@@ -1,0 +1,175 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-workspace-0.1.0.0 (test:aapms-workspace-test) (file test\Aapms\Lawful\P028Spec.hs changed)
+Preprocessing test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+[18 of 20] Compiling Aapms.Lawful.P028Spec ( test\Aapms\Lawful\P028Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P028\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Lawful\P028Spec.o ) [Source file changed]
+[21 of 21] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P028\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test.exe [Objects changed]
+Running 1 test suites...
+Test suite aapms-workspace-test: RUNNING...
+
+lawful P028
+  P-028#LAW-1
+    沒有改過的快照渲染回去,與讀進來的文字逐位元組相同 [✘]
+  P-028#LAW-2
+    渲染再解析,四段逐欄相等(清單含順序) [✔]
+      passed 100 tests.
+  P-028#LAW-3
+    工具寫得出來的中樞,工具一定讀得回來 [✔]
+      passed 100 tests.
+  P-028#LAW-4
+    解析對任何文字都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-028#LAW-5
+    id 不在中樞裡時,upsert 追加到末尾,既有列原序不動 [✔]
+      passed 100 tests.
+  P-028#LAW-6
+    id 已經在中樞裡時,upsert 就地覆寫:列數與 id 順序都不變 [✔]
+      passed 100 tests.
+  P-028#LAW-7
+    upsert 之後一定查得到,而且查到的就是給進去的那一列 [✔]
+      passed 100 tests.
+  P-028#LAW-8
+    upsert 冪等:同一列 upsert 兩次與一次相同 [✔]
+      passed 100 tests.
+  P-028#LAW-9
+    新增之後撤除,清單回到原樣 [✔]
+      passed 100 tests.
+  P-028#LAW-10
+    remove 依 id 保序刪除;id 不存在時整個快照原樣回傳 [✔]
+      passed 100 tests.
+  P-028#LAW-11
+    vault 的增刪只動 [[vaults]],其餘三段與底稿一個位元組都不動 [✔]
+      passed 100 tests.
+  P-028#LAW-12
+    [[projects]] 成立同一組規則:不存在就追加末尾,新增之後撤除回到原樣 [✔]
+      passed 100 tests.
+  P-028#LAW-13
+    project 的 remove 依 id 保序刪除;id 不存在時原樣回傳 [✔]
+      passed 100 tests.
+  P-028#LAW-14
+    project 的 upsert 冪等,而且一定查得到 [✔]
+      passed 100 tests.
+  P-028#LAW-15
+    project 的增刪只動 [[projects]],其餘三段與底稿一個位元組都不動 [✔]
+      passed 100 tests.
+  P-028#LAW-16
+    建構入口與五個 selector 互逆 [✔]
+      passed 100 tests.
+  P-028#LAW-17
+    載入得起來的中樞,每一列的名稱都非空 [✔]
+      passed 100 tests.
+      解析成功 52% ██████████▍········· ✓ 15%
+      解析失敗 48% █████████▌·········· ✓ 15%
+  P-028#LAW-18
+    鍵是 id:載入得起來的中樞裡 id 唯一,名稱與路徑都可以重複 [✔]
+      passed 100 tests.
+      解析成功 52% ██████████▍········· ✓ 15%
+      解析失敗 48% █████████▌·········· ✓ 15%
+  P-028#LAW-19
+    搬動一個 vault 只改路徑,身分不變:同 id 不同 path 的 upsert 不新增列 [✔]
+      passed 100 tests.
+  P-028#EX-1
+    空字串是合法的空中樞 [✔]
+    只有一行註解的檔案是合法的空中樞 [✔]
+  P-028#EX-2
+    TOML 語法錯是 HubUnreadable,不拋例外 [✔]
+  P-028#EX-3
+    最上層不是 TOML 表的檔案是 HubMalformed [‐]
+      # PENDING: GAP 本次-1:toml-reader 的 decode 一定回 Table,產不出「最上層不是 TOML 表」的輸入
+  P-028#EX-4
+    [[vaults]] 缺 id 是 HubMalformed,訊息含 id [✔]
+  P-028#EX-5
+    kind 不是 asset / story 是 HubMalformed,訊息含該值 [✔]
+    相對路徑是 HubMalformed,訊息含該路徑 [✔]
+    id 前綴錯是 HubMalformed,訊息含 vlt 與該 id [✔]
+  P-028#EX-6
+    vault 名稱全空白是 HubMalformed,訊息指出名稱不得為空 [✔]
+    project 名稱為空字串是 HubMalformed,訊息指出名稱不得為空 [✔]
+  P-028#EX-7
+    兩列同 id 是 HubMalformed,訊息含那個 id [✔]
+    兩列同名不同 id 照收 [✔]
+  P-028#EX-8
+    含註解、行內註解、空白行與四段的中樞,解析後渲染回去逐位元組相同 [✔]
+  P-028#EX-9
+    渲染再解析,四段逐欄相等且順序相同 [✔]
+  P-028#EX-10
+    hubVaults 的順序與內容與檔案一致 [✔]
+    hubProjects 一列 prj-91c0aa12 [✔]
+    hubTools 取到 [tools] 的 seven_zip [✔]
+  P-028#EX-11
+    [llm] 整段缺席是 Nothing,空的 [llm] 段是 Just 空表,兩者不相等 [✔]
+  P-028#EX-12
+    upsert 一個新 id:三列,前兩列順序與內容不變,第三列是新增的 [✔]
+  P-028#EX-13
+    新增後渲染再解析:註解與空白行逐字仍在、相對順序不變,最後一列是新增的 [✔]
+  P-028#EX-14
+    同 id 只改 path 的 upsert:列數仍是 2、id 順序不變,只有該列換成新值 [✔]
+  P-028#EX-15
+    同一列連續 upsert 兩次:結果相等,清單沒有變長 [✔]
+  P-028#EX-16
+    空中樞 upsert 再 remove,hubVaults 回到 [] [✔]
+  P-028#EX-17
+    removeVault 只少那一列,其餘三段與底稿逐欄不變 [✔]
+  P-028#EX-18
+    removeVault 不存在的 id:回傳的 Hub 與輸入相等 [✔]
+  P-028#EX-19
+    空中樞 upsertProject 再 removeProject,其餘四項全程不變 [✔]
+  P-028#EX-20
+    已有一列時 upsertProject 追加在末尾,既有列原樣 [✔]
+  P-028#EX-21
+    removeProject 只少那一列且其餘保序 [✔]
+    removeProject 不存在的 id 原樣回傳 [✔]
+  P-028#EX-22
+    同一列連續 upsertProject 兩次:結果相等且查得到 [✔]
+  P-028#EX-23
+    mkHub 之後五個 selector 依序取回原值 [✔]
+  P-028#EX-24
+    名稱含換行與 tab:渲染後讀得回來,檔案裡是逸出後的兩字元序列 [✔]
+  P-028#EX-25
+    名稱含 U+0001:兩段都讀得回來且逐字相等,檔案裡是 \u0001 [✔]
+  P-028#EX-26
+    未知的鍵與未知的頂層段逐字保留,渲染回去逐位元組相同 [✔]
+
+Failures:
+
+  test\Aapms\Lawful\P028Spec.hs:92:34: 
+  1) lawful P028, P-028#LAW-1, 沒有改過的快照渲染回去,與讀進來的文字逐位元組相同
+       failed after 1 test and 10 shrinks.
+       shrink path: 1:aB2cBaBaC2
+       
+          ┏━━ test\Aapms\Lawful\P028Spec.hs ━━━
+       82 ┃   describe "P-028#LAW-1" $
+       83 ┃     it "沒有改過的快照渲染回去,與讀進來的文字逐位元組相同" $
+       84 ┃       hedgehog $ do
+       85 ┃         fp <- forAll genFilePath
+          ┃         │ "C:/aapms/config.toml"
+       86 ┃         txt <- forAll genConfigText
+          ┃         │ "[[vaults]]\nid = \"vlt-cafe0001\"\nname = \"a\\na\"\nkind = \"asset\"\n# \npath = \"C:/a\"\n\n"
+       87 ┃         case parseHubText fp txt of
+       88 ┃           Left e -> do
+       89 ┃             annotate "本產生器只產合法中樞文字,這裡應該是 Right"
+       90 ┃             annotateShow e
+       91 ┃             failure
+       92 ┃           Right h -> renderHub h === txt
+          ┃           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          ┃           │ ━━━ Failed (- lhs) (+ rhs) ━━━
+          ┃           │ - "[[vaults]]\nid = \"vlt-cafe0001\"\nname = \"a\\na\"\nkind = \"asset\"\npath = \"C:/a\"\n\n"
+          ┃           │ + "[[vaults]]\nid = \"vlt-cafe0001\"\nname = \"a\\na\"\nkind = \"asset\"\n# \npath = \"C:/a\"\n\n"
+       93 ┃ 
+       94 ┃   describe "P-028#LAW-2" $
+       95 ┃     it "渲染再解析,四段逐欄相等(清單含順序)" $
+
+  To rerun use: --match "/lawful P028/P-028#LAW-1/沒有改過的快照渲染回去,與讀進來的文字逐位元組相同/" --seed 2027516839
+
+Randomized with seed 2027516839
+
+Finished in 0.4532 seconds
+53 examples, 1 failure, 1 pending
+Test suite aapms-workspace-test: FAIL
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P028\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\test\aapms-workspace-0.1.0.0-aapms-workspace-test.log
+0 of 1 test suites (0 of 1 test cases) passed.
+Error: [Cabal-7125]
+Tests failed for test:aapms-workspace-test from aapms-workspace-0.1.0.0.
+

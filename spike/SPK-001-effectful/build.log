@@ -1,0 +1,23 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - spk001-0.1.0.0 (exe:spk001) (first run)
+Preprocessing executable 'spk001' for spk001-0.1.0.0...
+Building executable 'spk001' for spk001-0.1.0.0...
+[1 of 1] Compiling Main             ( src\Main.hs, dist-newstyle\build\x86_64-windows\ghc-9.14.1\spk001-0.1.0.0\x\spk001\build\spk001\spk001-tmp\Main.o )
+src\Main.hs:72:16: warning: [GHC-18042] [-Wtype-defaults]
+    • Defaulting the type variable ‘e0’ to type ‘[Char]’ in the following constraints
+        (Show e0)
+          arising from a use of ‘throwError’ at src\Main.hs:72:16-25
+        (ghc-internal-9.1401.0:GHC.Internal.Data.String.IsString e0)
+          arising from the literal ‘"not found"’ at src\Main.hs:72:27-37
+    • In the expression: throwError "not found"
+      In a case alternative: Nothing -> throwError "not found"
+      In a stmt of a 'do' block:
+        case mv of
+          Just v -> pure v
+          Nothing -> throwError "not found"
+   |
+72 |     Nothing -> throwError "not found"
+   |                ^^^^^^^^^^
+
+[2 of 2] Linking dist-newstyle\build\x86_64-windows\ghc-9.14.1\spk001-0.1.0.0\x\spk001\build\spk001\spk001.exe

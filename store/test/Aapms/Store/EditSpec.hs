@@ -1,6 +1,15 @@
--- | graph-core\/F008:'Aapms.Store.Edit' 的十一個內部函式(受測範圍指定的內部模組)。
+-- | graph-core\/F008:寫入路徑共用紀律的那幾個函式。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- 2026-09-06 退場波:@Aapms.Store.Edit@ 整個模組退場(它是與
+-- 'Aapms.Store.Editing.applyWrite' 並存的第二份實作)。@checkRevision@ 與
+-- @sectionBodyRaw@ 是純函式,本來就住 "Aapms.Store.Editing"
+-- (P-003-node-write 第 4 列與它的私有切片),改從那裡 import;@commit@ 那一條
+-- 測的是「落地」,改走唯一進入點 'Aapms.Store.Write.applyWriteIO' 的
+-- @WriteBody@ ——新核心會同時把 revision \/ updated 兩行蓋上,所以檔案位元組的
+-- 比對改用 'Aapms.Store.Types.stripStamps'(P-003 LAW-6 對「除 revision 與
+-- updated 之外逐位元組相同」用的同一個觀察點)。
+--
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-1(部分)  checkRevision i r a 在 r == a 時且僅在此時回 Right ()  -> prop_checkRevision
@@ -30,18 +39,20 @@ import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 import Aapms.Core.Id (Id)
 import Aapms.Core.Meta (Revision (..))
-import Aapms.Md.Document (LineEnding (..), renderLineEnding)
+import Aapms.Md.Document (Document (..), LineEnding (..), renderLineEnding)
 import Aapms.Md.Parse (parseDocument)
 import Aapms.Md.Render (renderDocument, updateSectionBody)
 import Aapms.Store.Atomic (readTextFile)
-import Aapms.Store.Edit (WriteResult (..), checkRevision, commit, sectionBodyRaw)
+import Aapms.Store.Editing (checkRevision, sectionBodyRaw)
 import Aapms.Store.Error (StoreError (..))
 import Aapms.Store.Fixtures
 import Aapms.Store.Marker (VaultHandle, vhConn, vhRoot)
+import Aapms.Store.Types (WriteOp (..), outcomeId, outcomePath, outcomeRevision, stripStamps)
+import Aapms.Store.Write (applyWriteIO)
 import System.FilePath ((</>))
 
 spec :: Spec
-spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
+spec = describe "graph-core/F008 寫入路徑的共用紀律" $ do
   describe "LAW-1(部分): checkRevision" $ do
     it "r == a 時回 Right ()" $
       checkRevision (idOf "ent-00000001") (Revision 3) (Revision 3) `shouldBe` Right ()
@@ -77,8 +88,8 @@ spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
         assert (nl `T.isSuffixOf` r)
         T.strip r === T.strip t
 
-  describe "LAW-2 / LAW-16 / LAW-18(直接呼叫 commit)" $
-    it "commit 寫入 renderDocument 的位元組、回傳的 wrRevision 與傳入值一致,且 files 表裡其他檔案的 (path, mtime, size) 不變" $
+  describe "LAW-2 / LAW-16 / LAW-18(經唯一進入點 applyWriteIO 的 WriteBody)" $
+    it "落地寫入 renderDocument 的位元組(去掉 revision/updated 兩行後)、回傳的 revision 與傳入值一致,且 files 表裡其他檔案的 (path, mtime, size) 不變" $
       withIndexedStoryVault $ \vh -> do
         let targetPath = "characters/test-character.md"
             targetId = idOf "ent-00000002"
@@ -89,18 +100,18 @@ spec = describe "graph-core/F008 Aapms.Store.Edit(內部模組)" $ do
         srcDoc <- either (\e -> fail ("fixture 解析失敗:" <> show e)) pure (parseDocument srcText)
         newDoc <-
           either (\e -> fail ("updateSectionBody 失敗:" <> show e)) pure $
-            updateSectionBody targetId "commit 測試用的新內容" srcDoc
+            updateSectionBody targetId (sectionBodyRaw (docEnding srcDoc) "commit 測試用的新內容") srcDoc
 
-        result <- commit vh targetPath newDoc targetId newRevision
+        result <- applyWriteIO vh (WriteBody targetId (Revision 1) "commit 測試用的新內容")
         case result of
-          Left e -> expectationFailure ("預期 commit 成功,得到 " <> show e)
-          Right wr -> do
-            wrId wr `shouldBe` targetId
-            wrPath wr `shouldBe` targetPath
-            wrRevision wr `shouldBe` newRevision
+          Left e -> expectationFailure ("預期寫入成功,得到 " <> show e)
+          Right o -> do
+            outcomeId o `shouldBe` targetId
+            outcomePath o `shouldBe` targetPath
+            outcomeRevision o `shouldBe` newRevision
 
         onDisk <- orDie =<< readTextFile (vhAbsPath vh targetPath)
-        onDisk `shouldBe` renderDocument newDoc
+        stripStamps onDisk `shouldBe` stripStamps (renderDocument newDoc)
 
         afterOthers <- otherFilesSnapshot vh targetPath
         sort afterOthers `shouldBe` sort beforeOthers

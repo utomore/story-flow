@@ -15,6 +15,11 @@
 -- * @type@ 是否繼承__依文件種類而定__(design.md「節層繼承規則」表格):主題檔 /
 --   Level 檔 / licenses.md 繼承,pack.md 不繼承且缺漏是錯誤——由呼叫端傳入
 --   'typeInherits' 旗標決定
+--
+-- 'MetaOverride' 與 'emptyOverride' 的宣告(連同它的 @FromJSON@ 實例)住
+-- "Aapms.Md.Section" ——它與 'Aapms.Md.Section.MetaExtras' 是同一個 @```meta@
+-- 區塊的兩半,型別歸型別、規則歸規則。本模組原樣 re-export 它們,匯出清單與
+-- 呼叫端逐字不變。
 module Aapms.Md.Inherit
   ( MetaOverride (..)
   , emptyOverride
@@ -23,80 +28,13 @@ module Aapms.Md.Inherit
   , applyOverride
   ) where
 
-import Data.Aeson
 import Data.List (nub)
 import Data.Text (Text)
-import Data.Time (Day)
-import Aapms.Core.Id (Id, VaultId)
+import Aapms.Core.Id (Id)
 import Aapms.Core.Json ()
-import Aapms.Core.Level (NodeKind)
-import Aapms.Core.Link (Link (..))
 import Aapms.Core.Meta
 import Aapms.Md.Error (MdErrorKind (..))
-
--- | @```meta@ 區塊的內容:每個欄位都是 'Maybe',未寫的交給繼承規則填補。
---
--- @moKind@ 不在 entity-graph-core/F003 原本的欄位表裡,是實作時補的(實作備註 1):
--- Level 檔的節一定有 @kind@,少了這一欄 'Aapms.Md.Render.updateSection'
--- 重新序列化時會把它整行刪掉。
---
--- @moType@ / @moVault@ / @moRevision@ 的型別是 graph-core/F004 對齊 F001 統一
--- 'Meta' 之後修正的(原為 'Maybe' 'Text' \/ 'Text' \/ 'Int')。
-data MetaOverride = MetaOverride
-  { moKind :: Maybe NodeKind
-  , moType :: Maybe TypeKey
-  , moVault :: Maybe VaultId
-  , moSummary :: Maybe Text
-  , moTags :: Maybe [Text]
-  , moStatus :: Maybe Status
-  , moTimeline :: Maybe Timeline
-  , moAliases :: Maybe [Text]
-  , moLinks :: Maybe [Link]
-  , moSource :: Maybe Source
-  , moRevision :: Maybe Revision
-  , moCreated :: Maybe Day
-  , moUpdated :: Maybe Day
-  }
-  deriving stock (Show, Eq)
-
-emptyOverride :: MetaOverride
-emptyOverride =
-  MetaOverride
-    { moKind = Nothing
-    , moType = Nothing
-    , moVault = Nothing
-    , moSummary = Nothing
-    , moTags = Nothing
-    , moStatus = Nothing
-    , moTimeline = Nothing
-    , moAliases = Nothing
-    , moLinks = Nothing
-    , moSource = Nothing
-    , moRevision = Nothing
-    , moCreated = Nothing
-    , moUpdated = Nothing
-    }
-
--- | 未知欄位一律忽略不報錯:註冊表可以宣告任何欄位,md 這一層不該替它把關。
---
--- 型別隨欄位改變(@TypeKey@ \/ @VaultId@ \/ @Revision@)自動吃到
--- "Aapms.Core.Json" 對應的 @FromJSON@ 實例,實例本身不用改。
-instance FromJSON MetaOverride where
-  parseJSON = withObject "MetaOverride" $ \o ->
-    MetaOverride
-      <$> o .:? "kind"
-      <*> o .:? "type"
-      <*> o .:? "vault"
-      <*> o .:? "summary"
-      <*> o .:? "tags"
-      <*> o .:? "status"
-      <*> o .:? "timeline"
-      <*> o .:? "aliases"
-      <*> o .:? "links"
-      <*> o .:? "source"
-      <*> o .:? "revision"
-      <*> o .:? "created"
-      <*> o .:? "updated"
+import Aapms.Md.Section (MetaOverride (..), emptyOverride)
 
 -- | 完整 'Meta' → 每一欄都是 @Just@ 的覆寫。
 --

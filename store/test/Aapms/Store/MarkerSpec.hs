@@ -3,7 +3,7 @@
 -- graph-core\/E002(@initVaultAtWith@ 的明碼時間版本,兼修 @initVaultAt@ 的
 -- @IOException@ 逸出)的測試併入同一個 describe 區塊,對照表見下方
 -- \"graph-core\/E002 initVaultAtWith\" 區塊開頭的註解
--- (@.design\/subsystems\/graph-core\/enhancements\/E002-init-vault-at-explicit-time.md@)。
+-- (@.lawful\/pipelines\/P-005-vault-lifecycle.md@)。
 module Aapms.Store.MarkerSpec (spec) where
 
 import Control.Exception (IOException, try)
@@ -142,7 +142,7 @@ spec = describe "graph-core/F005 vault marker" $ do
       drop 14 indexTables `shouldBe` ["fts_map"]
 
   -- E002 · spec 對照
-  -- (.design/subsystems/graph-core/enhancements/E002-init-vault-at-explicit-time.md)
+  -- (.lawful/pipelines/P-005-vault-lifecycle.md(決定:時間走 Clock 效果))
   -- REG-1    initVaultAt 成功後四欄符合(id 格式/kind/name/refs)                 -> "REG-1: ..."   [綠]
   -- REG-2a   已有 marker,initVaultAt 回 VaultAlreadyInitialized,檔案逐位元組不變 -> "REG-2a: ..."  [綠]
   -- REG-2b   已有 marker,initVaultAtWith 同樣回 VaultAlreadyInitialized、不變    -> "REG-2b: ..."  [紅]

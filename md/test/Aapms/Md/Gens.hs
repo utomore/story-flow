@@ -135,14 +135,19 @@ genReservedTypeKey = TypeKey <$> Gen.element ["level", "asset-pack", "asset-lice
 genStatus :: Gen Status
 genStatus = Gen.enumBounded
 
+-- | 'Source' 的名字部分只能經 'mkSourceName' 產生('SourceName' 的建構子不
+-- 匯出);'genNonEmptySafeText' 本來就非空,'Gen.mapMaybe' 不會實際過濾掉東西。
+genSourceName :: Gen SourceName
+genSourceName = Gen.mapMaybe mkSourceName genNonEmptySafeText
+
 genSource :: Gen Source
 genSource =
   Gen.choice
     [ pure Human
-    , Agent <$> genNonEmptySafeText
-    , Workshop <$> genNonEmptySafeText
+    , Agent <$> genSourceName
+    , Workshop <$> genSourceName
     , pure Scan
-    , Ai <$> genNonEmptySafeText
+    , Ai <$> genSourceName
     ]
 
 genTimeline :: Gen Timeline

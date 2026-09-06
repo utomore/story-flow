@@ -2,7 +2,7 @@
 -- 'mkHub' 與五個 selector 的互逆(LAW-16),以及依賴方向 \/ 職責界線的 import 清單
 -- 檢查(LAW-17,__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F001-hub-registry.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-028-hub-config.md@):
 --
 -- @
 -- LAW-14  renderWorkspaceError 全建構子非空、含中文、可行動、不含 show 痕跡 -> allConstructors 迴圈
@@ -204,11 +204,20 @@ spec = describe "F001 Aapms.Workspace.Types" $ do
         )
         ["Aapms/Workspace/Location.hs", "Aapms/Workspace/Hub.hs"]
 
-    it "test_types_imports_marker_type_only(d): Types.hs 對 Aapms.Store.Marker 的 import 行 \
-       \逐字是 \"import Aapms.Store.Marker (VaultMarker)\",拿不到任何函式" $ do
+    -- 2026-09-06 型別層重構:@aapms-store@ 的對外型別全部搬進 'Aapms.Store.Types'
+    -- (零 IO 的型別層模組),Types.hs 因此__完全不再 import 'Aapms.Store.Marker'__。
+    -- 本條的原意(「只拿型別、拿不到任何 marker 函式」)不變,只是逐字釘死的對象
+    -- 換成新的那一行——它同樣只列型別與 @render@,'openVault' \/ 'initVaultAt' \/
+    -- 'readMarker' 一個都拿不到,判準比原本更緊而不是更鬆。
+    it "test_types_imports_marker_type_only(d): Types.hs 不再 import Aapms.Store.Marker;\
+       \VaultMarker 改由 Aapms.Store.Types 取得,該 import 行逐字只列型別與 render,\
+       \拿不到任何 marker 函式" $ do
       importLines <- importLinesOf "Aapms/Workspace/Types.hs"
-      let markerLines = filter (isInfixOf "Aapms.Store.Marker") importLines
-      markerLines `shouldBe` ["import Aapms.Store.Marker (VaultMarker)"]
+      filter (isInfixOf "Aapms.Store.Marker") importLines `shouldBe` []
+      let storeLines = filter (isInfixOf "Aapms.Store.") importLines
+      storeLines
+        `shouldBe` [ "import Aapms.Store.Types (StoreError, VaultKind, VaultMarker (..), renderStoreError, renderVaultKind)"
+                   ]
 
     it "test_no_index_or_process_imports(e): 三個檔案的 import 行都不含 \
        \openIndexAt / closeIndex / System.Process" $ do

@@ -1,0 +1,175 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-md-0.1.0.0 (test:aapms-md-test) (ephemeral targets)
+Preprocessing test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Building test suite 'aapms-md-test' for aapms-md-0.1.0.0...
+Running 1 test suites...
+Test suite aapms-md-test: RUNNING...
+
+lawful P026
+  P-026#LAW-1
+    改一節的 Meta 半邊,其他每一節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-2
+    被改的那一節只有 meta 區塊被重寫,標題行與正文逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-3
+    改 Meta 半邊不吃掉型別專屬條目 [✔]
+      passed 100 tests.
+  P-026#LAW-4
+    第一次 updateSection 把 meta 行序重排一次,第二次起是恆等 [✔]
+      passed 100 tests.
+  P-026#LAW-5
+    節不存在時每個編輯都回 Left,一個位元組都不動 [✔]
+      passed 100 tests.
+  P-026#LAW-6
+    改型別專屬半邊,Meta 那一半、標題行、正文與其他節都不動 [✔]
+      passed 100 tests.
+  P-026#LAW-7
+    extrasAt 就是該節的 extrasOf;沒有 meta 區塊時是空的一組 [✔]
+      passed 100 tests.
+  P-026#LAW-8
+    取出來的專屬條目不含任何 metaFieldOrder 裡的鍵 [✔]
+      passed 100 tests.
+  P-026#LAW-9
+    刪節之後 id 清單恰好少掉那一個,其餘每一節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-10
+    追加的節排在最後,既有 id 的順序不變 [✔]
+      passed 100 tests.
+  P-026#LAW-11
+    追加不動既有節的標題行與 meta 區塊 [✔]
+      passed 100 tests.
+  P-026#LAW-12
+    nsId 與既有節撞號時追加與插入都回 Left [✔]
+      passed 100 tests.
+  P-026#LAW-13
+    插入保序:把新節拿掉之後的 id 清單與原本逐一相同 [✔]
+      passed 100 tests.
+  P-026#LAW-14
+    插入不動其他節的標題行與 meta 區塊 [✔]
+      passed 100 tests.
+  P-026#LAW-15
+    插入唯一可能動到的位元組是插入點之前那一段的尾端,而且只在尾端補 [✔]
+      passed 100 tests.
+  P-026#LAW-16
+    blankTail 冪等:原本就以空行結尾的節,插入之後正文一個位元組都不動 [✔]
+      passed 100 tests.
+      有以空行結尾的節 100% ████████████████████ ✓ 50%
+  P-026#LAW-17
+    新節的 meta 區塊由兩半組出來;payload 為 Nothing 時完全不產生區塊 [✔]
+      passed 100 tests.
+  P-026#LAW-18
+    NSNode 的 kind 以 NewNode 為唯一真相來源 [✔]
+      passed 100 tests.
+  P-026#LAW-19
+    其餘三個建構子的 payloadOverride 原樣回傳自己帶的 MetaOverride [✔]
+      passed 100 tests.
+  P-026#LAW-20
+    payload 產生的專屬條目與 metaFieldOrder 的鍵不相交 [✔]
+      passed 100 tests.
+  P-026#LAW-21
+    合併是聯集:第一個參數的條目依原序在前,第二個參數中鍵未被覆蓋的依原序在後 [✔]
+      passed 100 tests.
+  P-026#LAW-22
+    與空的一組合併,兩個方向都是恆等 [✔]
+      passed 100 tests.
+  P-026#LAW-23
+    檔案層的合併就是節層的合併,不得有第二份實作 [✔]
+      passed 100 tests.
+  P-026#LAW-24
+    pack 的七個檔案層欄位與 frontmatterFieldOrder 的鍵不相交 [✔]
+      passed 100 tests.
+  P-026#LAW-25
+    改檔案層的 Meta 半邊不吃掉檔案層的專屬條目 [✔]
+      passed 100 tests.
+  P-026#LAW-26
+    改檔案層不動 preamble 與任何一節 [✔]
+      passed 100 tests.
+  P-026#LAW-27
+    檔案層的欄位順序只重排一次:第二次 updateFrontmatter id 是恆等 [✔]
+      passed 100 tests.
+  P-026#LAW-28
+    改檔案層的專屬條目,Meta 那一半一欄都不動,preamble 與每一節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-29
+    只換正文:該節的標題行與 meta 區塊、其他節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-30
+    只換標題文字:層級與 id 不變,meta 區塊與正文、其他節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-31
+    只換 preamble:frontmatter 與每一節逐位元組不變 [✔]
+      passed 100 tests.
+  P-026#LAW-32
+    每一種編輯的結果都還解析得回來,解出的 id 清單與編輯後相同 [✔]
+      passed 100 tests.
+  P-026#EX-1
+    asset 節改 summary,sha256 / entry 逐字留著 [✔]
+  P-026#EX-2
+    第二次 updateSection id 的輸出與第一次逐位元組相同 [✔]
+  P-026#EX-3
+    三節的主題檔改中間那一節,另外兩節逐位元組不變 [✔]
+  P-026#EX-4
+    對不存在的節 id 呼叫七個編輯入口都回 UnknownSectionId [✔]
+  P-026#EX-5
+    只換 license 那一行,sha256 / entry / meta 逐字不變 [✔]
+  P-026#EX-6
+    空的 meta 區塊與根本沒有 meta 區塊,extrasAt 都是空的一組 [✔]
+  P-026#EX-7
+    extrasOf 只留鍵不在 metaFieldOrder 裡的條目 [✔]
+  P-026#EX-8
+    區塊風格的巢狀值三行整段逐字保留、順序不變 [✔]
+  P-026#EX-9
+    removeSection 掉中間那一節,剩下兩節逐位元組不變 [✔]
+  P-026#EX-10
+    沒有任何節的 pack.md 追加一節,toPack 解得出一筆 asset [✔]
+  P-026#EX-11
+    1,693 節的 pack.md 追加第 1,694 節,前 1,693 節逐位元組不變 [✔]
+  P-026#EX-12
+    撞號時追加與插入都回 DuplicateSectionId [✔]
+  P-026#EX-13
+    插入成為父節點子樹的最後一個子節點 [✔]
+  P-026#EX-14
+    插入點之前的正文已經以空行結尾時,每一節逐位元組不變 [✔]
+  P-026#EX-15
+    插入點之前的正文沒有空行時只在尾端補齊,舊正文仍是新正文的前綴 [✔]
+  P-026#EX-16
+    mkSection 的 secMetaRaw 由兩半組出來;Nothing 時沒有區塊 [✔]
+  P-026#EX-17
+    NSNode 的 kind 覆蓋 moKind,其餘十二欄不變 [✔]
+  P-026#EX-18
+    其餘三個建構子逐欄等於 ov [✔]
+  P-026#EX-19
+    全空的 NewAsset 只產生 sha256 與 entry 兩行 [✔]
+  P-026#EX-20
+    同鍵第一個參數贏,其餘依原序在後 [✔]
+  P-026#EX-21
+    與空的一組合併,兩個方向都逐字等於 a [✔]
+  P-026#EX-22
+    mergeFrontExtras 等於包一層的 mergeExtras [✔]
+  P-026#EX-23
+    packFrontExtras 的七行鍵依序,且一個都不在 frontmatterFieldOrder 裡 [✔]
+  P-026#EX-24
+    七欄全空的 NewPackFront 產生空的一組 [✔]
+  P-026#EX-25
+    改檔案層 summary,pack 的七欄與 preamble、每一節都不動 [✔]
+  P-026#EX-26
+    註冊表宣告的 battle_power 逐字保留(排在 links: 之後),第二次是恆等 [✔]
+  P-026#EX-27
+    只換檔案層的 license 那一行,Meta 那一半一欄都不動 [✔]
+  P-026#EX-28
+    frontmatter 的 YAML 壞掉時兩個入口都回 FrontmatterYaml,一個位元組都沒動 [✔]
+  P-026#EX-29
+    換成不以行尾結尾的正文,下一節的標題不會黏上去 [✔]
+  P-026#EX-30
+    CRLF 檔改標題文字,層級 / id / 行尾都不變 [✔]
+  P-026#EX-31
+    只換 preamble,frontmatter 與兩節逐位元組不變 [✔]
+
+Finished in 8.6807 seconds
+63 examples, 0 failures
+Test suite aapms-md-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P026\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\t\aapms-md-test\test\aapms-md-0.1.0.0-aapms-md-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

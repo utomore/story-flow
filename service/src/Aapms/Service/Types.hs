@@ -17,6 +17,14 @@
 -- 兩處就是相依環。本模組只依賴 @aapms-core@ \/ @aapms-store@ \/ @aapms-types@ \/
 -- @aapms-workspace@ 的型別。
 --
+-- 「只依賴型別」由 import 行本身守住:@aapms-store@ 走 "Aapms.Store.Types"、
+-- 'RegistrySource' 走 "Aapms.Types.Source"、@aapms-core@ 的註冊表走
+-- "Aapms.Core.Registry"(純模型與它的 smart constructor;節點檢查在
+-- "Aapms.Core.Registry.Build")——
+-- 三者都是零 IO 的型別層模組。原本的 "Aapms.Store.Error" \/ "Aapms.Store.Schema" \/
+-- "Aapms.Types.Loader" 各自帶著 sqlite、檔案系統與環境變數,為了一個型別把整條
+-- IO 相依鏈掛上來,正是這個模組宣稱不做的事。
+--
 -- __建構子逐波擴充__(build-log DEC-1 \/ 配號表):F001 只寫契約 F 的前四個建構子
 -- (執行環境開得起來所需的那些);'UnknownType' 由 F002 加入(@showType@ 的失敗
 -- 路徑);'ValidationFailed' 起的其餘建構子屬 F003–F006 的範圍,由編排者在該波的
@@ -32,21 +40,27 @@ module Aapms.Service.Types
   , DoctorView (..)
   , ProjectView (..)
 
+    -- * P-004-vault-scope:一次執行的不可變快照
+  , Session (..)
+
     -- * 契約 F:錯誤
   , ServiceError (..)
   , errorCode
   , renderServiceError
+  , isRegistryUnavailable
   ) where
 
 import Data.Text (Text)
 
 import Aapms.Core.Id (Id, VaultId)
-import Aapms.Core.Registry (RegistryError, renderRegistryError)
-import Aapms.Store.Error (StoreError, renderStoreError)
-import Aapms.Store.Schema (IndexIssue, VaultKind)
-import Aapms.Types.Loader (RegistrySource)
+import Aapms.Core.Name (NamingVocab)
+import Aapms.Core.Registry (RegistryError, TypeRegistry, renderRegistryError)
+import Aapms.Store.Types (IndexIssue, StoreError, VaultKind, renderStoreError)
+import Aapms.Types.Source (RegistrySource)
 import Aapms.Workspace.Types
-  ( HubSource
+  ( Hub
+  , HubLocation
+  , HubSource
   , ScopeIssue
   , ToolStatus
   , WorkspaceError
@@ -149,6 +163,35 @@ data ProjectView = ProjectView
   deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
+-- P-004-vault-scope:Session
+
+-- | 一次執行的開場快照,__不可變__(P-004-vault-scope 的決定)。
+--
+-- 'Aapms.Service.Monad.Env' 是它加上 handle 快取與全域鎖;可變狀態是 shell 的
+-- 資源生命週期,快照則是「一次載入的不變量」。註冊表與命名詞彙來自__同一次__
+-- 載入,所以一起帶。
+--
+-- __有 @Show@ \/ @Eq@__:'TypeRegistry' 自 P-004-vault-scope 的骨架起 derive 兩者,
+-- 整份快照可以直接比;law 裡比投影(@listTypes . sessionRegistry@)的寫法仍然成立。
+data Session = Session
+  { sessionHub :: Hub
+  -- ^ 觀察:快照裡的中樞。
+  , sessionLocation :: HubLocation
+  -- ^ 觀察:中樞位置與來源。
+  , sessionRegistry :: TypeRegistry
+  -- ^ 觀察:註冊表。
+  , sessionNaming :: NamingVocab
+  -- ^ 觀察:命名詞彙。
+  , sessionSource :: RegistrySource
+  -- ^ 觀察:註冊表來自哪一層。
+  , sessionSelector :: Maybe Text
+  -- ^ 觀察:原樣捧著的 @--vault@;本層__不解讀__,交給 P-029-scope-resolve。
+  , sessionCwd :: FilePath
+  -- ^ 觀察:起點目錄。
+  }
+  deriving stock (Show, Eq)
+
+--------------------------------------------------------------------------------
 -- 契約 F:錯誤
 
 -- | @aapms-service@ 的__唯一__錯誤型別(design.md 契約 F)。不得另立平行的錯誤
@@ -215,3 +258,9 @@ renderServiceError = \case
       <> k
       <> "」這個型別鍵。用 type list 看目前有哪些型別,或到型別註冊表目錄"
       <> "(types/registry/)補一份宣告後重試。"
+
+-- | 觀察:是不是 'RegistryUnavailable'(P-004-vault-scope 的 LAW-3)。
+isRegistryUnavailable :: ServiceError -> Bool
+isRegistryUnavailable = \case
+  RegistryUnavailable _ -> True
+  _ -> False

@@ -1,0 +1,174 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (file test\Aapms\Lawful\P027Spec.hs changed)
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[ 3 of 47] Compiling Aapms.Store.Tokenize.Internal ( src\Aapms\Store\Tokenize\Internal.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Tokenize\Internal.o )
+[ 4 of 47] Compiling Aapms.Store.Tokenize ( src\Aapms\Store\Tokenize.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Tokenize.o ) [Source file changed]
+[ 6 of 47] Compiling Aapms.Lawful.P027Spec ( test\Aapms\Lawful\P027Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Lawful\P027Spec.o ) [Source file changed]
+[20 of 47] Compiling Aapms.Store.TokenizeSpec ( test\Aapms\Store\TokenizeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\TokenizeSpec.o ) [Aapms.Store.Tokenize changed]
+test\Aapms\Store\TokenizeSpec.hs:29:1: warning: [GHC-66111] [-Wunused-imports]
+    The import of ‘Data.Text’ is redundant
+      except perhaps to import instances from ‘Data.Text’
+    To import instances alone, use: import Data.Text()
+   |
+29 | import Data.Text (Text)
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+
+[47 of 47] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Main.o ) [Aapms.Lawful.P027Spec changed]
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[48 of 48] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test.exe [Objects changed]
+Running 1 test suites...
+Test suite aapms-store-test: RUNNING...
+
+lawful P027
+  P-027#LAW-1
+    切出來的每個 token 只由中日韓字元組成,長度是 1 或 2 [✔]
+      passed 100 tests.
+  P-027#LAW-2
+    每個中日韓字元都以一個長度 1 的 token 依原文順序出現 [✔]
+      passed 100 tests.
+  P-027#LAW-3
+    長度 2 的 token 一定落在某一個中日韓連續段裡,不跨段 [✔]
+      passed 100 tests.
+  P-027#LAW-4
+    bigram 的個數是每一段長度減一的總和 [✔]
+      passed 100 tests.
+  P-027#LAW-5
+    不含中日韓字元的文字切出來是空的,分段也是空的 [✔]
+      passed 100 tests.
+  P-027#LAW-6
+    hasCjk 就是「有中日韓字元」,也等價於分段非空 [✔]
+      passed 100 tests.
+  P-027#LAW-7
+    六欄是純投影:標題與總結逐字,別名與標籤以單一空白接起來 [✔]
+      passed 100 tests.
+  P-027#LAW-8
+    一列的兩份內容:trigram 側是原文,cjk 側是逐欄預切,列的身分是節點 id [✔]
+      passed 100 tests.
+  P-027#LAW-9
+    預切是逐欄套用同一個 cjkSegment [✔]
+      passed 100 tests.
+  P-027#LAW-10
+    路由只看去頭尾空白後的字串 [✔]
+      passed 100 tests.
+  P-027#LAW-11
+    兩個 MATCH 運算式的有無與路由一致 [✔]
+      passed 100 tests.
+  P-027#LAW-12
+    字面字串首尾加雙引號;片語是空白正規化後的字面字串 [✔]
+      passed 100 tests.
+  P-027#LAW-13
+    去頭尾空白後為空的查詢誰都不命中 [✔]
+      passed 100 tests.
+  P-027#LAW-14
+    一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元 [✔]
+      passed 100 tests.
+  P-027#LAW-15
+    一段中日韓命中 = 它以連續子字串出現在六欄原文之一 [✔]
+      passed 100 tests.
+  P-027#LAW-16
+    只查 trigram 時,命中就是「查詢的每一個詞都命中」 [✔]
+      passed 100 tests.
+  P-027#LAW-17
+    只查 cjk 時,命中就是「查詢的每一個中日韓連續段都命中」 [✔]
+      passed 100 tests.
+  P-027#LAW-18
+    兩張都查時,任一邊命中就算命中 [✔]
+      passed 100 tests.
+  P-027#LAW-19
+    純 ASCII 的查詢不分大小寫 [✔]
+      passed 100 tests.
+  P-027#LAW-20
+    純 ASCII 的一、二字元查詢在雙索引下必定不命中 [✔]
+      passed 100 tests.
+  P-027#EX-1
+    空字串、純 ASCII、單一中文 [✔]
+  P-027#EX-2
+    unigram 在前、bigram 在後 [✔]
+  P-027#EX-3
+    不產生跨段的「灣日」 [✔]
+  P-027#EX-4
+    二字詞;長度 1 的 token 串起來是原文 [✔]
+  P-027#EX-5
+    四種查詢文字的路由 [✔]
+  P-027#EX-6
+    運算式的有無與三條路由一致 [✔]
+  P-027#EX-7
+    字面字串與片語 [✔]
+  P-027#EX-8
+    Level 與 Node 沒有正文,非 asset 沒有邏輯名稱 [✔]
+  P-027#EX-9
+    別名與標籤以單一空白接起來 [✔]
+  P-027#EX-10
+    一列的兩份內容 [✔]
+  P-027#EX-11
+    二字中文命中(契約卡驗收標準) [✔]
+  P-027#EX-12
+    判斷對象是去頭尾空白後的字串 [✔]
+  P-027#EX-13
+    空查詢一律不命中 [✔]
+  P-027#EX-14
+    英文子字串走 trigram,不分大小寫,- 不被當成運算子 [✔]
+  P-027#EX-15
+    純 ASCII 二字查詢必定不命中 [✔]
+  P-027#EX-16
+    每個詞都要出現 [✔]
+  P-027#EX-17
+    兩張都查時任一邊命中就算命中 [✔]
+  P-027#EX-18
+    四字查詢走兩張表,cjk 那一側命中 [✔]
+  P-027#EX-19
+    每一段中日韓要以連續子字串出現 [✔]
+  P-027#EX-20
+    段與段之間是 AND,段內才要求連續 [✔]
+
+Finished in 0.1229 seconds
+40 examples, 0 failures
+Test suite aapms-store-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\test\aapms-store-0.1.0.0-aapms-store-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

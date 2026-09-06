@@ -3,7 +3,7 @@
 -- 'readVaultRefAt',LAW-10-LAW-17\/EX-14-EX-24)與依賴方向的 import 清單檢查
 -- (LAW-18,__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F002-vault-discovery.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-029-scope-resolve.md@):
 --
 -- @
 -- STEP-1 detectVault
@@ -559,11 +559,14 @@ spec = describe "F002 Aapms.Workspace.Discovery" $ do
 
   --------------------------------------------------------------------------
   describe "LAW-18(預期綠): 依賴方向與職責界線,以 import 行驗證" $ do
+    -- 2026-09-06 P-029-scope-resolve 的骨架:lookupSelector 的定義搬到純層的
+    -- Aapms.Workspace.Resolve,本模組原地 re-export。允許清單因此多這一項;
+    -- 判準(只准上游的型別層與純層,下游模組一律不准)不變。
     it "test_discovery_no_downstream_or_location_imports(a): 本套件內的 import 只能是 \
-       \Aapms.Workspace.Types 或 Aapms.Workspace.Hub" $ do
+       \Aapms.Workspace.Types、Aapms.Workspace.Hub 或 Aapms.Workspace.Resolve" $ do
       importLines <- discoveryImportLines
       let sibling = filter (\l -> "Aapms.Workspace." `isPrefixOf` moduleNameOf l) importLines
-      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub"])) sibling
+      mapM_ (\l -> moduleNameOf l `shouldSatisfy` (`elem` ["Aapms.Workspace.Types", "Aapms.Workspace.Hub", "Aapms.Workspace.Resolve"])) sibling
 
     it "test_discovery_marker_import_is_id_reader_only(b): 若有 import Aapms.Store.Marker,\
        \必須逐字是 \"import Aapms.Store.Marker (VaultMarker (vmId), markerDir, readMarker)\" \

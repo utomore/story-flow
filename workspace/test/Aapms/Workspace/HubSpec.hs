@@ -3,7 +3,7 @@
 -- (LAW-11-LAW-13\/EX-18)。'mkHub' 與五個 selector 互逆的 LAW-16 在
 -- "Aapms.Workspace.TypesSpec" 測(那是 'Aapms.Workspace.Types' 的骨架事實)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F001-hub-registry.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-028-hub-config.md@):
 --
 -- @
 -- LAW-4  中樞檔案不存在即失敗,不退回空中樞                    -> test_load_hub_not_found
@@ -49,6 +49,7 @@ import Aapms.Core.Id (VaultId (..))
 import Aapms.Store.Schema (VaultKind (..))
 import Aapms.Workspace.Fixtures
 import Aapms.Workspace.Hub
+import Aapms.Workspace.Hub.File (loadHub, saveHub)
 import Aapms.Workspace.Types
 
 import System.Directory (doesDirectoryExist)

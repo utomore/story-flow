@@ -6,7 +6,7 @@
 -- 'Aapms.Workspace.Fixtures.withScopeVaults' 建出:A→B→C→A 三節點環、自環(另建)、
 -- 菱形(另建)、未註冊的 E、壞 marker 的 M、路徑不存在的 P、id 漂移的 Z。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F003-scope-resolution.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-029-scope-resolve.md@,
 -- 預期欄依 spec「紅綠預期」:LAW-25 (a)–(f) 六條綠,其餘全紅——三個函式的本體全是
 -- @undefined@):
 --

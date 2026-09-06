@@ -25,19 +25,36 @@ library
     exposed-modules:
         Aapms.Store
         Aapms.Store.Atomic
-        Aapms.Store.Create
+        Aapms.Store.Editing
+        Aapms.Store.Editing.Internal
+        Aapms.Store.Effect.Clock
+        Aapms.Store.Effect.Clock.IO
+        Aapms.Store.Effect.Index
+        Aapms.Store.Effect.Index.Sqlite
+        Aapms.Store.Effect.VaultFs
+        Aapms.Store.Effect.VaultFs.IO
+        Aapms.Store.Effect.Vaults
+        Aapms.Store.Effect.Vaults.IO
         Aapms.Store.Error
+        Aapms.Store.Filter
         Aapms.Store.Index
+        Aapms.Store.Indexing
+        Aapms.Store.Indexing.Internal
         Aapms.Store.Marker
         Aapms.Store.MultiVault
         Aapms.Store.Query
         Aapms.Store.Schema
+        Aapms.Store.Search
+        Aapms.Store.Search.Internal
+        Aapms.Store.Simulate
         Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
+        Aapms.Store.Types
         Aapms.Store.Write
     other-modules:
-        Aapms.Store.Edit
         Aapms.Store.Node
         Aapms.Store.Row
+        Aapms.Store.Row.Sql
         Aapms.Store.Walk
     build-depends:
         , aeson
@@ -46,6 +63,9 @@ library
         , containers
         , direct-sqlite
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , sqlite-simple
         , aapms-core
@@ -60,6 +80,11 @@ test-suite aapms-store-test
     hs-source-dirs:   src test
     main-is:          Spec.hs
     other-modules:
+        Aapms.Lawful.P001Spec
+        Aapms.Lawful.P002Spec
+        Aapms.Lawful.P002SqliteSpec
+        Aapms.Lawful.P003Spec
+        Aapms.Lawful.P027Spec
         Aapms.Store.AtomicSpec
         Aapms.Store.BoundarySpec
         Aapms.Store.CreateSpec
@@ -93,6 +118,9 @@ test-suite aapms-store-test
         , containers
         , direct-sqlite
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , hspec
         , hedgehog

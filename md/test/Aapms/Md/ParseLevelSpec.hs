@@ -4,7 +4,10 @@ module Aapms.Md.ParseLevelSpec (spec) where
 import Data.Text (Text)
 import qualified Data.Text as T
 import Aapms.Core.Id (Id)
-import Aapms.Core.Level
+-- 'TreeError' 的宣告搬進 "Aapms.Core.Level" 之後,它的 @RootMismatch@ 與
+-- 'Aapms.Md.Error.MdErrorKind' 的同名建構子撞在一起;本檔第 56 行要的一直是
+-- 後者(解析錯誤),把前者藏起來即維持原意。
+import Aapms.Core.Level hiding (RootMismatch)
 import Aapms.Core.Meta
 import Aapms.Core.Tree (buildTree, preorder)
 import Aapms.Md

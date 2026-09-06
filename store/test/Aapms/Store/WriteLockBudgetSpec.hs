@@ -1,10 +1,10 @@
 -- | graph-core\/F008 LAW-17(ADR-022 寫鎖預算,結構約束)。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-17(部分) withTransaction 出現 0 次,也不出現字面量 \"BEGIN\" \/ \"COMMIT\"        -> test_no_withTransaction
--- LAW-17(部分) Database.SQLite.Simple 只在 Edit 與 Write 被 import                        -> test_sqlite_import_scope
+-- LAW-17(部分) Database.SQLite.Simple 只在真解譯器 Effect.Index.Sqlite 被 import         -> test_sqlite_import_scope
 -- @
 --
 -- LAW-17 原本的第三個子句——「所有檔案 IO 與所有 md 序列化都不在任何 SQLite 呼叫的括號內」——
@@ -21,12 +21,16 @@ import qualified Data.Text.IO as TIO
 import Test.Hspec
 
 -- | LAW-17 涵蓋的四個檔案(相對 @aapms-store@ 套件根目錄——@cabal test@ 的工作目錄)。
+-- 2026-09-06 退場波:舊的 @Aapms.Store.Edit@ \/ @Aapms.Store.Create@ 兩個直接
+-- IO 模組退場,寫入路徑現在是 pure 層的 @Aapms.Store.Editing@(含
+-- @Editing.Internal@)與 @Aapms.Store.Node@,加上 shell 的 @Aapms.Store.Write@
+-- (只跑真解譯器)。清單換成這四個檔,判準不變。
 lockBudgetFiles :: [FilePath]
 lockBudgetFiles =
-  [ "src/Aapms/Store/Edit.hs"
+  [ "src/Aapms/Store/Editing.hs"
+  , "src/Aapms/Store/Editing/Internal.hs"
   , "src/Aapms/Store/Write.hs"
   , "src/Aapms/Store/Node.hs"
-  , "src/Aapms/Store/Create.hs"
   ]
 
 -- | 去掉每一行 @--@ 之後的內容(含 Haddock @-- |@ \/ @-- ^@ 的說明文字),逐行處理。
@@ -58,12 +62,16 @@ spec = describe "graph-core/F008 LAW-17 ADR-022 寫鎖預算(結構約束,可讀
     T.count (T.pack "\"BEGIN\"") combined `shouldBe` 0
     T.count (T.pack "\"COMMIT\"") combined `shouldBe` 0
 
-  it "Database.SQLite.Simple 只在 Aapms.Store.Edit 與 Aapms.Store.Write 被 import(Node/Create 不 import)" $ do
-    editHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Edit.hs"
+  -- 2026-09-06 退場波:舊版的斷言是「Database.SQLite.Simple 只在 Edit 與 Write
+  -- 被 import」,而那兩個模組各自捧著一份直接的 sqlite 寫入。兩個模組退場之後,
+  -- 碰 sqlite 的只剩__真解譯器__(P-003-node-write 的決定:ADR-022 的結構約束
+  -- 住 shell 解譯器),寫入路徑本身一行 sqlite 都沒有——同一條判準的新形狀。
+  it "Database.SQLite.Simple 只在真解譯器 Effect.Index.Sqlite 被 import(Editing/Node/Write 都不 import)" $ do
+    interpreterHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Effect/Index/Sqlite.hs"
+    editingHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Editing.hs"
     writeHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Write.hs"
     nodeHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Node.hs"
-    createHas <- hasSqliteImport <$> TIO.readFile "src/Aapms/Store/Create.hs"
-    editHas `shouldBe` True
-    writeHas `shouldBe` True
+    interpreterHas `shouldBe` True
+    editingHas `shouldBe` False
+    writeHas `shouldBe` False
     nodeHas `shouldBe` False
-    createHas `shouldBe` False

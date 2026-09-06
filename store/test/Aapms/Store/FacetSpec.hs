@@ -1,8 +1,8 @@
--- | graph-core\/F007:"Aapms.Store.Query".'search' 的 facet 計數(契約 F
+-- | graph-core\/F007:全文檢索的 facet 計數(契約 F
 -- 'FacetCounts')。
 --
 -- __spec 對照__(每條 law\/example 對回
--- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
+-- @.lawful\/pipelines\/P-027-fts-tokenize.md(查詢側見 P-002-search.md)@):
 --
 -- @
 -- LAW-16 sqFacets 控制 srFacets 的 Just/Nothing;fcVaults 恰一筆      -> test_LAW16
@@ -38,18 +38,19 @@ spec = describe "graph-core/F007 facet" $ do
       \vh -> hedgehog $ do
         facetsOn <- forAll Gen.bool
         txt <- forAll genSqTextCandidate
-        r <- evalIO (search vh (emptySearchQuery {sqText = txt, sqFacets = facetsOn}))
+        r <- evalIO (searchOne vh (emptySearchQuery {sqText = txt, sqFacets = facetsOn}))
         isJust (srFacets r) === facetsOn
         case (facetsOn, srFacets r) of
           (True, Just fc) -> do
             let VaultId vaultText = vmId (vhMarker vh)
-            fcVaults fc === [(vaultText, srTotal r)]
+            -- P-002 決定:計數 0 的維度值不列(mergeFacetCounts 濾掉 0);LAW-10 只要求總和等於 srTotal
+            fcVaults fc === [(vaultText, srTotal r) | srTotal r > 0]
           (False, Nothing) -> pure ()
           _ -> assert False
 
     it "LAW-17: facet 計數不受該 facet 自己的過濾條件影響(nfTypes/nfTags/nfOwner/nfLicense)" $
       \vh -> hedgehog $ do
-        baseR <- evalIO (search vh (emptySearchQuery {sqFacets = True}))
+        baseR <- evalIO (searchOne vh (emptySearchQuery {sqFacets = True}))
         fcBase <- case srFacets baseR of
           Just fc -> pure fc
           Nothing -> do
@@ -62,28 +63,28 @@ spec = describe "graph-core/F007 facet" $ do
         licCand <- forAll (Gen.maybe genLicenseCandidate)
 
         rTypes <-
-          evalIO (search vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfTypes = ts}}))
+          evalIO (searchOne vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfTypes = ts}}))
         fmap fcTypes (srFacets rTypes) === Just (fcTypes fcBase)
 
         rTags <-
-          evalIO (search vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfTags = tags}}))
+          evalIO (searchOne vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfTags = tags}}))
         fmap fcTags (srFacets rTags) === Just (fcTags fcBase)
 
         rOwner <-
           evalIO
-            (search vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfOwner = ownerCand}}))
+            (searchOne vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfOwner = ownerCand}}))
         fmap fcOwners (srFacets rOwner) === Just (fcOwners fcBase)
 
         rLic <-
           evalIO
-            (search vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfLicense = licCand}}))
+            (searchOne vh (emptySearchQuery {sqFacets = True, sqFilter = emptyNodeFilter {nfLicense = licCand}}))
         fmap fcLicenses (srFacets rLic) === Just (fcLicenses fcBase)
 
   it "LAW-18: fcTags/fcTypes/fcOwners/fcLicenses 每一筆的計數,等於疊加該值後的 listNodes 筆數\
      \(facet 受其他條件影響,不受自己影響)" $
     withIndexedAssetVault $ \vh -> do
       let filt = emptyNodeFilter {nfIncludeReference = True}
-      r <- search vh (emptySearchQuery {sqFilter = filt, sqFacets = True})
+      r <- searchOne vh (emptySearchQuery {sqFilter = filt, sqFacets = True})
       case srFacets r of
         Nothing -> expectationFailure "預期 Just facets"
         Just fc -> do
@@ -102,7 +103,7 @@ spec = describe "graph-core/F007 facet" $ do
 
   it "EX-11: 有資料的 vault 開 facet,五個維度皆非空,fcVaults 恰一筆" $
     withIndexedAssetVault $ \vh -> do
-      r <- search vh (emptySearchQuery {sqFacets = True})
+      r <- searchOne vh (emptySearchQuery {sqFacets = True})
       case srFacets r of
         Nothing -> expectationFailure "預期 Just facets"
         Just fc -> do

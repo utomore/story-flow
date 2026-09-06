@@ -1,0 +1,1010 @@
+Warning: The package list for 'hackage.haskell.org' is 17 days old.
+Run 'cabal update' to get the latest list of available packages.
+Resolving dependencies...
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (lib) (first run)
+ - aapms-md-0.1.0.0 (lib) (first run)
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (first run)
+Configuring library for aapms-core-0.1.0.0...
+Preprocessing library for aapms-core-0.1.0.0...
+Building library for aapms-core-0.1.0.0...
+[ 1 of 16] Compiling Aapms.Core.Id    ( src\Aapms\Core\Id.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Id.o )
+[ 2 of 16] Compiling Aapms.Core.Link  ( src\Aapms\Core\Link.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Link.o )
+[ 3 of 16] Compiling Aapms.Core.Meta  ( src\Aapms\Core\Meta.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Meta.o )
+[ 4 of 16] Compiling Aapms.Core.License ( src\Aapms\Core\License.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\License.o )
+[ 5 of 16] Compiling Aapms.Core.Level ( src\Aapms\Core\Level.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Level.o )
+[ 6 of 16] Compiling Aapms.Core.Entity ( src\Aapms\Core\Entity.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Entity.o )
+[ 7 of 16] Compiling Aapms.Core.Asset ( src\Aapms\Core\Asset.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Asset.o )
+[ 8 of 16] Compiling Aapms.Core.Manifest ( src\Aapms\Core\Manifest.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Manifest.o )
+[ 9 of 16] Compiling Aapms.Core.Name  ( src\Aapms\Core\Name.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Name.o )
+[10 of 16] Compiling Aapms.Core.Naming ( src\Aapms\Core\Naming.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Naming.o )
+[11 of 16] Compiling Aapms.Core.Pack  ( src\Aapms\Core\Pack.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Pack.o )
+[12 of 16] Compiling Aapms.Core.AnyNode ( src\Aapms\Core\AnyNode.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\AnyNode.o )
+[13 of 16] Compiling Aapms.Core.Json  ( src\Aapms\Core\Json.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Json.o )
+[14 of 16] Compiling Aapms.Core.Registry ( src\Aapms\Core\Registry.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Registry.o )
+[15 of 16] Compiling Aapms.Core.Registry.Build ( src\Aapms\Core\Registry\Build.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Registry\Build.o )
+[16 of 16] Compiling Aapms.Core.Tree  ( src\Aapms\Core\Tree.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\build\Aapms\Core\Tree.o )
+Configuring library for aapms-md-0.1.0.0...
+Preprocessing library for aapms-md-0.1.0.0...
+Building library for aapms-md-0.1.0.0...
+[1 of 9] Compiling Aapms.Md.Document ( src\Aapms\Md\Document.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Document.o )
+[2 of 9] Compiling Aapms.Md.Error   ( src\Aapms\Md\Error.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Error.o )
+[3 of 9] Compiling Aapms.Md.Lexer   ( src\Aapms\Md\Lexer.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Lexer.o )
+[4 of 9] Compiling Aapms.Md.Section ( src\Aapms\Md\Section.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Section.o )
+[5 of 9] Compiling Aapms.Md.Inherit ( src\Aapms\Md\Inherit.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Inherit.o )
+[6 of 9] Compiling Aapms.Md.Yaml    ( src\Aapms\Md\Yaml.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Yaml.o )
+[7 of 9] Compiling Aapms.Md.Render  ( src\Aapms\Md\Render.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Render.o )
+[8 of 9] Compiling Aapms.Md.Parse   ( src\Aapms\Md\Parse.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md\Parse.o )
+[9 of 9] Compiling Aapms.Md         ( src\Aapms\Md.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-md-0.1.0.0\build\Aapms\Md.o )
+Configuring test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[ 1 of 47] Compiling Aapms.Store.Row  ( src\Aapms\Store\Row.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Row.o )
+[ 2 of 47] Compiling Aapms.Store.Row.Sql ( src\Aapms\Store\Row\Sql.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Row\Sql.o )
+[ 3 of 47] Compiling Aapms.Store.Tokenize ( src\Aapms\Store\Tokenize.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Tokenize.o )
+[ 4 of 47] Compiling Aapms.Store.Gens ( test\Aapms\Store\Gens.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Gens.o )
+[ 5 of 47] Compiling Aapms.Store.Tokenize.Internal ( src\Aapms\Store\Tokenize\Internal.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Tokenize\Internal.o )
+[ 6 of 47] Compiling Aapms.Lawful.P027Spec ( test\Aapms\Lawful\P027Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Lawful\P027Spec.o )
+[ 7 of 47] Compiling Aapms.Store.Types ( src\Aapms\Store\Types.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Types.o )
+[ 8 of 47] Compiling Aapms.Store.Node ( src\Aapms\Store\Node.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Node.o )
+[ 9 of 47] Compiling Aapms.Store.Error ( src\Aapms\Store\Error.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Error.o )
+[10 of 47] Compiling Aapms.Store.Schema ( src\Aapms\Store\Schema.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Schema.o )
+[11 of 47] Compiling Aapms.Store.ErrorSpec ( test\Aapms\Store\ErrorSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\ErrorSpec.o )
+[12 of 47] Compiling Aapms.Store.Atomic ( src\Aapms\Store\Atomic.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Atomic.o )
+[13 of 47] Compiling Aapms.Store.Marker ( src\Aapms\Store\Marker.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Marker.o )
+[14 of 47] Compiling Aapms.Store.Query ( src\Aapms\Store\Query.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Query.o )
+[15 of 47] Compiling Aapms.Store.MultiVault ( src\Aapms\Store\MultiVault.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\MultiVault.o )
+[16 of 47] Compiling Aapms.Store.Editing ( src\Aapms\Store\Editing.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Editing.o )
+[17 of 47] Compiling Aapms.Store.Walk ( src\Aapms\Store\Walk.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Walk.o )
+[18 of 47] Compiling Aapms.Store.Index ( src\Aapms\Store\Index.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Index.o )
+[19 of 47] Compiling Aapms.Store.Fixtures ( test\Aapms\Store\Fixtures.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Fixtures.o )
+[20 of 47] Compiling Aapms.Store.TokenizeSpec ( test\Aapms\Store\TokenizeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\TokenizeSpec.o )
+test\Aapms\Store\TokenizeSpec.hs:29:1: warning: [GHC-66111] [-Wunused-imports]
+    The import of ‘Data.Text’ is redundant
+      except perhaps to import instances from ‘Data.Text’
+    To import instances alone, use: import Data.Text()
+   |
+29 | import Data.Text (Text)
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+
+[21 of 47] Compiling Aapms.Store.StoreErrorL15Spec ( test\Aapms\Store\StoreErrorL15Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\StoreErrorL15Spec.o )
+[22 of 47] Compiling Aapms.Store.StaleSpec ( test\Aapms\Store\StaleSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\StaleSpec.o )
+[23 of 47] Compiling Aapms.Store.SearchSpec ( test\Aapms\Store\SearchSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\SearchSpec.o )
+[24 of 47] Compiling Aapms.Store.SchemaSpec ( test\Aapms\Store\SchemaSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\SchemaSpec.o )
+[25 of 47] Compiling Aapms.Store.RowSpec ( test\Aapms\Store\RowSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\RowSpec.o )
+[26 of 47] Compiling Aapms.Store.RebuildSpec ( test\Aapms\Store\RebuildSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\RebuildSpec.o )
+[27 of 47] Compiling Aapms.Store.QuerySpec ( test\Aapms\Store\QuerySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\QuerySpec.o )
+[28 of 47] Compiling Aapms.Store.NodeSpec ( test\Aapms\Store\NodeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\NodeSpec.o )
+[29 of 47] Compiling Aapms.Store.MultiVaultSpec ( test\Aapms\Store\MultiVaultSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\MultiVaultSpec.o )
+test\Aapms\Store\MultiVaultSpec.hs:89:28: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘AnyNode’
+    from module ‘Aapms.Core.AnyNode’ is redundant
+   |
+89 | import Aapms.Core.AnyNode (AnyNode, anyMeta)
+   |                            ^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:90:66: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘idPrefix, renderIdPrefix’
+    from module ‘Aapms.Core.Id’ is redundant
+   |
+90 | import Aapms.Core.Id (Id, IdPrefix (..), Ref (..), VaultId (..), idPrefix, renderId, renderIdPrefix)
+   |                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:92:49: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘TypeKey’ from module ‘Aapms.Core.Meta’ is redundant
+   |
+92 | import Aapms.Core.Meta (Meta (..), Status (..), TypeKey (..))
+   |                                                 ^^^^^^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:115:21: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+115 | markerToml (VaultId vid) kind name =
+    |                     ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:375:27: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+375 | openFreshIndexedVault dir vid kind name files = do
+    |                           ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:451:24: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+451 | openMinimalVaultAt dir vid =
+    |                        ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:638:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+638 |       before <- listNodes hA (wideFilter emptyNodeFilter)
+    |       ^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:641:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+641 |       after <- listNodes hA (wideFilter emptyNodeFilter)
+    |       ^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1029:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1029 |       before <- listNodes hA (wideFilter emptyNodeFilter)
+     |       ^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1031:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1031 |       after <- listNodes hA (wideFilter emptyNodeFilter)
+     |       ^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1209:28: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a lambda abstraction:
+        Patterns of type ‘[Text]’ not matched:
+            []
+            [_]
+            (_:_:_:_)
+     |
+1209 |       msgs `shouldSatisfy` \[m1, m2] -> m1 /= m2
+     |                            ^^^^^^^^^^^^^^^^^^^^^
+
+[30 of 47] Compiling Aapms.Store.VaultLayoutSpec ( test\Aapms\Store\VaultLayoutSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\VaultLayoutSpec.o )
+[31 of 47] Compiling Aapms.Store.MarkerSpec ( test\Aapms\Store\MarkerSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\MarkerSpec.o )
+test\Aapms\Store\MarkerSpec.hs:185:20: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MarkerSpec.hs:41:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+185 |           (result, before, after, absDir) <- evalIO $ withTempVault $ \dir -> do
+    |                    ^^^^^^
+
+test\Aapms\Store\MarkerSpec.hs:185:28: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MarkerSpec.hs:41:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+185 |           (result, before, after, absDir) <- evalIO $ withTempVault $ \dir -> do
+    |                            ^^^^^
+
+test\Aapms\Store\MarkerSpec.hs:203:20: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MarkerSpec.hs:41:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+203 |           (result, before, after, absDir) <- evalIO $ withTempVault $ \dir -> do
+    |                    ^^^^^^
+
+test\Aapms\Store\MarkerSpec.hs:203:28: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MarkerSpec.hs:41:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+203 |           (result, before, after, absDir) <- evalIO $ withTempVault $ \dir -> do
+    |                            ^^^^^
+
+[32 of 47] Compiling Aapms.Store.IndexSpec ( test\Aapms\Store\IndexSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\IndexSpec.o )
+test\Aapms\Store\IndexSpec.hs:13:34: warning: [GHC-61689] [-Wdodgy-imports]
+    Module ‘Aapms.Store.Index’ does not export ‘vaultMarkdownFiles’.
+   |
+13 | import Aapms.Store.Index hiding (vaultMarkdownFiles)
+   |                                  ^^^^^^^^^^^^^^^^^^
+
+[33 of 47] Compiling Aapms.Store.FacetSpec ( test\Aapms\Store\FacetSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\FacetSpec.o )
+[34 of 47] Compiling Aapms.Store.AtomicSpec ( test\Aapms\Store\AtomicSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\AtomicSpec.o )
+[35 of 47] Compiling Aapms.Store.Edit ( src\Aapms\Store\Edit.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Edit.o )
+[36 of 47] Compiling Aapms.Store.EditSpec ( test\Aapms\Store\EditSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\EditSpec.o )
+[37 of 47] Compiling Aapms.Store.WalkSpec ( test\Aapms\Store\WalkSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\WalkSpec.o )
+[38 of 47] Compiling Aapms.Store.Write ( src\Aapms\Store\Write.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Write.o )
+[39 of 47] Compiling Aapms.Store.Create ( src\Aapms\Store\Create.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\Create.o )
+[40 of 47] Compiling Aapms.Store.NodeSpec2 ( test\Aapms\Store\NodeSpec2.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\NodeSpec2.o )
+test\Aapms\Store\NodeSpec2.hs:188:13: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\NodeSpec2.hs:40:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+188 |         let after = subtreeAfter goodDoc i
+    |             ^^^^^
+
+test\Aapms\Store\NodeSpec2.hs:227:30: warning: [GHC-63394] [-Wx-partial]
+    In the use of ‘head’
+    (imported from Prelude, but defined in GHC.Internal.List):
+    "This is a partial function, it throws an error on empty lists. Use pattern matching, 'Data.List.uncons' or 'Data.Maybe.listToMaybe' instead. Consider refactoring to use "Data.List.NonEmpty"."
+    |
+227 |         let firstId = secId (head (docSections goodDoc))
+    |                              ^^^^
+
+[41 of 47] Compiling Aapms.Store.CreateSpec ( test\Aapms\Store\CreateSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\CreateSpec.o )
+test\Aapms\Store\CreateSpec.hs:48:27: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘Ref’ from module ‘Aapms.Core.Id’ is redundant
+   |
+48 | import Aapms.Core.Id (Id, Ref (..), localRef)
+   |                           ^^^^^^^^
+
+test\Aapms\Store\CreateSpec.hs:63:25: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘NewAsset, NewNode, NewSection, NewSectionPayload’
+    from module ‘Aapms.Md.Render’ is redundant
+   |
+63 | import Aapms.Md.Render (NewAsset (..), NewNode (..), NewSection (..), NewSectionPayload (..), renderSection)
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Store\CreateSpec.hs:184:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\CreateSpec.hs:45:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+184 |         before <- sort <$> listVaultFiles vh
+    |         ^^^^^^
+
+test\Aapms\Store\CreateSpec.hs:187:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\CreateSpec.hs:45:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+187 |         after <- sort <$> listVaultFiles vh
+    |         ^^^^^
+
+test\Aapms\Store\CreateSpec.hs:216:43: warning: [GHC-63394] [-Wx-partial]
+    In the use of ‘head’
+    (imported from Prelude, but defined in GHC.Internal.List):
+    "This is a partial function, it throws an error on empty lists. Use pattern matching, 'Data.List.uncons' or 'Data.Maybe.listToMaybe' instead. Consider refactoring to use "Data.List.NonEmpty"."
+    |
+216 |             let rootId = metaId (nodMeta (head nodes))
+    |                                           ^^^^
+
+[42 of 47] Compiling Aapms.Store      ( src\Aapms\Store.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store.o )
+[43 of 47] Compiling Aapms.Store.BoundarySpec ( test\Aapms\Store\BoundarySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\BoundarySpec.o )
+test\Aapms\Store\BoundarySpec.hs:147:1: warning: [GHC-38417] [-Wmissing-signatures]
+    Top-level binding with no type signature:
+      _contractEFunctions :: (FilePath
+                              -> IO (Either StoreError VaultMarker),
+                              FilePath
+                              -> VaultKind -> Text -> IO (Either StoreError VaultMarker),
+                              Aapms.Core.Registry.TypeRegistry
+                              -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue])),
+                              VaultHandle -> IO (),
+                              VaultHandle -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> FilePath -> IO (Either StoreError ()),
+                              VaultHandle -> Id -> IO (Maybe Aapms.Core.AnyNode.AnyNode),
+                              VaultHandle
+                              -> Aapms.Core.Asset.LogicalName
+                              -> IO (Maybe Aapms.Core.Asset.Asset),
+                              VaultHandle -> NodeFilter -> IO [Aapms.Core.Meta.Meta],
+                              VaultHandle -> Id -> IO [Aapms.Core.Meta.Meta],
+                              VaultHandle -> Id -> IO [Aapms.Core.Link.Link],
+                              VaultHandle
+                              -> Aapms.Core.Id.Ref
+                              -> IO [(Aapms.Core.Meta.Meta, Aapms.Core.Link.Link)],
+                              VaultHandle -> IO Aapms.Core.Link.LinkGraph,
+                              VaultHandle -> SearchQuery -> IO SearchResult,
+                              [VaultHandle] -> IO (Either StoreError VaultSet),
+                              VaultSet
+                              -> Aapms.Core.Id.VaultId
+                              -> Aapms.Core.Id.Ref
+                              -> IO (Maybe (Aapms.Core.Id.VaultId, Aapms.Core.AnyNode.AnyNode)),
+                              VaultSet
+                              -> NodeFilter
+                              -> IO [(Aapms.Core.Id.VaultId, Aapms.Core.Meta.Meta)],
+                              VaultSet -> SearchQuery -> IO SearchResult,
+                              VaultSet -> VaultHandle -> IO [DanglingRef], VaultSet -> IO (),
+                              VaultSet -> [Aapms.Core.Id.VaultId], Int,
+                              VaultHandle
+                              -> Aapms.Core.Registry.TypeRegistry
+                              -> Aapms.Store.Types.NewEntity
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Aapms.Core.Registry.TypeRegistry
+                              -> Aapms.Store.Types.NewLevel
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Aapms.Store.Types.NewPack
+                              -> [Aapms.Md.Section.NewSection]
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Id
+                              -> SectionPlacement
+                              -> Aapms.Md.Section.NewSection
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> (Aapms.Md.Section.MetaOverride -> Aapms.Md.Section.MetaOverride)
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Write.AssetPatch
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id -> Revision -> Text -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Aapms.Core.Link.Link
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Aapms.Core.Link.Link
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Aapms.Core.License.License
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> DeleteMode
+                              -> IO (Either StoreError DeleteResult),
+                              VaultHandle
+                              -> Aapms.Core.Id.IdPrefix
+                              -> Text
+                              -> time-1.15:Data.Time.Clock.Internal.UTCTime.UTCTime
+                              -> IO (Either StoreError Id))
+    |
+147 | _contractEFunctions =
+    | ^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Store\BoundarySpec.hs:187:1: warning: [GHC-40910] [-Wunused-top-binds]
+    Defined but not used:
+      type constructor or class ‘ContractETypesCheck’
+    |
+187 | type ContractETypesCheck =
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^...
+
+[44 of 47] Compiling Aapms.Store.WriteLockBudgetSpec ( test\Aapms\Store\WriteLockBudgetSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\WriteLockBudgetSpec.o )
+[45 of 47] Compiling Aapms.Store.WriteSpec ( test\Aapms\Store\WriteSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\WriteSpec.o )
+test\Aapms\Store\WriteSpec.hs:33:56: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘Sha256’ from module ‘Aapms.Core.Asset’ is redundant
+   |
+33 | import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256 (..))
+   |                                                        ^^^^^^^^^^^
+
+test\Aapms\Store\WriteSpec.hs:35:44: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘Ref’ from module ‘Aapms.Core.Id’ is redundant
+   |
+35 | import Aapms.Core.Id (Id, IdPrefix (PEnt), Ref, VaultId (..), idPrefix, localRef, newId)
+   |                                            ^^^
+
+test\Aapms\Store\WriteSpec.hs:232:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\WriteSpec.hs:32:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+232 |         before <- linksFrom vh target
+    |         ^^^^^^
+
+[46 of 47] Compiling Aapms.StoreSpec  ( test\Aapms\StoreSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\StoreSpec.o )
+[47 of 47] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Main.o )
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Tokenize.Internal
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[48 of 48] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test.exe
+Running 1 test suites...
+Test suite aapms-store-test: RUNNING...
+
+lawful P027
+  P-027#LAW-1
+    切出來的每個 token 只由中日韓字元組成,長度是 1 或 2 [✔]
+      passed 100 tests.
+  P-027#LAW-2
+    每個中日韓字元都以一個長度 1 的 token 依原文順序出現 [✔]
+      passed 100 tests.
+  P-027#LAW-3
+    長度 2 的 token 一定落在某一個中日韓連續段裡,不跨段 [✔]
+      passed 100 tests.
+  P-027#LAW-4
+    bigram 的個數是每一段長度減一的總和 [✔]
+      passed 100 tests.
+  P-027#LAW-5
+    不含中日韓字元的文字切出來是空的,分段也是空的 [✔]
+      passed 100 tests.
+  P-027#LAW-6
+    hasCjk 就是「有中日韓字元」,也等價於分段非空 [✔]
+      passed 100 tests.
+  P-027#LAW-7
+    六欄是純投影:標題與總結逐字,別名與標籤以單一空白接起來 [✔]
+      passed 100 tests.
+  P-027#LAW-8
+    一列的兩份內容:trigram 側是原文,cjk 側是逐欄預切,列的身分是節點 id [✔]
+      passed 100 tests.
+  P-027#LAW-9
+    預切是逐欄套用同一個 cjkSegment [✔]
+      passed 100 tests.
+  P-027#LAW-10
+    路由只看去頭尾空白後的字串 [✘]
+  P-027#LAW-11
+    兩個 MATCH 運算式的有無與路由一致 [✘]
+  P-027#LAW-12
+    字面字串首尾加雙引號;片語是空白正規化後的字面字串 [✔]
+      passed 100 tests.
+  P-027#LAW-13
+    去頭尾空白後為空的查詢誰都不命中 [✘]
+  P-027#LAW-14
+    一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元 [✘]
+  P-027#LAW-15
+    一段中日韓命中 = 它以連續子字串出現在六欄原文之一 [✘]
+  P-027#LAW-16
+    只查 trigram 時,命中就是「查詢的每一個詞都命中」 [✘]
+  P-027#LAW-17
+    只查 cjk 時,命中就是「查詢的每一個中日韓連續段都命中」 [✘]
+  P-027#LAW-18
+    兩張都查時,任一邊命中就算命中 [✘]
+  P-027#LAW-19
+    純 ASCII 的查詢不分大小寫 [✘]
+  P-027#LAW-20
+    純 ASCII 的一、二字元查詢在雙索引下必定不命中 [✘]
+  P-027#EX-1
+    空字串、純 ASCII、單一中文 [✔]
+  P-027#EX-2
+    unigram 在前、bigram 在後 [✔]
+  P-027#EX-3
+    不產生跨段的「灣日」 [✔]
+  P-027#EX-4
+    二字詞;長度 1 的 token 串起來是原文 [✔]
+  P-027#EX-5
+    四種查詢文字的路由 [✔]
+  P-027#EX-6
+    運算式的有無與三條路由一致 [✔]
+  P-027#EX-7
+    字面字串與片語 [✔]
+  P-027#EX-8
+    Level 與 Node 沒有正文,非 asset 沒有邏輯名稱 [✔]
+  P-027#EX-9
+    別名與標籤以單一空白接起來 [✔]
+  P-027#EX-10
+    一列的兩份內容 [✔]
+  P-027#EX-11
+    二字中文命中(契約卡驗收標準) [✘]
+  P-027#EX-12
+    判斷對象是去頭尾空白後的字串 [✘]
+  P-027#EX-13
+    空查詢一律不命中 [✘]
+  P-027#EX-14
+    英文子字串走 trigram,不分大小寫,- 不被當成運算子 [✘]
+  P-027#EX-15
+    純 ASCII 二字查詢必定不命中 [✘]
+  P-027#EX-16
+    每個詞都要出現 [✘]
+  P-027#EX-17
+    兩張都查時任一邊命中就算命中 [✘]
+  P-027#EX-18
+    四字查詢走兩張表,cjk 那一側命中 [✘]
+  P-027#EX-19
+    每一段中日韓要以連續子字串出現 [✘]
+  P-027#EX-20
+    段與段之間是 AND,段內才要求連續 [✘]
+
+Failures:
+
+  test\Aapms\Lawful\P027Spec.hs:525:11: 
+  1) lawful P027, P-027#LAW-10, 路由只看去頭尾空白後的字串
+       failed after 1 test.
+       shrink path: 1:
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       520 ┃   describe "P-027#LAW-10" $
+       521 ┃     it "路由只看去頭尾空白後的字串" $
+       522 ┃       hedgehog $ do
+       523 ┃         t <- forAll genText
+           ┃         │ ""
+       524 ┃         usesTrigram (routeOf t)
+       525 ┃           === (not (hasCjk (stripText t)) || T.length (stripText t) >= 3)
+           ┃           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃           │ ━━━ Exception (ErrorCall) ━━━
+           ┃           │ P-027#stripText stub
+       526 ┃         usesCjk (routeOf t) === hasCjk (stripText t)
+       527 ┃ 
+       528 ┃   describe "P-027#LAW-11" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-10/路由只看去頭尾空白後的字串/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:533:33: 
+  2) lawful P027, P-027#LAW-11, 兩個 MATCH 運算式的有無與路由一致
+       failed after 1 test.
+       shrink path: 1:
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       528 ┃   describe "P-027#LAW-11" $
+       529 ┃     it "兩個 MATCH 運算式的有無與路由一致" $
+       530 ┃       hedgehog $ do
+       531 ┃         t <- forAll genText
+           ┃         │ ""
+       532 ┃         isJust (cjkMatchExpr t) === usesCjk (routeOf t)
+       533 ┃         isJust (triMatchExpr t) === not (T.null (stripText t))
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#stripText stub
+       534 ┃ 
+       535 ┃   describe "P-027#LAW-12" $
+       536 ┃     it "字面字串首尾加雙引號;片語是空白正規化後的字面字串" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-11/兩個 MATCH 運算式的有無與路由一致/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:550:9: 
+  3) lawful P027, P-027#LAW-13, 去頭尾空白後為空的查詢誰都不命中
+       failed after 1 test and 1 shrink.
+       shrink path: 1:b
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       545 ┃       hedgehog $ do
+       546 ┃         -- given null (stripText t):產生器只產空白字元,直接建構滿足前提的值
+       547 ┃         -- (前提本身引用 stripText,而它是 stub,無法在測試裡先驗證)。
+       548 ┃         t <- forAll genBlankQuery
+           ┃         │ ""
+       549 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       550 ┃         assert (not (matchesQuery t n))
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#matchesQuery stub
+       551 ┃ 
+       552 ┃   describe "P-027#LAW-14" $
+       553 ┃     it "一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-13/去頭尾空白後為空的查詢誰都不命中/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:558:11: 
+  4) lawful P027, P-027#LAW-14, 一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元
+       failed after 1 test and 1 shrink.
+       shrink path: 1:b
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       552 ┃   describe "P-027#LAW-14" $
+       553 ┃     it "一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元" $
+       554 ┃       hedgehog $ do
+       555 ┃         w <- forAll genWord
+           ┃         │ ""
+       556 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       557 ┃         wordHits w n
+       558 ┃           === ( T.length w >= 3
+           ┃           ^^^^^^^^^^^^^^^^^^^^^
+           ┃           │ ━━━ Exception (ErrorCall) ━━━
+           ┃           │ P-027#wordHits stub
+       559 ┃                   && any
+       560 ┃                     (T.isInfixOf (upperAscii w))
+       561 ┃                     (map upperAscii (fieldsOf (rawFtsText n)))
+
+  To rerun use: --match "/lawful P027/P-027#LAW-14/一個詞命中 = 它不分大小寫是六欄原文之一的子字串,且長度至少三個字元/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:569:21: 
+  5) lawful P027, P-027#LAW-15, 一段中日韓命中 = 它以連續子字串出現在六欄原文之一
+       failed after 1 test and 3 shrinks.
+       shrink path: 1:b2C
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       564 ┃   describe "P-027#LAW-15" $
+       565 ┃     it "一段中日韓命中 = 它以連續子字串出現在六欄原文之一" $
+       566 ┃       hedgehog $ do
+       567 ┃         r <- forAll genRunText
+           ┃         │ "\37329"
+       568 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       569 ┃         runHits r n === any (T.isInfixOf r) (fieldsOf (rawFtsText n))
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#runHits stub
+       570 ┃ 
+       571 ┃   describe "P-027#LAW-16" $
+       572 ┃     it "只查 trigram 時,命中就是「查詢的每一個詞都命中」" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-15/一段中日韓命中 = 它以連續子字串出現在六欄原文之一/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:580:11: 
+  6) lawful P027, P-027#LAW-16, 只查 trigram 時,命中就是「查詢的每一個詞都命中」
+       failed after 1 test and 1 shrink.
+       shrink path: 1:b
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       572 ┃     it "只查 trigram 時,命中就是「查詢的每一個詞都命中」" $
+       573 ┃       hedgehog $ do
+       574 ┃         -- given usesTrigram (routeOf t) and not (usesCjk (routeOf t))
+       575 ┃         t <- forAll genAsciiText
+           ┃         │ ""
+       576 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       577 ┃         assert (usesTrigram (routeOf t))
+       578 ┃         assert (not (usesCjk (routeOf t)))
+       579 ┃         matchesQuery t n
+       580 ┃           === ( not (T.null (stripText t))
+           ┃           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃           │ ━━━ Exception (ErrorCall) ━━━
+           ┃           │ P-027#matchesQuery stub
+       581 ┃                   && all (`wordHits` n) (T.words (stripText t))
+       582 ┃               )
+       583 ┃ 
+
+  To rerun use: --match "/lawful P027/P-027#LAW-16/只查 trigram 時,命中就是「查詢的每一個詞都命中」/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:592:26: 
+  7) lawful P027, P-027#LAW-17, 只查 cjk 時,命中就是「查詢的每一個中日韓連續段都命中」
+       failed after 1 test and 3 shrinks.
+       shrink path: 1:a2B
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       585 ┃     it "只查 cjk 時,命中就是「查詢的每一個中日韓連續段都命中」" $
+       586 ┃       hedgehog $ do
+       587 ┃         -- given usesCjk (routeOf t) and not (usesTrigram (routeOf t))
+       588 ┃         t <- forAll genCjkOnlyQuery
+           ┃         │ "\37329"
+       589 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       590 ┃         assert (usesCjk (routeOf t))
+       591 ┃         assert (not (usesTrigram (routeOf t)))
+       592 ┃         matchesQuery t n === all (`runHits` n) (cjkRuns (stripText t))
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#matchesQuery stub
+       593 ┃ 
+       594 ┃   describe "P-027#LAW-18" $
+       595 ┃     it "兩張都查時,任一邊命中就算命中" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-17/只查 cjk 時,命中就是「查詢的每一個中日韓連續段都命中」/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:603:11: 
+  8) lawful P027, P-027#LAW-18, 兩張都查時,任一邊命中就算命中
+       failed after 1 test and 7 shrinks.
+       shrink path: 1:b3C3b
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       595 ┃     it "兩張都查時,任一邊命中就算命中" $
+       596 ┃       hedgehog $ do
+       597 ┃         -- given usesCjk (routeOf t) and usesTrigram (routeOf t)
+       598 ┃         t <- forAll genBothQuery
+           ┃         │ "\37329 \37329"
+       599 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       600 ┃         assert (usesCjk (routeOf t))
+       601 ┃         assert (usesTrigram (routeOf t))
+       602 ┃         matchesQuery t n
+       603 ┃           === ( all (`wordHits` n) (T.words (stripText t))
+           ┃           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃           │ ━━━ Exception (ErrorCall) ━━━
+           ┃           │ P-027#matchesQuery stub
+       604 ┃                   || all (`runHits` n) (cjkRuns (stripText t))
+       605 ┃               )
+       606 ┃ 
+
+  To rerun use: --match "/lawful P027/P-027#LAW-18/兩張都查時,任一邊命中就算命中/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:614:26: 
+  9) lawful P027, P-027#LAW-19, 純 ASCII 的查詢不分大小寫
+       failed after 1 test and 1 shrink.
+       shrink path: 1:b
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       608 ┃     it "純 ASCII 的查詢不分大小寫" $
+       609 ┃       hedgehog $ do
+       610 ┃         -- given not (hasCjk t)
+       611 ┃         t <- forAll genAsciiText
+           ┃         │ ""
+       612 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       613 ┃         assert (not (hasCjk t))
+       614 ┃         matchesQuery t n === matchesQuery (upperAscii t) n
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#matchesQuery stub
+       615 ┃ 
+       616 ┃   describe "P-027#LAW-20" $
+       617 ┃     it "純 ASCII 的一、二字元查詢在雙索引下必定不命中" $
+
+  To rerun use: --match "/lawful P027/P-027#LAW-19/純 ASCII 的查詢不分大小寫/" --seed 1622431719
+
+  test\Aapms\Lawful\P027Spec.hs:625:9: 
+  10) lawful P027, P-027#LAW-20, 純 ASCII 的一、二字元查詢在雙索引下必定不命中
+       failed after 1 test and 2 shrinks.
+       shrink path: 1:bC
+       
+           ┏━━ test\Aapms\Lawful\P027Spec.hs ━━━
+       619 ┃         -- given not (hasCjk t) and not (null (stripText t)) and
+       620 ┃         -- length (stripText t) < 3:產生器建構「一到兩個非空白 ASCII 字元、
+       621 ┃         -- 前後補空白」,去頭尾空白後恰好 1 或 2 個字元。
+       622 ┃         t <- forAll genShortAsciiQuery
+           ┃         │ "a"
+       623 ┃         n <- forAll genAnyNode
+           ┃         │ NEntity
+           ┃         │   Entity
+           ┃         │     { entMeta =
+           ┃         │         Meta
+           ┃         │           { metaId = Id "ent-b59217f8"
+           ┃         │           , metaVault = VaultId "vlt-00000001"
+           ┃         │           , metaType = TypeKey "character-fragment"
+           ┃         │           , metaTitle = ""
+           ┃         │           , metaSummary = ""
+           ┃         │           , metaTags = []
+           ┃         │           , metaStatus = Draft
+           ┃         │           , metaTimeline = Nothing
+           ┃         │           , metaAliases = []
+           ┃         │           , metaLinks = []
+           ┃         │           , metaSource = Human
+           ┃         │           , metaRevision = Revision 1
+           ┃         │           , metaCreated = 2026-01-01
+           ┃         │           , metaUpdated = 2026-01-01
+           ┃         │           }
+           ┃         │     , entBody = ""
+           ┃         │     }
+       624 ┃         assert (not (hasCjk t))
+       625 ┃         assert (not (matchesQuery t n))
+           ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ┃         │ ━━━ Exception (ErrorCall) ━━━
+           ┃         │ P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#LAW-20/純 ASCII 的一、二字元查詢在雙索引下必定不命中/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  11) lawful P027, P-027#EX-11, 二字中文命中(契約卡驗收標準)
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-11/二字中文命中(契約卡驗收標準)/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  12) lawful P027, P-027#EX-12, 判斷對象是去頭尾空白後的字串
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-12/判斷對象是去頭尾空白後的字串/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  13) lawful P027, P-027#EX-13, 空查詢一律不命中
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-13/空查詢一律不命中/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  14) lawful P027, P-027#EX-14, 英文子字串走 trigram,不分大小寫,- 不被當成運算子
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-14/英文子字串走 trigram,不分大小寫,- 不被當成運算子/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  15) lawful P027, P-027#EX-15, 純 ASCII 二字查詢必定不命中
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-15/純 ASCII 二字查詢必定不命中/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  16) lawful P027, P-027#EX-16, 每個詞都要出現
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-16/每個詞都要出現/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  17) lawful P027, P-027#EX-17, 兩張都查時任一邊命中就算命中
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-17/兩張都查時任一邊命中就算命中/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  18) lawful P027, P-027#EX-18, 四字查詢走兩張表,cjk 那一側命中
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-18/四字查詢走兩張表,cjk 那一側命中/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  19) lawful P027, P-027#EX-19, 每一段中日韓要以連續子字串出現
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-19/每一段中日韓要以連續子字串出現/" --seed 1622431719
+
+  src\Aapms\Store\Tokenize.hs:288:16: 
+  20) lawful P027, P-027#EX-20, 段與段之間是 AND,段內才要求連續
+       uncaught exception: ErrorCall
+       P-027#matchesQuery stub
+
+  To rerun use: --match "/lawful P027/P-027#EX-20/段與段之間是 AND,段內才要求連續/" --seed 1622431719
+
+Randomized with seed 1622431719
+
+Finished in 0.1698 seconds
+40 examples, 20 failures
+Test suite aapms-store-test: FAIL
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P027\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\test\aapms-store-0.1.0.0-aapms-store-test.log
+0 of 1 test suites (0 of 1 test cases) passed.
+Error: [Cabal-7125]
+Tests failed for test:aapms-store-test from aapms-store-0.1.0.0.
+

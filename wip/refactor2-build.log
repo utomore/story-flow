@@ -1,0 +1,487 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-store-0.1.0.0 (lib) (file src\Aapms\Store\Row.hs changed)
+ - aapms-store-0.1.0.0 (test:aapms-store-test) (file test\Aapms\Store\WriteSpec.hs changed)
+ - aapms-workspace-0.1.0.0 (test:aapms-workspace-test) (configuration changed)
+ - aapms-workspace-0.1.0.0 (lib) (configuration changed)
+ - aapms-service-0.1.0.0 (test:aapms-service-test) (dependency rebuilt)
+ - aapms-service-0.1.0.0 (lib) (dependency rebuilt)
+Preprocessing test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+Preprocessing library for aapms-store-0.1.0.0...
+Building library for aapms-store-0.1.0.0...
+Building test suite 'aapms-store-test' for aapms-store-0.1.0.0...
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[11 of 18] Compiling Aapms.Store.MultiVault ( src\Aapms\Store\MultiVault.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\build\Aapms\Store\MultiVault.o ) [Source file changed]
+[13 of 45] Compiling Aapms.Store.MultiVault ( src\Aapms\Store\MultiVault.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\MultiVault.o ) [Source file changed]
+[18 of 18] Compiling Aapms.Store      ( src\Aapms\Store.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\build\Aapms\Store.o ) [Aapms.Store.Atomic changed]
+[27 of 45] Compiling Aapms.Store.MultiVaultSpec ( test\Aapms\Store\MultiVaultSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\MultiVaultSpec.o ) [Aapms.Store.Fixtures changed]
+test\Aapms\Store\MultiVaultSpec.hs:89:28: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘AnyNode’
+    from module ‘Aapms.Core.AnyNode’ is redundant
+   |
+89 | import Aapms.Core.AnyNode (AnyNode, anyMeta)
+   |                            ^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:90:66: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘idPrefix, renderIdPrefix’
+    from module ‘Aapms.Core.Id’ is redundant
+   |
+90 | import Aapms.Core.Id (Id, IdPrefix (..), Ref (..), VaultId (..), idPrefix, renderId, renderIdPrefix)
+   |                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:92:49: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘TypeKey’ from module ‘Aapms.Core.Meta’ is redundant
+   |
+92 | import Aapms.Core.Meta (Meta (..), Status (..), TypeKey (..))
+   |                                                 ^^^^^^^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:115:21: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+115 | markerToml (VaultId vid) kind name =
+    |                     ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:375:27: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+375 | openFreshIndexedVault dir vid kind name files = do
+    |                           ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:451:24: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘vid’ shadows the existing binding
+      defined at test\Aapms\Store\MultiVaultSpec.hs:472:1
+    |
+451 | openMinimalVaultAt dir vid =
+    |                        ^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:638:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+638 |       before <- listNodes hA (wideFilter emptyNodeFilter)
+    |       ^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:641:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+641 |       after <- listNodes hA (wideFilter emptyNodeFilter)
+    |       ^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1029:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1029 |       before <- listNodes hA (wideFilter emptyNodeFilter)
+     |       ^^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1031:7: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Store\MultiVaultSpec.hs:87:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1031 |       after <- listNodes hA (wideFilter emptyNodeFilter)
+     |       ^^^^^
+
+test\Aapms\Store\MultiVaultSpec.hs:1209:28: warning: [GHC-62161] [-Wincomplete-uni-patterns]
+    Pattern match(es) are non-exhaustive
+    In a lambda abstraction:
+        Patterns of type ‘[Text]’ not matched:
+            []
+            [_]
+            (_:_:_:_)
+     |
+1209 |       msgs `shouldSatisfy` \[m1, m2] -> m1 /= m2
+     |                            ^^^^^^^^^^^^^^^^^^^^^
+
+Configuring test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+Configuring library for aapms-workspace-0.1.0.0...
+[28 of 45] Compiling Aapms.Store.VaultLayoutSpec ( test\Aapms\Store\VaultLayoutSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\VaultLayoutSpec.o ) [Aapms.Store.Fixtures changed]
+Preprocessing library for aapms-workspace-0.1.0.0...
+Preprocessing test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+[40 of 45] Compiling Aapms.Store      ( src\Aapms\Store.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store.o ) [Aapms.Store.Atomic changed]
+Building library for aapms-workspace-0.1.0.0...
+Building test suite 'aapms-workspace-test' for aapms-workspace-0.1.0.0...
+[41 of 45] Compiling Aapms.Store.BoundarySpec ( test\Aapms\Store\BoundarySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\Store\BoundarySpec.o ) [Source file changed]
+test\Aapms\Store\BoundarySpec.hs:147:1: warning: [GHC-38417] [-Wmissing-signatures]
+    Top-level binding with no type signature:
+      _contractEFunctions :: (FilePath
+                              -> IO (Either StoreError VaultMarker),
+                              FilePath
+                              -> VaultKind -> Text -> IO (Either StoreError VaultMarker),
+                              Aapms.Core.Registry.TypeRegistry
+                              -> FilePath -> IO (Either StoreError (VaultHandle, [IndexIssue])),
+                              VaultHandle -> IO (),
+                              VaultHandle -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> FilePath -> IO (Either StoreError [IndexIssue]),
+                              VaultHandle -> FilePath -> IO (Either StoreError ()),
+                              VaultHandle -> Id -> IO (Maybe Aapms.Core.AnyNode.AnyNode),
+                              VaultHandle
+                              -> Aapms.Core.Asset.LogicalName
+                              -> IO (Maybe Aapms.Core.Asset.Asset),
+                              VaultHandle -> NodeFilter -> IO [Aapms.Core.Meta.Meta],
+                              VaultHandle -> Id -> IO [Aapms.Core.Meta.Meta],
+                              VaultHandle -> Id -> IO [Aapms.Core.Link.Link],
+                              VaultHandle
+                              -> Aapms.Core.Id.Ref
+                              -> IO [(Aapms.Core.Meta.Meta, Aapms.Core.Link.Link)],
+                              VaultHandle -> IO Aapms.Core.Link.LinkGraph,
+                              VaultHandle -> SearchQuery -> IO SearchResult,
+                              [VaultHandle] -> IO (Either StoreError VaultSet),
+                              VaultSet
+                              -> Aapms.Core.Id.VaultId
+                              -> Aapms.Core.Id.Ref
+                              -> IO (Maybe (Aapms.Core.Id.VaultId, Aapms.Core.AnyNode.AnyNode)),
+                              VaultSet
+                              -> NodeFilter
+                              -> IO [(Aapms.Core.Id.VaultId, Aapms.Core.Meta.Meta)],
+                              VaultSet -> SearchQuery -> IO SearchResult,
+                              VaultSet -> VaultHandle -> IO [DanglingRef], VaultSet -> IO (),
+                              VaultSet -> [Aapms.Core.Id.VaultId], Int,
+                              VaultHandle
+                              -> Aapms.Core.Registry.TypeRegistry
+                              -> Aapms.Store.Types.NewEntity
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Aapms.Core.Registry.TypeRegistry
+                              -> Aapms.Store.Types.NewLevel
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Aapms.Store.Types.NewPack
+                              -> [Aapms.Md.Section.NewSection]
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Id
+                              -> SectionPlacement
+                              -> Aapms.Md.Section.NewSection
+                              -> IO (Either StoreError CreateResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> (Aapms.Md.Section.MetaOverride -> Aapms.Md.Section.MetaOverride)
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Write.AssetPatch
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id -> Revision -> Text -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Aapms.Core.Link.Link
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> Aapms.Core.Link.Link
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Aapms.Core.License.License
+                              -> IO (Either StoreError WriteResult),
+                              VaultHandle
+                              -> Id
+                              -> Revision
+                              -> DeleteMode
+                              -> IO (Either StoreError DeleteResult),
+                              VaultHandle
+                              -> Aapms.Core.Id.IdPrefix
+                              -> Text
+                              -> time-1.15:Data.Time.Clock.Internal.UTCTime.UTCTime
+                              -> IO (Either StoreError Id))
+    |
+147 | _contractEFunctions =
+    | ^^^^^^^^^^^^^^^^^^^
+
+test\Aapms\Store\BoundarySpec.hs:187:1: warning: [GHC-40910] [-Wunused-top-binds]
+    Defined but not used:
+      type constructor or class ‘ContractETypesCheck’
+    |
+187 | type ContractETypesCheck =
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^...
+
+[1 of 9] Compiling Aapms.Workspace.Types ( src\Aapms\Workspace\Types.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Types.o ) [Aapms.Store.Types changed]
+[ 1 of 19] Compiling Aapms.Workspace.Types ( src\Aapms\Workspace\Types.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Types.o ) [Aapms.Store.Types changed]
+[44 of 45] Compiling Aapms.StoreSpec  ( test\Aapms\StoreSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Aapms\StoreSpec.o ) [Aapms.Store changed]
+[3 of 9] Compiling Aapms.Workspace.Location ( src\Aapms\Workspace\Location.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Location.o ) [Source file changed]
+[4 of 9] Compiling Aapms.Workspace.Hub ( src\Aapms\Workspace\Hub.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Hub.o ) [Source file changed]
+[45 of 45] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test-tmp\Main.o ) [Aapms.Store.AtomicSpec changed]
+[ 3 of 19] Compiling Aapms.Workspace.Location ( src\Aapms\Workspace\Location.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Location.o ) [Source file changed]
+[ 4 of 19] Compiling Aapms.Workspace.Hub ( src\Aapms\Workspace\Hub.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Hub.o ) [Source file changed]
+<no location info>: warning: [GHC-32850] [-Wmissing-home-modules]
+    These modules are needed for compilation but not listed in your .cabal file's other-modules for ‘aapms-store-0.1.0.0-inplace-aapms-store-test’ :
+        Aapms.Store
+        Aapms.Store.Atomic
+        Aapms.Store.Create
+        Aapms.Store.Edit
+        Aapms.Store.Editing
+        Aapms.Store.Error
+        Aapms.Store.Index
+        Aapms.Store.Marker
+        Aapms.Store.MultiVault
+        Aapms.Store.Node
+        Aapms.Store.Query
+        Aapms.Store.Row
+        Aapms.Store.Row.Sql
+        Aapms.Store.Schema
+        Aapms.Store.Tokenize
+        Aapms.Store.Types
+        Aapms.Store.Walk
+        Aapms.Store.Write
+
+[46 of 46] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-store-0.1.0.0\t\aapms-store-test\build\aapms-store-test\aapms-store-test.exe [Objects changed]
+[5 of 9] Compiling Aapms.Workspace.Hub.File ( src\Aapms\Workspace\Hub\File.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Hub\File.o )
+[6 of 9] Compiling Aapms.Workspace.Projects ( src\Aapms\Workspace\Projects.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Projects.o ) [Source file changed]
+[ 5 of 19] Compiling Aapms.Workspace.Hub.File ( src\Aapms\Workspace\Hub\File.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Hub\File.o )
+[7 of 9] Compiling Aapms.Workspace.Discovery ( src\Aapms\Workspace\Discovery.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Discovery.o ) [Aapms.Store.Marker changed]
+[ 6 of 19] Compiling Aapms.Workspace.Projects ( src\Aapms\Workspace\Projects.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Projects.o ) [Source file changed]
+[8 of 9] Compiling Aapms.Workspace.Scope ( src\Aapms\Workspace\Scope.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Scope.o ) [Aapms.Store.Marker changed]
+[ 7 of 19] Compiling Aapms.Workspace.Fixtures ( test\Aapms\Workspace\Fixtures.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Fixtures.o ) [Aapms.Store.Schema changed]
+[9 of 9] Compiling Aapms.Workspace.Lifecycle ( src\Aapms\Workspace\Lifecycle.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\build\Aapms\Workspace\Lifecycle.o ) [Source file changed]
+src\Aapms\Workspace\Lifecycle.hs:47:77: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘initVaultAt’
+    from module ‘Aapms.Store.Marker’ is redundant
+   |
+47 | import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
+   |                                                                             ^^^^^^^^^^^
+
+[ 9 of 19] Compiling Aapms.Workspace.ProjectsSpec ( test\Aapms\Workspace\ProjectsSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\ProjectsSpec.o ) [Source file changed]
+Preprocessing test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+Preprocessing library for aapms-service-0.1.0.0...
+Building library for aapms-service-0.1.0.0...
+Building test suite 'aapms-service-test' for aapms-service-0.1.0.0...
+[1 of 4] Compiling Aapms.Service.Types ( src\Aapms\Service\Types.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\build\Aapms\Service\Types.o ) [Aapms.Store.Types changed]
+[ 1 of 17] Compiling Aapms.Service.Types ( src\Aapms\Service\Types.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\Types.o ) [Aapms.Store.Types changed]
+[2 of 4] Compiling Aapms.Service.Monad ( src\Aapms\Service\Monad.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\build\Aapms\Service\Monad.o ) [Source file changed]
+[ 2 of 17] Compiling Aapms.Service.Monad ( src\Aapms\Service\Monad.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\Monad.o ) [Source file changed]
+[10 of 19] Compiling Aapms.Workspace.LocationSpec ( test\Aapms\Workspace\LocationSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\LocationSpec.o ) [Source file changed]
+[3 of 4] Compiling Aapms.Service.Scope ( src\Aapms\Service\Scope.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\build\Aapms\Service\Scope.o ) [Aapms.Service.Monad changed]
+[ 3 of 17] Compiling Aapms.Service.Scope ( src\Aapms\Service\Scope.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\Scope.o ) [Aapms.Service.Monad changed]
+[4 of 4] Compiling Aapms.Service.Machine ( src\Aapms\Service\Machine.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\build\Aapms\Service\Machine.o ) [Source file changed]
+[ 4 of 17] Compiling Aapms.Service.Machine ( src\Aapms\Service\Machine.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\Machine.o ) [Source file changed]
+[11 of 19] Compiling Aapms.Workspace.HubSpec ( test\Aapms\Workspace\HubSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\HubSpec.o ) [Source file changed]
+[ 5 of 17] Compiling Aapms.Service.Fixtures ( test\Aapms\Service\Fixtures.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\Fixtures.o ) [Aapms.Service.Monad changed]
+[ 6 of 17] Compiling Aapms.Service.ScopeSpec ( test\Aapms\Service\ScopeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\ScopeSpec.o ) [Aapms.Service.Fixtures changed]
+[ 9 of 17] Compiling Aapms.Service.MonadSpec ( test\Aapms\Service\MonadSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MonadSpec.o ) [Aapms.Service.Fixtures changed]
+test\Aapms\Service\MonadSpec.hs:113:11: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+113 |           before <- indexDbExistence fl
+    |           ^^^^^^
+
+test\Aapms\Service\MonadSpec.hs:118:11: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+118 |           after <- indexDbExistence fl
+    |           ^^^^^
+
+test\Aapms\Service\MonadSpec.hs:120:14: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+120 |         let (before, after) = outcome
+    |              ^^^^^^
+
+test\Aapms\Service\MonadSpec.hs:120:22: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+120 |         let (before, after) = outcome
+    |                      ^^^^^
+
+test\Aapms\Service\MonadSpec.hs:328:13: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+328 |             after <- readIORef ranAfter
+    |             ^^^^^
+
+test\Aapms\Service\MonadSpec.hs:355:15: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+355 |               before <- indexIssuesFor vid
+    |               ^^^^^^
+
+test\Aapms\Service\MonadSpec.hs:357:15: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+357 |               after <- indexIssuesFor vid
+    |               ^^^^^
+
+test\Aapms\Service\MonadSpec.hs:360:18: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+360 |           Right (before, after) -> do
+    |                  ^^^^^^
+
+test\Aapms\Service\MonadSpec.hs:360:26: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+360 |           Right (before, after) -> do
+    |                          ^^^^^
+
+test\Aapms\Service\MonadSpec.hs:457:20: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+457 |             Right (before, after) -> do
+    |                    ^^^^^^
+
+test\Aapms\Service\MonadSpec.hs:457:28: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Service\MonadSpec.hs:48:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+457 |             Right (before, after) -> do
+    |                            ^^^^^
+
+[12 of 19] Compiling Aapms.Workspace.Discovery ( src\Aapms\Workspace\Discovery.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Discovery.o ) [Aapms.Store.Marker changed]
+[13 of 19] Compiling Aapms.Workspace.Scope ( src\Aapms\Workspace\Scope.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Scope.o ) [Aapms.Store.Marker changed]
+[14 of 19] Compiling Aapms.Workspace.ScopeSpec ( test\Aapms\Workspace\ScopeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\ScopeSpec.o ) [Aapms.Store.Marker changed]
+[10 of 17] Compiling Aapms.Service.MachineWriteOpsSpec ( test\Aapms\Service\MachineWriteOpsSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineWriteOpsSpec.o ) [Aapms.Service.Fixtures changed]
+[15 of 19] Compiling Aapms.Workspace.Lifecycle ( src\Aapms\Workspace\Lifecycle.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\Lifecycle.o ) [Source file changed]
+src\Aapms\Workspace\Lifecycle.hs:47:77: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘initVaultAt’
+    from module ‘Aapms.Store.Marker’ is redundant
+   |
+47 | import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName), indexDbPath, initVaultAt, initVaultAtWith, markerDir, readMarker)
+   |                                                                             ^^^^^^^^^^^
+
+[11 of 17] Compiling Aapms.Service.MachineVaultSpec ( test\Aapms\Service\MachineVaultSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineVaultSpec.o ) [Aapms.Service.Fixtures changed]
+[16 of 19] Compiling Aapms.Workspace.LifecycleSpec ( test\Aapms\Workspace\LifecycleSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\LifecycleSpec.o ) [Source file changed]
+test\Aapms\Workspace\LifecycleSpec.hs:308:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+308 |         before <- readHubConfigText hubDir
+    |         ^^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:310:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+310 |         after <- readHubConfigText hubDir
+    |         ^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:615:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+615 |         before <- readFile (vaultMarkerConfigFile canonV)
+    |         ^^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:618:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+618 |         after <- readFile (vaultMarkerConfigFile canonV)
+    |         ^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:887:25: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘loc’
+    |
+887 |       withHubAndRoot $ \loc root -> do
+    |                         ^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:914:25: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘loc’
+    |
+914 |       withHubAndRoot $ \loc root -> do
+    |                         ^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:956:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+956 |         before <- readHubConfigText (hlPath loc)
+    |         ^^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:960:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+    |
+960 |         after <- readHubConfigText (hlPath loc)
+    |         ^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:1041:11: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘before’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1041 |           before <- readFile (vePath e1 </> "library" </> "sub" </> "deep.md")
+     |           ^^^^^^
+
+test\Aapms\Workspace\LifecycleSpec.hs:1044:11: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘after’ shadows the existing binding
+      imported from ‘Test.Hspec’ at test\Aapms\Workspace\LifecycleSpec.hs:150:1-17
+      (and originally defined in ‘hspec-core-2.11.17:Test.Hspec.Core.Hooks’)
+     |
+1044 |           after <- readFile (vePath e1 </> "library" </> "sub" </> "deep.md")
+     |           ^^^^^
+
+[12 of 17] Compiling Aapms.Service.MachineVaultInfoSpec ( test\Aapms\Service\MachineVaultInfoSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineVaultInfoSpec.o ) [Aapms.Service.Fixtures changed]
+[13 of 17] Compiling Aapms.Service.MachineSetupPurgeSpec ( test\Aapms\Service\MachineSetupPurgeSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineSetupPurgeSpec.o ) [Source file changed]
+[14 of 17] Compiling Aapms.Service.MachineRegistrySpec ( test\Aapms\Service\MachineRegistrySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineRegistrySpec.o ) [Aapms.Service.Fixtures changed]
+[15 of 17] Compiling Aapms.Service.MachineDoctorSpec ( test\Aapms\Service\MachineDoctorSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\MachineDoctorSpec.o ) [Aapms.Service.Fixtures changed]
+test\Aapms\Service\MachineDoctorSpec.hs:34:5: warning: [GHC-38856] [-Wunused-imports]
+    The import of ‘ToolOrigin’
+    from module ‘Aapms.Service.Machine’ is redundant
+   |
+34 |   , ToolOrigin (..)
+   |     ^^^^^^^^^^^^^^^
+
+[16 of 17] Compiling Aapms.Service.TypesSpec ( test\Aapms\Service\TypesSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Aapms\Service\TypesSpec.o ) [Aapms.Service.Types changed]
+[17 of 17] Compiling Main             ( test\Spec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test-tmp\Main.o ) [Aapms.Service.MachineDoctorSpec changed]
+[17 of 19] Compiling Aapms.Workspace.DiscoverySpec ( test\Aapms\Workspace\DiscoverySpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\DiscoverySpec.o ) [Aapms.Store.Error changed]
+[18 of 18] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-service-0.1.0.0\t\aapms-service-test\build\aapms-service-test\aapms-service-test.exe [Objects changed]
+[18 of 19] Compiling Aapms.Workspace.TypesSpec ( test\Aapms\Workspace\TypesSpec.hs, C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test-tmp\Aapms\Workspace\TypesSpec.o ) [Aapms.Store.Error changed]
+[20 of 20] Linking C:\Users\User\Documents\alchbees-dev\story-flow\dist-newstyle\build\x86_64-windows\ghc-9.14.1\aapms-workspace-0.1.0.0\t\aapms-workspace-test\build\aapms-workspace-test\aapms-workspace-test.exe [Objects changed]

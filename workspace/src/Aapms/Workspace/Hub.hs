@@ -1,4 +1,4 @@
--- | 中樞 @config.toml@ 四段的解析與序列化、原子寫入,以及對 'Hub' 值的純增刪
+-- | 中樞 @config.toml@ 四段的解析與序列化,以及對 'Hub' 值的純增刪
 -- (design.md「內部模組劃分」的 Hub)。
 --
 -- 擁有的事實(唯一真相來源):__中樞記了什麼__——@[[vaults]]@ \/ @[[projects]]@ \/
@@ -8,12 +8,15 @@
 -- marker(graph-core)。本模組存的是__快取__,'Aapms.Workspace.Discovery'
 -- (F002)每次重讀真相。
 --
--- __不建立任何目錄或檔案__:'saveHub' 只覆寫既有位置的 @config.toml@,中樞目錄
+-- __本模組是純的__:它只做「文字 ↔ 'Hub' 值」與對 'Hub' 值的增刪,不開檔、
+-- 不讀環境變數、不 import 任何 IO 模組。碰檔案的那一半('Aapms.Workspace.Hub.File.loadHub' \/
+-- 'Aapms.Workspace.Hub.File.saveHub')住 "Aapms.Workspace.Hub.File" ——
+-- 它__不建立任何目錄或檔案__:@saveHub@ 只覆寫既有位置的 @config.toml@,中樞目錄
 -- 與 @cache\/@ 的建立是 F004 的 @setupHub@。
 module Aapms.Workspace.Hub
-  ( -- * 載入與寫回
-    loadHub
-  , saveHub
+  ( -- * 文字 ↔ 'Hub' 值
+    parseHubText
+  , renderHub
 
     -- * 契約 B 的四個 getter(自 'Aapms.Workspace.Types' 轉出)
   , hubVaults
@@ -26,12 +29,13 @@ module Aapms.Workspace.Hub
   , removeVault
   , upsertProject
   , removeProject
+
+    -- * 觀察點(P-028-hub-config):依序套用增刪
+  , applyHubEdits
   ) where
 
 import Data.Char (toUpper)
-import Data.List (find)
 import qualified Data.Map.Strict as M
-import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified TOML
@@ -45,13 +49,10 @@ import Aapms.Core.Id
   , renderId
   , renderIdPrefix
   )
-import Aapms.Store.Atomic (atomicWriteText, readTextFile)
-import Aapms.Store.Error (renderStoreError)
-import Aapms.Store.Schema (parseVaultKind, renderVaultKind)
-import Aapms.Workspace.Location (configPath)
+import Aapms.Store.Types (parseVaultKind, renderVaultKind)
 import Aapms.Workspace.Types
   ( Hub
-  , HubLocation
+  , HubEdit (..)
   , LlmSection (..)
   , ProjectEntry (..)
   , ToolsConfig (..)
@@ -64,34 +65,20 @@ import Aapms.Workspace.Types
   , hubVaults
   , mkHub
   )
-import System.Directory (doesFileExist)
 import System.FilePath (isAbsolute)
 
--- 讀 -----------------------------------------------------------------------
+-- 解析 ---------------------------------------------------------------------
 
--- | 讀 @\<hlPath\>\/config.toml@ 並解析四段。
+-- | @config.toml@ 的文字 → 'Hub' 的四段。第一個參數是這份文字的來源路徑,
+-- 只用來組錯誤訊息。
 --
--- * 檔案不存在 → @Left ('Aapms.Workspace.Types.HubNotFound' fp)@,
---   __不回空中樞__(system.md 全域錯誤策略第 3 條)
--- * 讀不進來或 TOML 解不開 → @Left ('Aapms.Workspace.Types.HubUnreadable' fp _)@
+-- * TOML 解不開 → @Left ('Aapms.Workspace.Types.HubUnreadable' fp _)@
 -- * 解得開但欄位不合規 → @Left ('Aapms.Workspace.Types.HubMalformed' fp _)@
 --
--- 成功時 'Aapms.Workspace.Types.hubSourceText' 帶著這次讀到的原始檔案文字,
--- 'saveHub' 靠它保住註解與空白行。
-loadHub :: HubLocation -> IO (Either WorkspaceError Hub)
-loadHub loc = do
-  let fp = configPath loc
-  exists <- doesFileExist fp
-  if not exists
-    then pure (Left (HubNotFound fp))
-    else do
-      txtR <- readTextFile fp
-      case txtR of
-        Left e -> pure (Left (HubUnreadable fp (renderStoreError e)))
-        Right txt -> pure (parseHub fp txt)
-
-parseHub :: FilePath -> Text -> Either WorkspaceError Hub
-parseHub fp txt = case (TOML.decode txt :: Either TOML.TOMLError TOML.Value) of
+-- 成功時 'Aapms.Workspace.Types.hubSourceText' 帶著傳進來的原始檔案文字,
+-- 'renderHub' 靠它保住註解與空白行。
+parseHubText :: FilePath -> Text -> Either WorkspaceError Hub
+parseHubText fp txt = case (TOML.decode txt :: Either TOML.TOMLError TOML.Value) of
   Left e -> Left (HubUnreadable fp (TOML.renderTOMLError e))
   Right (TOML.Table tbl) -> do
     vaults <- parseVaultsSection fp tbl
@@ -214,31 +201,14 @@ findDuplicate = go []
 unVaultId :: VaultId -> Text
 unVaultId (VaultId t) = t
 
--- 寫 -----------------------------------------------------------------------
-
--- | 把 'Hub' 原子寫回 @\<hlPath\>\/config.toml@(沿用
--- 'Aapms.Store.Atomic.atomicWriteText',__不另寫一份__)。
---
--- __既有列的相對順序、使用者寫的註解與空白行原樣保留__(ADR-017 決策二的
--- 「可手寫」):序列化自己寫,不用泛型 encoder。寫入失敗回
--- @Left ('Aapms.Workspace.Types.HubWriteFailed' fp _)@。
-saveHub :: HubLocation -> Hub -> IO (Either WorkspaceError ())
-saveHub loc hub = do
-  let fp = configPath loc
-  r <- atomicWriteText fp (renderHub hub)
-  pure $ case r of
-    Left e -> Left (HubWriteFailed fp (renderStoreError e))
-    Right () -> Right ()
-
 -- 底稿式序列化 ---------------------------------------------------------------
 --
 -- 'hubSourceText' 被切成一串「段落」('Segment'):檔案開頭到第一個表頭之前是
 -- 前導段(comment、空白行),之後每個表頭(@[key]@ 或 @[[key]]@)開一個新段落,
--- 涵蓋到下一個表頭之前的所有行。__vaults__ \/ __projects__ 段落逐一比對現在的
--- 'hubVaults' \/ 'hubProjects':id 還在且欄位沒變 → 原樣沿用;id 還在但欄位變了
--- → 重新產生那一段;id 不在了 → 整段刪除。原本不存在的新 id 被追加到對應段落的
--- 最後一段之後。@[llm]@ \/ @[tools]@ \/ 前導段 \/ 未知段落一律不動——本 feature
--- 沒有任何函式會修改它們的內容。
+-- 涵蓋到下一個表頭之前的所有行。__vaults__ \/ __projects__ 的段落被當成一排
+-- 「槽」,第 i 個槽放清單的第 i 列('fillSlots');清單比槽多的追加在最後一個槽
+-- 之後,槽比清單多的整段丟掉。@[llm]@ \/ @[tools]@ \/ 前導段 \/ 未知段落一律不動
+-- ——本 feature 沒有任何函式會修改它們的內容。
 
 data Segment = Segment
   { segKind :: Maybe (Bool, Text)
@@ -248,13 +218,28 @@ data Segment = Segment
   -- ^ 這個段落涵蓋的原始行(含終止符),依序串接後與這段原文逐字相同。
   }
 
+-- | 'Hub' → @config.toml@ 的完整文字。
+--
+-- __既有列的相對順序、使用者寫的註解與空白行原樣保留__(ADR-017 決策二的
+-- 「可手寫」):序列化自己寫,不用泛型 encoder。
 renderHub :: Hub -> Text
-renderHub hub = T.concat (concatMap segLines finalSegs)
+renderHub hub
+  | sourceUnchanged = src
+  | otherwise = T.concat (concatMap segLines finalSegs)
   where
     src = hubSourceText hub
     segs = segmentText src
     vaults = hubVaults hub
     projects = hubProjects hub
+
+    -- 底稿本身就是「現在應該長什麼樣」時,__整份逐字沿用__,連切段都不必做:
+    -- 沒有改過的快照(以及冪等的 upsert、刪不存在的 id 這種沒真的動到東西的
+    -- 增刪)因此保證與讀進來的文字逐位元組相同。判準只比 @[[vaults]]@ 與
+    -- @[[projects]]@:@[llm]@ \/ @[tools]@ \/ 未知段落沒有任何函式會改,切段那條
+    -- 路徑對它們也只是原樣抄回,兩條路徑的輸出一致。
+    sourceUnchanged = case parseHubText "" src of
+      Right h0 -> hubVaults h0 == vaults && hubProjects h0 == projects
+      Left _ -> False
 
     eol :: Text
     eol = if "\r\n" `T.isInfixOf` src then "\r\n" else "\n"
@@ -263,18 +248,22 @@ renderHub hub = T.concat (concatMap segLines finalSegs)
     isVaultsSeg s = segKind s == Just (True, "vaults")
     isProjectsSeg s = segKind s == Just (True, "projects")
 
-    (afterVaults, vaultIdsSeen) =
-      mapAccumSegs isVaultsSeg (matchVault eol vaults) segs
-    (afterProjects, projectIdsSeen) =
-      mapAccumSegs isProjectsSeg (matchProject eol projects) afterVaults
-
-    newVaults = filter (\e -> veId e `notElem` vaultIdsSeen) vaults
-    newProjects = filter (\e -> peId e `notElem` projectIdsSeen) projects
-
-    withNewVaults =
-      insertAfterLastKind eol isVaultsSeg (map (renderVaultSeg eol) newVaults) afterProjects
+    afterVaults =
+      fillSlots
+        eol
+        isVaultsSeg
+        (renderVaultSeg eol)
+        (segEntry parseVaultsSection)
+        vaults
+        segs
     finalSegs =
-      insertAfterLastKind eol isProjectsSeg (map (renderProjectSeg eol) newProjects) withNewVaults
+      fillSlots
+        eol
+        isProjectsSeg
+        (renderProjectSeg eol)
+        (segEntry parseProjectsSection)
+        projects
+        afterVaults
 
 -- | 把整份原始文字切成段落,段落邊界只在「表頭行」(去頭尾空白後以 @[@ 開頭、
 -- 以 @]@ 或 @]]@ 收尾、其餘只有選填的行內 comment 的那一行)。
@@ -332,85 +321,71 @@ classifyHeader raw =
           then Just (n == 2, T.strip name)
           else Nothing
 
--- | 在符合 'isTarget' 的段落上跑 @f@,不符合的段落原樣通過。@f@ 回傳
--- @(Nothing, _)@ 代表整段刪除;@Just seg'@ 代表沿用或替換成 @seg'@。第二個回傳值
--- 收集每個「仍然存在」的段落所帶的識別碼(給呼叫端算出「新出現的」)。
-mapAccumSegs
-  :: (Segment -> Bool)
-  -> (Segment -> (Maybe Segment, Maybe a))
+-- | 讓某一類段落渲染出來的__順序等於清單的順序__(LAW-2「清單含順序」)。
+--
+-- 走訪底稿的段落:不屬於這一類的原位不動(LAW-11 \/ LAW-15);屬於這一類的每個
+-- 段落算一個「槽」,第 @i@ 個槽放清單的第 @i@ 列。清單比槽多的追加在最後一個槽
+-- 之後(沒有任何槽時追加到檔尾),槽比清單多的整段丟掉。
+--
+-- 一個槽要放的那一列怎麼寫回去,依序試三種:
+--
+-- 1. 槽原本裝的就是這一列(逐欄相等)→ __沿用它原本的段落文字__,使用者寫在
+--    鍵後面的行內註解與段內空白行因此逐字保住(LAW-1、EX-13)。
+-- 2. 這一列原本裝在__別的槽__裡(中間某一列被刪掉、或列被重排時會這樣)→ 把那
+--    一段的原文搬過來,一樣保住它的註解。
+-- 3. 都不是(欄位改了、或整列是新的)→ 重新序列化一段。
+--
+-- 舊寫法是「以 id 對應、照原檔位置保留」:一個 id 被 'removeProject' 掉又被
+-- 'upsertProject' 加回來時,清單裡它已經在末尾,渲染出來卻還停在它原檔的位置,
+-- 再解析的順序就與 'hubProjects' 不同(REV-2、EX-27)。槽的位置由清單決定、
+-- 只有段落文字向底稿借,兩件事因此不再打架。
+fillSlots
+  :: Eq a
+  => Text
+  -> (Segment -> Bool)
+  -> (a -> Segment)
+  -> (Segment -> Maybe a)
+  -> [a]
   -> [Segment]
-  -> ([Segment], [a])
-mapAccumSegs isTarget f = foldr step ([], [])
+  -> [Segment]
+fillSlots eol isSlot render readSeg entries segs =
+  insertAfterLastKind eol isSlot (map reuseOrRender leftover) filled
   where
-    step s (accSegs, accIds)
-      | isTarget s =
-          let (mSeg, mId) = f s
-          in (maybe accSegs (: accSegs) mSeg, maybe accIds (: accIds) mId)
-      | otherwise = (s : accSegs, accIds)
+    -- 每個段落只解析一次;不是這一類的段落連解析都不做。
+    annotated = [(s, if isSlot s then readSeg s else Nothing) | s <- segs]
+    originals = [(e, s) | (s, Just e) <- annotated]
 
-matchVault :: Text -> [VaultEntry] -> Segment -> (Maybe Segment, Maybe VaultId)
-matchVault eol current seg = case findStringField "id" (segLines seg) of
-  Nothing -> (Just seg, Nothing)
-  Just idText ->
-    let vid = VaultId idText
-    in case find ((== vid) . veId) current of
-        Nothing -> (Nothing, Nothing)
-        Just e
-          | segMatchesVault seg e -> (Just seg, Just vid)
-          | otherwise -> (Just (renderVaultSeg eol e), Just vid)
+    reuseOrRender e = maybe (render e) id (lookup e originals)
 
-matchProject :: Text -> [ProjectEntry] -> Segment -> (Maybe Segment, Maybe Id)
-matchProject eol current seg = case findStringField "id" (segLines seg) of
-  Nothing -> (Just seg, Nothing)
-  Just idText -> case parseId idText of
-    Left _ -> (Just seg, Nothing)
-    Right (_, pid) -> case find ((== pid) . peId) current of
-      Nothing -> (Nothing, Nothing)
-      Just e
-        | segMatchesProject seg e -> (Just seg, Just pid)
-        | otherwise -> (Just (renderProjectSeg eol e), Just pid)
+    (filled, leftover) = go entries annotated
 
-segMatchesVault :: Segment -> VaultEntry -> Bool
-segMatchesVault seg e =
-  findStringField "name" (segLines seg) == Just (veName e)
-    && findStringField "kind" (segLines seg) == Just (renderVaultKind (veKind e))
-    && findStringField "path" (segLines seg) == Just (T.pack (vePath e))
+    go rest [] = ([], rest)
+    go rest ((s, mOrig) : ss)
+      | isSlot s = case rest of
+          [] -> go [] ss
+          (e : es) ->
+            let s' = if mOrig == Just e then s else reuseOrRender e
+                (ss', extra) = go es ss
+            in (s' : ss', extra)
+      | otherwise =
+          let (ss', extra) = go rest ss
+          in (s : ss', extra)
 
-segMatchesProject :: Segment -> ProjectEntry -> Bool
-segMatchesProject seg e =
-  findStringField "name" (segLines seg) == Just (peName e)
-    && findStringField "path" (segLines seg) == Just (T.pack (pePath e))
-
--- | 在一段行裡找 @key = "value"@ 這種指定,回傳去引號、去逸出後的值。只認雙引號
--- 字串,忽略值後面的行內 comment。找不到、或值不是雙引號字串時回 'Nothing'。
-findStringField :: Text -> [Text] -> Maybe Text
-findStringField key ls = listToMaybe (mapMaybe matchLine ls)
-  where
-    matchLine l =
-      let content = T.stripStart (stripLineEnding l)
-      in case T.stripPrefix key content of
-          Just afterKey -> do
-            afterEq <- eatEq (T.stripStart afterKey)
-            case T.uncons (T.stripStart afterEq) of
-              Just ('"', afterQuote) -> Just (fst (unquote afterQuote))
-              _ -> Nothing
-          Nothing -> Nothing
-
-    eatEq t = case T.uncons t of
-      Just ('=', rest) -> Just rest
+-- | 把一個段落的原文單獨交給 __解析全檔用的同一組解析器__,取出它代表的那一列。
+-- 段落不是合法 TOML、或那一段不是恰好一列時回 'Nothing'(呼叫端把它當「認不得,
+-- 原樣留著」)。
+--
+-- 比對用的值必須走同一條解析路徑:另寫一個「找 @key = \"value\"@」的行掃描器,
+-- 就會在逸出序列(@\\n@ \/ @\\uXXXX@)、單引號字串、多行字串、加引號的鍵上與解析器
+-- 對不上,把__沒有變動__的段落誤判成變了而重新序列化——使用者夾在鍵之間的獨立
+-- 註解行會因此消失,而未變動的段落要逐字沿用(LAW-1)。
+segEntry :: (FilePath -> TOML.Table -> Either WorkspaceError [a]) -> Segment -> Maybe a
+segEntry parseSection seg =
+  case (TOML.decode (T.concat (segLines seg)) :: Either TOML.TOMLError TOML.Value) of
+    Right (TOML.Table tbl) -> case parseSection "" tbl of
+      Right [e] -> Just e
       _ -> Nothing
-
-    unquote = go []
-      where
-        go acc t = case T.uncons t of
-          Nothing -> (T.pack (reverse acc), T.empty)
-          Just ('"', rest) -> (T.pack (reverse acc), rest)
-          Just ('\\', rest) -> case T.uncons rest of
-            Just ('"', rest') -> go ('"' : acc) rest'
-            Just ('\\', rest') -> go ('\\' : acc) rest'
-            Just (c, rest') -> go (c : acc) rest'
-            Nothing -> (T.pack (reverse acc), T.empty)
-          Just (c, rest) -> go (c : acc) rest
+    _ -> Nothing
 
 renderVaultSeg :: Text -> VaultEntry -> Segment
 renderVaultSeg eol e =
@@ -437,7 +412,8 @@ renderProjectSeg eol e =
 
 -- | TOML 基本字串的完整逸出:雙引號、反斜線、六個具名逸出序列,其餘
 -- U+0000–U+001F 與 U+007F 一律 @\\uXXXX@(四位大寫十六進位)。__控制字元不逸出
--- 就是非法 TOML__——'saveHub' 寫出這種內容,下一次 'loadHub' 會回
+-- 就是非法 TOML__——'Aapms.Workspace.Hub.File.saveHub' 寫出這種內容,下一次
+-- 'Aapms.Workspace.Hub.File.loadHub' 會回
 -- 'HubUnreadable',等於工具寫出一份自己讀不回來的中樞。
 quoteText :: Text -> Text
 quoteText t = "\"" <> T.concatMap esc t <> "\""
@@ -530,3 +506,13 @@ replaceOrAppend :: (a -> Bool) -> a -> [a] -> [a]
 replaceOrAppend p new xs
   | any p xs = map (\x -> if p x then new else x) xs
   | otherwise = xs ++ [new]
+
+-- | 依序套用增刪(P-028-hub-config 的觀察點):對 'HubEdit' 清單依序
+-- 'Prelude.foldl'',每個建構子轉呼叫對應的純增刪函式。
+applyHubEdits :: [HubEdit] -> Hub -> Hub
+applyHubEdits edits h0 = foldl' applyOne h0 edits
+  where
+    applyOne h (PutVault e) = upsertVault e h
+    applyOne h (DropVault vid) = removeVault vid h
+    applyOne h (PutProject p) = upsertProject p h
+    applyOne h (DropProject pid) = removeProject pid h

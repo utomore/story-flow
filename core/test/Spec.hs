@@ -16,6 +16,11 @@ import qualified Aapms.Core.PackSpec
 import qualified Aapms.Core.RegistrySpec
 import qualified Aapms.Core.TreeSpec
 import qualified Aapms.CoreSpec
+import qualified Aapms.Lawful.P020Spec
+import qualified Aapms.Lawful.P021Spec
+import qualified Aapms.Lawful.P022Spec
+import qualified Aapms.Lawful.P023Spec
+import qualified Aapms.Lawful.P024Spec
 import System.IO
 import Test.Hspec
 
@@ -24,6 +29,11 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
   hspec $ do
+    describe "lawful P024" Aapms.Lawful.P024Spec.spec
+    describe "lawful P023" Aapms.Lawful.P023Spec.spec
+    describe "lawful P022" Aapms.Lawful.P022Spec.spec
+    describe "lawful P021" Aapms.Lawful.P021Spec.spec
+    describe "lawful P020" Aapms.Lawful.P020Spec.spec
     describe "STEP-1 Aapms.Core.Id" Aapms.Core.IdSpec.spec
     describe "STEP-2 Aapms.Core.Meta" Aapms.Core.MetaSpec.spec
     describe "STEP-3 Aapms.Core.Link" Aapms.Core.LinkSpec.spec

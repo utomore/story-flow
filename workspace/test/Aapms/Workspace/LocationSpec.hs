@@ -1,7 +1,7 @@
 -- | F001:'Aapms.Workspace.Location' 的 'hubLocation'(LAW-1\/EX-1-EX-3)與三個純衍生
 -- 路徑 'configPath' \/ 'thumbCacheDir' \/ 'thumbCachePath'(LAW-2\/LAW-3\/EX-19\/EX-20)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F001-hub-registry.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-028-hub-config.md@):
 --
 -- @
 -- LAW-1  hubLocation 的兩層解析(AAPMS_HOME 非空 -> FromEnv;否則 FromPlatformDefault) -> prop_LAW1_*
@@ -24,6 +24,7 @@ import Test.Hspec.Hedgehog (hedgehog)
 
 import Aapms.Core.Asset (Sha256 (..))
 import Aapms.Workspace.Fixtures
+import Aapms.Workspace.Hub.File (hubLocation)
 import Aapms.Workspace.Location
 import Aapms.Workspace.Types (HubLocation (..), HubSource (..))
 

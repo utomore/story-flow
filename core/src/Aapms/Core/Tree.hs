@@ -3,6 +3,9 @@
 -- ADR-004:Level 是嚴格樹——每個 Node 恰有一個父節點(根除外)、不成環、
 -- 同層兄弟以 @order@ 排序。分支合流以 @convergesTo@ 關聯標註,
 -- __不參與結構__,因此本模組的走訪演算法永遠只看父子邊。
+--
+-- 'TreeError' 與 'renderTreeError' 的宣告住 "Aapms.Core.Level"(錯誤語彙是資料,
+-- 建樹才是推導),本模組原樣 re-export 它們,匯出清單與呼叫端逐字不變。
 module Aapms.Core.Tree
   ( -- * 樹
     NodeTree (..)
@@ -23,10 +26,8 @@ import Data.List (nub, sortOn)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as S
-import Data.Text (Text)
-import qualified Data.Text as T
-import Aapms.Core.Id (Id, Ref (..), renderId)
-import Aapms.Core.Level (Level (..), Node (..), NodeKind)
+import Aapms.Core.Id (Id, Ref (..))
+import Aapms.Core.Level (Level (..), Node (..), NodeKind, TreeError (..), renderTreeError)
 import Aapms.Core.Link (Link (..), LinkKind (ConvergesTo))
 import Aapms.Core.Meta (Meta (..))
 
@@ -35,49 +36,6 @@ data NodeTree = NodeTree
   , ntChildren :: [NodeTree]
   }
   deriving stock (Show, Eq)
-
--- | 樹的五條不變量各對應一個(或一組)建構子。
-data TreeError
-  = -- | 有多於一個 @parent = Nothing@ 的節點
-    MultipleRoots [Id]
-  | -- | 一個 @parent = Nothing@ 的節點都沒有
-    NoRoot
-  | -- | 節點, 它指向的不存在父節點
-    OrphanNode Id Id
-  | -- | 環上的節點序列(以最小 id 起始的正規化順序)
-    Cycle [Id]
-  | -- | 父節點, order 值, 衝突的子節點
-    DuplicateOrder Id Int [Id]
-  | -- | 同一個 id 出現多次
-    DuplicateNodeId Id
-  | -- | Level 宣告的 root, 實際找到的 root
-    RootMismatch Id Id
-  deriving stock (Show, Eq)
-
--- | 給人看的訊息。樹壞掉幾乎都是作者手改標題層級造成的,所以每一則都指向
--- 「去改哪一個標題」而不是描述資料結構。
-renderTreeError :: TreeError -> Text
-renderTreeError = \case
-  MultipleRoots is ->
-    "這份 Level 有多個根 Node(" <> ids is <> ");最淺的標題層級只能有一個"
-  NoRoot ->
-    "這份 Level 找不到根 Node;至少要有一個最淺層級的標題"
-  OrphanNode i p ->
-    "Node " <> renderId i <> " 的父節點 " <> renderId p <> " 不存在"
-  Cycle is ->
-    "Node 的父子關係成環:" <> ids is
-  DuplicateOrder p o is ->
-    "父節點 "
-      <> renderId p
-      <> " 底下有兩個以上的第 "
-      <> T.pack (show o)
-      <> " 個子節點(" <> ids is <> ")"
-  DuplicateNodeId i ->
-    "Node id " <> renderId i <> " 在同一份檔案裡出現多次"
-  RootMismatch declared actual ->
-    "frontmatter 宣告的 root " <> renderId declared <> " 與實際的根 Node " <> renderId actual <> " 不符"
-  where
-    ids = T.intercalate ", " . map renderId
 
 -- | 由 'Level' 與它的 'Node' 清單建樹。
 --

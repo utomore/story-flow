@@ -1,7 +1,7 @@
 -- | graph-core\/F005:PRAGMA 設定、@schema_version@ 重建與 'IndexIssue'、
 -- vault 身分寫入。graph-core\/F006(STEP-1)擴充:12 張表全建齊、三個新
 -- 'IndexIssue' 建構子的 'renderIndexIssue'。graph-core\/F007 再擴充:
--- @fts_tri@\/@fts_cjk@\/@fts_map@ 三張表、schemaVersion 2 → 3。
+-- @fts_tri@\/@fts_cjk@\/@fts_map@ 三張表、schemaVersion 2 → 3;P-002 REV 後 files 加 is_reference,3 → 4。
 module Aapms.Store.SchemaSpec (spec) where
 
 import Data.List (partition)
@@ -52,7 +52,7 @@ isFtsShadowTable t = any (`T.isPrefixOf` t) ["fts_tri_", "fts_cjk_"]
 
 spec :: Spec
 spec = describe "graph-core/F005 schema" $ do
-  it "graph-core/F007: 15 張表全建齊(不含 FTS5 影子表),schemaVersion(3)寫入 meta_info" $
+  it "graph-core/F007: 15 張表全建齊(不含 FTS5 影子表),schemaVersion(4)寫入 meta_info" $
     withTempVault $ \dir -> do
       (conn, _issues) <- orDie =<< openIndexAt (dir </> "index.db") testVaultId AssetVault "a"
       allTables <- tableNames conn
@@ -61,7 +61,7 @@ spec = describe "graph-core/F005 schema" $ do
       -- fts_tri / fts_cjk 各 5 張影子表
       length shadow `shouldBe` 10
       length allTables `shouldBe` 25
-      schemaVersion `shouldBe` 3
+      schemaVersion `shouldBe` 4
       currentVersion conn `shouldReturn` Just schemaVersion
       closeIndex conn
 

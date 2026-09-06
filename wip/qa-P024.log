@@ -1,0 +1,84 @@
+Build profile: -w ghc-9.14.1 -O1
+In order, the following will be built (use -v for more details):
+ - aapms-core-0.1.0.0 (test:aapms-core-test) (ephemeral targets)
+Preprocessing test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Building test suite 'aapms-core-test' for aapms-core-0.1.0.0...
+Running 1 test suites...
+Test suite aapms-core-test: RUNNING...
+
+lawful P024
+  P-024#LAW-1
+    建得起來的樹恰好裝下全部節點,一個不多一個不少 [✔]
+      passed 100 tests.
+  P-024#LAW-2
+    樹裡每個 id 只出現一次 [✔]
+      passed 100 tests.
+  P-024#LAW-3
+    以根為起點取子樹就是整棵樹 [✔]
+      passed 100 tests.
+  P-024#LAW-4
+    每個節點都追得出一條從同一個根起頭、到它自己為止的路徑 [✔]
+      passed 100 tests.
+  P-024#LAW-5
+    樹裡的每個節點都找得到自己的子樹,而且那棵子樹的根就是它 [✔]
+      passed 100 tests.
+  P-024#LAW-6
+    同層順序只由 order 決定,與節點在檔案裡的出現順序無關 [✔]
+      passed 100 tests.
+  P-024#LAW-7
+    樹的形狀只由節點決定,Level 只負責把關根的宣告 [✔]
+      passed 100 tests.
+  P-024#LAW-8
+    nodesOfKind 恰好是前序裡那個演出種類的節點,不多也不少 [✔]
+      passed 100 tests.
+  P-024#LAW-9
+    子樹裡的 Entity 是整棵樹的子集,而且清單本身已去重 [✔]
+      passed 100 tests.
+  P-024#LAW-10
+    合流報告的第三欄就是「目標是本 vault 且在本 Level 內」 [✔]
+      passed 100 tests.
+  P-024#LAW-11
+    一棵子樹的根就是它的 ntNode,它的每個子樹的根都在自己的前序裡 [✔]
+      passed 100 tests.
+  P-024#LAW-12
+    任何 Level 與節點清單丟給 buildTree 都有值,不拋例外 [✔]
+      passed 100 tests.
+  P-024#EX-1
+    教室場景 fixture 建樹成功,前序共九個節點 [✔]
+  P-024#EX-2
+    把同一組節點清單反轉後再建樹,結果相等 [✔]
+  P-024#EX-3
+    subtreeAt nod-0002 是七個節點的子樹;nod-9999 回 Nothing [✔]
+  P-024#EX-4
+    subtreeAt 根自己回整棵樹 [✔]
+  P-024#EX-5
+    pathTo nod-0005 是四層路徑;根自己的路徑長度 1 [✔]
+  P-024#EX-6
+    根的 ntChildren 依 order 是 nod-0002、nod-0003 [✔]
+  P-024#EX-7
+    nodesOfKind KBranch 是 nod-0007、nod-0008;KScene 只有根 [✔]
+  P-024#EX-8
+    entitiesIn 去重:琳達只算一次;葉節點的子樹回空清單 [✔]
+  P-024#EX-9
+    合流報告:本 Level 內為 True,不存在與跨 vault 都是 False [✔]
+  P-024#EX-10
+    nod-0004 的父節點改成 nod-0009 成環,錯誤以最小 id 起始 [✔]
+  P-024#EX-11
+    nod-0003 指向不存在的父節點是 OrphanNode [✔]
+  P-024#EX-12
+    兩個根是 MultipleRoots;一個根都沒有是 NoRoot [✔]
+  P-024#EX-13
+    同一個父節點底下兩個 order 都是 1 是 DuplicateOrder [✔]
+  P-024#EX-14
+    同一個 id 出現兩次是 DuplicateNodeId [✔]
+  P-024#EX-15
+    lvlRoot 宣告與實際的根不符是 RootMismatch [✔]
+  P-024#EX-16
+    一次改壞兩處,兩則錯誤都在同一個清單裡 [✔]
+
+Finished in 0.0990 seconds
+28 examples, 0 failures
+Test suite aapms-core-test: PASS
+Test suite logged to:
+C:\Users\User\Documents\alchbees-dev\story-flow\dist-qa-P024\build\x86_64-windows\ghc-9.14.1\aapms-core-0.1.0.0\t\aapms-core-test\test\aapms-core-0.1.0.0-aapms-core-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

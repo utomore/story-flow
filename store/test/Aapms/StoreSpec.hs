@@ -52,7 +52,9 @@ spec = do
     -- 落地,舊版斷言「cabal 原始碼仍不列出 F008 範圍的模組」(2026-08-22 版,F008
     -- 尚未展開時寫的)因此過時、直接與現況矛盾,予以更新:現況是全部模組都已
     -- 列在 exposed-modules 裡。
-    it "aapms-store.cabal 原始碼列出 Index/Query/Row/Tokenize/Create/Edit/Node/Write 與 aapms-md 依賴" $ do
+    -- 2026-09-06 退場波:Create / Edit(舊的直接 IO 寫入路徑)整個模組退場,
+    -- 從清單移除,改列純層的 Editing;其餘六項與 aapms-md 依賴未動。
+    it "aapms-store.cabal 原始碼列出 Index/Query/Row/Tokenize/Editing/Node/Write 與 aapms-md 依賴" $ do
       src <- readUtf8Source "aapms-store.cabal"
       mapM_
         (\present -> (present `T.isInfixOf` src) `shouldBe` True)
@@ -60,8 +62,7 @@ spec = do
         , "Aapms.Store.Query"
         , "Aapms.Store.Row"
         , "Aapms.Store.Tokenize"
-        , "Aapms.Store.Create"
-        , "Aapms.Store.Edit"
+        , "Aapms.Store.Editing"
         , "Aapms.Store.Node"
         , "Aapms.Store.Write"
         , "aapms-md"

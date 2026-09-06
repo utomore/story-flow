@@ -27,7 +27,11 @@ library
     import:           warnings, lang
     hs-source-dirs:   src
     exposed-modules:
+        Aapms.Types.Effect.RegistryFs
+        Aapms.Types.Effect.RegistryFs.IO
         Aapms.Types.Loader
+        Aapms.Types.Parse
+        Aapms.Types.Source
     other-modules:
         Paths_aapms_types
     autogen-modules:
@@ -37,6 +41,9 @@ library
         , bytestring
         , containers
         , directory
+        , effectful
+        , effectful-core
+        , effectful-th
         , filepath
         , aapms-core
         , text

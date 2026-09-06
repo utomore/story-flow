@@ -38,6 +38,8 @@ module Aapms.Store.Tokenize
   , cjkSegment
 
     -- * 查詢側:路由與 MATCH 運算式
+    --
+    -- $route
   , SearchRoute (..)
   , usesTrigram
   , usesCjk
@@ -48,6 +50,9 @@ module Aapms.Store.Tokenize
     -- * FTS5 字面字串
   , ftsQuoted
   , ftsPhrase
+
+    -- * 純參考(P-027-fts-tokenize;P-002-search 的 oracle)
+  , matchesQuery
   ) where
 
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
@@ -57,8 +62,17 @@ import Aapms.Core.Id (Id)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Meta (Meta (..))
 import Aapms.Core.Pack (Pack (..))
+import Aapms.Store.Tokenize.Internal (runHits, stripText, wordHits)
+import Aapms.Store.Types (SearchRoute (..), usesCjk, usesTrigram)
 import Data.Text (Text)
 import qualified Data.Text as T
+
+-- $route
+--
+-- 'SearchRoute' 與 'usesTrigram' \/ 'usesCjk' 的宣告__住 "Aapms.Store.Types"__
+-- (P-002-search 的骨架):effects 層的 @Aapms.Store.Effect.Index.ftsMatch@ 拿
+-- 'SearchRoute' 當參數,而 effects 只准 import types 與 effects。本模組原樣
+-- re-export 它們,既有呼叫端逐字不變。
 
 --------------------------------------------------------------------------------
 -- 字元判定
@@ -200,29 +214,6 @@ cjkSegment t = T.unwords (unigrams ++ bigrams)
 --------------------------------------------------------------------------------
 -- 查詢側
 
--- | 一次查詢要走哪張(或哪兩張)FTS 表。
-data SearchRoute
-  = -- | 只查 @fts_tri@:查詢字串不含中日韓字元
-    TrigramOnly
-  | -- | 只查 @fts_cjk@:含中日韓字元,且整串長度不到三個字元
-    -- (trigram 對三字元以下的查詢必定空結果,不值得多一次子查詢)
-    CjkOnly
-  | -- | 兩張都查,結果以分數合併去重:含中日韓字元且長度三個字元以上
-    BothIndexes
-  deriving stock (Show, Eq)
-
--- | 這條路由要不要查 @fts_tri@。
-usesTrigram :: SearchRoute -> Bool
-usesTrigram TrigramOnly = True
-usesTrigram CjkOnly = False
-usesTrigram BothIndexes = True
-
--- | 這條路由要不要查 @fts_cjk@。
-usesCjk :: SearchRoute -> Bool
-usesCjk TrigramOnly = False
-usesCjk CjkOnly = True
-usesCjk BothIndexes = True
-
 -- | 依查詢字串的長度與字元類別決定路由(「模組間公開介面」的 Query → Tokenize)。
 -- 判斷對象是去掉頭尾空白之後的字串。
 routeOf :: Text -> SearchRoute
@@ -278,3 +269,20 @@ ftsQuoted t = "\"" <> T.replace "\"" "\"\"" t <> "\""
 -- 出現__,所以「金門建築」不會誤中只含「金門」與不相鄰的「建築」的文件。
 ftsPhrase :: Text -> Text
 ftsPhrase t = ftsQuoted (T.unwords (T.words t))
+
+-- | 純參考實作:這串查詢文字在同一套路由規則下打不打得中這個節點
+-- (P-027-fts-tokenize#matchesQuery;P-002-search 的 LAW-4 拿它當 sqlite 解譯器的對照)。
+-- 三條路由各自對應一條規則,與 'routeOf' 一一對上:
+--
+-- * 'TrigramOnly':每個詞都要命中;空查詢(去頭尾空白後為空)誰都不中。
+-- * 'CjkOnly':每一段中日韓都要以連續子字串出現,段與段之間是 AND。
+-- * 'BothIndexes':兩張表各自算完,任一邊全中就算命中(SQL 側是 UNION)。
+matchesQuery :: Text -> AnyNode -> Bool
+matchesQuery t n = case routeOf t of
+  TrigramOnly -> not (T.null s) && triSide
+  CjkOnly -> cjkSide
+  BothIndexes -> triSide || cjkSide
+  where
+    s = stripText t
+    triSide = all (\w -> wordHits w n) (T.words s)
+    cjkSide = all (\r -> runHits r n) (cjkRuns s)

@@ -1,0 +1,53 @@
+## lint io:52 條不合規
+- ✗ .lawful/system.md:44 節點讀取請求 的 shell 模組 Aapms.Service.Read 不在模組表
+- ✗ .lawful/system.md:44 節點讀取請求 的 shell 模組 Aapms.Service.Read 程式碼裡沒有
+- ✗ .lawful/system.md:45 `NodeView` / `Page` 的 shell 模組 Aapms.Service.Read 不在模組表
+- ✗ .lawful/system.md:45 `NodeView` / `Page` 的 shell 模組 Aapms.Service.Read 程式碼裡沒有
+- ✗ .lawful/system.md:46 圖譜寫入請求(含 expected revision) 的 shell 模組 Aapms.Service.Write 不在模組表
+- ✗ .lawful/system.md:46 圖譜寫入請求(含 expected revision) 的 shell 模組 Aapms.Service.Write 程式碼裡沒有
+- ✗ .lawful/system.md:47 新 revision 的 `NodeView` 的 shell 模組 Aapms.Service.Write 不在模組表
+- ✗ .lawful/system.md:47 新 revision 的 `NodeView` 的 shell 模組 Aapms.Service.Write 程式碼裡沒有
+- ✗ .lawful/system.md:48 argv 的 shell 模組 Aapms.Cli.Main 不在模組表
+- ✗ .lawful/system.md:48 argv 的 shell 模組 Aapms.Cli.Main 程式碼裡沒有
+- ✗ .lawful/system.md:49 stdout 信封與 exit code 的 shell 模組 Aapms.Cli.Main 不在模組表
+- ✗ .lawful/system.md:49 stdout 信封與 exit code 的 shell 模組 Aapms.Cli.Main 程式碼裡沒有
+- ✗ .lawful/system.md:50 HTTP request(servant 路由) 的 shell 模組 Aapms.Server.Handlers 不在模組表
+- ✗ .lawful/system.md:50 HTTP request(servant 路由) 的 shell 模組 Aapms.Server.Handlers 程式碼裡沒有
+- ✗ .lawful/system.md:51 HTTP response 與錯誤 body 的 shell 模組 Aapms.Server.Handlers 不在模組表
+- ✗ .lawful/system.md:51 HTTP response 與錯誤 body 的 shell 模組 Aapms.Server.Handlers 程式碼裡沒有
+- ✗ .lawful/system.md:52 stdin JSON-RPC 的 shell 模組 Aapms.Mcp.Rpc 不在模組表
+- ✗ .lawful/system.md:52 stdin JSON-RPC 的 shell 模組 Aapms.Mcp.Rpc 程式碼裡沒有
+- ✗ .lawful/system.md:53 stdout JSON-RPC 結果 的 shell 模組 Aapms.Mcp.Rpc 不在模組表
+- ✗ .lawful/system.md:53 stdout JSON-RPC 結果 的 shell 模組 Aapms.Mcp.Rpc 程式碼裡沒有
+- ✗ .lawful/system.md:54 `library/` 下的壓縮檔(不解壓) 的 shell 模組 Aapms.Ingest.Scan 不在模組表
+- ✗ .lawful/system.md:54 `library/` 下的壓縮檔(不解壓) 的 shell 模組 Aapms.Ingest.Scan 程式碼裡沒有
+- ✗ .lawful/system.md:55 `pack.md` 與索引 的 shell 模組 Aapms.Ingest.Scan 不在模組表
+- ✗ .lawful/system.md:55 `pack.md` 與索引 的 shell 模組 Aapms.Ingest.Scan 程式碼裡沒有
+- ✗ .lawful/system.md:56 壓縮檔內的影像位元組 的 shell 模組 Aapms.Ingest.Thumbs 不在模組表
+- ✗ .lawful/system.md:56 壓縮檔內的影像位元組 的 shell 模組 Aapms.Ingest.Thumbs 程式碼裡沒有
+- ✗ .lawful/system.md:57 全局縮圖快取 `cache/thumbs/<aa>/<sha>.png` 的 shell 模組 Aapms.Ingest.Thumbs 不在模組表
+- ✗ .lawful/system.md:57 全局縮圖快取 `cache/thumbs/<aa>/<sha>.png` 的 shell 模組 Aapms.Ingest.Thumbs 程式碼裡沒有
+- ✗ .lawful/system.md:58 未命名 asset 的檔名 的 shell 模組 Aapms.Ingest.Cluster 不在模組表
+- ✗ .lawful/system.md:58 未命名 asset 的檔名 的 shell 模組 Aapms.Ingest.Cluster 程式碼裡沒有
+- ✗ .lawful/system.md:59 命名規則與套用結果(`--confirm` 才寫) 的 shell 模組 Aapms.Ingest.Cluster 不在模組表
+- ✗ .lawful/system.md:59 命名規則與套用結果(`--confirm` 才寫) 的 shell 模組 Aapms.Ingest.Cluster 程式碼裡沒有
+- ✗ .lawful/system.md:60 vault 目錄快照 的 shell 模組 Aapms.Reorg.Plan 不在模組表
+- ✗ .lawful/system.md:60 vault 目錄快照 的 shell 模組 Aapms.Reorg.Plan 程式碼裡沒有
+- ✗ .lawful/system.md:61 搬遷執行與對帳報告 的 shell 模組 Aapms.Reorg.Plan 不在模組表
+- ✗ .lawful/system.md:61 搬遷執行與對帳報告 的 shell 模組 Aapms.Reorg.Plan 程式碼裡沒有
+- ✗ .lawful/system.md:62 新劇情草稿 的 shell 模組 Aapms.Conflict.Check 不在模組表
+- ✗ .lawful/system.md:62 新劇情草稿 的 shell 模組 Aapms.Conflict.Check 程式碼裡沒有
+- ✗ .lawful/system.md:63 衝突報告(指到片段) 的 shell 模組 Aapms.Conflict.Check 不在模組表
+- ✗ .lawful/system.md:63 衝突報告(指到片段) 的 shell 模組 Aapms.Conflict.Check 程式碼裡沒有
+- ✗ .lawful/system.md:64 OpenAI 相容端點 的 shell 模組 Aapms.Llm.Client 不在模組表
+- ✗ .lawful/system.md:64 OpenAI 相容端點 的 shell 模組 Aapms.Llm.Client 程式碼裡沒有
+- ✗ .lawful/system.md:65 分類建議(暫存,`confirm` 才寫) 的 shell 模組 Aapms.Ai.Classify 不在模組表
+- ✗ .lawful/system.md:65 分類建議(暫存,`confirm` 才寫) 的 shell 模組 Aapms.Ai.Classify 程式碼裡沒有
+- ✗ .lawful/system.md:66 工作坊回合輸入 的 shell 模組 Aapms.Workshop.Run 不在模組表
+- ✗ .lawful/system.md:66 工作坊回合輸入 的 shell 模組 Aapms.Workshop.Run 程式碼裡沒有
+- ✗ .lawful/system.md:67 逐階段產出的片段 的 shell 模組 Aapms.Workshop.Run 不在模組表
+- ✗ .lawful/system.md:67 逐階段產出的片段 的 shell 模組 Aapms.Workshop.Run 程式碼裡沒有
+- ✗ .lawful/system.md:68 專案產出請求(Level → Entity → Asset) 的 shell 模組 Aapms.Project.Export 不在模組表
+- ✗ .lawful/system.md:68 專案產出請求(Level → Entity → Asset) 的 shell 模組 Aapms.Project.Export 程式碼裡沒有
+- ✗ .lawful/system.md:69 `assets/manifest.json`、`Assets.hs`、`story/manifest.json` 的 shell 模組 Aapms.Project.Export 不在模組表
+- ✗ .lawful/system.md:69 `assets/manifest.json`、`Assets.hs`、`story/manifest.json` 的 shell 模組 Aapms.Project.Export 程式碼裡沒有

@@ -1,7 +1,7 @@
 -- | F001:'Aapms.Service.Types.ServiceError'、'Aapms.Service.Types.errorCode'、
 -- 'Aapms.Service.Types.renderServiceError'。
 --
--- __spec 對照__(@.design\/subsystems\/service\/features\/F001-service-env-and-scope.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-004-vault-scope.md@,
 -- 預期欄依「1-to-1 測試對照表」——全部紅:'errorCode' \/ 'renderServiceError' 全是
 -- @undefined@):
 --

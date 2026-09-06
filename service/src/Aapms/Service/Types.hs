@@ -189,6 +189,7 @@ data Session = Session
   , sessionCwd :: FilePath
   -- ^ 觀察:起點目錄。
   }
+  deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
 -- 契約 F:錯誤

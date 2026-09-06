@@ -22,7 +22,7 @@ updated: 2026-09-06
 | 8 | `resolveScope :: Markers :> es => Hub -> ScopeKind -> Maybe Text -> FilePath -> Eff es (Either WorkspaceError Scope)` | 依操作類別裁決生效集合 | `Aapms.Workspace.Resolve`(願望,見 P-029-scope-resolve) | pure |
 | 9 | `scopeOf :: Markers :> es => Session -> ScopeKind -> Eff es (Either ServiceError Scope)` | 用 Session 的快照跑 8,WorkspaceError 原樣包成 WorkspaceFailed | `Aapms.Service.Session`(願望) | pure |
 | o | `simulateScope :: MarkerWorld -> Eff '[Markers] a -> a` | 觀察:P-029 的純解譯器跑到底 | `Aapms.Workspace.Resolve.Internal`(願望,見 P-029-scope-resolve) | pure |
-| o | `runHubFilePure :: HubWorld -> Eff (HubFile : es) a -> Eff es a` | 觀察:HubFile 的純解譯器(固定位置、一份或沒有的中樞文字) | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
+| o | `runHubFilePure :: HubWorld -> Eff (HubFile : es) a -> Eff es (a, HubWorld)` | 觀察:HubFile 的純解譯器(固定位置、一份或沒有的中樞文字),回最終中樞世界 | `Aapms.Workspace.Effect.HubFile`(願望) | effects |
 | o | `runRegistryFsPure :: RegistryWorld -> Eff (RegistryFs : es) a -> Eff es a` | 觀察:RegistryFs 的純解譯器(三層各自有沒有、目錄裡的檔) | `Aapms.Types.Effect.RegistryFs`(願望) | effects |
 | o | `simulateSession :: HubWorld -> RegistryWorld -> Eff '[HubFile, RegistryFs] a -> a` | 觀察:兩個純解譯器跑到底 | `Aapms.Service.Session.Internal`(願望) | pure |
 | o | `hubTextIn :: HubWorld -> Maybe Text` | 觀察:世界裡有沒有中樞文字 | `Aapms.Workspace.Types`(願望) | types |
@@ -89,4 +89,7 @@ updated: 2026-09-06
 - **同一個 `ServiceM` 動作不得自己呼叫 `runService`(會死結)由 shell 內部測試以原始碼文字守。** 否決:執行期偵測。理由:契約沒有任何一條需要巢狀
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依骨架回報「`runHubFilePure` 不回最終世界,但 P-005-vault-lifecycle 的 `simulateLifecycle` 要交出 `lcHubText` 與 `hubWorldAfter`」;rules/boundary.md「效果的判定」:law 拿純解譯器的結果寫,有寫入的效果其純解譯器必須交出最終狀態,與 `runVaultDirPure` 同形):`runHubFilePure` 改回 `Eff es (a, HubWorld)`
+  - 動到:觀察點 `runHubFilePure` 的簽名
+  - 保護:LAW-1 到 LAW-7
+  - 重委派:無(尚未派 qa / impl;骨架簽名已同步)

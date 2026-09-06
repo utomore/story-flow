@@ -16,7 +16,7 @@ updated: 2026-09-06
 | 2 | `matchesQuery :: Text -> AnyNode -> Bool` | 純參考:這段文字在同一套路由規則下命不命中這個節點 | `Aapms.Store.Tokenize`(願望,見 P-027-fts-tokenize) | pure |
 | 3 | `passesFilter :: NodeFilter -> FileIndex -> IndexedNode -> Bool` | 結構條件的純判定,吃節點所在的檔與索引節點:prefix、type、status、tags 全部命中、owner(`inOwner`)、license、只要已命名、reference(`fiReference`)預設不列 | `Aapms.Store.Filter`(願望) | pure |
 | 4 | `ftsMatch :: Index :> es => SearchRoute -> Text -> NodeFilter -> Eff es [(Id, Double)]` | 一個 vault 內依路由查雙 FTS,結構條件同時套用,回命中與正分數;純解譯器以 2 與 3 判定、分數 1.0 | `Aapms.Store.Effect.Index`(願望) | effects |
-| 5 | `filterNodes :: Index :> es => NodeFilter -> Eff es [AnyNode]` | 一個 vault 內符合結構條件的全部節點,不分頁 | `Aapms.Store.Effect.Index`(願望) | effects |
+| 5 | `filterNodes :: Index :> es => NodeFilter -> Eff es [IndexedNode]` | 一個 vault 內符合結構條件的全部索引節點(帶 owner),不分頁 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 6 | `mergeScores :: [(Id, Double)] -> [(Id, Double)] -> [(Id, Double)]` | 兩張表都命中時取分數較大者,去重 | `Aapms.Store.Search`(願望) | pure |
 | 7 | `snippetFrom :: Text -> [Text] -> Text` | 從該節點 fts_tri 六欄原文取窗:先找整串、再找個別詞、都沒有取第一個非空欄開頭 | `Aapms.Store.Search`(願望,取代 Aapms.Store.Query 私有的 snippetOf) | pure |
 | 8 | `rankHits :: [SearchHit] -> [SearchHit]` | 分數遞減、同分 id 遞增、再同 vault 遞增 | `Aapms.Store.Search`(願望) | pure |
@@ -26,7 +26,7 @@ updated: 2026-09-06
 | 12 | `searchVault :: Index :> es => VaultId -> SearchQuery -> Eff es SearchResult` | 單 vault 整條:1 → 4 / 5 → 6 → 7 → 8 → 9,facet 走 10 | `Aapms.Store.Search`(願望) | pure |
 | 13 | `vaultIds :: Vaults :> es => Eff es [VaultId]` | 集合裡的 vault,保序 | `Aapms.Store.Effect.Vaults`(願望) | effects |
 | 14 | `inVault :: Vaults :> es => VaultId -> Eff '[Index] a -> Eff es (Maybe a)` | 對集合裡某個 vault 跑一段 Index 程式;不在集合回 Nothing | `Aapms.Store.Effect.Vaults`(願望) | effects |
-| o | `runVaultsPure :: Map VaultId IndexState -> Eff (Vaults : es) a -> Eff es a` | 觀察:Vaults 的純解譯器,每個 vault 一份記憶體索引 | `Aapms.Store.Effect.Vaults`(願望) | effects |
+| o | `runVaultsPure :: Map VaultId IndexState -> Eff (Vaults : es) a -> Eff es a` | 觀察:Vaults 的純解譯器,每個 vault 一份記憶體索引;與 `runIndexPure` 同住 pure | `Aapms.Store.Simulate`(願望) | pure |
 | o | `simulateVaults :: Map VaultId IndexState -> Eff '[Vaults] a -> a` | 觀察:純解譯器跑到底 | `Aapms.Store.Search.Internal`(願望) | pure |
 | o | `hitsPerVault :: Map VaultId IndexState -> SearchQuery -> [SearchHit]` | 觀察:逐 vault 各跑一次 searchVault,把 hits 串接 | `Aapms.Store.Search.Internal`(願望) | pure |
 | o | `structuralKeys :: Map VaultId IndexState -> NodeFilter -> [(VaultId, Id)]` | 觀察:逐 vault 用 passesFilter 篩出的 (vault, id) | `Aapms.Store.Search.Internal`(願望) | pure |
@@ -124,3 +124,7 @@ updated: 2026-09-06
   - 動到:Stages 第 3 列、觀察點 `allNodesIn` → `visibleNodes`、LAW-4
   - 保護:LAW-1、LAW-3、LAW-5 到 LAW-13
   - 重委派:qa(LAW-2、LAW-4);骨架的簽名由 conductor 同步改,impl 尚未派
+- REV-2(2026-09-06,依 impl 提問 GAP-1「`runIndexPure` 住 effects,卻要 import pure 層的 `matchesQuery` 與 `passesFilter` 當參考實作」與 GAP-2「`facetsIn` 的 `fcOwners` 需要 owner,但 `filterNodes` 只回 `AnyNode`」):`runIndexPure` 與 `runVaultsPure` 依 rules/boundary.md「效果的判定」搬到 pure 層的 `Aapms.Store.Simulate`(簽名不變;`Aapms.Store.Effect.*` 只剩效果描述);第 5 列 `filterNodes` 改回 `[IndexedNode]`,owner 由 `inOwner` 帶出
+  - 動到:Stages 第 5 列、觀察點 `runVaultsPure` 的模組與層
+  - 保護:LAW-1 到 LAW-13
+  - 重委派:impl(`filterNodes`、`facetsIn` 的 `fcOwners`、兩個純解譯器搬家);qa 無(law 未引用 `filterNodes`)

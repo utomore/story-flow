@@ -105,6 +105,7 @@ data TypeDecl = TypeDecl
 
 -- | 不透明,內部是 @Map TypeKey TypeDecl@。
 newtype TypeRegistry = TypeRegistry (M.Map TypeKey TypeDecl)
+  deriving stock (Show, Eq)
 
 -- | 保留的型別鍵,不可出現在 @types\/registry\/@。
 --

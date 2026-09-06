@@ -16,7 +16,7 @@ service 的讀取契約:把 graph-core 讀回來的 `AnyNode` 投影成三個殼
 | 2 | `inVault :: Vaults :> es => VaultId -> Eff '[Index] a -> Eff es (Maybe a)` | 對某個 vault 跑一段 Index 程式 | `Aapms.Store.Effect.Vaults`(願望,見 P-002-search) | effects |
 | 3 | `nodeById :: Index :> es => Id -> Eff es (Maybe AnyNode)` | 一個 vault 內以 id 取節點(含正文,從檔案重讀) | `Aapms.Store.Effect.Index`(願望) | effects |
 | 4 | `locateId :: Index :> es => Id -> Eff es (Maybe Located)` | 節點所在檔與錨點 | `Aapms.Store.Effect.Index`(願望,見 P-003-node-write) | effects |
-| 5 | `filterNodes :: Index :> es => NodeFilter -> Eff es [AnyNode]` | 一個 vault 內符合結構條件的全部節點,不分頁 | `Aapms.Store.Effect.Index`(願望,見 P-002-search) | effects |
+| 5 | `filterNodes :: Index :> es => NodeFilter -> Eff es [IndexedNode]` | 一個 vault 內符合結構條件的全部節點,不分頁 | `Aapms.Store.Effect.Index`(願望,見 P-002-search) | effects |
 | 6 | `childrenIn :: Index :> es => Id -> Eff es [AnyNode]` | 一個 vault 內 owner 是它的節點:pack 的 asset、主體的片段 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 7 | `referrers :: Index :> es => [Id] -> Eff es [(Id, Link)]` | 指向這些節點的關聯(入邊) | `Aapms.Store.Effect.Index`(願望,見 P-003-node-write) | effects |
 | 8 | `resolveRef :: Vaults :> es => ReadCtx -> Ref -> Eff es (Either ServiceError (VaultId, AnyNode))` | 帶 vault 的只認那個 vault;不帶的先看預設 vault、再看範圍內每個 vault:多個命中 AmbiguousRef、零命中 NodeNotFound | `Aapms.Service.Read`(願望) | pure |

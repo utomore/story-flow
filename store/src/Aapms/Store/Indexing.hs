@@ -31,7 +31,7 @@ import Aapms.Store.Types (FileIndex, FileStat, IndexIssue, StoreError)
 
 -- | 一份檔的純核心:解析 → 依種類轉節點 → 樹驗證與 Meta 警告 → 該檔的
 -- 'FileIndex';解析或樹失敗回 'Left',警告進 issues。
-indexDocument :: TypeRegistry -> VaultId -> FilePath -> FileStat -> Text -> Either StoreError (FileIndex, [IndexIssue])
+indexDocument :: TypeRegistry -> VaultId -> FilePath -> FileStat -> Text -> Either IndexIssue (FileIndex, [IndexIssue])
 indexDocument _reg _vid _p _st _txt = error "P-001#indexDocument stub"
 
 -- | (磁碟指紋, 索引指紋) → (要重索引的, 磁碟上已消失的)。

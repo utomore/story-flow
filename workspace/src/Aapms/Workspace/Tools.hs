@@ -62,7 +62,7 @@ detectSevenZip :: ToolsConfig -> IO ToolStatus
 detectSevenZip cfg = do
   pathEnv <- lookupEnv "PATH"
   let dirs = maybe [] splitSearchPath pathEnv
-  detectSevenZipIn (ToolSearchPlan dirs sevenZipCandidates) cfg
+  detectSevenZipIn (ToolSearchPlan exeExtension dirs sevenZipCandidates) cfg
 
 -- | 'detectSevenZip' 的可注入版本:@PATH@ 目錄與候選清單都由呼叫端給。
 --

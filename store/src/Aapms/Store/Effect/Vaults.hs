@@ -24,11 +24,13 @@ module Aapms.Store.Effect.Vaults
   ) where
 
 import Data.Map.Strict (Map)
-import Effectful (Eff, Effect, (:>))
+import qualified Data.Map.Strict as Map
+import Effectful (Eff, Effect, runPureEff, (:>))
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect_)
 
 import Aapms.Core.Id (VaultId)
-import Aapms.Store.Effect.Index (Index)
+import Aapms.Store.Effect.Index (Index, runIndexPure)
 import Aapms.Store.Types (IndexState)
 
 -- | vault 集合的兩個操作。
@@ -45,5 +47,14 @@ vaultIds :: Vaults :> es => Eff es [VaultId]
 inVault :: Vaults :> es => VaultId -> Eff '[Index] a -> Eff es (Maybe a)
 
 -- | 觀察:'Vaults' 的純解譯器,每個 vault 一份記憶體索引。
+--
+-- @VaultIds@ 依 'Map' 的鍵序回傳(保序,而且與 'Aapms.Store.Types.keysOf'
+-- 同一個順序);@InVault@ 對集合裡的 vault 拿它自己那一份 'IndexState' 跑
+-- 'runIndexPure',不在集合就回 'Nothing'。內層程式的索引異動不會流出來——
+-- @InVault@ 只回 @a@,這正是「一段查詢程式」該有的形狀。
 runVaultsPure :: Map VaultId IndexState -> Eff (Vaults : es) a -> Eff es a
-runVaultsPure _m _act = error "P-002#runVaultsPure stub"
+runVaultsPure m = interpret $ \_ op -> case op of
+  VaultIds -> pure (Map.keys m)
+  InVault v act -> pure $ case Map.lookup v m of
+    Nothing -> Nothing
+    Just ix -> Just (fst (runPureEff (runIndexPure ix act)))

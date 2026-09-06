@@ -22,7 +22,7 @@ updated: 2026-09-06
 | 8 | `toLicenses :: Document -> Either MdError [License]` | 授權檔轉成授權節點 | `Aapms.Md.Parse`(見 P-025-md-document) | pure |
 | 9 | `buildTree :: Level -> [Node] -> Either [TreeError] NodeTree` | Level 樹驗證,不合法整檔不進 | `Aapms.Core.Tree`(見 P-024-level-tree) | pure |
 | 10 | `checkMeta :: TypeRegistry -> AnyNode -> [MetaWarning]` | 對每個節點只產警告,不擋 | `Aapms.Core.Registry.Build`(見 P-021-registry-build) | pure |
-| 11 | `indexDocument :: TypeRegistry -> VaultId -> FilePath -> FileStat -> Text -> Either StoreError (FileIndex, [IndexIssue])` | 一份檔的純核心:4 → 5..8 → 9 / 10 → 該檔的 FileIndex;解析或樹失敗回 Left,警告進 issues | `Aapms.Store.Indexing`(願望) | pure |
+| 11 | `indexDocument :: TypeRegistry -> VaultId -> FilePath -> FileStat -> Text -> Either IndexIssue (FileIndex, [IndexIssue])` | 一份檔的純核心:4 → 5..8 → 9 / 10 → 該檔的 FileIndex;解析或樹失敗回 Left(ParseFailed / TreeInvalid),警告進 issues | `Aapms.Store.Indexing`(願望) | pure |
 | 12 | `replaceFile :: Index :> es => FileIndex -> Eff es ()` | 以檔案為單位整檔替換索引裡的記錄 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 13 | `removeFile :: Index :> es => FilePath -> Eff es ()` | 移除一個檔案的全部記錄 | `Aapms.Store.Effect.Index`(願望) | effects |
 | 14 | `fileStats :: Index :> es => Eff es (Map FilePath FileStat)` | 索引裡記錄的每個檔的指紋 | `Aapms.Store.Effect.Index`(願望) | effects |
@@ -30,7 +30,7 @@ updated: 2026-09-06
 | 16 | `indexPath :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> FilePath -> Eff es (Either StoreError [IndexIssue])` | 單檔:2 → 3 → 11 → 12;解析失敗的檔回 issues 不進索引 | `Aapms.Store.Indexing`(願望) | pure |
 | 17 | `refresh :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> Eff es (Either StoreError [IndexIssue])` | 過時刷新:1 → 2 → 14 → 15 → 對過時的 16、消失的 13(removeFile) | `Aapms.Store.Indexing`(願望) | pure |
 | o | `runVaultFsPure :: VaultFiles -> Eff (VaultFs : es) a -> Eff es a` | 觀察:VaultFs 的純解譯器,跑在記憶體裡的檔案表上 | `Aapms.Store.Effect.VaultFs`(願望) | effects |
-| o | `runIndexPure :: IndexState -> Eff (Index : es) a -> Eff es (a, IndexState)` | 觀察:Index 的純解譯器,回最終索引狀態 | `Aapms.Store.Effect.Index`(願望) | effects |
+| o | `runIndexPure :: IndexState -> Eff (Index : es) a -> Eff es (a, IndexState)` | 觀察:Index 的純解譯器,回最終索引狀態;以 P-027 的 `matchesQuery` 與 P-002 的 `passesFilter` 當參考實作,所以住 pure | `Aapms.Store.Simulate`(願望) | pure |
 | o | `simulate :: VaultFiles -> IndexState -> Eff '[VaultFs, Index] a -> (a, IndexState)` | 觀察:兩個純解譯器串起來跑到底 | `Aapms.Store.Indexing.Internal`(願望) | pure |
 | o | `emptyIndex :: IndexState` | 觀察:空索引 | `Aapms.Store.Types`(願望) | types |
 | o | `vaultPaths :: VaultFiles -> [FilePath]` | 觀察:記憶體 vault 裡的路徑,已排序 | `Aapms.Store.Types`(願望) | types |
@@ -41,6 +41,7 @@ updated: 2026-09-06
 | o | `indexedIds :: IndexState -> [Id]` | 觀察:索引裡全部節點的 id | `Aapms.Store.Types`(願望) | types |
 | o | `assetNames :: IndexState -> [LogicalName]` | 觀察:索引裡已命名 asset 的邏輯名稱 | `Aapms.Store.Types`(願望) | types |
 | o | `warnedIds :: [IndexIssue] -> [Id]` | 觀察:MetaWarningsFound 點到的節點 id | `Aapms.Store.Types`(願望) | types |
+| o | `clashesEarlier :: TypeRegistry -> VaultId -> VaultFiles -> FilePath -> Bool` | 觀察:這個檔某個已命名 asset 的邏輯名稱,已被路徑字母序更前、純核心成功的檔用掉(撞名回滾的判準) | `Aapms.Store.Indexing.Internal`(願望) | pure |
 | = | `rebuild :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> Eff es (Either StoreError [IndexIssue])` | 純的整條:清空索引,1 → 對每個路徑 16,收集 issues | `Aapms.Store.Indexing`(願望) | pure |
 | ! | `rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])` | 進入點:以 handle 的根目錄與連線跑真解譯器(directory、sqlite) | `Aapms.Store.Index` | shell |
 
@@ -61,9 +62,9 @@ updated: 2026-09-06
   - forall vf1 in VaultFiles, vf2 in VaultFiles, reg in TypeRegistry, vid in VaultId, (r1, ix1) in simulate vf1 emptyIndex (rebuild reg vid)
   - given statsDistinguish vf1 vf2
   - |- snd (simulate vf2 ix1 (refresh reg vid)) == snd (simulate vf2 emptyIndex (rebuild reg vid))
-- LAW-6 [relation] 一個檔在不在索引裡,只由它自己的純核心成敗決定;單檔失敗不中斷其他檔
+- LAW-6 [relation] 一個檔在不在索引裡,由它自己的純核心成敗與「邏輯名稱有沒有被字母序更前的檔佔走」決定;單檔失敗不中斷其他檔
   - forall vf in VaultFiles, reg in TypeRegistry, vid in VaultId, p in vaultPaths vf, (st, txt) in fileAt vf p, (r, ix) in simulate vf emptyIndex (rebuild reg vid)
-  - |- (p in indexedPaths ix) == isRight (indexDocument reg vid p st txt)
+  - |- elem p (indexedPaths ix) == (isRight (indexDocument reg vid p st txt) and not (clashesEarlier reg vid vf p))
 - LAW-7 [invariant] 索引裡每個節點的 vault 欄等於重建時給的 vault id,不信檔案自己寫的
   - forall vf in VaultFiles, reg in TypeRegistry, vid in VaultId, (r, ix) in simulate vf emptyIndex (rebuild reg vid), n in indexedNodes ix
   - |- metaVault (anyMeta n) == vid
@@ -111,4 +112,7 @@ updated: 2026-09-06
 - **cabal 的模組可見度不寫成 law,交給模組表與 `lint boundary`;`BoundarySpec` 留作內部測試。** 否決:把 exposed-modules 清單寫成 `|-` 行。理由:那是關於檔案的斷言,不是任何 stage 的性質
 
 ## 修訂記錄
-無
+- REV-1(2026-09-06,依 qa 提問 GAP-1「兩份 pack 撞名的 vault 上,LAW-6 的左邊是 False、右邊是 True」與 GAP-2「EX-8 的 `Left (ParseFailed …)` 不是 `StoreError` 的建構子」,以及 impl 對 P-002-search 提的「effects 層的純解譯器不得 import pure 層的參考實作」):第 11 列 `indexDocument` 的錯誤型別改成 `IndexIssue`(單檔純核心的失敗就是一則索引問題,與第 16 列「解析失敗的檔回 issues」同一語彙);LAW-6 改成雙條件並加觀察點 `clashesEarlier`,把「撞名回滾」的決定寫進 law;觀察點 `runIndexPure` 依 rules/boundary.md「效果的判定」(純解譯器住 effects 或 pure)搬到 pure 層的 `Aapms.Store.Simulate`,簽名不變
+  - 動到:Stages 第 11 列、觀察點 `runIndexPure` 的模組與層、觀察點 `clashesEarlier`(新增)、LAW-6
+  - 保護:LAW-1 到 LAW-5、LAW-7 到 LAW-12
+  - 重委派:qa(LAW-6、EX-8);impl 尚未派,骨架簽名由 conductor 同步

@@ -85,6 +85,7 @@ updated: 2026-09-06
 - **sidecar 缺席不是錯誤:`NotFound` 是正常結果,沒有失敗通道。** 否決:回 Left。理由:sidecar 只影響預覽與縮圖,不影響索引(system.md)
 - **診斷唯讀:不建 .aapms、不開 index.db、不修補 marker、不寫中樞;漂移要 syncHub(P-005)才回寫。** 否決:doctor 順手修。理由:讀與寫分開,人先看報告再決定
 - **`vaultInfo` 的節點計數與索引問題屬 P-007-graph-read(要開索引),不在本條。** 否決:併進 doctor。理由:doctor 不開索引
+- **可執行檔副檔名是 shell 才知道的平台事實,放進 `ToolSearchPlan` 的 `tspExeExtension` 由 `!` 列填,純層的 `probes` 只拿它拼路徑。** 否決:純層用 `System.Info.os` 自算;`probes` 自己呼叫 `System.Directory.exeExtension`。理由:前者與 `directory` 的判準可能分岔且讓 EX-8 只在 Windows 建置成立;後者把 IO 模組拉進純層。`tspExeExtension = ".exe"` 時 EX-8 逐字成立(骨架回報 L-3 的裁決,2026-09-06)。
 
 ## 修訂記錄
 無

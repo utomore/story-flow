@@ -677,7 +677,10 @@ data LifecycleRun a = LifecycleRun
 -- | 三層探測裡__可以被替換掉的那兩層__的來源(自 "Aapms.Workspace.Tools" 搬進
 -- 型別層:'Aapms.Workspace.Tools.Plan.probes' 是純函數,不能依賴 shell 模組)。
 data ToolSearchPlan = ToolSearchPlan
-  { tspPathDirs :: [FilePath]
+  { tspExeExtension :: String
+  -- ^ 平台的可執行檔副檔名(Windows 是 @".exe"@,其他平台是 @""@)。這是 shell 才知道的
+  -- 平台事實,由 `!` 列用 @System.Directory.exeExtension@ 填進來;純層的 `probes` 只拿它拼路徑。
+  , tspPathDirs :: [FilePath]
   -- ^ 第二層:要當成 @PATH@ 來掃的目錄清單,__保留順序__。真實呼叫時是 @PATH@
   -- 環境變數切開的結果;該變數未設時是空清單(不是失敗)。
   , tspCandidates :: [FilePath]

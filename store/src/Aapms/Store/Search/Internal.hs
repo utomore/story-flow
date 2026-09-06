@@ -12,26 +12,63 @@ module Aapms.Store.Search.Internal
   ) where
 
 import Data.Map.Strict (Map)
-import Effectful (Eff)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import Effectful (Eff, runPureEff)
 
-import Aapms.Core.AnyNode (AnyNode)
+import Aapms.Core.AnyNode (AnyNode, anyMeta)
 import Aapms.Core.Id (Id, VaultId)
-import Aapms.Store.Effect.Vaults (Vaults)
-import Aapms.Store.Types (IndexState, NodeFilter, SearchHit, SearchQuery)
+import Aapms.Core.Meta (Meta (..))
+import Aapms.Store.Effect.Index (runIndexPure)
+import Aapms.Store.Effect.Vaults (Vaults, runVaultsPure)
+import Aapms.Store.Filter (passesFilter)
+import Aapms.Store.Search (searchVault)
+import Aapms.Store.Types
+  ( FileIndex (..)
+  , IndexState (..)
+  , IndexedNode (..)
+  , NodeFilter
+  , SearchHit
+  , SearchQuery
+  , SearchResult (..)
+  )
 
 -- | 觀察:'Aapms.Store.Effect.Vaults.runVaultsPure' 跑到底。
 simulateVaults :: Map VaultId IndexState -> Eff '[Vaults] a -> a
-simulateVaults _m _act = error "P-002#simulateVaults stub"
+simulateVaults m act = runPureEff (runVaultsPure m act)
 
 -- | 觀察:逐 vault 各跑一次 'Aapms.Store.Search.searchVault',把 hits 串接。
 hitsPerVault :: Map VaultId IndexState -> SearchQuery -> [SearchHit]
-hitsPerVault _m _q = error "P-002#hitsPerVault stub"
+hitsPerVault m q =
+  concat
+    [ srHits (fst (runPureEff (runIndexPure ix (searchVault v q))))
+    | (v, ix) <- Map.toList m
+    ]
 
 -- | 觀察:逐 vault 用 'Aapms.Store.Filter.passesFilter' 篩出的 (vault, id)。
 structuralKeys :: Map VaultId IndexState -> NodeFilter -> [(VaultId, Id)]
-structuralKeys _m _nf = error "P-002#structuralKeys stub"
+structuralKeys m nf = [(v, metaId (anyMeta n)) | (v, n) <- visibleNodes nf m]
 
 -- | 觀察:記憶體索引集合裡逐檔逐節點以 'Aapms.Store.Filter.passesFilter'
 -- 判定後留下的節點(含 owner 與 reference 條件)。
+--
+-- 與 'Aapms.Store.Effect.Index.runIndexPure' 一樣,同一個 vault 內一個 id
+-- 只算一列(真索引的 @nodes.id@ 是主鍵),否則同一個節點被兩個檔記到時
+-- 這個參考量會比命中多出一筆。
 visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]
-visibleNodes _nf _m = error "P-002#visibleNodes stub"
+visibleNodes nf m =
+  [ (v, inNode n)
+  | (v, IndexState files) <- Map.toList m
+  , (fi, n) <- dedupById [(fi, n) | fi <- Map.elems files, n <- fiNodes fi]
+  , passesFilter nf fi n
+  ]
+
+dedupById :: [(FileIndex, IndexedNode)] -> [(FileIndex, IndexedNode)]
+dedupById = go Set.empty
+  where
+    go _ [] = []
+    go seen (row@(_, n) : rest)
+      | i `Set.member` seen = go seen rest
+      | otherwise = row : go (Set.insert i seen) rest
+      where
+        i = metaId (anyMeta (inNode n))

@@ -8,7 +8,7 @@
 | `Aapms.Workspace.Effect.HubFile`、`Aapms.Workspace.Effect.Markers`、`Aapms.Workspace.Effect.ToolProbe`、`Aapms.Workspace.Effect.VaultDir`、`Aapms.Types.Effect.RegistryFs` | effects |
 | `Aapms.Core.Naming`、`Aapms.Core.Registry.Build`、`Aapms.Core.Tree` | pure |
 | `Aapms.Md`、`Aapms.Md.Lexer`、`Aapms.Md.Yaml`、`Aapms.Md.Parse`、`Aapms.Md.Inherit`、`Aapms.Md.Render` | pure |
-| `Aapms.Store.Tokenize`、`Aapms.Store.Tokenize.Internal`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing`、`Aapms.Store.Editing.Internal`、`Aapms.Store.Filter`、`Aapms.Store.Indexing`、`Aapms.Store.Indexing.Internal`、`Aapms.Store.Search`、`Aapms.Store.Search.Internal` | pure |
+| `Aapms.Store.Tokenize`、`Aapms.Store.Tokenize.Internal`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing`、`Aapms.Store.Editing.Internal`、`Aapms.Store.Filter`、`Aapms.Store.Simulate`、`Aapms.Store.Indexing`、`Aapms.Store.Indexing.Internal`、`Aapms.Store.Search`、`Aapms.Store.Search.Internal` | pure |
 | `Aapms.Workspace.Hub`、`Aapms.Workspace.Location`、`Aapms.Workspace.Resolve`、`Aapms.Workspace.Resolve.Internal`、`Aapms.Workspace.Lifecycle.Plan`、`Aapms.Workspace.Lifecycle.Internal`、`Aapms.Workspace.Tools.Plan` | pure |
 | `Aapms.Service.Session`、`Aapms.Service.Session.Internal`、`Aapms.Service.Machine.View`、`Aapms.Service.Machine.Internal` | pure |
 | `Aapms.Types.Parse` | pure |

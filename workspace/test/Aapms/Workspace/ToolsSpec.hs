@@ -235,7 +235,7 @@ buildWorld t (World dirs cands mOverride) = do
       let p = t </> ("override-" <> name)
       when ok (mkQualifyingFileAt p)
       pure (Just p)
-  pure (ToolSearchPlan dirPaths candPaths, ToolsConfig overridePath)
+  pure (ToolSearchPlan ".exe" dirPaths candPaths, ToolsConfig overridePath)
 
 --------------------------------------------------------------------------------
 -- LAW-15:import 行(判準只看 import 行,不做全檔字串搜尋;比對前先去除行尾 \r)
@@ -288,13 +288,13 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         createDirectory d
         _ <- mkQualifying d "7z"
         c <- mkQualifying t "cand"
-        result <- detectSevenZipIn (ToolSearchPlan [d] [c]) (ToolsConfig (Just e1))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d] [c]) (ToolsConfig (Just e1))
         result `shouldBe` ToolStatus "7-Zip" (Just e1) FromToolsConfig [e1]
 
     it "test_ex2_override_hit_ignores_plan (EX-2; LAW-2)" $
       withTempDir $ \t -> do
         e1 <- mkQualifying t "seven"
-        result <- detectSevenZipIn (ToolSearchPlan [] []) (ToolsConfig (Just e1))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [] []) (ToolsConfig (Just e1))
         result `shouldBe` ToolStatus "7-Zip" (Just e1) FromToolsConfig [e1]
 
     it "test_ex3_override_miss_continues_to_path (EX-3; LAW-1,LAW-3,LAW-6b,LAW-7a)" $
@@ -303,7 +303,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         createDirectory d
         s <- mkQualifying d "7z"
         let p = t </> "nope.exe"
-        result <- detectSevenZipIn (ToolSearchPlan [d] []) (ToolsConfig (Just p))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d] []) (ToolsConfig (Just p))
         result `shouldBe` ToolStatus "7-Zip" (Just s) FromPath [p, s]
 
     it "test_ex4_path_layer_hit_second_dir (EX-4; LAW-1,LAW-6b,LAW-10)" $
@@ -313,7 +313,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         createDirectory d1
         createDirectory d2
         s2 <- mkQualifying d2 "7z"
-        result <- detectSevenZipIn (ToolSearchPlan [d1, d2] []) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d1, d2] []) (ToolsConfig Nothing)
         tsPath result `shouldBe` Just s2
         tsOrigin result `shouldBe` FromPath
         tsSearched result `shouldBe` [d1 </> ("7z" <.> exeExtension), s2]
@@ -326,7 +326,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         createDirectory d2
         _ <- mkQualifying d1 "7zz"
         s2 <- mkQualifying d2 "7z"
-        result <- detectSevenZipIn (ToolSearchPlan [d1, d2] []) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d1, d2] []) (ToolsConfig Nothing)
         tsPath result `shouldBe` Just s2
         tsOrigin result `shouldBe` FromPath
         tsSearched result `shouldBe` [d1 </> ("7z" <.> exeExtension), s2]
@@ -337,7 +337,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         createDirectory d
         let c1 = t </> "c1-missing"
         c2 <- mkQualifying t "c2"
-        result <- detectSevenZipIn (ToolSearchPlan [d] [c1, c2]) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d] [c1, c2]) (ToolsConfig Nothing)
         tsOrigin result `shouldBe` FromCandidate
         tsPath result `shouldBe` Just c2
         tsSearched result
@@ -352,7 +352,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         let d = t </> "d"
         createDirectory d
         let c1 = t </> "c1-missing"
-        result <- detectSevenZipIn (ToolSearchPlan [d] [c1]) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d] [c1]) (ToolsConfig Nothing)
         result
           `shouldBe` ToolStatus
             "7-Zip"
@@ -367,27 +367,27 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
       withTempDir $ \t -> do
         let b = t </> ("bogus" <.> exeExtension)
         createDirectory b
-        result <- detectSevenZipIn (ToolSearchPlan [] [b]) (ToolsConfig (Just b))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [] [b]) (ToolsConfig (Just b))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [b]
 
     it "test_ex9_non_executable_file_never_qualifies (EX-9; LAW-7b,LAW-9)" $
       withTempDir $ \t -> do
         let n = t </> "seven.txt"
         _ <- mkNonExecutable n
-        result <- detectSevenZipIn (ToolSearchPlan [] [n]) (ToolsConfig (Just n))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [] [n]) (ToolsConfig (Just n))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [n]
 
     it "test_ex10_same_path_across_layers_dedupes (EX-10; LAW-9)" $
       withTempDir $ \t -> do
         let c1 = t </> "c1-missing"
-        result <- detectSevenZipIn (ToolSearchPlan [] [c1, c1]) (ToolsConfig (Just c1))
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [] [c1, c1]) (ToolsConfig (Just c1))
         result `shouldBe` ToolStatus "7-Zip" Nothing NotFound [c1]
 
     it "test_ex11_missing_path_dirs_do_not_throw_or_get_created (EX-11; LAW-11a,LAW-12)" $
       withTempDir $ \t -> do
         let x = t </> "gone"
             alsoGone = t </> "also-gone.exe"
-        result <- detectSevenZipIn (ToolSearchPlan [x] [alsoGone]) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [x] [alsoGone]) (ToolsConfig Nothing)
         result
           `shouldBe` ToolStatus
             "7-Zip"
@@ -408,7 +408,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
             ran = d </> "RAN"
         mkQualifyingFileAt r
         before <- snapshotFiles t
-        result <- detectSevenZipIn (ToolSearchPlan [d] []) (ToolsConfig Nothing)
+        result <- detectSevenZipIn (ToolSearchPlan ".exe" [d] []) (ToolsConfig Nothing)
         after <- snapshotFiles t
         tsOrigin result `shouldBe` FromPath
         tsPath result `shouldBe` Just r
@@ -417,11 +417,11 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         after `shouldBe` before
 
     it "test_ex13_paths_are_verbatim_relative (EX-13; LAW-8)" $ do
-      result <- detectSevenZipIn (ToolSearchPlan [] ["relative/7z.exe"]) (ToolsConfig (Just "sub dir/7z.exe"))
+      result <- detectSevenZipIn (ToolSearchPlan ".exe" [] ["relative/7z.exe"]) (ToolsConfig (Just "sub dir/7z.exe"))
       tsSearched result `shouldBe` ["sub dir/7z.exe", "relative/7z.exe"]
 
     it "test_ex14_paths_are_verbatim_windows_absolute (EX-14; LAW-8)" $ do
-      result <- detectSevenZipIn (ToolSearchPlan [] ["C:\\Program Files\\7-Zip\\7z.exe"]) (ToolsConfig Nothing)
+      result <- detectSevenZipIn (ToolSearchPlan ".exe" [] ["C:\\Program Files\\7-Zip\\7z.exe"]) (ToolsConfig Nothing)
       tsSearched result `shouldBe` ["C:\\Program Files\\7-Zip\\7z.exe"]
 
     it "test_ex15_real_entry_matches_injected_plan (EX-15; LAW-14)" $ do
@@ -429,7 +429,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
       pathEnv <- lookupEnv "PATH"
       let dirs = maybe [] splitSearchPath pathEnv
       real <- detectSevenZip cfg
-      injected <- detectSevenZipIn (ToolSearchPlan dirs builtinCandidates) cfg
+      injected <- detectSevenZipIn (ToolSearchPlan ".exe" dirs builtinCandidates) cfg
       real `shouldBe` injected
 
     it "test_ex16_real_entry_config_override_short_circuits (EX-16; LAW-2,LAW-14)" $
@@ -464,8 +464,8 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
             _ <- mkQualifying d "7z"
             pure d
           cands <- forM (zip [0 :: Int ..] candNames) $ \(i, n) -> mkQualifying t ("c-" <> show i <> "-" <> n)
-          r1 <- detectSevenZipIn (ToolSearchPlan dirs cands) (ToolsConfig (Just e))
-          r2 <- detectSevenZipIn (ToolSearchPlan [] []) (ToolsConfig (Just e))
+          r1 <- detectSevenZipIn (ToolSearchPlan ".exe" dirs cands) (ToolsConfig (Just e))
+          r2 <- detectSevenZipIn (ToolSearchPlan ".exe" [] []) (ToolsConfig (Just e))
           pure (r1, r2)
         withPlan === withoutPlan
 
@@ -503,8 +503,8 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           let nonExec = t </> ("ne-" <> nameA)
               missing = t </> ("missing-" <> nameB)
           _ <- mkNonExecutable nonExec
-          r1 <- detectSevenZipIn (ToolSearchPlan [] [nonExec]) (ToolsConfig Nothing)
-          r2 <- detectSevenZipIn (ToolSearchPlan [] [missing]) (ToolsConfig Nothing)
+          r1 <- detectSevenZipIn (ToolSearchPlan ".exe" [] [nonExec]) (ToolsConfig Nothing)
+          r2 <- detectSevenZipIn (ToolSearchPlan ".exe" [] [missing]) (ToolsConfig Nothing)
           pure (r1, r2)
         tsOrigin nonExecResult === NotFound
         tsOrigin missingResult === NotFound
@@ -514,7 +514,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
       hedgehog $ do
         raw <- forAll (Gen.text (Range.linear 1 20) (Gen.choice [Gen.alpha, Gen.digit, Gen.element (" /\\.:-_" :: String)]))
         let p = T.unpack raw
-        result <- liftIO $ detectSevenZipIn (ToolSearchPlan [] [p]) (ToolsConfig Nothing)
+        result <- liftIO $ detectSevenZipIn (ToolSearchPlan ".exe" [] [p]) (ToolsConfig Nothing)
         tsSearched result === [p]
 
     it "prop_law11_filesystem_untouched(LAW-11): 任意 world,呼叫前後暫存目錄的檔案清單與\
@@ -537,7 +537,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
         result <- liftIO $ withTempDir $ \t -> do
           let dirs = "" : map (\s -> t </> ("missing-" <> s)) segs
               cands = map (\s -> t </> ("missing-cand-" <> s)) candSegs
-          detectSevenZipIn (ToolSearchPlan dirs cands) (ToolsConfig Nothing)
+          detectSevenZipIn (ToolSearchPlan ".exe" dirs cands) (ToolsConfig Nothing)
         tsOrigin result === NotFound
         tsPath result === Nothing
 
@@ -558,7 +558,7 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
           pathEnv <- lookupEnv "PATH"
           let dirs = maybe [] splitSearchPath pathEnv
           r <- detectSevenZip cfg
-          i <- detectSevenZipIn (ToolSearchPlan dirs builtinCandidates) cfg
+          i <- detectSevenZipIn (ToolSearchPlan ".exe" dirs builtinCandidates) cfg
           pure (r, i)
         real === injected
 
@@ -621,11 +621,11 @@ spec = describe "F006 Aapms.Workspace.Tools" $ do
   --------------------------------------------------------------------------
   describe "ToolSearchPlan(預期綠): 骨架原文自身承載的型別事實" $ do
     it "test_tool_search_plan_fields: 建構子與兩個欄位的存取子" $ do
-      let plan = ToolSearchPlan {tspPathDirs = ["a"], tspCandidates = ["b"]}
+      let plan = ToolSearchPlan {tspExeExtension = ".exe", tspPathDirs = ["a"], tspCandidates = ["b"]}
       tspPathDirs plan `shouldBe` ["a"]
       tspCandidates plan `shouldBe` ["b"]
 
     it "test_tool_search_plan_eq_show: 有 Eq 與 Show 實例" $ do
-      (ToolSearchPlan [] [] == ToolSearchPlan [] []) `shouldBe` True
-      (ToolSearchPlan ["x"] [] == ToolSearchPlan [] ["x"]) `shouldBe` False
-      show (ToolSearchPlan [] []) `shouldSatisfy` (not . null)
+      (ToolSearchPlan ".exe" [] [] == ToolSearchPlan ".exe" [] []) `shouldBe` True
+      (ToolSearchPlan ".exe" ["x"] [] == ToolSearchPlan ".exe" [] ["x"]) `shouldBe` False
+      show (ToolSearchPlan ".exe" [] []) `shouldSatisfy` (not . null)

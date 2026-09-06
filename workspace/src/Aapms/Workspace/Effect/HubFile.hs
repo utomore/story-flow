@@ -65,5 +65,5 @@ ensureCacheDir :: HubFile :> es => Eff es Bool
 purgeHubFiles :: HubFile :> es => Eff es (Bool, Int)
 
 -- | 觀察:'HubFile' 的純解譯器(固定位置、一份或沒有的中樞文字)。
-runHubFilePure :: HubWorld -> Eff (HubFile : es) a -> Eff es a
+runHubFilePure :: HubWorld -> Eff (HubFile : es) a -> Eff es (a, HubWorld)
 runHubFilePure _hw _act = error "P-004#runHubFilePure stub"

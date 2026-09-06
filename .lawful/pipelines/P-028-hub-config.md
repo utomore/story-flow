@@ -1,7 +1,7 @@
 ---
 id: P-028
 description: 中樞 TOML 文字解析成 Hub 值與渲染回去;vault / project 的 upsert 與 remove 保序
-status: frozen
+status: ready
 updated: 2026-09-06
 ---
 # P-028-hub-config:中樞 TOML 文字解析成 Hub 值與渲染回去;vault / project 的 upsert 與 remove 保序
@@ -123,6 +123,7 @@ updated: 2026-09-06
 | EX-24 | 空中樞 `upsertVault (VaultEntry (VaultId "vlt-7f3b2a91") "line1\nline2\tcol" AssetVault "C:/v")` 再 `renderHub` 再解析 | `Right`(不是 `HubUnreadable`);`veName` 逐字等於 `"line1\nline2\tcol"`;檔案裡該行是逸出後的兩字元序列 | LAW-3 |
 | EX-25 | 同 EX-24,名稱改成含 U+0001 的 `"a\SOHb"`,同時放一個這種 `veName` 與一個這種 `peName` | 兩段都讀得回來且逐字相等;檔案裡是 `\u0001`(四位大寫十六進位) | LAW-3 |
 | EX-26 | 一份含使用者自訂的未知鍵與未知頂層段的合法中樞,解析後直接 `renderHub` | 未知鍵與未知段落逐字保留,與原文逐位元組相同 | LAW-1 |
+| EX-27 | EX-8 的 `hub` 依序 `removeProject prj-91c0aa12`、`upsertProject (ProjectEntry prj-0000abcd "Circle" "D:/circle")`、`upsertProject (ProjectEntry prj-91c0aa12 "Circle" "D:/circle")`(同名同路徑、不同 id)之後 `renderHub` 再解析 | `hubProjects` 依序是 `prj-0000abcd`、`prj-91c0aa12`,與清單順序相同,不是原檔位置的順序 | LAW-2 |
 
 ## 決定
 - **中樞 `[[vaults]]` / `[[projects]]` 以 id 為鍵,名稱與路徑都不是身分。** 否決:以路徑為鍵。理由:搬動一個 vault 或專案目錄就等於換一個身分,而目錄本來就會被搬;改名一個專案也不該讓它失聯。證據:ADR-017-unified-marker-id-registry-read-across-write-single
@@ -142,3 +143,7 @@ updated: 2026-09-06
   - 動到:LAW-2、LAW-3、LAW-17、EX-3(刪除)
   - 保護:LAW-1、LAW-4 到 LAW-16、LAW-18、LAW-19
   - 重委派:qa(LAW-2、LAW-3、LAW-17、EX-3)
+- REV-2(2026-09-06,依 workspace 骨架代理回報「`lawful P028 / P-028#LAW-2` 與種子有關會偶發紅:seed 219913829 下失敗,兩列同名同路徑的 `ProjectEntry` 順序互換」;conductor 重現後歸因為程式碼錯——`renderHub` 對「刪掉再新增回來」的 id 沿用它在原檔的位置,清單裡它已在末尾;LAW-2 說清單含順序,law 對):加 EX-27 把這個形狀釘成固定例子;`renderHub` 要照清單順序輸出列
+  - 動到:EX-27(新增)
+  - 保護:LAW-1 到 LAW-19
+  - 重委派:qa(EX-27);impl(`renderHub`)

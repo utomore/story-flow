@@ -129,13 +129,13 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import Aapms.Core.AnyNode (AnyNode)
+import Aapms.Core.AnyNode (AnyNode, anyMeta)
 import Aapms.Core.Asset (Asset, LogicalName (..), Sha256)
 import Aapms.Core.Id (Id, IdPrefix, Ref, VaultId (..), renderId, renderRef)
 import Aapms.Core.Level (Level, Node, NodeKind, TreeError, renderTreeError)
 import Aapms.Core.License (License)
 import Aapms.Core.Link (Link (..), renderLinkKind)
-import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..))
+import Aapms.Core.Meta (Meta, MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..), metaId)
 import Aapms.Core.Pack (AiDisclosure, Author, Pack)
 import Aapms.Md.Document (DocKind (..), Document)
 import Aapms.Md.Error (MdError, renderMdError)
@@ -773,32 +773,42 @@ warnedIds _is = error "P-001#warnedIds stub"
 
 -- | 命中的 (vault, id)。
 hitKey :: SearchHit -> (VaultId, Id)
-hitKey _h = error "P-002#hitKey stub"
+hitKey h = (shVault h, metaId (shMeta h))
 
 -- | 節點的 (vault, id)。
 nodeKey :: (VaultId, AnyNode) -> (VaultId, Id)
-nodeKey _n = error "P-002#nodeKey stub"
+nodeKey (v, n) = (v, metaId (anyMeta n))
 
 
 -- | 記憶體索引集合裡的 vault id。
 keysOf :: Map VaultId IndexState -> [VaultId]
-keysOf _m = error "P-002#keysOf stub"
+keysOf = Map.keys
 
 -- | 拿掉分頁(offset 0、limit 大於任何樣本總數)。
 wide :: SearchQuery -> SearchQuery
-wide _q = error "P-002#wide stub"
+wide q = withFilter (\nf -> nf {nfOffset = 0, nfLimit = wideLimit}) q
+
+-- | 'wide' 用的「比任何樣本都大」的上限。分頁在純層是 @take@ \/ @drop@,
+-- 給一個大但有限的值就夠;寫成 @maxBound@ 會讓任何「offset + limit」的
+-- 算式溢位。
+wideLimit :: Int
+wideLimit = 1000000
 
 -- | 設 offset j、limit k。
 page :: Int -> Int -> SearchQuery -> SearchQuery
-page _j _k _q = error "P-002#page stub"
+page j k q = withFilter (\nf -> nf {nfOffset = j, nfLimit = k}) q
 
 -- | 換掉 'nfTypes'。
 withTypes :: [TypeKey] -> SearchQuery -> SearchQuery
-withTypes _ts _q = error "P-002#withTypes stub"
+withTypes ts q = withFilter (\nf -> nf {nfTypes = ts}) q
 
 -- | 換掉 'nfTags'。
 withTags :: [Text] -> SearchQuery -> SearchQuery
-withTags _tags _q = error "P-002#withTags stub"
+withTags tags q = withFilter (\nf -> nf {nfTags = tags}) q
+
+-- | 只改 'sqFilter' 的存取子輔助(本模組私有)。
+withFilter :: (NodeFilter -> NodeFilter) -> SearchQuery -> SearchQuery
+withFilter f q = q {sqFilter = f (sqFilter q)}
 
 --------------------------------------------------------------------------------
 -- 寫入請求與結果(P-003-node-write)

@@ -1,7 +1,7 @@
 ---
 id: P-001
 description: vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-001-index-rebuild:vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
@@ -44,7 +44,6 @@ updated: 2026-09-06
 | o | `clashesEarlier :: TypeRegistry -> VaultId -> VaultFiles -> FilePath -> Bool` | 觀察:這個檔某個已命名 asset 的邏輯名稱,已被路徑字母序更前、純核心成功的檔用掉(撞名回滾的判準) | `Aapms.Store.Indexing.Internal`(願望) | pure |
 | = | `rebuild :: (VaultFs :> es, Index :> es) => TypeRegistry -> VaultId -> Eff es (Either StoreError [IndexIssue])` | 純的整條:清空索引,1 → 對每個路徑 16,收集 issues | `Aapms.Store.Indexing`(願望) | pure |
 | ! | `rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])` | 進入點:以 handle 的根目錄與連線跑真解譯器(directory、sqlite) | `Aapms.Store.Index` | shell |
-| ! | `refreshIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])` | 進入點:以 handle 的根目錄與連線跑真解譯器,走 17(過時刷新)而不是全量;開 vault 時用它 | `Aapms.Store.Index` | shell |
 
 ## Laws
 - LAW-1 [identity] 重建冪等:對已重建的索引再重建,結果與索引都不變
@@ -111,6 +110,7 @@ updated: 2026-09-06
 - **shell 的 sqlite 解譯器每個檔一個短交易,解析全部在交易外(ADR-022)。** 否決:整個 vault 一個大交易。理由:寫鎖持有時間以毫秒計
 - **套件內以純解譯器驗 rm index.db 等價即為 S1 驗收;真 vault 的端到端另由 contract 套件承接。** 否決:S1 就合成 6,783 筆的大 fixture。理由:等價是純性質,規模是效能題
 - **cabal 的模組可見度不寫成 law,交給模組表與 `lint boundary`;`BoundarySpec` 留作內部測試。** 否決:把 exposed-modules 清單寫成 `|-` 行。理由:那是關於檔案的斷言,不是任何 stage 的性質
+- **過時刷新不另立進入點:里程碑只有 `rebuildIndex` 一列 `!`,開 vault 時的過時刷新由 shell 的 `openVault` 直接以真解譯器跑第 17 列 `refresh`;舊 `Aapms.Store.Index.refreshStale` / `indexFile` / `unindexFile` 的直接 IO 路徑退場。** 否決:加第二列 `!`(`refreshIndex`)。理由:lawful 的里程碑恰好一個 shell 進入點;`refresh` 與 `rebuild` 是同一條資料流的兩種起點,共用同一組真解譯器,兩份實作(舊 `indexOne` 與新 `indexDocument`)會漂移。(store shell 波之後的盤點,2026-09-06)
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「兩份 pack 撞名的 vault 上,LAW-6 的左邊是 False、右邊是 True」與 GAP-2「EX-8 的 `Left (ParseFailed …)` 不是 `StoreError` 的建構子」,以及 impl 對 P-002-search 提的「effects 層的純解譯器不得 import pure 層的參考實作」):第 11 列 `indexDocument` 的錯誤型別改成 `IndexIssue`(單檔純核心的失敗就是一則索引問題,與第 16 列「解析失敗的檔回 issues」同一語彙);LAW-6 改成雙條件並加觀察點 `clashesEarlier`,把「撞名回滾」的決定寫進 law;觀察點 `runIndexPure` 依 rules/boundary.md「效果的判定」(純解譯器住 effects 或 pure)搬到 pure 層的 `Aapms.Store.Simulate`,簽名不變
@@ -121,7 +121,3 @@ updated: 2026-09-06
   - 動到:EX-3
   - 保護:LAW-1 到 LAW-12、其餘 EX
   - 重委派:qa(EX-3)
-- REV-3(2026-09-06,依 store shell 波與 P-003 波之後的盤點:第 17 列 `refresh` 只有純的整條,沒有 shell 進入點,開 vault 時的過時刷新仍走舊 `Aapms.Store.Index.refreshStale` 的直接 IO 路徑,等於同一件事兩份實作):加 `!` 列 `refreshIndex`,接到第 17 列;舊路徑退場
-  - 動到:Stages 加一列 `!`(`refreshIndex`)
-  - 保護:LAW-1 到 LAW-12、全部 EX
-  - 重委派:impl(`refreshIndex` 與呼叫端改接);qa 無(`!` 列不入 law)

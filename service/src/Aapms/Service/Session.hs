@@ -31,13 +31,16 @@ import Aapms.Types.Parse (aggregate, parseRegistryFiles)
 import Aapms.Workspace.Effect.HubFile (HubFile, hubPath, readHub)
 import Aapms.Workspace.Effect.Markers (Markers)
 import Aapms.Workspace.Hub (parseHubText)
+import Aapms.Workspace.Resolve (resolveScope)
 import Aapms.Workspace.Types (HubLocation (hlPath), Scope, ScopeKind)
 
 -- | 用 'Session' 的快照跑 P-029-scope-resolve 的裁決,
 -- 'Aapms.Workspace.Types.WorkspaceError' 原樣包成
 -- 'Aapms.Service.Types.WorkspaceFailed'。
 scopeOf :: Markers :> es => Session -> ScopeKind -> Eff es (Either ServiceError Scope)
-scopeOf _s _k = error "P-004#scopeOf stub"
+scopeOf s k =
+  fmap (either (Left . WorkspaceFailed) Right) $
+    resolveScope (sessionHub s) k (sessionSelector s) (sessionCwd s)
 
 -- | 純的整條:中樞位置 → 讀中樞 → 解析成 'Aapms.Workspace.Types.Hub' → 註冊表
 -- 三層定位 → 讀全部 TOML → 解析 → 驗證成註冊表 → 'Session'。

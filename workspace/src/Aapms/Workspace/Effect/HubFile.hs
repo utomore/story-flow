@@ -29,11 +29,18 @@ module Aapms.Workspace.Effect.HubFile
   , runHubFilePure
   ) where
 
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Effectful (Eff, Effect, (:>))
+import Effectful.Dispatch.Dynamic (reinterpret)
+import Effectful.State.Static.Local (gets, modify, runState)
 import Effectful.TH (makeEffect_)
 
-import Aapms.Workspace.Types (HubLocation, HubWorld, WorkspaceError)
+import Aapms.Workspace.Types
+  ( HubLocation
+  , HubWorld (..)
+  , WorkspaceError (HubNotFound)
+  )
 
 -- | 中樞檔的六個操作。
 data HubFile :: Effect where
@@ -64,6 +71,44 @@ ensureCacheDir :: HubFile :> es => Eff es Bool
 -- | 刪 @config.toml@ 與縮圖快取,回刪了沒、刪幾張。
 purgeHubFiles :: HubFile :> es => Eff es (Bool, Int)
 
--- | 觀察:'HubFile' 的純解譯器(固定位置、一份或沒有的中樞文字)。
+-- | 觀察:'HubFile' 的純解譯器(固定位置、一份或沒有的中樞文字),__回最終的
+-- 中樞世界__(P-004-vault-scope REV-1;與 'Aapms.Workspace.Effect.VaultDir.runVaultDirPure'
+-- 同形)。
+--
+-- 六個操作的純語意都跑在 'Aapms.Workspace.Types.HubWorld' 上:
+--
+-- * @HubPath@ 是世界裡那個固定位置,不查環境變數。
+-- * @ReadHub@ 有文字就是它,沒有就是
+--   'Aapms.Workspace.Types.HubNotFound'——__帶呼叫端給的那個路徑__,與真解譯器
+--   讀不到 @config.toml@ 時同一個建構子。
+-- * @HubExists@ 就是「有沒有那份文字」。
+-- * @WriteHub@ 原子覆寫:世界的文字換成新的,永遠成功(純世界沒有磁碟會滿)。
+-- * @EnsureCacheDir@ 回「__本來不在才建__」('Aapms.Workspace.Types.cacheDirIn' 的
+--   否定),之後世界的 'Aapms.Workspace.Types.cacheDirIn' 是 @True@——所以它是
+--   冪等的(P-004-vault-scope REV-2;P-005-vault-lifecycle LAW-1 的第二次 setup
+--   兩個 Bool 都要是 @False@)。
+-- * @PurgeHubFiles@ 刪中樞文字與__整棵__縮圖快取,回「原本有沒有那份檔」與
+--   'Aapms.Workspace.Types.thumbsIn' 的長度;之後世界的 'Aapms.Workspace.Types.hubTextIn'
+--   是 @Nothing@、'Aapms.Workspace.Types.thumbsIn' 是空的、
+--   'Aapms.Workspace.Types.cacheDirIn' 是 @False@(快取目錄本身一起拿掉,與舊碼
+--   @Aapms.Workspace.Lifecycle.purge@ 的 @removeTreeForcibly@ 同語意)。再跑一次
+--   因此是 @(False, 0)@(P-005-vault-lifecycle LAW-13)。
 runHubFilePure :: HubWorld -> Eff (HubFile : es) a -> Eff es (a, HubWorld)
-runHubFilePure _hw _act = error "P-004#runHubFilePure stub"
+runHubFilePure hw0 = reinterpret (runState hw0) $ \_ op -> case op of
+  HubPath -> gets hubLocationIn
+  ReadHub p -> gets (readIn p)
+  HubExists -> gets (isJust . hubTextIn)
+  WriteHub t -> do
+    modify (\w -> w {hubTextIn = Just t})
+    pure (Right ())
+  EnsureCacheDir -> do
+    made <- gets (not . cacheDirIn)
+    modify (\w -> w {cacheDirIn = True})
+    pure made
+  PurgeHubFiles -> do
+    had <- gets (isJust . hubTextIn)
+    n <- gets (length . thumbsIn)
+    modify (\w -> w {hubTextIn = Nothing, cacheDirIn = False, thumbsIn = []})
+    pure (had, n)
+  where
+    readIn p w = maybe (Left (HubNotFound p)) Right (hubTextIn w)

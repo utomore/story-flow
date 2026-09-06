@@ -40,9 +40,12 @@ import Aapms.Core.Meta (TypeKey (..))
 import Aapms.Core.Naming
 import Aapms.Core.Registry
 import Aapms.Core.Registry.Build
+import Data.Either (partitionEithers)
+import Data.List (partition)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import System.FilePath (takeDirectory, takeFileName, (</>))
 import qualified TOML
 
 -- 文字 → 宣告 -------------------------------------------------------------------
@@ -62,7 +65,39 @@ parseSpecText fp txt = case TOML.decode txt of
 -- 即失敗,錯誤經 'aggregate' 收成一則(呼叫端只有一個
 -- 'Aapms.Service.Types.RegistryLoadFailed' 欄位裝得下)。
 parseRegistryFiles :: [(FilePath, Text)] -> Either RegistryError ([TypeDecl], NamingVocab)
-parseRegistryFiles _files = error "P-004#parseRegistryFiles stub"
+parseRegistryFiles files = case (errs, mVocab) of
+  ([], Just vocab) -> Right (decls, vocab)
+  _ -> Left (aggregate errs)
+  where
+    (namingFiles, specFiles) = partition (isNamingFile . fst) files
+
+    (declErrss, decls) = partitionEithers [parseSpecText fp txt | (fp, txt) <- specFiles]
+
+    -- 缺 @naming.toml@ 是__錯誤__,不是空詞彙表:註冊表目錄不合規就該硬失敗
+    -- (P-004-vault-scope 的決定「三者都是硬錯,不退回預設值」)。
+    vocabResult = case namingFiles of
+      [] -> Left [NamingFileMissing missingNamingPath]
+      ((fp, txt) : _) -> parseNamingText fp txt
+
+    (vocabErrs, mVocab) = case vocabResult of
+      Left es -> (es, Nothing)
+      Right v -> ([], Just v)
+
+    errs = concat declErrss ++ vocabErrs
+
+    -- 沒有那份檔就沒有它的路徑;拿同一個目錄下任何一份檔的目錄來組,錯誤訊息
+    -- 才說得出「我查過這裡」(ADR-005:錯誤訊息一律帶檔名)。
+    missingNamingPath = case files of
+      [] -> namingFileName
+      ((fp, _) : _) -> takeDirectory fp </> namingFileName
+
+-- | 命名文法詞彙表的檔名。解析時特別分出來,不當成型別宣告。
+namingFileName :: FilePath
+namingFileName = "naming.toml"
+
+-- | 是不是那份 @naming.toml@(只看檔名,不管它在哪個目錄)。
+isNamingFile :: FilePath -> Bool
+isNamingFile fp = takeFileName fp == namingFileName
 
 -- | @naming.toml@ 的文字 → 'NamingVocab'。第一個參數同 'parseSpecText'。
 parseNamingText :: FilePath -> Text -> Either [RegistryError] NamingVocab

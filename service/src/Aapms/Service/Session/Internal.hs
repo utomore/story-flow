@@ -9,13 +9,17 @@ module Aapms.Service.Session.Internal
   ( simulateSession
   ) where
 
-import Effectful (Eff)
+import Effectful (Eff, runPureEff)
 
-import Aapms.Types.Effect.RegistryFs (RegistryFs)
+import Aapms.Types.Effect.RegistryFs (RegistryFs, runRegistryFsPure)
 import Aapms.Types.Source (RegistryWorld)
-import Aapms.Workspace.Effect.HubFile (HubFile)
+import Aapms.Workspace.Effect.HubFile (HubFile, runHubFilePure)
 import Aapms.Workspace.Types (HubWorld)
 
 -- | 觀察:'HubFile' 與 'RegistryFs' 的純解譯器跑到底。
+--
+-- 兩層剝完就沒有效果了,所以拿得到裸的結果——里程碑 @=@ 列的 law 因此完全不碰
+-- IO。'Aapms.Workspace.Effect.HubFile.runHubFilePure' 會多交出最終的中樞世界
+-- (REV-1),開場只讀不寫,這裡丟掉它。
 simulateSession :: HubWorld -> RegistryWorld -> Eff '[HubFile, RegistryFs] a -> a
-simulateSession _hw _rw _act = error "P-004#simulateSession stub"
+simulateSession hw rw act = fst (runPureEff (runRegistryFsPure rw (runHubFilePure hw act)))

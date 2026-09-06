@@ -261,4 +261,6 @@ renderServiceError = \case
 
 -- | 觀察:是不是 'RegistryUnavailable'(P-004-vault-scope 的 LAW-3)。
 isRegistryUnavailable :: ServiceError -> Bool
-isRegistryUnavailable _e = error "P-004#isRegistryUnavailable stub"
+isRegistryUnavailable = \case
+  RegistryUnavailable _ -> True
+  _ -> False

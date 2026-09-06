@@ -7,29 +7,24 @@ updated: 2026-09-06
 # P-019-project-export:給一個 Level,順 involves 找 Entity、順 uses / depicts 找 Asset,過授權閘門,單筆解壓正規化落成 assets/manifest.json、Assets.hs 與 story/manifest.json
 
 ## Brief
-<意圖一句。input 是什麼、output 是什麼。流向:A → B → C。它是 P-00y-<slug> 的第 n 個 stage,或它是里程碑。>
+S6 的里程碑,原 assetdb 的 project 擴編。input 是一個 Level 的 Ref、專案名稱與輸出目錄;output 是專案目錄:`assets/manifest.json`(schema 2)、型別安全的 `Assets.hs`(以邏輯名稱為 AssetKey)、複製進來的素材位元組、`story/manifest.json`(故事引用清單:<vault>:<id>、title、summary、用途、revision,不複製)。流向:順 Level 的 involves 找 Entity(跨 vault 用 <vault>:<id>)→ 順那些 Entity 的 uses / depicts 找 Asset → 對每筆 Asset 查授權(non-commercial 或授權未查證一律擋下並列出)→ 通過的單筆從壓縮檔取出(aapms-archive)→ 正規化命名落地 → 產生兩份 manifest 與 Assets.hs;`sync` 是增量版,`add` / `remove` 手動調整清單。連動的圖遍歷、授權閘門、manifest 與 Assets.hs 的產生是純函數(P-023-manifest-codec);讀圖譜是 `Vaults` 效果,取檔與寫專案目錄是 `Archive` 與 `ProjectDir` 效果。它是 S6 的里程碑「建專案 → 挑 Level → 自動帶素材 → 擋授權一條龍」。Stages 與 laws 待 S6 設計時寫;願望模組 `Aapms.Project.Export`。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |
 |---|---|---|---|---|
-| 1 | `<name :: Type>` | <一句> | `<Module>` | pure |
-| 2 | `<name :: Type>` | <一句> | `<Module>`(願望,見 P-00z-<slug>) | pure |
-| o | `<name :: Type>` | 觀察:<law 要看的量,一句> | `<Module.Internal>` | pure |
-| = | `<name :: Type>` | 純的整條 | `<Module>` | pure |
-| ! | `<name :: Type>` | 進入點:<接到哪個對外 I/O;子流刪這列> | `<Host.Module>` | shell |
 
 ## Laws
-- LAW-1 [<invariant | identity | roundtrip | relation | bound | equiv | total | commute>] <一句中文>
-  - forall <x> in <Type>
-  - |- <結論,只用 Stages 的簽名(含 o 列與 = 列,不含 ! 列)、types 層的函數與字面值>
 
 ## Examples
 | # | 輸入 | 輸出 | 覆蓋 |
 |---|---|---|---|
-| EX-1 | `<expr>` | `<value>` | LAW-1 |
 
 ## 決定
-- **<決定一句。>** 否決:<替代方案>。<理由一句>。證據:<SPK-00x-<slug> 或 ADR-00x-<slug>,無則省略>
+- **連動只沿 involves(Level → Entity)與 uses / depicts(Entity → Asset)兩種關聯。** 否決:沿全部關聯。理由:system.md 資料流 B
+- **授權閘門:non-commercial 或授權未查證(NULL)一律擋下,列出清單。** 否決:警告放行。理由:專案要能離開 vault 獨立存在且能商用
+- **story/ 與 assets/ 同層,故事引用不複製、沒有授權、不進 Assets.hs。** 否決:story 放 assets 底下。理由:Assets.hs 列舉與授權閘門都綁在 assets/
+- **project 依賴 aapms-archive(單筆取檔)但不依賴 ingest。** 否決:經 ingest。理由:archive 是最輕的那個套件
+- **manifest 一次升到 schema 2,兩份 manifest 各自版本閘門。** 否決:漸進遷移。理由:P-023-manifest-codec 的決定
 
 ## 修訂記錄
 無

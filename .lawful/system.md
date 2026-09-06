@@ -47,10 +47,10 @@ updated: 2026-09-06
 | 新 revision 的 `NodeView` | out | `NodeView` | `Aapms.Service.Write` | P-008-graph-write |
 | argv | in | `Command` | `Aapms.Cli.Main` | P-009-cli-shell |
 | stdout 信封與 exit code | out | `Envelope` | `Aapms.Cli.Main` | P-009-cli-shell |
-| HTTP request(servant 路由) | in | `Api` | `Aapms.Server.Handlers` | P-010-http-shell |
-| HTTP response 與錯誤 body | out | `ErrorBody` | `Aapms.Server.Handlers` | P-010-http-shell |
-| stdin JSON-RPC | in | `RpcRequest` | `Aapms.Mcp.Rpc` | P-011-mcp-shell |
-| stdout JSON-RPC 結果 | out | `RpcResponse` | `Aapms.Mcp.Rpc` | P-011-mcp-shell |
+| HTTP request(servant 路由) | in | `Api` | `Aapms.Server.Main` | P-010-http-shell |
+| HTTP response 與錯誤 body | out | `ErrorBody` | `Aapms.Server.Main` | P-010-http-shell |
+| stdin JSON-RPC | in | `RpcRequest` | `Aapms.Mcp.Main` | P-011-mcp-shell |
+| stdout JSON-RPC 結果 | out | `RpcResponse` | `Aapms.Mcp.Main` | P-011-mcp-shell |
 | `library/` 下的壓縮檔(不解壓) | in | `ArchiveEntry` | `Aapms.Ingest.Scan` | P-012-asset-scan |
 | `pack.md` 與索引 | out | `Pack` | `Aapms.Ingest.Scan` | P-012-asset-scan |
 | 壓縮檔內的影像位元組 | in | `Sha256` | `Aapms.Ingest.Thumbs` | P-013-thumb-cache |

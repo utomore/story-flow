@@ -7,29 +7,23 @@ updated: 2026-09-06
 # P-016-conflict-check:新劇情草稿經圖遍歷、FTS 候選撈取、LLM 逐對判斷,產出指到片段的衝突報告;context 是它的子流
 
 ## Brief
-<意圖一句。input 是什麼、output 是什麼。流向:A → B → C。它是 P-00y-<slug> 的第 n 個 stage,或它是里程碑。>
+S5 的第一條里程碑,原 story-flow 的 conflict 接上統一索引。input 是新劇情草稿文字與本次讀取範圍;output 是指到片段的衝突報告。流向:圖遍歷(沿 contradicts / supersedes 找已知矛盾與被取代的設定)→ FTS 候選撈取(只以 status 為 canon 的節點為基準,經 P-002-search,候選集自然含 asset 節點)→ LLM 逐對判斷(經 P-017 的 LLM 門面)→ 報告按層排序、去重、附理由。`context` 是它的子流:前兩層不叫 LLM 的結果就是 context 命令的輸出。圖遍歷、候選合併、排序去重是純函數;LLM 呼叫是 `Llm` 效果,純解譯器回固定判斷。Stages 與 laws 待 S5 設計時寫;願望模組 `Aapms.Conflict.Check`、`Aapms.Conflict.Retrieval`。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |
 |---|---|---|---|---|
-| 1 | `<name :: Type>` | <一句> | `<Module>` | pure |
-| 2 | `<name :: Type>` | <一句> | `<Module>`(願望,見 P-00z-<slug>) | pure |
-| o | `<name :: Type>` | 觀察:<law 要看的量,一句> | `<Module.Internal>` | pure |
-| = | `<name :: Type>` | 純的整條 | `<Module>` | pure |
-| ! | `<name :: Type>` | 進入點:<接到哪個對外 I/O;子流刪這列> | `<Host.Module>` | shell |
 
 ## Laws
-- LAW-1 [<invariant | identity | roundtrip | relation | bound | equiv | total | commute>] <一句中文>
-  - forall <x> in <Type>
-  - |- <結論,只用 Stages 的簽名(含 o 列與 = 列,不含 ! 列)、types 層的函數與字面值>
 
 ## Examples
 | # | 輸入 | 輸出 | 覆蓋 |
 |---|---|---|---|
-| EX-1 | `<expr>` | `<value>` | LAW-1 |
 
 ## 決定
-- **<決定一句。>** 否決:<替代方案>。<理由一句>。證據:<SPK-00x-<slug> 或 ADR-00x-<slug>,無則省略>
+- **三層依序:圖遍歷 → FTS 候選 → LLM 逐對,前兩層不叫 LLM。** 否決:全丟給 LLM。理由:ADR-007
+- **候選撈取只以 canon 為基準。** 否決:draft 也比。理由:草稿不是設定
+- **候選集含 asset 節點,但 S5 的判斷層只比文字;素材的視覺標註 S5 後才讀。** 否決:S5 就讀影像。理由:system.md 子系統劃分
+- **ByRetrieval 的分數是 Double 不是 Maybe Double。** 否決:Maybe。理由:P-002 的分數恆正(ADR-016)
 
 ## 修訂記錄
 無

@@ -2,7 +2,7 @@
 -- 外加 'Aapms.Store.Create.sanitizeFileName'(檔名淨化,同樣是純函式,獨立於
 -- "Aapms.Store.CreateSpec" 之外收在這裡)。__命名避開既有的 F006 "Aapms.Store.NodeSpec"__。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@,
 -- 2026-08-25 第二輪裁決後的版本:GAP-13 改寫 LAW-20、fixture 依編排者歸因修正)
 --
 -- @

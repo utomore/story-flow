@@ -1,7 +1,7 @@
 -- | graph-core\/F008 LAW-15\/EX-16\/EX-17:'Aapms.Store.Error.renderStoreError' 涵蓋
 -- 'Aapms.Store.Error.StoreError' 全部 21 個建構子。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@,
 -- 2026-08-25 GAP-7 裁決後的版本)
 --
 -- @

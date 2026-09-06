@@ -2,7 +2,7 @@
 -- 'detectSevenZip' 用內建常數,而這台機器上 @C:\\Program Files\\7-Zip\\7z.exe@ 實際
 -- 存在,直接測它驗不到 'NotFound' 與 'FromCandidate')與依賴方向的 import 檢查(LAW-15)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F006-machine-tools.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-006-workspace-doctor.md@,
 -- 預期依 spec-roles.md「qa 的交付判準」逐條標;骨架裡沒有任何不是 @undefined@ 的函數
 -- 本體,所以除 LAW-15(a)-(f) 與 'ToolSearchPlan' 型別本身的形狀外,__全部預期紅__):
 --

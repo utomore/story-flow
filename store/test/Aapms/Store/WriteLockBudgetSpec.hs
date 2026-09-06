@@ -1,6 +1,6 @@
 -- | graph-core\/F008 LAW-17(ADR-022 寫鎖預算,結構約束)。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-17(部分) withTransaction 出現 0 次,也不出現字面量 \"BEGIN\" \/ \"COMMIT\"        -> test_no_withTransaction

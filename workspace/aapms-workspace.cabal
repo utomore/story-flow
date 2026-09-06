@@ -11,7 +11,7 @@ build-type:         Simple
 -- 界線由 exposed-modules 守(同 graph-core E001)。消費端直接 import 需要的那一個。
 --
 -- exposed-modules 與 test-suite 的 other-modules 由 /subsys-build 的編排者單線維護
--- (見 .design/subsystems/workspace/build-log.md 的 D2),不屬任何 feature 的寫入白名單。
+-- (見 .lawful/modules.md(exposed-modules 由 conductor 單線維護)),不屬任何 feature 的寫入白名單。
 
 common warnings
     ghc-options: -Wall -Wcompat

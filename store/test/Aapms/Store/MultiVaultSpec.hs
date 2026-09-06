@@ -2,7 +2,7 @@
 -- 以及 "Aapms.Store.Error" 新增的 'TooManyVaults' \/ 'VaultIdCollision' 兩個
 -- 建構子的訊息。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F009-store-multi-vault-read.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-002-search.md@):
 --
 -- @
 -- LAW-1   openVaultSet 去重與上限(撞號優先於上限的分工見 LAW-1b)      -> prop_LAW1_dedupe_and_limit / test_LAW1_dedupe_at_limit_boundary

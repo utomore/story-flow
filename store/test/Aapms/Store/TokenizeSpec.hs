@@ -2,7 +2,7 @@
 -- CJK 預切\/還原、查詢路由與運算式、FTS5 字面字串)。
 --
 -- __spec 對照__(每條 law\/example 對回
--- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
+-- @.lawful\/pipelines\/P-027-fts-tokenize.md(查詢側見 P-002-search.md)@):
 --
 -- @
 -- LAW-1  cjkSegment 的 token 只由 CJK 字元組成、長度 1 或 2  -> prop_LAW1

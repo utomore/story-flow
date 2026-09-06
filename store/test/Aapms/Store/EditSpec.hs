@@ -9,7 +9,7 @@
 -- 比對改用 'Aapms.Store.Types.stripStamps'(P-003 LAW-6 對「除 revision 與
 -- updated 之外逐位元組相同」用的同一個觀察點)。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-1(部分)  checkRevision i r a 在 r == a 時且僅在此時回 Right ()  -> prop_checkRevision

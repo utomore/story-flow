@@ -39,7 +39,6 @@ import Aapms.Core.Link (LinkKind (Depicts), parseLinkKind)
 import Aapms.Core.Meta (TypeKey (..))
 import Aapms.Core.Naming
 import Aapms.Core.Registry
-import Aapms.Core.Registry.Build
 import Data.Either (partitionEithers)
 import Data.List (partition)
 import qualified Data.Map.Strict as M

@@ -10,7 +10,7 @@
 -- @brokenLinks@);斷言不變。註冊表原本由呼叫端逐次傳入,新進入點一律取自
 -- 把手的 @vhRegistry@,本檔的 fixture 本來就以 'regWithTypes' 開 vault。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-9   createPackFile 順序保持                      -> prop_LAW9

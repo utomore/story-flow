@@ -16,7 +16,7 @@ build-type:         Simple
 -- 也不得依賴任何領域子系統(archive / ingest / reorg / conflict / llm / ai / workshop / project)。
 --
 -- exposed-modules 與 test-suite 的 other-modules 由 /subsys-build 的編排者單線維護
--- (見 .design/subsystems/service/build-log.md 的 D1),不屬任何 feature 的寫入白名單。
+-- (見 .lawful/modules.md(exposed-modules 由 conductor 單線維護)),不屬任何 feature 的寫入白名單。
 -- 目前只含階段一 W1 的三個模組;後續波次由編排者逐波加入。
 
 common warnings

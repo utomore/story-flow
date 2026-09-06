@@ -8,7 +8,7 @@
 -- 'Aapms.Store.Fixtures.unindexOnePath',斷言逐字不變。
 --
 -- __spec 對照__(每條 law\/example 對回
--- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
+-- @.lawful\/pipelines\/P-027-fts-tokenize.md(查詢側見 P-002-search.md)@):
 --
 -- @
 -- LAW-12 無文字條件時退化成 listNodes,分數 0、片段空                -> test_LAW12

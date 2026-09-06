@@ -1,7 +1,7 @@
 -- | F002:'Aapms.Service.Machine.vaultList' \/ 'Aapms.Service.Types.VaultView' 與
 -- 'Aapms.Service.Machine.vaultCheck'。
 --
--- __spec 對照__(@.design\/subsystems\/service\/features\/F002-workspace-facade.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-006-workspace-doctor.md@,
 -- 「1-to-1 測試對照表」——全部紅:'vaultList' \/ 'vaultCheck' 本體皆 @undefined@):
 --
 -- @

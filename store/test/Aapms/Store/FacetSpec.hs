@@ -2,7 +2,7 @@
 -- 'FacetCounts')。
 --
 -- __spec 對照__(每條 law\/example 對回
--- @.design\/subsystems\/graph-core\/features\/F007-store-fts-dual-index.md@):
+-- @.lawful\/pipelines\/P-027-fts-tokenize.md(查詢側見 P-002-search.md)@):
 --
 -- @
 -- LAW-16 sqFacets 控制 srFacets 的 Just/Nothing;fcVaults 恰一筆      -> test_LAW16

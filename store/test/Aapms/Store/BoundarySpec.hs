@@ -1,7 +1,7 @@
 -- | graph-core\/E001:cabal 可見度界線(LAW-1\/LAW-2\/LAW-3\/EX-1)、"Aapms.Store.Index" 匯出清單
 -- 界線(LAW-4)、門面完整性(REG-1\/EX-2)與 'WriteResult' 型別同一性(REG-2)。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/enhancements\/E001-store-internal-module-boundary.md@)
+-- __spec 對照__(@.lawful\/modules.md@)
 --
 -- @
 -- REG-1  只 import Aapms.Store 就取得到契約 E 的每一個公開符號,由「能不能編譯」證明 -> test_EX2
@@ -15,7 +15,7 @@
 -- @
 --
 -- __禁止讀實作__:LAW-1\/LAW-2\/LAW-3\/LAW-4 全部是對原始檔文字的字串比對,不解讀語意;
--- 契約 E 的完整符號清單抄自 @.design\/subsystems\/graph-core\/design.md@「### E. 落地」,
+-- 契約 E 的完整符號清單抄自 @.lawful\/system.md@「對外 I/O」,
 -- 不是從程式碼推論出來的。
 module Aapms.Store.BoundarySpec (spec) where
 

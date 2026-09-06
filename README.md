@@ -8,7 +8,7 @@
 
 **目前版本 `v0.1.0.0`** —— story-flow 時期的四個子系統 19 個 feature 全數完成,12 個測試套件 1462 條全綠。
 
-> **2026-08-23 起本 repo 進入 aapms 重構**(把素材庫 assetdb 深度整合進來,見 [`.design/system.md`](./.design/system.md)):
+> **本 repo 是 aapms**(素材庫 assetdb 深度整合進來的故事設定工具,設計文檔在 [`.lawful/system.md`](./.lawful/system.md)):
 > P0 已完成——全樹改名 `aapms-*` / `Aapms.*`、assetdb 以保留歷史的方式併入 `legacy/assetdb/`、
 > 契約層測試 `contract/` 立起。下面的指令說明仍是 story-flow 的功能面,P1–P6 逐期改寫,README 於 P7 重寫。
 
@@ -454,12 +454,12 @@ cabal test all --test-show-details=direct
 `direct-sqlite` 在 `cabal.project` 開啟 `+fulltextsearch`,以取得中文搜尋所需的 FTS5
 trigram tokenizer;`aapms-store` 的測試會直接驗證這個 flag 有生效。
 
-### 設計文檔
+### 設計文檔(lawful)
 
-- [`.design/system.md`](./.design/system.md) —— 專案燈塔:需求、對外契約、子系統劃分、通訊拓撲、開發階段
-- [`.design/subsystems/`](./.design/subsystems) —— 重構後的子系統架構(目前只有 [graph-core](./.design/subsystems/graph-core/design.md),0/9);
-  合併前的四份子系統文檔在 [`.design/legacy/`](./.design/legacy)
-- [`.design/adr/`](./.design/adr) —— 22 份架構決策紀錄(ADR-019~022 由 assetdb 搬入)
+- [`.lawful/system.md`](./.lawful/system.md) —— 目的、建置與測試三道指令、四層邊界(types / effects / pure / shell)、對外 I/O、Pipelines 表
+- [`.lawful/modules.md`](./.lawful/modules.md) —— 每個模組住哪一層;`lawful lint boundary` 以它守 import 方向
+- [`.lawful/pipelines/`](./.lawful/pipelines) —— 每條資料流一份:Stages(逐字簽名)、Laws(三行,測試以 `P-00x#LAW-n` 歸屬)、Examples、決定、修訂記錄;`frozen` 的不改,要改走 REV
+- [`.lawful/adr/`](./.lawful/adr) —— 23 份架構決策紀錄(ADR-023 是效果層的做法)
 - [`contract/`](./contract) —— 契約層測試(ADR-018):只跑執行檔與讀 `.cabal`,不依賴任何內部型別,重建期間的安全網
 - [`types/registry/`](./types/registry) —— 宣告式型別註冊表
 

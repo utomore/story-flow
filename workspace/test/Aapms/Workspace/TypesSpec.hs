@@ -2,7 +2,7 @@
 -- 'mkHub' 與五個 selector 的互逆(LAW-16),以及依賴方向 \/ 職責界線的 import 清單
 -- 檢查(LAW-17,__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F001-hub-registry.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-028-hub-config.md@):
 --
 -- @
 -- LAW-14  renderWorkspaceError 全建構子非空、含中文、可行動、不含 show 痕跡 -> allConstructors 迴圈

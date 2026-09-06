@@ -4,7 +4,7 @@
 -- WAVE-4 閘門追加的刪索引身分驗證(LAW-44-LAW-47\/EX-41-EX-45)、依賴方向與職責界線
 -- (LAW-42(a)-(f),__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F004-vault-lifecycle.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-005-vault-lifecycle.md@,
 -- 預期欄依 @spec-roles.md@「qa 的交付判準」逐條標:七個函式的本體全是 @undefined@,
 -- 所以除了 LAW-42(a)-(f) 之外__一律預期紅__):
 --
@@ -102,7 +102,7 @@
 -- __(以上 EX-18\/EX-19\/EX-41 三條 pending 已由 E001 收掉,見下方 E001 對照;
 -- 舊版「以固定時間\/名稱造出撞號」的非決定性構造說明已隨之作廢,不再適用。)__
 --
--- __E001__(@.design\/subsystems\/workspace\/enhancements\/E001-init-vault-explicit-time.md@):
+-- __E001__(@.lawful\/pipelines\/P-005-vault-lifecycle.md@):
 -- 新增 'initVaultWith'(@initVault@ 的明碼時間版本),收掉上面 F004 的三條
 -- @pendingWith@(GAP-4\/GAP-5 尾巴)。骨架只有 'initVaultWith' 是 @undefined@,其餘六個
 -- 函式(含 'initVault')本體都已是現況實作,__預期欄不再是一律紅__,逐條見下:

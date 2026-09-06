@@ -1,7 +1,7 @@
 -- | graph-core\/E001:"Aapms.Store.Walk" 的 'vaultMarkdownFiles' \/ 'statOf'——原樣
 -- 從 "Aapms.Store.Index" 搬過來的兩個函式,簽名與行為不得改變。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/enhancements\/E001-store-internal-module-boundary.md@)
+-- __spec 對照__(@.lawful\/modules.md@)
 --
 -- @
 -- REG-3  vaultMarkdownFiles:略過 . 開頭目錄與非 .md 檔,回排序後的相對路徑,行為與搬移前相同 -> prop_REG3

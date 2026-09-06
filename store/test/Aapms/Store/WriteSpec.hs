@@ -10,7 +10,7 @@
 -- 'Aapms.Md.Inherit.MetaOverride' __值__(P-003 的決定),因此測試裡的
 -- @\\o -> o {moSummary = ...}@ 寫成 @emptyOverride {moSummary = ...}@。
 --
--- __spec 對照__(@.design\/subsystems\/graph-core\/features\/F008-store-write-operations.md@)
+-- __spec 對照__(@.lawful\/pipelines\/P-003-node-write.md@)
 --
 -- @
 -- LAW-1   樂觀鎖:不符即拒且檔案未動                    -> test_EX5(writeMeta 案例)

@@ -3,7 +3,7 @@
 -- LAW-11-LAW-14/EX-19-EX-27,EX-31)與依賴方向的 import 清單檢查(LAW-17,__預期綠__——見 spec
 -- 「紅綠預期」)。
 --
--- __spec 對照__(@.design/subsystems/workspace/features/F005-project-registry.md@):
+-- __spec 對照__(@.lawful/pipelines/P-005-vault-lifecycle.md@):
 --
 -- @
 -- STEP-1 allocateProjectId(純函式配號)

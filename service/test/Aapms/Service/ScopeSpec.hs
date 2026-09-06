@@ -1,6 +1,6 @@
 -- | F001:'Aapms.Service.Scope'——'withRead' \/ 'withWrite' \/ 'withPipeline'。
 --
--- __spec 對照__(@.design\/subsystems\/service\/features\/F001-service-env-and-scope.md@,
+-- __spec 對照__(@.lawful\/pipelines\/P-004-vault-scope.md@,
 -- 「1-to-1 測試對照表」——全部紅:三個函式的本體全是 @undefined@):
 --
 -- @

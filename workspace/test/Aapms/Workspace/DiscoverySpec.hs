@@ -3,7 +3,7 @@
 -- 'readVaultRefAt',LAW-10-LAW-17\/EX-14-EX-24)與依賴方向的 import 清單檢查
 -- (LAW-18,__預期綠__——見 spec「紅綠預期」)。
 --
--- __spec 對照__(@.design\/subsystems\/workspace\/features\/F002-vault-discovery.md@):
+-- __spec 對照__(@.lawful\/pipelines\/P-029-scope-resolve.md@):
 --
 -- @
 -- STEP-1 detectVault

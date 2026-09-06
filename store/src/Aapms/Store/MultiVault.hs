@@ -35,6 +35,16 @@
 -- * 'searchAcross' __走 Haskell__:各 vault 各自取命中,兩張 FTS 表 × N 個
 --   vault 的 bm25 分數在 Haskell 合併去重後排序分頁——與單一 vault 的
 --   'Aapms.Store.Query.search' 走同一條路。
+--
+-- == 'VaultSet' 的宣告在哪裡(P-002-search)
+--
+-- 'searchAcross' 現在是 P-002-search 的 @!@ 列:本體只做「跑真解譯器」
+-- (@runEff (runVaultsIO vs (searchVaults q))@),整條流程住 pure 層的
+-- "Aapms.Store.Search"。'VaultSet' 與它的生命週期因此搬到
+-- "Aapms.Store.Effect.Vaults.IO" ——'Aapms.Store.Effect.Vaults.Vaults' 的真解譯器
+-- 就是把效果跑在 'VaultSet' 上的那段程式,兩者分居兩個模組會形成模組環。本模組
+-- 原樣 re-export 那四個名字,__契約 E 的簽名與呼叫端逐字不變__,'VaultSet' 也
+-- 依舊不透明(建構子不匯出)。
 module Aapms.Store.MultiVault
   ( -- * VaultSet
     VaultSet
@@ -55,40 +65,38 @@ module Aapms.Store.MultiVault
   , renderDanglingRef
   ) where
 
-import Control.Exception (onException)
 import qualified Data.Map.Strict as M
-import Data.List (nubBy, sortBy)
-import Data.Maybe (catMaybes, fromMaybe, isNothing, listToMaybe, mapMaybe)
-import Data.Ord (Down (..))
+import Data.Maybe (catMaybes, fromMaybe, isNothing, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Database.SQLite.Simple
-  ( Connection
-  , Only (..)
-  , Query (..)
-  , close
-  , execute
-  , open
-  , query
-  )
+import Database.SQLite.Simple (Connection, Query (..), query)
+import Effectful (runEff)
 import Aapms.Core.AnyNode (AnyNode)
 import Aapms.Core.Id (Id, Ref (..), VaultId (..), parseId, renderId, renderRef)
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta (Meta (metaId))
-import Aapms.Store.Error (StoreError (..), trySqlite)
-import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..), indexDbPath)
+import Aapms.Store.Effect.Vaults.IO
+  ( VaultSet
+  , closeVaultSet
+  , findHandle
+  , maxAttachedVaults
+  , openVaultSet
+  , runVaultsIO
+  , vaultSetConn
+  , vaultSetEntries
+  , vaultSetIds
+  )
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Query
-  ( FacetCounts (..)
-  , NodeFilter (..)
-  , SearchHit (..)
-  , SearchQuery (..)
-  , SearchResult (..)
+  ( NodeFilter (..)
+  , SearchQuery
+  , SearchResult
   , baseFromIn
   , loadLinkGraph
   , lookupNode
-  , search
   , whereOfIn
   )
+import Aapms.Store.Search (searchVaults)
 import Aapms.Store.Row
   ( LinkRow (..)
   , NodeRow (..)
@@ -99,113 +107,6 @@ import Aapms.Store.Row
   , toLink
   )
 import Aapms.Store.Row.Sql (sInt, sText)
-
---------------------------------------------------------------------------------
--- VaultSet
-
--- | 一組被接成整體、__只供讀取__的 vault(契約 E 寫的是 @data VaultSet@,
--- 不透明)。
---
--- 建構子與內部欄位都__不匯出__:'VaultSet' 的表示法不是契約的一部分,只有
--- 'vaultSetIds' / 'listAcross' / 'searchAcross' / 'lookupRef' /
--- 'checkReferences' 這幾個出口的行為才是。骨架裡的兩個欄位(去重後的把手清單、
--- 'VaultSet' 自己的讀連線)是為了讓型別編得過而寫的最小表示,__impl 可以依
--- 2026-08-26 ASM-1 裁決的落地方式增刪欄位__,不受「不得改動骨架型別」的限制——這是本
--- spec 對這一個不透明型別的明文豁免。impl 落地時把「去重後的把手清單」擴成
--- 「(vault id、把手、@ATTACH@ schema 前綴含結尾的點)」三元組,方便 'listAcross'
--- 組 SQL 時直接查得到每個 vault 的前綴;第二個欄位仍是本模組自己開的讀連線,
--- 所有 @ATTACH@ 都掛在它上面。
-data VaultSet = VaultSet [(VaultId, VaultHandle, Text)] Connection
-
--- | 一個 'VaultSet' 最多接幾個 vault。
---
--- SQLite 的 @SQLITE_MAX_ATTACHED@ 預設是 10(main 之外可以再 @ATTACH@ 10 個),
--- 契約卡則寫「第 11 個 vault 回 'Aapms.Store.Error.StoreError' 的
--- @TooManyVaults@ 並列出 10」——以__契約卡__為準,上限是 10 個 vault。
-maxAttachedVaults :: Int
-maxAttachedVaults = 10
-
--- | 第 i 個 @ATTACH@ 進來的 vault 的 schema 名稱(不含點)。
-schemaName :: Int -> Text
-schemaName i = "v" <> T.pack (show i)
-
--- | 同上,含結尾的點,直接餵給 'whereOfIn' \/ 'baseFromIn'。
-schemaPrefix :: Int -> Text
-schemaPrefix i = schemaName i <> "."
-
-vidOf :: VaultHandle -> VaultId
-vidOf h = vmId (vhMarker h)
-
--- | 找出第一組「vid 相同、@vhRoot@ 不同」的把手對,依它們在清單中出現的先後。
-findCollision :: [VaultHandle] -> Maybe (VaultId, FilePath, FilePath)
-findCollision hs =
-  listToMaybe
-    [ (vidOf h1, vhRoot h1, vhRoot h2)
-    | (i, h1) <- zip [0 :: Int ..] hs
-    , (j, h2) <- zip [0 :: Int ..] hs
-    , i < j
-    , vidOf h1 == vidOf h2
-    , vhRoot h1 /= vhRoot h2
-    ]
-
--- | 把一組已經開好的 vault 把手接成一個 'VaultSet'。
---
--- __同一個 'Aapms.Store.Marker.vmId' 出現兩次有兩種成因,處置不同__
--- (2026-08-26 ASM-5 裁決,契約 G):
---
--- * 兩筆的 'Aapms.Store.Marker.vhRoot' __相同__(同一個路徑被傳兩次)——無害的
---   呼叫端疏忽(預設 vault 又被顯式指定一次),__保序去重、只留第一個__,
---   上限也以去重後的數量計。
--- * 兩筆的 'Aapms.Store.Marker.vhRoot' __不同__——依 ADR-017,vault 的身分就是
---   marker 裡的 id,撞號代表有人複製了整個 vault 目錄,此時任何跨 vault 的
---   'Aapms.Core.Id.Ref' 解析都是不確定的,回
---   'Aapms.Store.Error.VaultIdCollision' 並列出__兩個路徑__。靜默去重會把這種
---   情況一起吞掉,症狀是「搜尋結果少了一個 vault 的東西」。
---
--- 去重之後的數量超過 'maxAttachedVaults' 時回 'Aapms.Store.Error.TooManyVaults'。
---
--- __不接管把手的生命週期__:'closeVaultSet' 不會關掉任何一個
--- 'Aapms.Store.Marker.VaultHandle',呼叫端仍然要自己
--- 'Aapms.Store.Marker.closeVault';反過來,'openVaultSet' 之後那些把手照樣可以
--- 單獨拿去做單一 vault 的查詢與__寫入__。
-openVaultSet :: [VaultHandle] -> IO (Either StoreError VaultSet)
-openVaultSet hs = case findCollision hs of
-  Just (vid, p1, p2) -> pure (Left (VaultIdCollision vid p1 p2))
-  Nothing ->
-    let ks = nubBy (\a b -> vidOf a == vidOf b) hs
-     in if length ks > maxAttachedVaults
-          then pure (Left (TooManyVaults (length ks) maxAttachedVaults))
-          else trySqlite $ do
-            conn <- open ":memory:"
-            let aliased = [(vidOf h, h, schemaPrefix i) | (i, h) <- zip [0 :: Int ..] ks]
-                attachOne (i, h) =
-                  execute
-                    conn
-                    (Query ("ATTACH DATABASE ? AS " <> schemaName i))
-                    (Only (T.pack (indexDbPath (vhRoot h))))
-            mapM_ attachOne (zip [0 :: Int ..] ks) `onException` close conn
-            pure (VaultSet aliased conn)
-
--- | 釋放 'VaultSet' 自己持有的資源(它自己的讀連線),__不__關閉任何
--- 'Aapms.Store.Marker.VaultHandle'。
---
--- 契約 E 原本沒有這個函式(2026-08-26 ASM-2 裁決後已回寫):@openVaultSet@ 自己持有連線,少了
--- 對稱的關閉在 Windows 上會鎖住 @index.db@,連暫存目錄都刪不掉。對不持有任何
--- 資源的實作而言它是 no-op,兩種實作下呼叫端的用法都一樣。
-closeVaultSet :: VaultSet -> IO ()
-closeVaultSet (VaultSet _ conn) = close conn
-
--- | 這個 'VaultSet' 實際涵蓋哪些 vault,依 'openVaultSet' 收到的順序、已去重。
---
--- 'VaultSet' 不透明,少了這個出口就沒有任何辦法從公開介面觀察「去重與上限
--- 到底怎麼作用」(2026-08-26 ASM-2 裁決後已回寫契約 E)。
-vaultSetIds :: VaultSet -> [VaultId]
-vaultSetIds (VaultSet aliased _) = [v | (v, _, _) <- aliased]
-
--- | 依 'VaultId' 找出這個 'VaultSet' 裡對應的把手,找不到就是這個 vault 不在
--- 集合裡。
-findHandle :: VaultSet -> VaultId -> Maybe VaultHandle
-findHandle (VaultSet aliased _) v = listToMaybe [h | (v', h, _) <- aliased, v' == v]
 
 --------------------------------------------------------------------------------
 -- 跨 vault 查詢
@@ -227,9 +128,11 @@ lookupRef vs defVault (Ref mv i) =
 -- 完全相同,差別只在:結果涵蓋全部 vault、每筆帶自己的
 -- 'Aapms.Core.Id.VaultId',而排序與分頁對__合併後的整體__成立。
 listAcross :: VaultSet -> NodeFilter -> IO [(VaultId, Meta)]
-listAcross vs@(VaultSet aliased conn) filt
+listAcross vs filt
   | null aliased = pure []
-  | otherwise = crossListIds conn aliased filt >>= hydratePairs vs
+  | otherwise = crossListIds (vaultSetConn vs) aliased filt >>= hydratePairs vs
+  where
+    aliased = vaultSetEntries vs
 
 -- | 對 @ATTACH@ 好的每個 schema 各組一段 @SELECT@,以 @UNION ALL@ 接起來,
 -- 排序與分頁在整段 compound @SELECT@ 上完成(ADR-017 第四條修訂:'listAcross'
@@ -323,56 +226,20 @@ hydrateIds h ids = do
       rs <- query conn (Query (sql <> inList (length idTexts))) (map sText idTexts) :: IO [(Text, Text)]
       pure (groupPairs [(k, [v]) | (k, v) <- rs])
 
--- | 跨 vault 的全文檢索,語意與單一 vault 的 'Aapms.Store.Query.search' 完全
--- 相同,差別同 'listAcross';每筆 'Aapms.Store.Query.shVault' 是該筆命中真正
--- 所屬的 vault。
+-- | 跨 vault 的全文檢索(P-002-search 的 @!@ 列)。
 --
--- 相關度分數逐 vault 計算(各自的索引各自算 bm25),合併只影響排序與分頁,
--- 不改變任何一筆的分數。
+-- __本體只做「跑真解譯器」__:整條流程(路由 → 雙 FTS 與結構條件 → 合併去重 →
+-- 片段 → 跨 vault 合併 → 排序 → 切窗 → facet 合併)住 pure 層的
+-- 'Aapms.Store.Search.searchVaults',效果由
+-- 'Aapms.Store.Effect.Vaults.IO.runVaultsIO'(內含
+-- 'Aapms.Store.Effect.Index.Sqlite.runIndexSqlite')落地。
 --
--- __facet 同一條路__:逐 vault 呼叫 'Aapms.Store.Query.search' 拿各自的
--- 'Aapms.Store.Query.FacetCounts',再在 Haskell 合併(同值求和、濾掉計數 0、
--- 依「計數遞減、同計數值遞增」重排)。__不__重用 "Aapms.Store.Query" 的私有
--- @computeFacets@——那是單一 vault 專用的函式。
+-- 語意與單一 vault 的 'Aapms.Store.Query.search' 完全相同,差別同 'listAcross';
+-- 每筆 'Aapms.Store.Types.shVault' 是該筆命中真正所屬的 vault。相關度分數逐
+-- vault 計算(各自的索引各自算 bm25),合併只影響排序與分頁,不改變任何一筆的
+-- 分數。
 searchAcross :: VaultSet -> SearchQuery -> IO SearchResult
-searchAcross (VaultSet aliased _) q = do
-  let wideQ = q {sqFilter = (sqFilter q) {nfLimit = maxBound, nfOffset = 0}}
-  results <- mapM (\(_, h, _) -> search h wideQ) aliased
-  let allHits = sortSearchHits (concatMap srHits results)
-      total = sum (map srTotal results)
-      filt = sqFilter q
-      paged = take (nfLimit filt) (drop (nfOffset filt) allHits)
-      facets
-        | sqFacets q = Just (mergeFacets (mapMaybe srFacets results))
-        | otherwise = Nothing
-  pure SearchResult {srHits = paged, srTotal = total, srFacets = facets}
-
--- | 分數遞減、分數相同時 'metaId' 遞增、再相同時 'shVault' 遞增(LAW-9)。
-sortSearchHits :: [SearchHit] -> [SearchHit]
-sortSearchHits =
-  sortBy
-    ( \a b ->
-        compare (Down (shScore a)) (Down (shScore b))
-          <> compare (metaId (shMeta a)) (metaId (shMeta b))
-          <> compare (shVault a) (shVault b)
-    )
-
--- | 逐 vault 的 'FacetCounts' 合併(不重用\/不修改 "Aapms.Store.Query" 的
--- 私有 @computeFacets@):同值求和、濾掉計數 0、依「計數遞減、同計數以值
--- 遞增」重排(LAW-12)。
-mergeFacets :: [FacetCounts] -> FacetCounts
-mergeFacets fcs =
-  FacetCounts
-    { fcTypes = mergeDim (map fcTypes fcs)
-    , fcVaults = sortTally (filter ((> 0) . snd) (concatMap fcVaults fcs))
-    , fcTags = mergeDim (map fcTags fcs)
-    , fcOwners = mergeDim (map fcOwners fcs)
-    , fcLicenses = mergeDim (map fcLicenses fcs)
-    }
-  where
-    mergeDim dims = sortTally (M.toList (M.fromListWith (+) (concat dims)))
-    sortTally =
-      sortBy (\(v1, c1) (v2, c2) -> compare (Down c1) (Down c2) <> compare v1 v2)
+searchAcross vs q = runEff (runVaultsIO vs (searchVaults q))
 
 --------------------------------------------------------------------------------
 -- 懸空引用

@@ -29,9 +29,13 @@ library
         Aapms.Store.Editing
         Aapms.Store.Editing.Internal
         Aapms.Store.Effect.Clock
+        Aapms.Store.Effect.Clock.IO
         Aapms.Store.Effect.Index
+        Aapms.Store.Effect.Index.Sqlite
         Aapms.Store.Effect.VaultFs
+        Aapms.Store.Effect.VaultFs.IO
         Aapms.Store.Effect.Vaults
+        Aapms.Store.Effect.Vaults.IO
         Aapms.Store.Error
         Aapms.Store.Filter
         Aapms.Store.Index

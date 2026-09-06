@@ -106,13 +106,13 @@ spec = describe "graph-core/E001 cabal 可見度界線" $ do
       let other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort (filter (`elem` movedModules) other) `shouldBe` sort movedModules
 
-    it "EX-1: exposed-modules 25 項 + other-modules 5 項 = 30,對帳" $ do
+    it "EX-1: exposed-modules 29 項 + other-modules 5 項 = 34,對帳" $ do
       lib <- librarySection <$> readCabalSource
       let exposed = moduleNamesIn (fieldSection "exposed-modules:" lib)
           other = moduleNamesIn (fieldSection "other-modules:" lib)
       sort exposed `shouldBe` sort expectedExposed
       sort other `shouldBe` sort movedModules
-      (length exposed + length other) `shouldBe` 30
+      (length exposed + length other) `shouldBe` 34
 
   describe "LAW-3: aapms-store-test stanza" $
     it "build-depends 不含 aapms-store 套件相依,hs-source-dirs 同時含 src 與 test" $ do
@@ -235,6 +235,12 @@ movedModules =
 -- 從 @Aapms.Store.Effect.*@ 搬到新的 @Aapms.Store.Simulate@(pure 層),它是 law 的
 -- 觀察點、測試要 import,因此__必須__ exposed;清單長一項、對帳總數 29 → 30。
 -- E001 的四個內部模組一項未動,LAW-1 \/ LAW-2 的判準不受影響。
+--
+-- 2026-09-06 P-001-index-rebuild \/ P-002-search 的 shell 波:四個效果各補一個
+-- __真解譯器__(@Aapms.Store.Effect.{VaultFs.IO, Index.Sqlite, Vaults.IO, Clock.IO}@,
+-- 全部 shell 層,見 @.lawful\/modules.md@)。它們是 @!@ 列的落地與跨套件消費端
+-- 的接點,因此 exposed;清單從 25 項長成 29 項,對帳總數 30 → 34。E001 的五個
+-- 內部模組一項未動,LAW-1 \/ LAW-2 的判準不受影響。
 expectedExposed :: [String]
 expectedExposed =
   [ "Aapms.Store"
@@ -243,9 +249,13 @@ expectedExposed =
   , "Aapms.Store.Editing"
   , "Aapms.Store.Editing.Internal"
   , "Aapms.Store.Effect.Clock"
+  , "Aapms.Store.Effect.Clock.IO"
   , "Aapms.Store.Effect.Index"
+  , "Aapms.Store.Effect.Index.Sqlite"
   , "Aapms.Store.Effect.VaultFs"
+  , "Aapms.Store.Effect.VaultFs.IO"
   , "Aapms.Store.Effect.Vaults"
+  , "Aapms.Store.Effect.Vaults.IO"
   , "Aapms.Store.Error"
   , "Aapms.Store.Filter"
   , "Aapms.Store.Index"

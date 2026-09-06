@@ -56,13 +56,17 @@ import Aapms.Core.Tree (buildTree)
 import Aapms.Md.Document (DocKind (..), Document, docKind)
 import Aapms.Md.Parse (parseDocument, toLevel, toLicenses, toPack, toTopic)
 import Aapms.Store.Atomic (readTextFile)
+import Aapms.Store.Effect.Index.Sqlite (runIndexSqlite)
+import Aapms.Store.Effect.VaultFs.IO (runVaultFsIO)
 import Aapms.Store.Error (StoreError (..), trySqlite)
-import Aapms.Store.Marker (VaultHandle (..))
+import Aapms.Store.Indexing (rebuild)
+import Aapms.Store.Marker (VaultHandle (..), VaultMarker (..))
 import Aapms.Store.Row
 import Aapms.Store.Row.Sql
 import Aapms.Store.Schema (IndexIssue (..), insertFtsRows)
 import Aapms.Store.Tokenize (ftsRowOf)
 import Aapms.Store.Walk (statOf, vaultMarkdownFiles)
+import Effectful (runEff)
 import System.FilePath ((</>), isAbsolute, makeRelative)
 import System.Directory (makeAbsolute)
 
@@ -360,14 +364,30 @@ isReferencePath p = "library/reference/" `T.isInfixOf` T.pack (map slash p)
 -- | 掃描 Vault 下所有 @.md@ 並從零建立索引。__單檔解析\/驗證失敗不中斷__:
 -- 作者手改壞一份檔案不該讓整個索引建不起來,問題收集成 'IndexIssue' 一次
 -- 回報。SQLite 層的錯誤則會中止——那不是資料的問題。
+--
+-- __P-001-index-rebuild 的 @!@ 列__:本體只做「跑真解譯器」。整條流程(清空
+-- 索引 → 列檔 → 逐檔取指紋、讀檔、解析、樹驗證與 Meta 警告、撞名裁決 →
+-- 整檔替換)住 pure 層的 'Aapms.Store.Indexing.rebuild',是不帶
+-- 'Effectful.IOE' 的效果程式;檔案系統與 sqlite 由
+-- 'Aapms.Store.Effect.VaultFs.IO.runVaultFsIO' 與
+-- 'Aapms.Store.Effect.Index.Sqlite.runIndexSqlite' 落地。
+--
+-- 'Aapms.Core.Registry.TypeRegistry' 與 vault id 都從把手上拿(@vhRegistry@ 與
+-- @vhMarker@ 的 @vmId@),與舊實作同一個來源;外層仍包一層
+-- 'Aapms.Store.Error.trySqlite',讓 SQLite 的例外收斂成
+-- 'Aapms.Store.Types.SqliteError' 而不是往上拋。
 rebuildIndex :: VaultHandle -> IO (Either StoreError [IndexIssue])
-rebuildIndex vh = do
-  wiped <- trySqlite (execute_ (vhConn vh) "DELETE FROM files")
-  case wiped of
-    Left e -> pure (Left e)
-    Right () -> do
-      files <- vaultMarkdownFiles (vhRoot vh)
-      indexEach vh (map T.pack files)
+rebuildIndex vh =
+  flatten
+    <$> trySqlite
+      ( runEff
+          ( runVaultFsIO
+              (vhRoot vh)
+              (runIndexSqlite (vhConn vh) (rebuild (vhRegistry vh) (vmId (vhMarker vh))))
+          )
+      )
+  where
+    flatten = either Left id
 
 -- | 逐檔索引並收集問題(每個檔案 0 筆以上,見 'indexOne' 的說明)。任何
 -- 'StoreError' 都直接中止。

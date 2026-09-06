@@ -138,6 +138,7 @@ updated: 2026-09-06
 - **解析方向用 HsYAML,序列化方向自己寫(固定欄位順序、流式 `links`)。** 否決:用 YAML 編碼器。理由:只有被修改的區塊需要重寫,格式完全由我們決定,引入編碼器反而要對抗它的排版偏好。證據:ADR-010-byte-preserving-roundtrip
 - **渲染器對任意 `Text` 負責:控制字元由 `quote` 跳脫,不把限制推給 `Meta` 的欄位。** 否決:LAW-9 加 given「文字欄位不含控制字元」;`Meta` 文字欄位改 smart constructor。理由:round-trip 是序列化器自己的契約,收窄 law 會讓 law 說的比程式保證的少;「標題不能有 U+2028」不是業務規則,不該由型別替使用者決定資料域(GAP-1 裁決,2026-09-06)。
 - **`Source` 的 payload 是非空的 `SourceName`,非法狀態不可表達。** 否決:LAW-9 加 given「payload 非空」;`parseSource` 接受空 payload。理由:型別留下的自由度該用型別收掉,而且沒有任何生產碼在建構這三個建構子,現在改代價最低;「沒名字的 agent」成為合法檔案內容語意可疑(GAP-2 裁決,2026-09-06)。
+- **解凍紀錄:2026-09-06 為 REV-1� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 impl 提問 GAP-1「`quote` 只跳脫 `"` `\` `\n` `\r` `\t`,其他 C0 控制字元與 U+2028 / U+2029 原樣輸出」與 GAP-2「`Agent ""` 渲染成 `source: "agent:"` 之後讀不回來」;開發者裁決兩條都收在程式碼側,LAW-9 的域不動):`quote` 把所有 C0 / C1 控制字元、DEL、U+2028 / U+2029,以及 impl 全 BMP 掃描實測 HsYAML 讀不回來的 U+FEFF / U+FFFE / U+FFFF 跳脫成 `\xNN` / `\uNNNN`;`Source` 的 payload 由裸 `Text` 收成非空的 `SourceName`(smart constructor `mkSourceName`),`Agent ""` 寫不出來

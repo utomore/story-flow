@@ -153,6 +153,7 @@ updated: 2026-09-06
 - **兩張表都命中時 `shScore` 取兩者的較大值,不是相加。** 否決:相加。理由:分數會取決於「這個查詢剛好命中幾張索引」,而那是純粹的實作產物;同一份文字用中文查與用英文查會拿到不可比的分數級距。這條決定由 P-002-search 承接落地
 - **`shScore` 是 `Double` 且有文字條件時恆為正,`0` 保留給「沒有文字條件」。** 否決:沿用 `Maybe Double`。理由:那是為 `LIKE` 給不出分數而設的,ADR-016 已讓 `LIKE` 退場;留著會讓每個上層呼叫端永遠多處理一個不可能發生的 `Nothing`。這條決定由 P-002-search 承接落地
 - **facet 計數排除該 facet 自己的條件。** 否決:一律套用完整條件。理由:選了一個 tag 之後 tag 側欄只會剩那一個值,使用者換不掉。這條決定由 P-002-search 承接落地
+- **解凍紀錄:2026-09-06 為 REV-1� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 ADR-023-effectful-effects-layer「effects 層只准 import types 層」:P-002-search 的 `ftsMatch :: Index :> es => SearchRoute -> …` 住 effects 層,`SearchRoute` 必須住 types):`SearchRoute` 與它的兩個判定 `usesTrigram` / `usesCjk` 從 `Aapms.Store.Tokenize`(pure)搬到 `Aapms.Store.Types`(types),`Aapms.Store.Tokenize` 原樣 re-export;簽名不變

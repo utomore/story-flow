@@ -90,6 +90,7 @@ updated: 2026-09-06
 - **註冊表與命名詞彙來自同一次載入,Session 一起帶。** 否決:拆開存。理由:拆開會允許兩者來自不同次載入
 - **`ServiceM` 的一把全域鎖、`closeEnv` 冪等、`withEnv` 等於 open 加 close、handle 快取命中不再開檔,全是 shell 的資源紀律,由 shell 內部測試守,不掛 law。** 否決:寫成 law。理由:它們講的是 IORef 與 MVar,不是純的量
 - **同一個 `ServiceM` 動作不得自己呼叫 `runService`(會死結)由 shell 內部測試以原始碼文字守。** 否決:執行期偵測。理由:契約沒有任何一條需要巢狀
+- **解凍紀錄:2026-09-06 為 REV-1�REV-2�REV-3� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依骨架回報「`runHubFilePure` 不回最終世界,但 P-005-vault-lifecycle 的 `simulateLifecycle` 要交出 `lcHubText` 與 `hubWorldAfter`」;rules/boundary.md「效果的判定」:law 拿純解譯器的結果寫,有寫入的效果其純解譯器必須交出最終狀態,與 `runVaultDirPure` 同形):`runHubFilePure` 改回 `Eff es (a, HubWorld)`

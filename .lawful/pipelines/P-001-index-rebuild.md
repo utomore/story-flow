@@ -111,6 +111,7 @@ updated: 2026-09-06
 - **套件內以純解譯器驗 rm index.db 等價即為 S1 驗收;真 vault 的端到端另由 contract 套件承接。** 否決:S1 就合成 6,783 筆的大 fixture。理由:等價是純性質,規模是效能題
 - **cabal 的模組可見度不寫成 law,交給模組表與 `lint boundary`;`BoundarySpec` 留作內部測試。** 否決:把 exposed-modules 清單寫成 `|-` 行。理由:那是關於檔案的斷言,不是任何 stage 的性質
 - **過時刷新不另立進入點:里程碑只有 `rebuildIndex` 一列 `!`,開 vault 目前不做過時刷新(舊 `refreshStale` 本來就沒有呼叫端);需要時由 shell 直接以真解譯器跑第 17 列 `refresh`(測試包裝 `Aapms.Store.Fixtures.refreshVault` 就是這個形狀);舊 `Aapms.Store.Index.refreshStale` / `indexFile` / `unindexFile` / `indexOne` 的直接 IO 路徑退場。** 否決:加第二列 `!`(`refreshIndex`)。理由:lawful 的里程碑恰好一個 shell 進入點;`refresh` 與 `rebuild` 是同一條資料流的兩種起點,共用同一組真解譯器,兩份實作(舊 `indexOne` 與新 `indexDocument`)會漂移。(store shell 波之後的盤點,2026-09-06)
+- **解凍紀錄:2026-09-06 為 REV-1�REV-2� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「兩份 pack 撞名的 vault 上,LAW-6 的左邊是 False、右邊是 True」與 GAP-2「EX-8 的 `Left (ParseFailed …)` 不是 `StoreError` 的建構子」,以及 impl 對 P-002-search 提的「effects 層的純解譯器不得 import pure 層的參考實作」):第 11 列 `indexDocument` 的錯誤型別改成 `IndexIssue`(單檔純核心的失敗就是一則索引問題,與第 16 列「解析失敗的檔回 issues」同一語彙);LAW-6 改成雙條件並加觀察點 `clashesEarlier`,把「撞名回滾」的決定寫進 law;觀察點 `runIndexPure` 依 rules/boundary.md「效果的判定」(純解譯器住 effects 或 pure)搬到 pure 層的 `Aapms.Store.Simulate`,簽名不變

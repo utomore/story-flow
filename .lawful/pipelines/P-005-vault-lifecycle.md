@@ -1,7 +1,7 @@
 ---
 id: P-005
 description: init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
-status: ready
+status: frozen
 updated: 2026-09-06
 ---
 # P-005-vault-lifecycle:init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
@@ -188,6 +188,7 @@ updated: 2026-09-06
 - **`initVault` 的簽名逐字由 `lint sig` 對帳,不再另寫「簽名逐字等於」的 law。** 否決:文字比對簽名的測試。理由:工具已經做這件事(原 workspace GAP-7)
 - **`initVaultAt` 不逸出 IOException:建目錄失敗回 `VaultInitFailed`,不留半成品。** 否決:在 workspace 這層補例外邊界。理由:修 graph-core 的源頭(原 graph-core B002)。這條住 VaultDir 的真解譯器,由 shell 內部測試守
 - **檔案系統足跡(只碰 config.toml、cache/thumbs、`.aapms/`、index.db)由 shell 內部測試守,不掛 law。** 否決:寫成 law。理由:純解譯器的世界只裝這幾樣,在純側恆真
+- **解凍紀錄:2026-09-06 為 REV-1�REV-2�REV-3�REV-4� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「EX-15 的 `PurgeReport True 2 []` 需要『H 有兩張縮圖』,`HubWorld` 表達不出」與 GAP-2「LAW-13 的 run2 起始中樞世界仍是 hw,與 `prHubRemoved rep == isJust (hubTextIn hw)` 互斥」):`HubWorld` 依 P-004-vault-scope REV-2 加 `cacheDirIn` / `thumbsIn` 兩個觀察點,EX-15 與 LAW-1 的 `spCacheCreated` 由它們定義;LAW-13 的 run2 改從 `hubWorldAfter run` 起跑(與 LAW-1 同形)

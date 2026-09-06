@@ -118,6 +118,7 @@ updated: 2026-09-06
 - **真解譯器 `openVaultSet` 的檢查順序:先撞號、再保序去重、最後上限 `maxAttachedVaults == 10`,超過回使用者看得懂的 `TooManyVaults`。** 否決:先查上限。理由:撞號時任何 Ref 解析都不確定,先叫使用者收窄範圍等於叫他繞過去(原 F009 ASM-5)。這條住 shell,由 shell 的內部測試守,不掛 law
 - **LAW-4 同時是 sqlite 解譯器的驗收:conductor 對真解譯器也跑一份同歸屬的測試。** 否決:只在純解譯器上驗。理由:純解譯器用 `matchesQuery` 定義 `ftsMatch`,只在純側跑等於套套邏輯;sqlite 側跑才證明兩個解譯器一致
 - **索引更新後搜尋不留重複列、卸載檔案後其節點不再命中、schema 改版整庫重建後結果不變,由 P-001-index-rebuild 的 LAW-1 / LAW-2 與 `Index` 效果的狀態模型承接,本條不重複寫。** 否決:在這裡再寫三條 IO law(原 F007 LAW-20 / 21 / 22)。理由:它們講的是索引狀態,不是查詢
+- **解凍紀錄:2026-09-06 為 REV-1�REV-2� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「`passesFilter` 的簽名只吃 `NodeFilter` 與 `AnyNode`,而 `AnyNode` / `Meta` 上沒有任何 reference 標記」;開發者裁決結構條件的純判定吃完整上下文):第 3 列改成 `passesFilter :: NodeFilter -> FileIndex -> IndexedNode -> Bool`,owner 看 `inOwner`、reference 看 `fiReference`;觀察點 `allNodesIn` 換成 `visibleNodes :: NodeFilter -> Map VaultId IndexState -> [(VaultId, AnyNode)]`(pure,`Aapms.Store.Search.Internal`);LAW-4 的 `|-` 改用 `visibleNodes`;LAW-2 文字不變但定義域放開(`fiReference` 不再固定 False)

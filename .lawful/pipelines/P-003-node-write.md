@@ -211,6 +211,7 @@ updated: 2026-09-06
 - **`StoreError` 是 store 唯一的錯誤型別,每則訊息含以「請」起頭的下一步;`SqliteError` 的訊息已改成「請嘗試重新開啟 vault」。** 否決:寫入路徑自己一個錯誤型別。理由:三個殼只看一組 code 與訊息;這條由 `Aapms.Store.Types` 的內部測試守,不掛 law(訊息是中文字面,寫不進 ASCII 的 `|-` 行)
 - **ADR-022 寫鎖預算的結構約束(寫入模組不開 `withTransaction`、只有定位與配號碰 sqlite)住 shell 解譯器,由內部測試與人工檢查守。** 否決:寫成 law。理由:它是原始碼結構,不是可觀察行為(原 F008 GAP-12)
 - **建 pack 檔的七個 pack 專屬欄位往返是 law(LAW-20),不能只靠實作記得寫。** 否決:只驗路徑與節順序。理由:pack.md 是素材中繼資料的真相(ADR-013),原 F008 GAP-17 就是沒人在看才漏掉
+- **解凍紀錄:2026-09-06 為 REV-1�REV-2� 解凍,重委派全綠後重新凍結。**
 
 ## 修訂記錄
 - REV-1(2026-09-06,依 qa 提問 GAP-1「EX-20 的『成環』在 ADR-009 標題即樹之下建構不出來」與 qa 仲裁提示「LAW-3 的 given 只排除插入,DeleteForce 刪整棵子樹時目標節以外的子節位元組會一起消失」):EX-20 的輸入改成可達的樹違規(兩個最淺層級的節,`MultipleRoots`),後件不變;LAW-3 加觀察點 `isDeleteOp` 與 given `not (isDeleteOp op)`

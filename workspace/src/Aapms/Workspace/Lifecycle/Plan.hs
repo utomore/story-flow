@@ -81,15 +81,10 @@ import System.FilePath ((</>))
 -- | 前置檢查依序:名稱去空白非空 → @.aapms@ 未被佔用 → 'Aapms.Workspace.Types.FreshVault'
 -- 要空、'Aapms.Workspace.Types.AdoptExisting' 要存在;通過回去空白後的名稱。
 --
--- 三個 'Bool' \/ @['FilePath']@ 參數依序是:@.aapms@ 被佔用了嗎、目錄存在嗎、
--- 目錄第一層有什麼。
--- __GAP-1__:三個「目錄狀態」的錯誤建構子都捧著那個 vault 根目錄
--- ('Aapms.Workspace.Types.VaultAlreadyInitialized' \/
--- 'Aapms.Workspace.Types.VaultDirNotEmpty' \/ 'Aapms.Workspace.Types.VaultDirMissing'),
--- 但本簽名收不到它——五個參數是名稱、模式、佔用、存在、第一層的__名字__
--- (@vwEntries@ 給的是裸名,見 'legacyMarkers' 要另外收 @dir@ 才拼得出絕對路徑)。
--- LAW-3 要求整條的結果__逐值等於__本函式的錯誤,所以這裡不能回一個「之後由
--- 'applyLifecycle' 補上路徑」的半成品;暫以空路徑佔位,等簽名補上 @FilePath@。
+-- 參數依序是:名稱、模式、vault 根目錄、@.aapms@ 被佔用了嗎、目錄存在嗎、目錄第一層
+-- 有什麼(裸名)。根目錄由 P-005 REV-2 補進簽名:三個「目錄狀態」的錯誤建構子
+-- ('Aapms.Workspace.Types.VaultAlreadyInitialized' / 'Aapms.Workspace.Types.VaultDirNotEmpty' /
+-- 'Aapms.Workspace.Types.VaultDirMissing')都捧著它,而 LAW-3 要求整條的結果逐值等於本函式的錯誤。
 checkInit :: Text -> InitMode -> FilePath -> Bool -> Bool -> [FilePath] -> Either WorkspaceError Text
 checkInit name mode d occupied exists entries
   | T.null stripped = Left (InvalidName name)

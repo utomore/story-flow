@@ -103,30 +103,21 @@ module Aapms.Store.Types
   , opRevision
   , isInsertOp
   , isDeleteOp
+  , idsNeeded
   , outcomeRevision
   , outcomePath
   , outcomeId
   , removedIds
   , brokenLinks
-  , documentAt
-  , sectionBytes
   , locatedFile
-  , metaAt
-  , assetAt
-  , licensesAt
-  , assetIdsAt
-  , packAt
-  , levelAt
   , packFields
   , newPackFields
   , patchedName
   , fileStatsOf
   , stripStamps
-  , levelOf
   ) where
 
 import Data.Int (Int64)
-import Data.List (find)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -135,17 +126,14 @@ import qualified Data.Text as T
 import Data.Time (UTCTime (..), fromGregorian)
 import Aapms.Core.AnyNode (AnyNode (..), anyMeta)
 import Aapms.Core.Asset (Asset (..), LogicalName (..), Sha256)
-import Aapms.Core.Entity (Entity (..))
 import Aapms.Core.Id (Id, IdPrefix (..), Ref, VaultId (..), newId, renderId, renderRef)
-import Aapms.Core.Level (Level (..), Node (..), NodeKind, TreeError, renderTreeError)
+import Aapms.Core.Level (NodeKind, TreeError, renderTreeError)
 import Aapms.Core.License (License (..))
 import Aapms.Core.Link (Link (..), renderLinkKind)
 import Aapms.Core.Meta (Meta (..), MetaWarning (..), Revision (..), Source, Status, Timeline, TypeKey (..))
 import Aapms.Core.Pack (AiDisclosure, Author, Pack (..))
-import Aapms.Md.Document (DocKind (..), Document (..), Section (..))
+import Aapms.Md.Document (DocKind (..))
 import Aapms.Md.Error (MdError, renderMdError)
-import Aapms.Md.Parse (parseDocument, toLevel, toLicenses, toPack, toTopic)
-import Aapms.Md.Render (renderSection)
 import Aapms.Md.Section (MetaOverride, NewSection)
 
 --------------------------------------------------------------------------------
@@ -928,6 +916,18 @@ isDeleteOp = \case
   DeleteNode {} -> True
   _ -> False
 
+-- | 這個請求要配幾個新 id。
+--
+-- 建檔類要一個(新檔的檔案層主體);'CreateLevel' 要__兩個__ ——Level 檔沒有根
+-- Node 就解析不出 @root@,而根 Node 也是一個節點,它的 id 一樣要經過碰撞查詢
+-- (ADR-014:唯一性由建構保證,不靠雜湊碰運氣)。改既有檔的請求不配號。
+idsNeeded :: WriteOp -> Int
+idsNeeded = \case
+  CreateTopic _ -> 1
+  CreateLevel _ -> 2
+  CreatePack _ _ -> 1
+  _ -> 0
+
 -- | 結果的新 revision。
 --
 -- 'Deleted' 沒有新 revision('DeleteResult' 沒有這個欄位——被刪的節點不再有
@@ -971,34 +971,6 @@ brokenLinks = \case
   Deleted dr -> drBrokenLinks dr
   _ -> []
 
--- | 記憶體 vault 裡某檔解析後的文件。
---
--- 這一列與 'metaAt' \/ 'assetAt' \/ 'licensesAt' \/ 'assetIdsAt' \/ 'packAt' \/
--- 'levelAt' \/ 'sectionBytes' \/ 'levelOf' 同屬「要解析才算得出來」的觀察點,
--- 所以本模組 import "Aapms.Md.Parse" \/ "Aapms.Md.Render"(見 P-003 回報的
--- GAP:這兩個模組在模組表是 pure 層,而本模組是 types 層)。
-documentAt :: VaultFiles -> FilePath -> Maybe Document
-documentAt vf p = do
-  (_, txt) <- Map.lookup p vf
-  hush (parseDocument txt)
-
--- | 'Either' 丟掉錯誤。本模組私有。
-hush :: Either e a -> Maybe a
-hush = either (const Nothing) Just
-
--- | 一份文件裡每一個節點的 'Meta',檔案層主體在前;解析失敗回空清單。本模組私有。
-metasOf :: Document -> [Meta]
-metasOf d = case docKind d of
-  TopicDoc -> either (const []) (\(mainE, frags) -> entMeta mainE : map entMeta frags) (toTopic d)
-  LevelDoc -> either (const []) (\(lvl, ns) -> lvlMeta lvl : map nodMeta ns) (toLevel d)
-  PackDoc -> either (const []) (\(pck, as) -> pckMeta pck : map astMeta as) (toPack d)
-  LicenseDoc -> either (const []) (map licMeta) (toLicenses d)
-
--- | 某檔每一節渲染後的位元組。
-sectionBytes :: VaultFiles -> FilePath -> [(Id, Text)]
-sectionBytes vf p =
-  maybe [] (map (\s -> (secId s, renderSection s)) . docSections) (documentAt vf p)
-
 -- | 索引裡節點所在檔。
 locatedFile :: IndexState -> Id -> Maybe FilePath
 locatedFile (IndexState m) i =
@@ -1007,47 +979,6 @@ locatedFile (IndexState m) i =
     | fi <- Map.elems m
     , any ((== i) . metaId . anyMeta . inNode) (fiNodes fi)
     ]
-
--- | 從檔案重讀節點目前的 'Meta'。
-metaAt :: VaultFiles -> IndexState -> Id -> Maybe Meta
-metaAt vf ix i = do
-  p <- locatedFile ix i
-  d <- documentAt vf p
-  find ((== i) . metaId) (metasOf d)
-
--- | 從 pack 檔重讀 asset 目前的欄位。
-assetAt :: VaultFiles -> IndexState -> Id -> Maybe Asset
-assetAt vf ix i = do
-  p <- locatedFile ix i
-  d <- documentAt vf p
-  (_, assets) <- hush (toPack d)
-  find ((== i) . metaId . astMeta) assets
-
--- | @licenses.md@ 解出的授權清單。
---
--- 記憶體 vault 裡__每一份__ @LicenseDoc@ 都算(路徑遞增),不寫死
--- @library\/licenses.md@ ——這個觀察點的簽名沒有路徑參數。
-licensesAt :: VaultFiles -> [License]
-licensesAt vf =
-  concat
-    [ either (const []) id (toLicenses d)
-    | p <- Map.keys vf
-    , d <- maybe [] pure (documentAt vf p)
-    , docKind d == LicenseDoc
-    ]
-
--- | 某 pack 檔的 asset id 依文件順序。
-assetIdsAt :: VaultFiles -> FilePath -> [Id]
-assetIdsAt vf p =
-  maybe [] (either (const []) (map (metaId . astMeta) . snd) . toPack) (documentAt vf p)
-
--- | 某 pack 檔的檔案層 'Aapms.Core.Pack.Pack'。
-packAt :: VaultFiles -> FilePath -> Maybe Pack
-packAt vf p = documentAt vf p >>= fmap fst . hush . toPack
-
--- | 某 Level 檔解出的場景與節點。
-levelAt :: VaultFiles -> FilePath -> Maybe (Level, [Node])
-levelAt vf p = documentAt vf p >>= levelOf
 
 -- | pack 七個專屬欄位。
 packFields :: Pack -> PackFields
@@ -1094,7 +1025,3 @@ stripStamps = T.unlines . filter (not . isStamp) . T.lines
     isStamp l =
       let s = T.stripStart l
        in "revision:" `T.isPrefixOf` s || "updated:" `T.isPrefixOf` s
-
--- | Level 檔文件解出的場景與節點。
-levelOf :: Document -> Maybe (Level, [Node])
-levelOf = hush . toLevel

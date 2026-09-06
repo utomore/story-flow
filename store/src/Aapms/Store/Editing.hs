@@ -107,6 +107,7 @@ import Aapms.Store.Types
   , WriteOp (..)
   , WriteOutcome (..)
   , WriteResult (..)
+  , idsNeeded
   , opTarget
   , removedIds
   , renderStoreError
@@ -230,6 +231,21 @@ allocateFreshId pre c t = go (0 :: Int)
       let candidate = newId pre c t salt
       taken <- idTaken candidate
       if taken then go (salt + 1) else pure (Right candidate)
+
+-- | 一次配好一批新 id(依序,任一個失敗就整批失敗)。本模組私有。
+--
+-- 每一個都走 'allocateFreshId',所以__每一個都經過 'idTaken'__(P-003 REV-2)。
+-- 批次內兩兩相異靠前綴:'Aapms.Core.Id.newId' 把前綴寫進 id 本身,而同一批的
+-- 各項前綴互異('CreateLevel' 是 @PLvl@ 與 @PNod@),所以不必在批次之間先把
+-- 配好的號寫進索引。
+allocateIds :: Index :> es => UTCTime -> [(IdPrefix, Text)] -> Eff es (Either StoreError [Id])
+allocateIds t = go []
+  where
+    go acc [] = pure (Right (reverse acc))
+    go acc ((pre, c) : rest) =
+      allocateFreshId pre c t >>= \case
+        Left e -> pure (Left e)
+        Right i -> go (i : acc) rest
 
 -- | 既有檔的純核心:樂觀鎖 → 讀出目前的 Meta \/ Asset → 編輯那一節 →
 -- 新 'Document' 與結果;失敗即 'Left',文件不動。
@@ -507,78 +523,100 @@ planDelete loc doc i expected _mode = do
 -- 回的 'FilePath' 是__推導出來的落點__;撞名遞增與「明確指定卻已存在」要探測
 -- 檔案系統,由 'applyWrite' 補上(它拿到最後的路徑之後會把結果的路徑欄換掉)。
 --
--- __Level 檔的根 Node id 在這裡直接算__(@'Aapms.Core.Id.newId' PNod
--- ('nlRootTitle' nl) t 0@):簽名只收一個配好的 'Id',而 Level 檔要兩個。
--- 這是 impl 決定,已列進回報 —— 它沒有經過碰撞查詢。
-planCreate :: TypeRegistry -> VaultId -> UTCTime -> Id -> WriteOp -> Either StoreError (FilePath, Document, WriteOutcome)
-planCreate reg vid t fresh op = case op of
-  CreateTopic ne -> case lookupDir reg (neType ne) of
-    Nothing -> Left (RegistryDirUnknown (neType ne))
-    Just dir -> do
-      let path = derivedPath dir (neTitle ne)
+-- __第四個參數是配好的新 id 清單__(P-003 REV-2):長度為
+-- 'Aapms.Store.Types.idsNeeded' @op@,每一個都由 'allocateFreshId' 經過碰撞查詢
+-- 配出來(ADR-014:唯一性由建構保證)。第一個是新檔的檔案層主體;
+-- 'CreateLevel' 的__第二個是根 Node__ ——它也是一個節點,不能靠 @newId … 0@
+-- 碰運氣。長度不足時回 'Left'(見 @tooFewIds@),一個位元組都不寫。
+planCreate :: TypeRegistry -> VaultId -> UTCTime -> [Id] -> WriteOp -> Either StoreError (FilePath, Document, WriteOutcome)
+planCreate reg vid t ids op = case op of
+  CreateTopic ne -> case ids of
+    (fresh : _) -> case lookupDir reg (neType ne) of
+      Nothing -> Left (RegistryDirUnknown (neType ne))
+      Just dir -> do
+        let path = derivedPath fresh dir (neTitle ne)
+            meta =
+              (baseMeta fresh (neType ne) (neTitle ne))
+                { metaSummary = neSummary ne
+                , metaTags = neTags ne
+                , metaStatus = neStatus ne
+                , metaTimeline = neTimeline ne
+                , metaAliases = neAliases ne
+                , metaLinks = neLinks ne
+                , metaSource = neSource ne
+                }
+        pure (path, newDocument TopicDoc meta (neBody ne), created fresh path)
+    _ -> Left tooFewIds
+  CreateLevel nl -> case ids of
+    (fresh : rootId : _) -> do
+      let path = derivedPath fresh "levels" (nlTitle nl)
           meta =
-            (baseMeta (neType ne) (neTitle ne))
-              { metaSummary = neSummary ne
-              , metaTags = neTags ne
-              , metaStatus = neStatus ne
-              , metaTimeline = neTimeline ne
-              , metaAliases = neAliases ne
-              , metaLinks = neLinks ne
-              , metaSource = neSource ne
+            (baseMeta fresh (TypeKey "level") (nlTitle nl))
+              { metaSummary = nlSummary nl
+              , metaStatus = nlStatus nl
+              , metaSource = nlSource nl
               }
-      pure (path, newDocument TopicDoc meta (neBody ne), created path)
-  CreateLevel nl -> do
-    let path = derivedPath "levels" (nlTitle nl)
-        meta =
-          (baseMeta (TypeKey "level") (nlTitle nl))
-            { metaSummary = nlSummary nl
-            , metaStatus = nlStatus nl
-            , metaSource = nlSource nl
-            }
-        rootSection =
-          NewSection
-            { nsId = newId PNod (nlRootTitle nl) t 0
-            , nsLevel = 2
-            , nsTitle = nlRootTitle nl
-            , nsBody = ""
-            , nsPayload = NSNode emptyOverride (NewNode (nlRootKind nl))
-            }
-    doc <- orMd path (appendSection rootSection (newDocument LevelDoc meta (nlBody nl)))
-    pure (path, doc, created path)
-  CreatePack np sections -> case find (not . isAssetPayload . nsPayload) sections of
-    Just bad -> Left (BadSectionPayload (nsId bad) PackDoc)
-    Nothing -> do
-      let path = npDir np <> "/pack.md"
-          meta =
-            (baseMeta (TypeKey "asset-pack") (npTitle np))
-              { metaSummary = npSummary np
-              , metaTags = npTags np
-              , metaStatus = npStatus np
-              , metaSource = npSource np
+          rootSection =
+            NewSection
+              { nsId = rootId
+              , nsLevel = 2
+              , nsTitle = nlRootTitle nl
+              , nsBody = ""
+              , nsPayload = NSNode emptyOverride (NewNode (nlRootKind nl))
               }
-          front =
-            NewPackFront
-              { npfVendor = npVendor np
-              , npfArchive = npArchive np
-              , npfSha256 = npSha256 np
-              , npfLicense = npLicense np
-              , npfAuthor = npAuthor np
-              , npfSourceUrl = npSourceUrl np
-              , npfAiDisclosure = npAiDisclosure np
-              }
-          doc0 = newDocumentWith PackDoc meta (packFrontExtras front) (npBody np)
-      doc <- orMd path (foldM (flip appendSection) doc0 sections)
-      pure (path, doc, created path)
+      doc <- orMd path (appendSection rootSection (newDocument LevelDoc meta (nlBody nl)))
+      pure (path, doc, created fresh path)
+    _ -> Left tooFewIds
+  CreatePack np sections -> case ids of
+    (fresh : _) -> case find (not . isAssetPayload . nsPayload) sections of
+      Just bad -> Left (BadSectionPayload (nsId bad) PackDoc)
+      Nothing -> do
+        let path = npDir np <> "/pack.md"
+            meta =
+              (baseMeta fresh (TypeKey "asset-pack") (npTitle np))
+                { metaSummary = npSummary np
+                , metaTags = npTags np
+                , metaStatus = npStatus np
+                , metaSource = npSource np
+                }
+            front =
+              NewPackFront
+                { npfVendor = npVendor np
+                , npfArchive = npArchive np
+                , npfSha256 = npSha256 np
+                , npfLicense = npLicense np
+                , npfAuthor = npAuthor np
+                , npfSourceUrl = npSourceUrl np
+                , npfAiDisclosure = npAiDisclosure np
+                }
+            doc0 = newDocumentWith PackDoc meta (packFrontExtras front) (npBody np)
+        doc <- orMd path (foldM (flip appendSection) doc0 sections)
+        pure (path, doc, created fresh path)
+    _ -> Left tooFewIds
   -- 改既有檔的請求不走這裡('applyWrite' 分派到 'planEdit')。
-  _ -> Left (NodeNotFound fresh)
+  _ -> Left notACreateOp
   where
     today = utctDay t
-    created path = Created (CreateResult fresh path (Revision 1) [])
-    derivedPath dir title = dir <> "/" <> T.unpack (sanitizeFileName title (renderId fresh)) <> ".md"
+    -- 建檔請求收到的 id 少於 'idsNeeded':呼叫端用錯了,不是使用者的錯。
+    -- 'StoreError' 沒有「內部不變量被打破」的建構子,借 'FileWriteFailed'
+    -- ——它是「檔案沒寫成」這件事本身,而這裡確實一個位元組都沒寫出去
+    -- (impl 決定,已列進回報)。路徑還沒推導出來,所以是空字串。
+    tooFewIds =
+      FileWriteFailed
+        ""
+        ( "P-003:建檔需要 "
+            <> T.pack (show (idsNeeded op))
+            <> " 個配好的新 id,只收到 "
+            <> T.pack (show (length ids))
+            <> ";請確認呼叫端先跑過 allocateFreshId"
+        )
+    notACreateOp = FileWriteFailed "" "P-003:改既有檔的請求不經過 planCreate"
+    created fresh path = Created (CreateResult fresh path (Revision 1) [])
+    derivedPath fresh dir title = dir <> "/" <> T.unpack (sanitizeFileName title (renderId fresh)) <> ".md"
     isAssetPayload = \case
       NSAsset _ _ -> True
       _ -> False
-    baseMeta ty title =
+    baseMeta fresh ty title =
       Meta
         { metaId = fresh
         , metaVault = vid
@@ -607,18 +645,23 @@ planCreate reg vid t fresh op = case op of
 -- 檔案與索引都沒動」(LAW-18)。
 applyWrite :: (VaultFs :> es, Index :> es, Clock :> es) => TypeRegistry -> VaultId -> WriteOp -> Eff es (Either StoreError WriteOutcome)
 applyWrite reg vid op = case op of
-  CreateTopic ne -> create PEnt (neTitle ne)
-  CreateLevel nl -> create PLvl (nlTitle nl)
-  CreatePack np _ -> create PPck (npTitle np)
+  CreateTopic ne -> create [(PEnt, neTitle ne)]
+  -- Level 檔要兩個號:Level 自己與它的根 Node,兩個都經 'idTaken'(REV-2)。
+  CreateLevel nl -> create [(PLvl, nlTitle nl), (PNod, nlRootTitle nl)]
+  CreatePack np _ -> create [(PPck, npTitle np)]
   UpsertLicense lic -> upsertLicenseFlow lic
   _ -> edit
   where
-    -- 建檔:取時間 → 配號 → 純規劃 → 解出真正的落點 → 寫檔 → 單檔重索引。
-    create pre title = do
+    -- 建檔:取時間 → 配 'idsNeeded' 個號 → 純規劃 → 解出真正的落點 → 寫檔 →
+    -- 單檔重索引。
+    --
+    -- @specs@ 的長度就是 'idsNeeded' @op@;'take' 只是把這件事寫在程式碼裡,
+    -- 讓「配幾個」的唯一真相留在 'idsNeeded'。
+    create specs = do
       t <- now
-      allocateFreshId pre title t >>= \case
+      allocateIds t (take (idsNeeded op) specs) >>= \case
         Left e -> pure (Left e)
-        Right fresh -> case planCreate reg vid t fresh op of
+        Right ids -> case planCreate reg vid t ids op of
           Left e -> pure (Left e)
           Right (derived, doc, outcome) ->
             resolveCreatePath op derived >>= \case

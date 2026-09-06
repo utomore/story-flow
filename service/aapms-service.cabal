@@ -96,6 +96,7 @@ test-suite aapms-service-test
         , hspec
         , hedgehog
         , hspec-hedgehog
+        , toml-reader
         , mtl
         , temporary
         , text

@@ -1,0 +1,531 @@
+## lint sig:300 條不合規
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:15 listMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:16 statFile 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:17 readMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:25 indexDocument 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:26 replaceFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:27 removeFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:28 fileStats 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:29 staleFiles 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:30 indexPath 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:31 refresh 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:32 runVaultFsPure 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:33 runIndexPure 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:34 simulate 的模組 Aapms.Store.Indexing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-001-index-rebuild.md:44 rebuild 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:17 passesFilter 的模組 Aapms.Store.Filter 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:18 ftsMatch 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:19 filterNodes 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:20 mergeScores 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:21 snippetFrom 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:22 rankHits 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:23 pageHits 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:24 facetsIn 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:25 mergeFacetCounts 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:26 searchVault 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:27 vaultIds 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:28 inVault 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:29 runVaultsPure 的模組 Aapms.Store.Effect.Vaults 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:30 simulateVaults 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:31 hitsPerVault 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:32 structuralKeys 的模組 Aapms.Store.Search.Internal 不在模組表
+- ✗ .lawful/pipelines/P-002-search.md:41 searchVaults 的模組 Aapms.Store.Search 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:15 locateId 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:16 readMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:32 fileExists 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:33 idTaken 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:34 referrers 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:35 now 的模組 Aapms.Store.Effect.Clock 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:39 writeMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:40 deleteMarkdown 的模組 Aapms.Store.Effect.VaultFs 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:41 indexPath 的模組 Aapms.Store.Indexing 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:42 removeFile 的模組 Aapms.Store.Effect.Index 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:43 runClockPure 的模組 Aapms.Store.Effect.Clock 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:44 simulateWrite 的模組 Aapms.Store.Editing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-003-node-write.md:72 allocateN 的模組 Aapms.Store.Editing.Internal 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:15 hubPath 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:16 readHub 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:18 locateRegistryDir 的模組 Aapms.Types.Effect.RegistryFs 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:19 readRegistryFiles 的模組 Aapms.Types.Effect.RegistryFs 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:22 resolveScope 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:23 scopeOf 的模組 Aapms.Service.Session 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:24 simulateScope 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:25 runHubFilePure 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:26 runRegistryFsPure 的模組 Aapms.Types.Effect.RegistryFs 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:27 simulateSession 的模組 Aapms.Service.Session.Internal 不在模組表
+- ✗ .lawful/pipelines/P-004-vault-scope.md:40 openSession 的模組 Aapms.Service.Session 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:15 hubPath 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:16 hubExists 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:17 writeHub 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:18 ensureCacheDir 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:19 purgeHubFiles 的模組 Aapms.Workspace.Effect.HubFile 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:20 canonicalPath 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:21 dirExists 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:22 readMarkerAt 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:23 listEntries 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:24 markerDirExists 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:25 initMarker 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:26 removeMarkerDir 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:27 removeIndexDb 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:28 now 的模組 Aapms.Store.Effect.Clock 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:29 checkInit 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:30 legacyMarkers 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:31 collisionOf 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:32 entryOf 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:38 lookupSelector 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:39 lookupProject 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:40 allocateProjectId 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:41 refOfEntry 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:42 syncEntry 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:44 runVaultDirPure 的模組 Aapms.Workspace.Effect.VaultDir 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:45 simulateLifecycle 的模組 Aapms.Workspace.Lifecycle.Internal 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:66 checkVaultsOf 的模組 Aapms.Workspace.Lifecycle.Internal 不在模組表
+- ✗ .lawful/pipelines/P-005-vault-lifecycle.md:67 applyLifecycle 的模組 Aapms.Workspace.Lifecycle.Plan 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:15 refOfEntry 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:16 detectRoot 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:17 refAt 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:18 registeredVaultView 的模組 Aapms.Service.Machine.View 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:19 discoveredVaultView 的模組 Aapms.Service.Machine.View 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:20 probes 的模組 Aapms.Workspace.Tools.Plan 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:21 isExecutable 的模組 Aapms.Workspace.Effect.ToolProbe 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:22 pathDirs 的模組 Aapms.Workspace.Effect.ToolProbe 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:23 detectTool 的模組 Aapms.Workspace.Tools.Plan 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:24 doctorOf 的模組 Aapms.Service.Machine.View 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:25 runToolProbePure 的模組 Aapms.Workspace.Effect.ToolProbe 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:26 simulateDoctor 的模組 Aapms.Service.Machine.Internal 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:27 markerIssues 的模組 Aapms.Service.Machine.Internal 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:30 nearestRoot 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-006-workspace-doctor.md:36 doctor 的模組 Aapms.Service.Machine.View 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 <name 是 P-008-graph-write 的 = 列;引用別條的 stage 要在模組欄註明「見 P-008-graph-write」
+- ✗ .lawful/pipelines/P-007-graph-read.md:15 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:16 <name 是 P-008-graph-write 的 = 列;引用別條的 stage 要在模組欄註明「見 P-008-graph-write」
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 <name 是 P-008-graph-write 的 = 列;引用別條的 stage 要在模組欄註明「見 P-008-graph-write」
+- ✗ .lawful/pipelines/P-007-graph-read.md:17 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 <name 是 P-008-graph-write 的 = 列;引用別條的 stage 要在模組欄註明「見 P-008-graph-write」
+- ✗ .lawful/pipelines/P-007-graph-read.md:18 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 <name 是 P-008-graph-write 的 = 列;引用別條的 stage 要在模組欄註明「見 P-008-graph-write」
+- ✗ .lawful/pipelines/P-007-graph-read.md:19 P-007-graph-read#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-008-graph-write.md:15 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-008-graph-write.md:17 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-008-graph-write.md:18 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-008-graph-write.md:19 P-008-graph-write#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:15 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:17 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:18 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-009-cli-shell.md:19 P-009-cli-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-010-http-shell.md:15 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-010-http-shell.md:17 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-010-http-shell.md:18 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-010-http-shell.md:19 P-010-http-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:15 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:17 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:18 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-011-mcp-shell.md:19 P-011-mcp-shell#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:15 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:17 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:18 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-012-asset-scan.md:19 P-012-asset-scan#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:15 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:17 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:18 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-013-thumb-cache.md:19 P-013-thumb-cache#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:15 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:17 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:18 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-014-name-cluster.md:19 P-014-name-cluster#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:15 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:17 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:18 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-015-pack-reorganize.md:19 P-015-pack-reorganize#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:15 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:17 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:18 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-016-conflict-check.md:19 P-016-conflict-check#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:15 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:17 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:18 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-017-ai-classify.md:19 P-017-ai-classify#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-018-workshop.md:15 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-018-workshop.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-018-workshop.md:17 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-018-workshop.md:18 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-018-workshop.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-018-workshop.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-018-workshop.md:19 P-018-workshop#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:15 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:15 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-019-project-export.md:15 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:16 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:16 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-019-project-export.md:17 <name 的模組 <Module.Internal> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:17 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-019-project-export.md:17 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:18 <name 的模組 <Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:18 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-019-project-export.md:18 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-019-project-export.md:19 <name 的模組 <Host.Module> 不在模組表
+- ✗ .lawful/pipelines/P-019-project-export.md:19 <name 是 P-007-graph-read 的 = 列;引用別條的 stage 要在模組欄註明「見 P-007-graph-read」
+- ✗ .lawful/pipelines/P-019-project-export.md:19 P-019-project-export#<name 程式碼裡找不到
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:38 stripText 的模組 Aapms.Store.Tokenize.Internal 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:39 upperAscii 的模組 Aapms.Store.Tokenize.Internal 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:40 wordHits 的模組 Aapms.Store.Tokenize.Internal 不在模組表
+- ✗ .lawful/pipelines/P-027-fts-tokenize.md:41 runHits 的模組 Aapms.Store.Tokenize.Internal 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:15 lookupSelector 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:16 readMarkerAt 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:17 dirExists 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:18 canonicalPath 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:19 detectRoot 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:20 refOfEntry 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:21 refAt 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:22 expandRefGraph 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:23 scopeRead 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:24 scopeWrite 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:25 scopePipeline 的模組 Aapms.Workspace.Resolve 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:26 runMarkersPure 的模組 Aapms.Workspace.Effect.Markers 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:27 simulateScope 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:35 readableIds 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:36 reachable 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:37 nearestRoot 的模組 Aapms.Workspace.Resolve.Internal 不在模組表
+- ✗ .lawful/pipelines/P-029-scope-resolve.md:38 resolveScope 的模組 Aapms.Workspace.Resolve 不在模組表
+- · P-001-index-rebuild#listMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#statFile 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#readMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#indexDocument 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#replaceFile 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#removeFile 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#fileStats 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#staleFiles 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#indexPath 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#refresh 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-001-index-rebuild#runVaultFsPure 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-001-index-rebuild#runIndexPure 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-001-index-rebuild#simulate 願望,待實作(目標 Aapms.Store.Indexing.Internal)
+- · P-001-index-rebuild#emptyIndex 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#vaultPaths 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#fileAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#statsDistinguish 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedPaths 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedNodes 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#indexedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#assetNames 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#warnedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-001-index-rebuild#rebuild 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-002-search#matchesQuery 願望,待實作(目標 Aapms.Store.Tokenize)
+- · P-002-search#passesFilter 願望,待實作(目標 Aapms.Store.Filter)
+- · P-002-search#ftsMatch 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-002-search#filterNodes 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-002-search#mergeScores 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#snippetFrom 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#rankHits 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#pageHits 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#facetsIn 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#mergeFacetCounts 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#searchVault 願望,待實作(目標 Aapms.Store.Search)
+- · P-002-search#vaultIds 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#inVault 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#runVaultsPure 願望,待實作(目標 Aapms.Store.Effect.Vaults)
+- · P-002-search#simulateVaults 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#hitsPerVault 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#structuralKeys 願望,待實作(目標 Aapms.Store.Search.Internal)
+- · P-002-search#hitKey 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#nodeKey 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#allNodesIn 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#keysOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#wide 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#page 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#withTypes 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#withTags 願望,待實作(目標 Aapms.Store.Types)
+- · P-002-search#searchVaults 願望,待實作(目標 Aapms.Store.Search)
+- · P-003-node-write#locateId 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#readMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#fileExists 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#idTaken 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#referrers 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#now 願望,待實作(目標 Aapms.Store.Effect.Clock)
+- · P-003-node-write#allocateFreshId 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#planEdit 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#planCreate 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#writeMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#deleteMarkdown 願望,待實作(目標 Aapms.Store.Effect.VaultFs)
+- · P-003-node-write#indexPath 願望,待實作(目標 Aapms.Store.Indexing)
+- · P-003-node-write#removeFile 願望,待實作(目標 Aapms.Store.Effect.Index)
+- · P-003-node-write#runClockPure 願望,待實作(目標 Aapms.Store.Effect.Clock)
+- · P-003-node-write#simulateWrite 願望,待實作(目標 Aapms.Store.Editing.Internal)
+- · P-003-node-write#runResult 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#runFiles 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#runIndex 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#opTarget 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#opRevision 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#isInsertOp 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomeRevision 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomePath 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#outcomeId 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#removedIds 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#brokenLinks 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#documentAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#sectionBytes 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#locatedFile 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#metaAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#assetAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#licensesAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#assetIdsAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#packAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#levelAt 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#packFields 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#newPackFields 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#patchedName 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#fileStatsOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#levelOf 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#lvlRoot 願望,待實作(目標 Aapms.Core.Level)
+- · P-003-node-write#stripStamps 願望,待實作(目標 Aapms.Store.Types)
+- · P-003-node-write#allocateN 願望,待實作(目標 Aapms.Store.Editing.Internal)
+- · P-003-node-write#applyWrite 願望,待實作(目標 Aapms.Store.Editing)
+- · P-003-node-write#applyWriteIO 願望,待實作(目標 Aapms.Store.Write)
+- · P-004-vault-scope#hubPath 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-004-vault-scope#readHub 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-004-vault-scope#locateRegistryDir 願望,待實作(目標 Aapms.Types.Effect.RegistryFs)
+- · P-004-vault-scope#readRegistryFiles 願望,待實作(目標 Aapms.Types.Effect.RegistryFs)
+- · P-004-vault-scope#parseRegistryFiles 願望,待實作(目標 Aapms.Types.Parse)
+- · P-004-vault-scope#resolveScope 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-004-vault-scope#scopeOf 願望,待實作(目標 Aapms.Service.Session)
+- · P-004-vault-scope#simulateScope 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-004-vault-scope#runHubFilePure 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-004-vault-scope#runRegistryFsPure 願望,待實作(目標 Aapms.Types.Effect.RegistryFs)
+- · P-004-vault-scope#simulateSession 願望,待實作(目標 Aapms.Service.Session.Internal)
+- · P-004-vault-scope#hubTextIn 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-004-vault-scope#hubLocationIn 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-004-vault-scope#registryDirIn 願望,待實作(目標 Aapms.Types.Source)
+- · P-004-vault-scope#registryFilesIn 願望,待實作(目標 Aapms.Types.Source)
+- · P-004-vault-scope#sessionHub 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionLocation 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionRegistry 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionNaming 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionSource 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionSelector 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#sessionCwd 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#isRegistryUnavailable 願望,待實作(目標 Aapms.Service.Types)
+- · P-004-vault-scope#openSession 願望,待實作(目標 Aapms.Service.Session)
+- · P-005-vault-lifecycle#hubPath 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-005-vault-lifecycle#hubExists 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-005-vault-lifecycle#writeHub 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-005-vault-lifecycle#ensureCacheDir 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-005-vault-lifecycle#purgeHubFiles 願望,待實作(目標 Aapms.Workspace.Effect.HubFile)
+- · P-005-vault-lifecycle#canonicalPath 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-005-vault-lifecycle#dirExists 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-005-vault-lifecycle#readMarkerAt 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-005-vault-lifecycle#listEntries 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#markerDirExists 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#initMarker 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#removeMarkerDir 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#removeIndexDb 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#now 願望,待實作(目標 Aapms.Store.Effect.Clock)
+- · P-005-vault-lifecycle#checkInit 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#legacyMarkers 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#collisionOf 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#entryOf 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#lookupSelector 搬家:文檔 Aapms.Workspace.Resolve → 程式碼 Aapms.Workspace.Discovery(lawful sync 可改)
+- · P-005-vault-lifecycle#lookupProject 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#allocateProjectId 搬家:文檔 Aapms.Workspace.Lifecycle.Plan → 程式碼 Aapms.Workspace.Projects(lawful sync 可改)
+- · P-005-vault-lifecycle#refOfEntry 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-005-vault-lifecycle#syncEntry 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#runVaultDirPure 願望,待實作(目標 Aapms.Workspace.Effect.VaultDir)
+- · P-005-vault-lifecycle#simulateLifecycle 願望,待實作(目標 Aapms.Workspace.Lifecycle.Internal)
+- · P-005-vault-lifecycle#lcResult 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#lcHubText 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#lcVaults 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#hubWorldAfter 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#hubTextIn 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#hubLocationIn 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwEntries 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwMarkerDir 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwMarker 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwHasIndex 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwDirExists 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#vwWithout 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeHub 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeEntry 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeNotice 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeProject 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeIssues 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomeSetup 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#outcomePurge 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#isRefNotRegistered 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-005-vault-lifecycle#checkVaultsOf 願望,待實作(目標 Aapms.Workspace.Lifecycle.Internal)
+- · P-005-vault-lifecycle#applyLifecycle 願望,待實作(目標 Aapms.Workspace.Lifecycle.Plan)
+- · P-005-vault-lifecycle#runLifecycle 願望,待實作(目標 Aapms.Workspace.Lifecycle)
+- · P-006-workspace-doctor#refOfEntry 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-006-workspace-doctor#detectRoot 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-006-workspace-doctor#refAt 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-006-workspace-doctor#registeredVaultView 願望,待實作(目標 Aapms.Service.Machine.View)
+- · P-006-workspace-doctor#discoveredVaultView 願望,待實作(目標 Aapms.Service.Machine.View)
+- · P-006-workspace-doctor#probes 願望,待實作(目標 Aapms.Workspace.Tools.Plan)
+- · P-006-workspace-doctor#isExecutable 願望,待實作(目標 Aapms.Workspace.Effect.ToolProbe)
+- · P-006-workspace-doctor#pathDirs 願望,待實作(目標 Aapms.Workspace.Effect.ToolProbe)
+- · P-006-workspace-doctor#detectTool 願望,待實作(目標 Aapms.Workspace.Tools.Plan)
+- · P-006-workspace-doctor#doctorOf 願望,待實作(目標 Aapms.Service.Machine.View)
+- · P-006-workspace-doctor#runToolProbePure 願望,待實作(目標 Aapms.Workspace.Effect.ToolProbe)
+- · P-006-workspace-doctor#simulateDoctor 願望,待實作(目標 Aapms.Service.Machine.Internal)
+- · P-006-workspace-doctor#markerIssues 願望,待實作(目標 Aapms.Service.Machine.Internal)
+- · P-006-workspace-doctor#unreachableIds 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-006-workspace-doctor#executables 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-006-workspace-doctor#nearestRoot 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-006-workspace-doctor#worldMarker 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-006-workspace-doctor#sessionHub 願望,待實作(目標 Aapms.Service.Types)
+- · P-006-workspace-doctor#sessionLocation 願望,待實作(目標 Aapms.Service.Types)
+- · P-006-workspace-doctor#sessionSource 願望,待實作(目標 Aapms.Service.Types)
+- · P-006-workspace-doctor#sessionCwd 願望,待實作(目標 Aapms.Service.Types)
+- · P-006-workspace-doctor#doctor 願望,待實作(目標 Aapms.Service.Machine.View)
+- · P-007-graph-read#<name 願望,待實作(目標 <Module>)
+- · P-008-graph-write#<name 願望,待實作(目標 <Module>)
+- · P-009-cli-shell#<name 願望,待實作(目標 <Module>)
+- · P-010-http-shell#<name 願望,待實作(目標 <Module>)
+- · P-011-mcp-shell#<name 願望,待實作(目標 <Module>)
+- · P-012-asset-scan#<name 願望,待實作(目標 <Module>)
+- · P-013-thumb-cache#<name 願望,待實作(目標 <Module>)
+- · P-014-name-cluster#<name 願望,待實作(目標 <Module>)
+- · P-015-pack-reorganize#<name 願望,待實作(目標 <Module>)
+- · P-016-conflict-check#<name 願望,待實作(目標 <Module>)
+- · P-017-ai-classify#<name 願望,待實作(目標 <Module>)
+- · P-018-workshop#<name 願望,待實作(目標 <Module>)
+- · P-019-project-export#<name 願望,待實作(目標 <Module>)
+- · P-027-fts-tokenize#matchesQuery 願望,待實作(目標 Aapms.Store.Tokenize)
+- · P-027-fts-tokenize#stripText 願望,待實作(目標 Aapms.Store.Tokenize.Internal)
+- · P-027-fts-tokenize#upperAscii 願望,待實作(目標 Aapms.Store.Tokenize.Internal)
+- · P-027-fts-tokenize#wordHits 願望,待實作(目標 Aapms.Store.Tokenize.Internal)
+- · P-027-fts-tokenize#runHits 願望,待實作(目標 Aapms.Store.Tokenize.Internal)
+- · P-029-scope-resolve#lookupSelector 搬家:文檔 Aapms.Workspace.Resolve → 程式碼 Aapms.Workspace.Discovery(lawful sync 可改)
+- · P-029-scope-resolve#readMarkerAt 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-029-scope-resolve#dirExists 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-029-scope-resolve#canonicalPath 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-029-scope-resolve#detectRoot 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-029-scope-resolve#refOfEntry 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#refAt 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#expandRefGraph 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#scopeRead 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#scopeWrite 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#scopePipeline 願望,待實作(目標 Aapms.Workspace.Resolve)
+- · P-029-scope-resolve#runMarkersPure 願望,待實作(目標 Aapms.Workspace.Effect.Markers)
+- · P-029-scope-resolve#simulateScope 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-029-scope-resolve#worldMarker 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#worldDirs 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#refIds 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#scopeRefs 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#scopeIssues 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#isRefNotRegistered 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#selectorHits 願望,待實作(目標 Aapms.Workspace.Types)
+- · P-029-scope-resolve#readableIds 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-029-scope-resolve#reachable 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-029-scope-resolve#nearestRoot 願望,待實作(目標 Aapms.Workspace.Resolve.Internal)
+- · P-029-scope-resolve#resolveScope 願望,待實作(目標 Aapms.Workspace.Resolve)

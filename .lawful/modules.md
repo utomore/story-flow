@@ -6,8 +6,10 @@
 | `Aapms.Store.Types`、`Aapms.Types.Source`、`Aapms.Workspace.Types`、`Aapms.Service.Types` | types |
 | `Aapms.Core.Naming`、`Aapms.Core.Registry.Build`、`Aapms.Core.Tree` | pure |
 | `Aapms.Md`、`Aapms.Md.Lexer`、`Aapms.Md.Yaml`、`Aapms.Md.Parse`、`Aapms.Md.Inherit`、`Aapms.Md.Render` | pure |
-| `Aapms.Store.Tokenize`、`Aapms.Store.Node` | pure |
+| `Aapms.Store.Tokenize`、`Aapms.Store.Node`、`Aapms.Store.Row`、`Aapms.Store.Editing` | pure |
+| `Aapms.Workspace.Hub`、`Aapms.Workspace.Location` | pure |
+| `Aapms.Types.Parse` | pure |
 | `Aapms.Types.Loader` | shell |
-| `Aapms.Store`、`Aapms.Store.Atomic`、`Aapms.Store.Create`、`Aapms.Store.Edit`、`Aapms.Store.Error`、`Aapms.Store.Index`、`Aapms.Store.Marker`、`Aapms.Store.MultiVault`、`Aapms.Store.Query`、`Aapms.Store.Row`、`Aapms.Store.Schema`、`Aapms.Store.Walk`、`Aapms.Store.Write` | shell |
-| `Aapms.Workspace.Hub`、`Aapms.Workspace.Location`、`Aapms.Workspace.Discovery`、`Aapms.Workspace.Scope`、`Aapms.Workspace.Lifecycle`、`Aapms.Workspace.Projects`、`Aapms.Workspace.Tools` | shell |
+| `Aapms.Store`、`Aapms.Store.Atomic`、`Aapms.Store.Create`、`Aapms.Store.Edit`、`Aapms.Store.Error`、`Aapms.Store.Index`、`Aapms.Store.Marker`、`Aapms.Store.MultiVault`、`Aapms.Store.Query`、`Aapms.Store.Row.Sql`、`Aapms.Store.Schema`、`Aapms.Store.Walk`、`Aapms.Store.Write` | shell |
+| `Aapms.Workspace.Hub.File`、`Aapms.Workspace.Discovery`、`Aapms.Workspace.Scope`、`Aapms.Workspace.Lifecycle`、`Aapms.Workspace.Projects`、`Aapms.Workspace.Tools` | shell |
 | `Aapms.Service.Monad`、`Aapms.Service.Scope`、`Aapms.Service.Machine` | shell |

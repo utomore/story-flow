@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-005-vault-lifecycle:init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
 
 ## Brief
-工具自己的狀態怎麼建立、納管、撤除:中樞的建立、vault 的 init(含 `--adopt`)/ add / forget、專案的 register / forget、中樞與 marker 的漂移修正、purge。input 是一個 `LifecycleOp` 請求加上目前的中樞快照;output 是 `LifecycleOutcome`(新的 Hub 值、被加入或移除的那一列、AdoptNotice、報告)。流向:名稱與目錄的前置檢查(順序固定,任一失敗零副作用)→ 建 marker 與空索引(graph-core 的 `initVaultAtWith`)→ 與中樞既有列比對撞號(撞了回滾 marker)→ AdoptExisting 時列出舊系統的 marker 目錄(只報告不刪)→ Hub 值上加或減一列(P-028)→ 原子寫回 `config.toml`。中樞檔、vault 目錄、marker、時鐘是四個效果(`HubFile`、`VaultDir`、`Markers`、`Clock`),純解譯器跑在記憶體的中樞文字與目錄樹上;真解譯器住 shell,`runLifecycle` 是唯一進入點,原本的 `setupHub` / `initVault` / `initVaultWith` / `addVault` / `forgetVault` / `purge` / `checkVaults` / `syncHub` / `registerProject` / `forgetProject` 退成薄包裝。它是 S3 的第二條里程碑;service 的 `vaultInit` 等門面(P-006)只做投影。
+工具自己的狀態怎麼建立、納管、撤除:中樞的建立、vault 的 init(含 `--adopt`)/ add / forget、專案的 register / forget、中樞與 marker 的漂移修正、purge。input 是一個 `LifecycleOp` 請求加上目前的中樞快照;output 是 `LifecycleOutcome`(新的 Hub 值、被加入或移除的那一列、AdoptNotice、報告)。流向:名稱與目錄的前置檢查(順序固定,任一失敗零副作用)→ 建 marker 與空索引(graph-core 的 `initVaultAtWith`)→ 與中樞既有列比對撞號(撞了回滾 marker)→ AdoptExisting 時列出舊系統的 marker 目錄(只報告不刪)→ Hub 值上加或減一列(P-028)→ 原子寫回 `config.toml`。中樞檔、vault 目錄、marker、時鐘是四個效果(`HubFile`、`VaultDir`、`Markers`、`Clock`),純解譯器跑在記憶體的中樞文字與目錄樹上;真解譯器住 shell,`runLifecycle` 是唯一進入點,原本的 `setupHub` / `initVault` / `initVaultWith` / `addVault` / `forgetVault` / `purge` / `checkVaults` / `syncHub` / `registerProject` / `forgetProject` 退場,呼叫端(service 門面與測試)改接 `runLifecycle`。它是 S3 的第二條里程碑;service 的 `vaultInit` 等門面(P-006)只做投影。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |
@@ -165,7 +165,7 @@ updated: 2026-09-06
 - **marker 是真相,`VaultEntry` 是它的投影;身分一律來自 marker,中樞的 name / kind 只是快取。** 否決:init 時以呼叫端給的值寫中樞。理由:ADR-017
 - **前置檢查順序固定:名稱 → 已佔用 → 目錄狀態;任一失敗零副作用。** 否決:先建 marker 再檢查。理由:失敗要能重跑,不留半成品
 - **撞號時回滾剛建的 `.aapms/`,回 VaultIdCollision 三個值(id、既有路徑、這次路徑)。** 否決:讓兩列同 id 並存。理由:id 是鍵,撞號的中樞解不開任何 Ref
-- **`initVaultWith` 的時間是明碼參數,`initVault` 是薄包裝;id 可由 `newId PVlt name t 0` 算出。** 否決:內部取樣。理由:撞號要能在測試裡精確構造(原 workspace E001 / graph-core E002)
+- **時間走 `Clock` 效果,`simulateLifecycle` 收明碼時間;id 可由 `newId PVlt name t 0` 算出(LAW-5),撞號在純側以明碼時間精確構造(LAW-6)。舊的 `initVaultWith` 明碼時間進入點隨退場波刪除。** 否決:內部取樣;shell 另留明碼時間進入點。理由:撞號要能在測試裡精確構造(原 workspace E001 / graph-core E002)
 - **AdoptExisting 只在第一層找 `.assetdb` / `.storyflow`,固定順序,只報告不刪。** 否決:遞迴、或自動刪舊 marker。理由:舊系統的資料是使用者的
 - **add 以 id 為鍵:同一個 vault 搬了位置再 add,只換 path 不長第二列。** 否決:以路徑為鍵。理由:ADR-017 搬動 vault 只改 path
 - **forget 的 DeleteIndex 只刪 index.db,本來就沒有不算失敗;KeepIndex 連它都不動。** 否決:連 `.aapms/` 一起刪。理由:marker 是 vault 的身分,forget 是「中樞不再認得它」不是「它不再是 vault」

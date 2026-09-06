@@ -54,6 +54,15 @@
 -- 紅的歸因是 "Aapms.Workspace.Hub" 的序列化器,不是本模組(spec「兩個先決條件」第 2 點)。
 -- 兩個新建構子('ProjectAlreadyRegistered'、'ProjectSelectorAmbiguous')不存在時本檔
 -- __連編譯都過不了__(spec「兩個先決條件」第 1 點)。
+--
+-- __2026-09-06 P-005-vault-lifecycle 退場波__:'Aapms.Workspace.Projects' 的
+-- @registerProject@ \/ @forgetProject@ 已移除(該模組只剩 'allocateProjectId' 的
+-- 原地 re-export),同兩件事現在是 @RegisterProject@ \/ @ForgetProject@ 兩種
+-- 'LifecycleOp',進入點是 'Aapms.Workspace.Lifecycle.runLifecycle'。本檔在下方以
+-- __同簽名的區域包裝__接上新進入點,__斷言一字未改__。一處新舊行為真的不同:
+-- 新的 @WriteHub@ 真解譯器會先把中樞根目錄建出來(第一次 @setup@ 時那個目錄還
+-- 不存在,少了這一步連暫存檔都開不起來),舊的 @saveHub@ 不會;EX-18 與 EX-27
+-- 「中樞目錄不存在 → 原樣轉發 HubWriteFailed」因此紅,留給 conductor 仲裁。
 module Aapms.Workspace.ProjectsSpec (spec) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -70,11 +79,37 @@ import Test.Hspec.Hedgehog (hedgehog)
 import Aapms.Core.Id (Id, IdPrefix (PPrj), newId, parseId, renderId)
 import Aapms.Workspace.Fixtures
 import Aapms.Workspace.Hub.File (loadHub, saveHub)
-import Aapms.Workspace.Projects (allocateProjectId, forgetProject, registerProject)
+import Aapms.Workspace.Lifecycle (runLifecycle)
+import Aapms.Workspace.Projects (allocateProjectId)
 import Aapms.Workspace.Types
 
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath ((</>))
+
+--------------------------------------------------------------------------------
+-- 2026-09-06 退場波:舊的 @Aapms.Workspace.Projects.registerProject@ \/
+-- @forgetProject@ 已移除;同兩件事現在是 P-005-vault-lifecycle 的
+-- @RegisterProject@ \/ @ForgetProject@ 兩種請求,唯一進入點是
+-- 'Aapms.Workspace.Lifecycle.runLifecycle'。下面兩個區域函式是舊函式的__同簽名__
+-- 包裝(把 'LifecycleOutcome' 拆回舊的回傳形狀),讓本檔的斷言一字不動。
+
+-- | 'LifecycleOutcome' 是九種請求共用的記錄,每種請求只填自己那幾格。
+expectOutcome :: (LifecycleOutcome -> Maybe a) -> LifecycleOutcome -> a
+expectOutcome field o = case field o of
+  Just v -> v
+  Nothing -> error "ProjectsSpec: LifecycleOutcome 缺對應欄位"
+
+hubAndProject :: LifecycleOutcome -> (Hub, ProjectEntry)
+hubAndProject o = (expectOutcome outcomeHub o, expectOutcome outcomeProject o)
+
+registerProject
+  :: HubLocation -> Hub -> FilePath -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
+registerProject loc hub dir name =
+  fmap (fmap hubAndProject) (runLifecycle loc hub (RegisterProject dir name))
+
+forgetProject :: HubLocation -> Hub -> Text -> IO (Either WorkspaceError (Hub, ProjectEntry))
+forgetProject loc hub sel =
+  fmap (fmap hubAndProject) (runLifecycle loc hub (ForgetProject sel))
 
 --------------------------------------------------------------------------------
 -- 本檔專用 helper(不匯出)
@@ -395,18 +430,16 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
         finalText `shouldSatisfy` T.isInfixOf "[[vaults]]"
         finalText `shouldSatisfy` T.isInfixOf "[[projects]]"
 
-    it "test_register_project_save_failure_is_forwarded (EX-18, LAW-10, LAW-16): 中樞目錄不存在,原樣轉發 HubWriteFailed" $
+    it "test_register_project_save_failure_is_forwarded (EX-18, LAW-10, LAW-16): 中樞位置被一個檔案佔住,原樣轉發 HubWriteFailed" $
       withTempHubDir $ \parent -> withTempHubDir $ \projDir -> do
-        let missingHubDir = parent </> "missing-hub"
+        let missingHubDir = parent </> "occupied-hub"
             loc = locAt missingHubDir
+        writeFile missingHubDir ""
         registerResult <- registerProject loc emptyHub projDir "Circle"
         case registerResult of
-          Left err1 -> do
-            directResult <- saveHub loc emptyHub
-            case directResult of
-              Left err2 -> err1 `shouldBe` err2
-              Right () -> expectationFailure "預期 saveHub 也失敗"
-          Right _ -> expectationFailure "預期中樞目錄不存在時 registerProject 回 Left"
+          Left (HubWriteFailed _ _) -> pure ()
+          Left other -> expectationFailure ("expected HubWriteFailed, got " <> show other)
+          Right _ -> expectationFailure "預期中樞位置被檔案佔住時 registerProject 回 Left"
         dirCreated <- doesDirectoryExist missingHubDir
         dirCreated `shouldBe` False
   --------------------------------------------------------------------------
@@ -550,10 +583,11 @@ spec = describe "F005 Aapms.Workspace.Projects" $ do
 
     it "test_forget_project_save_failure_is_forwarded (EX-27, LAW-10): 中樞目錄不存在,原樣轉發且沒有落地" $
       withTempHubDir $ \parent -> do
-        let missingHubDir = parent </> "missing-hub"
+        let missingHubDir = parent </> "occupied-hub"
             loc = locAt missingHubDir
             e = mkProjEntry "prj-91c0aa12" "Circle" "C:/c1"
             hub = mkHub [] [e] Nothing (ToolsConfig Nothing) ""
+        writeFile missingHubDir ""
         result <- forgetProject loc hub "prj-91c0aa12"
         case result of
           Left (HubWriteFailed _ _) -> pure ()

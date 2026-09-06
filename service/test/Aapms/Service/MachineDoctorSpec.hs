@@ -24,14 +24,22 @@ import System.FilePath ((</>))
 import Test.Hspec
 import Test.Hspec.Hedgehog (hedgehog)
 
-import Aapms.Workspace.Lifecycle (checkVaults)
+import Aapms.Workspace.Hub.File (hubLocation)
+import Aapms.Workspace.Lifecycle (runLifecycle)
 import Aapms.Workspace.Tools (detectSevenZip)
-import Aapms.Workspace.Types (HubLocation (..), hubLlm, hubTools)
+import Aapms.Workspace.Types
+  ( Hub
+  , HubLocation (..)
+  , LifecycleOp (CheckVaults)
+  , ScopeIssue
+  , hubLlm
+  , hubTools
+  , outcomeIssues
+  )
 
 import Aapms.Service.Fixtures
 import Aapms.Service.Machine
   ( DoctorView (..)
-  , ToolOrigin (..)
   , ToolStatus (..)
   , VaultView (..)
   , vaultCheck
@@ -40,6 +48,21 @@ import Aapms.Service.Machine
   , workspaceTools
   )
 import Aapms.Service.Monad (askHub, askHubLocation, askRegistrySource, runService)
+
+--------------------------------------------------------------------------------
+-- 本檔專用 helper
+
+-- | 中樞逐列重讀 marker 的降級清單。
+--
+-- 2026-09-06 退場波:舊的 @Aapms.Workspace.Lifecycle.checkVaults@ 已移除,同一件事
+-- 現在是 P-005-vault-lifecycle 的 @CheckVaults@ 請求(經
+-- 'Aapms.Workspace.Lifecycle.runLifecycle')。本檔在此重建一個同簽名的區域版本,
+-- 斷言一字不動。@CheckVaults@ 不碰中樞檔,所以 'HubLocation' 取哪一個都不影響結果。
+checkVaults :: Hub -> IO [ScopeIssue]
+checkVaults hub = do
+  loc <- hubLocation
+  r <- runLifecycle loc hub CheckVaults
+  pure (either (const []) outcomeIssues r)
 
 --------------------------------------------------------------------------------
 -- 佈局變化

@@ -883,11 +883,12 @@ genNonInsertOpAt t r =
   where
     i = tId t
 
--- | REV-1(LAW-3 專用):既不插入也不刪除節的請求 —— @not (isInsertOp op)@ 與
--- @not (isDeleteOp op)@ 都由建構滿足。與 'genNonInsertOpAt' 同一套建構方式,
--- 差別只在選項清單裡__不放__ 'DeleteNode':不呼叫 'isDeleteOp'(它在 types 層還是
--- stub),直接把刪節類請求排除在產生器的值域之外。'genNonInsertOpAt' 本身給
--- LAW-1 \/ LAW-2 用,兩條不受 REV-1 影響,原樣不動。
+-- | REV-1(LAW-3)與 REV-2(LAW-2):既不插入也不刪除節的請求 —— @not (isInsertOp op)@
+-- 與 @not (isDeleteOp op)@ 都由建構滿足。與 'genNonInsertOpAt' 同一套建構方式,
+-- 差別只在選項清單裡__不放__ 'DeleteNode':不呼叫 'isDeleteOp',直接把刪節類請求
+-- 排除在產生器的值域之外。LAW-2 的 given 在 REV-2 也多了 @not (isDeleteOp op)@,
+-- 因此改用這一個(LAW-2 仍收 'genInsertOpAt' 的插入類請求,它的 given 沒排除插入)。
+-- 'genNonInsertOpAt' 留給 LAW-1(它的 given 沒有這條)與全定義域的 'genWriteOp'。
 genNonInsertNonDeleteOpAt :: Target -> Revision -> Gen WriteOp
 genNonInsertNonDeleteOpAt t r =
   Gen.choice $
@@ -1043,12 +1044,16 @@ laws = do
         runIndex run === ix
 
   describe "P-003#LAW-2" $
-    it "relation:成功時 revision 恰好加一,重讀檔案得到的 revision 等於回傳的" $
+    it "relation:成功時 revision 恰好加一,重讀檔案得到的 revision 等於回傳的(REV-2:排除刪節請求)" $
       hedgehog $ do
         t <- forAll genTime
         rp <- forAll genRegPick
         tgt <- forAll genTarget
-        op <- forAll (Gen.choice [genNonInsertOpAt tgt (tRev tgt), genInsertOpAt tgt])
+        -- given not (isDeleteOp op)(REV-2):與 LAW-3 同法 —— 產生器直接不把
+        -- DeleteNode 放進選項,建構滿足前提,不呼叫 isDeleteOp
+        op <-
+          forAll
+            (Gen.choice [genNonInsertNonDeleteOpAt tgt (tRev tgt), genInsertOpAt tgt])
         let reg = regOf rp
             vf = vfBase
             ix = ixBase
@@ -1392,7 +1397,7 @@ laws = do
           (maybe [] pure (documentAt vf p))
 
   describe "P-003#LAW-16" $
-    it "relation:根 Node 刪不得,兩種模式皆然" $
+    it "relation:根 Node 刪不得,兩種模式皆然(REV-2:限 Level 檔)" $
       hedgehog $ do
         t <- forAll genTime
         rp <- forAll genRegPick
@@ -1401,11 +1406,15 @@ laws = do
         let reg = regOf rp
             vf = vfBase
             ix = ixBase
+            -- given docKind d0 == LevelDoc(REV-2):目標固定取 Level 檔的根 Node,
+            -- 由建構滿足;下面的 assert 只是把建構出來的事實釘住,不是過濾式恆真
             i = idNodRoot
             run = runOp t vf ix reg vaultA (DeleteNode i r mode)
         p <- needJust "P-003#LAW-16:locatedFile 取不到根 Node 所在檔" (locatedFile ix i)
         mapM_
           ( \d0 -> do
+              -- given docKind d0 == LevelDoc(REV-2)
+              docKind d0 === LevelDoc
               -- given isRootNode p d0 i == Right True
               assert (isRootNode p d0 i == Right True)
               runResult run === Left (CannotDeleteRootNode i)

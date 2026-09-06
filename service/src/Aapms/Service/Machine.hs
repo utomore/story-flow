@@ -110,7 +110,6 @@ import Aapms.Core.Id (VaultId, idPrefix, renderIdPrefix)
 import Aapms.Core.Meta (Meta (metaId), TypeKey (..))
 import Aapms.Core.Registry (TypeDecl)
 import qualified Aapms.Core.Registry as Registry
-import Aapms.Store.Marker (VaultMarker (vmId, vmKind, vmName))
 import Aapms.Store.Query (NodeFilter (..), emptyNodeFilter, listNodes)
 import Aapms.Store.Schema (IndexIssue (..), VaultKind (..))
 import Aapms.Workspace.Discovery
@@ -135,8 +134,6 @@ import Aapms.Workspace.Tools (defaultToolSearchPlan, detectSevenZip)
 import Aapms.Workspace.Types
   ( AdoptNotice (..)
   , DeleteIndex (..)
-  , Hub
-  , HubLocation (..)
   , HubSource (..)
   , InitMode (..)
   , ProjectEntry (..)
@@ -147,8 +144,6 @@ import Aapms.Workspace.Types
   , ToolOrigin (..)
   , ToolStatus (..)
   , VaultEntry (..)
-  , VaultRef (..)
-  , hubLlm
   , hubProjects
   , hubTools
   , hubVaults

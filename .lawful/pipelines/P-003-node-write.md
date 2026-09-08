@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-003-node-write:寫入請求經樂觀鎖、位元組保留的 Markdown 編輯、寫檔前驗證、原子寫入、單檔重索引,回新 revision
 
 ## Brief
-把一個對圖譜的寫入請求落到 Markdown 檔並讓索引跟上,守住「檔案是真相、未改區塊逐位元組不動、樂觀鎖必填」(ADR-002、ADR-010、ADR-013)。input 是一個 `WriteOp`(建主題檔 / 建 Level 檔 / 建 pack 檔 / 增節 / 刪節點 / 改 Meta / 改 asset 人給欄位 / 改正文 / 加關聯 / 刪關聯 / 更新授權,十一種請求一個 sum type,每種要動既有節點的都帶 expected revision);output 是 `WriteOutcome`(新 revision、落地路徑、附帶的 `IndexIssue`)。流向:在索引裡定位節點所在檔案與錨點 → 重讀檔案 → 比對 revision → 純函數編輯 Document(只重新序列化被改的那一段)→ 寫檔前驗證(Level 樹)→ 原子寫入 → 只重索引那一份檔。整條是效果程式:`VaultFs` 多了寫檔與探測存在的操作,`Index` 多了定位、被引用查詢與配號碰撞查詢,`Clock` 給時間;純解譯器跑在記憶體上,law 全在純解譯器上驗。真解譯器住 shell,`applyWriteIO` 是唯一進入點,原本的十二個 `IO` 函數(`createTopicFile` … `allocateId`)退成它的薄包裝。它是 S1 的第三條里程碑。
+把一個對圖譜的寫入請求落到 Markdown 檔並讓索引跟上,守住「檔案是真相、未改區塊逐位元組不動、樂觀鎖必填」(ADR-002、ADR-010、ADR-013)。input 是一個 `WriteOp`(建主題檔 / 建 Level 檔 / 建 pack 檔 / 增節 / 刪節點 / 改 Meta / 改 asset 人給欄位 / 改正文 / 加關聯 / 刪關聯 / 更新授權,十一種請求一個 sum type,每種要動既有節點的都帶 expected revision);output 是 `WriteOutcome`(新 revision、落地路徑、附帶的 `IndexIssue`)。流向:在索引裡定位節點所在檔案與錨點 → 重讀檔案 → 比對 revision → 純函數編輯 Document(只重新序列化被改的那一段)→ 寫檔前驗證(Level 樹)→ 原子寫入 → 只重索引那一份檔。整條是效果程式:`VaultFs` 多了寫檔與探測存在的操作,`Index` 多了定位、被引用查詢與配號碰撞查詢,`Clock` 給時間;純解譯器跑在記憶體上,law 全在純解譯器上驗。真解譯器住 shell,`applyWriteIO` 是唯一進入點,原本的十二個 `IO` 函數(`createTopicFile` … `allocateId`)退成它的薄包裝。它讓 O-1 的 M-2 往前一步。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

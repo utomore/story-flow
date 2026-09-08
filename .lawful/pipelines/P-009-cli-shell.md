@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-009-cli-shell:argv 經 optparse 解析、Backend 分派(內嵌 / 遠端)、統一信封或人類可讀渲染,回 stdout 與 exit code 0 / 1 / 2
 
 ## Brief
-`aapms` 執行檔的殼:零業務邏輯,只做「參數 → 請求 → 結果 → 輸出」。input 是 argv;output 是 stdout 的文字(`--json` 時恰好一行 JSON 信封,否則第一行是作用中的 vault 再接人類可讀渲染)與 exit code。流向:解析 argv 成 `Command`(全域旗標、名詞動詞、參數;`--vault` 與 `--remote` 互斥、用法錯誤 exit 2)→ 把 Command 翻成一個統一的 `Op`(P-007 的 ReadOp、P-008 的 GraphOp、P-005 的 LifecycleOp、P-006 的 doctor、P-001 的重建)→ `Backend` 分派:內嵌走 ServiceM,遠端走 servant-client 打同一份 API(重管線指令在遠端下拒絕,exit 2)→ 結果或錯誤(`code` 與訊息一律來自 service 的 `errorCode` / `renderServiceError`)→ 信封或渲染 → exit code(0 成功、1 業務或傳輸失敗、2 用法)。解析、翻譯、信封、渲染、exit code 判定全是純函數;`Backend` 的 `runOp` 是 shell。它是 S3 的第六條里程碑,對應原 shell F002 / F003 / F004;`aapms-mcp` 共用同一個 Backend(P-011)。
+`aapms` 執行檔的殼:零業務邏輯,只做「參數 → 請求 → 結果 → 輸出」。input 是 argv;output 是 stdout 的文字(`--json` 時恰好一行 JSON 信封,否則第一行是作用中的 vault 再接人類可讀渲染)與 exit code。流向:解析 argv 成 `Command`(全域旗標、名詞動詞、參數;`--vault` 與 `--remote` 互斥、用法錯誤 exit 2)→ 把 Command 翻成一個統一的 `Op`(P-007 的 ReadOp、P-008 的 GraphOp、P-005 的 LifecycleOp、P-006 的 doctor、P-001 的重建)→ `Backend` 分派:內嵌走 ServiceM,遠端走 servant-client 打同一份 API(重管線指令在遠端下拒絕,exit 2)→ 結果或錯誤(`code` 與訊息一律來自 service 的 `errorCode` / `renderServiceError`)→ 信封或渲染 → exit code(0 成功、1 業務或傳輸失敗、2 用法)。解析、翻譯、信封、渲染、exit code 判定全是純函數;`Backend` 的 `runOp` 是 shell。它讓 O-1 的 M-5 往前一步,對應原 shell F002 / F003 / F004;`aapms-mcp` 共用同一個 Backend(P-011)。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-017-ai-classify:素材經 GBNF 約束的地端 LLM 分類與標註,建議進暫存表,confirm 才寫入圖譜
 
 ## Brief
-S5 的第二條里程碑,原 assetdb 的 ai 與 story-flow 的 llm 合一。input 是素材(縮圖或檔名與既有標籤)與註冊表宣告的分類詞彙;output 是分類與標籤的建議,進暫存表,`confirm` 才寫回圖譜。流向:選出待標註的 asset → 組 prompt(JSON Schema 編譯成 GBNF 文法約束輸出)→ 打中樞 `[llm]` 指的 OpenAI 相容端點 → 解析輸出成建議 → 暫存;`confirm` / `reject` 走 P-008-graph-write 或丟棄;`suggest` / `status` / `query` 是同一組暫存的讀取。prompt 組裝、GBNF 編譯、輸出解析、建議合併是純函數;端點呼叫是 `Llm` 效果(與 P-016 共用同一個門面,一份客戶端);純解譯器回固定回應。Stages 與 laws 待 S5 設計時寫;願望模組 `Aapms.Ai.Classify`、`Aapms.Llm.Client`、`Aapms.Llm.Gbnf`。
+O-3 的 M-9,原 assetdb 的 ai 與 story-flow 的 llm 合一。input 是素材(縮圖或檔名與既有標籤)與註冊表宣告的分類詞彙;output 是分類與標籤的建議,進暫存表,`confirm` 才寫回圖譜。流向:選出待標註的 asset → 組 prompt(JSON Schema 編譯成 GBNF 文法約束輸出)→ 打中樞 `[llm]` 指的 OpenAI 相容端點 → 解析輸出成建議 → 暫存;`confirm` / `reject` 走 P-008-graph-write 或丟棄;`suggest` / `status` / `query` 是同一組暫存的讀取。prompt 組裝、GBNF 編譯、輸出解析、建議合併是純函數;端點呼叫是 `Llm` 效果(與 P-016 共用同一個門面,一份客戶端);純解譯器回固定回應。Stages 與 laws 待 lawful:pipeline 設計時寫;願望模組 `Aapms.Ai.Classify`、`Aapms.Llm.Client`、`Aapms.Llm.Gbnf`。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

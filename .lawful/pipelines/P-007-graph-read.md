@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-007-graph-read:Ref / NodeFilter 經範圍解析、跨 vault 查詢、checkMeta 警告投影成每筆帶 vault 的 NodeView / Page / LinkReport
 
 ## Brief
-service 的讀取契約:把 graph-core 讀回來的 `AnyNode` 投影成三個殼共用的 `NodeView`(每筆帶 vault、檔案路徑、錨點、警告、依種類展開的 detail),並提供五個讀取操作(取一個節點、分頁列節點、子節點、關聯報告、全文搜尋)。input 是 `ReadOp` 請求與本次讀取範圍(P-004 開場、P-029 裁決出來的 vault 集合與預設 vault);output 是 `ReadResult`。流向:解析 Ref(不帶 vault 的 Ref 在範圍內命中多個 vault 回 AmbiguousRef、一個都沒有回 NodeNotFound)→ 對命中的 vault 查節點、所在檔與錨點 → `checkMeta` 只產警告 → 投影成 NodeView;列節點走 P-002 的 `filterNodes` 再分頁,總數不受分頁影響;關聯報告的出邊解不到回 Nothing 不擋;搜尋走 P-002 的 `searchVaults` 再逐筆投影。整條是 `Vaults` 效果的程式,不寫任何東西;純解譯器跑在記憶體的索引集合上。真解譯器住 shell,`runRead` 是進入點,ServiceM 的 `getNode` / `pageNodes` / `childrenView` / `linksOf` / `searchView` 是它的薄包裝。它是 S3 的第四條里程碑,對應原 service F003 與 F007。
+service 的讀取契約:把 graph-core 讀回來的 `AnyNode` 投影成三個殼共用的 `NodeView`(每筆帶 vault、檔案路徑、錨點、警告、依種類展開的 detail),並提供五個讀取操作(取一個節點、分頁列節點、子節點、關聯報告、全文搜尋)。input 是 `ReadOp` 請求與本次讀取範圍(P-004 開場、P-029 裁決出來的 vault 集合與預設 vault);output 是 `ReadResult`。流向:解析 Ref(不帶 vault 的 Ref 在範圍內命中多個 vault 回 AmbiguousRef、一個都沒有回 NodeNotFound)→ 對命中的 vault 查節點、所在檔與錨點 → `checkMeta` 只產警告 → 投影成 NodeView;列節點走 P-002 的 `filterNodes` 再分頁,總數不受分頁影響;關聯報告的出邊解不到回 Nothing 不擋;搜尋走 P-002 的 `searchVaults` 再逐筆投影。整條是 `Vaults` 效果的程式,不寫任何東西;純解譯器跑在記憶體的索引集合上。真解譯器住 shell,`runRead` 是進入點,ServiceM 的 `getNode` / `pageNodes` / `childrenView` / `linksOf` / `searchView` 是它的薄包裝。它讓 O-1 的 M-4 往前一步,對應原 service F003 與 F007。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

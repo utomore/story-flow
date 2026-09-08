@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-011-mcp-shell:stdin JSON-RPC 經 tool 名映射到同一份請求型別、Backend 分派,回 stdout JSON;tools/list 由路由型別推導
 
 ## Brief
-`aapms-mcp` 的殼:讓 claude code / codex 直接把它當子行程 spawn 就能操作圖譜。input 是 stdin 的 JSON-RPC 訊息(`initialize`、`tools/list`、`tools/call`);output 是 stdout 的 JSON-RPC 回應。流向:解析一行 JSON-RPC → `tools/list` 由 P-010 的路由型別推導 tool 清單(名稱 snake_case、不帶產品前綴,參數 schema 與 OpenAPI 同源)→ `tools/call` 以 tool 名找到對應路由再翻成同一個 `Op`(P-009)→ `Backend` 分派(預設內嵌,`--url` 才走遠端)→ 成功回 `data` 的 JSON、失敗回 `{"code":…,"message":…}`,與 REST 同形。tool 集合 = REST 路由集合,REST 沒有的 MCP 也沒有。解析、命名、映射、回應編碼全是純函數;stdio 迴圈與 Backend 是 shell。它是 S3 的第八條里程碑,對應原 shell F006。
+`aapms-mcp` 的殼:讓 claude code / codex 直接把它當子行程 spawn 就能操作圖譜。input 是 stdin 的 JSON-RPC 訊息(`initialize`、`tools/list`、`tools/call`);output 是 stdout 的 JSON-RPC 回應。流向:解析一行 JSON-RPC → `tools/list` 由 P-010 的路由型別推導 tool 清單(名稱 snake_case、不帶產品前綴,參數 schema 與 OpenAPI 同源)→ `tools/call` 以 tool 名找到對應路由再翻成同一個 `Op`(P-009)→ `Backend` 分派(預設內嵌,`--url` 才走遠端)→ 成功回 `data` 的 JSON、失敗回 `{"code":…,"message":…}`,與 REST 同形。tool 集合 = REST 路由集合,REST 沒有的 MCP 也沒有。解析、命名、映射、回應編碼全是純函數;stdio 迴圈與 Backend 是 shell。它讓 O-1 的 M-5 往前一步,對應原 shell F006。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

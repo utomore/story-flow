@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-015-pack-reorganize:vault 目錄快照經計畫、執行、對帳、回退搬遷 pack,不留幽靈
 
 ## Brief
-S4 的第四條里程碑,原 assetdb 的 reorg。input 是 vault 目錄的快照(每個 pack 的位置與 sha256)與一份目標結構(廠商 / pack-slug 的正規化);output 是搬遷計畫、執行結果與對帳報告,失敗可回退。流向:快照 → 計畫(哪個壓縮檔搬去哪、pack.md 跟著走、id 不變)→ 預覽;`--confirm` 才執行 → 對帳(每個 pack 的 sha256 與 id 在新位置都對得上)→ 對不上就回退。計畫與對帳是純函數,搬檔是 `VaultDir` 效果;搬完只更新 pack.md 的 archive 欄位,經 P-001 refresh。Stages 與 laws 待 S4 設計時寫;願望模組 `Aapms.Reorg.Plan`。
+O-2 的 M-7,原 assetdb 的 reorg。input 是 vault 目錄的快照(每個 pack 的位置與 sha256)與一份目標結構(廠商 / pack-slug 的正規化);output 是搬遷計畫、執行結果與對帳報告,失敗可回退。流向:快照 → 計畫(哪個壓縮檔搬去哪、pack.md 跟著走、id 不變)→ 預覽;`--confirm` 才執行 → 對帳(每個 pack 的 sha256 與 id 在新位置都對得上)→ 對不上就回退。計畫與對帳是純函數,搬檔是 `VaultDir` 效果;搬完只更新 pack.md 的 archive 欄位,經 P-001 refresh。Stages 與 laws 待 lawful:pipeline 設計時寫;願望模組 `Aapms.Reorg.Plan`。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

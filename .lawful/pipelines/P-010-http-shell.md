@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-010-http-shell:HTTP request 經 servant 路由解碼、token 檢查、service 操作、以 code 字串分派狀態碼,回 JSON body;--openapi 輸出 OpenAPI 3
 
 ## Brief
-`aapms-serve` 的殼:一份 servant 型別 `Api` 是唯一契約,server、CLI 遠端模式、OpenAPI 三者由它推導。input 是 HTTP request(路徑、method、query、body、Authorization);output 是狀態碼與 JSON body(成功回 View 的 JSON,失敗回 `{"error":{"code":…,"message":…}}`,與 CLI 信封的 error 同形)。流向:啟動閘門(綁非回送位址而沒設 token → 拒絕啟動,不是印警告)→ 路由解碼(失敗 400 usage_error;每個寫入 method 必填 revision)→ token 定時比較 → 路由對應到唯一的 `Op`(P-009 的統一請求)→ 跑 service → 成功回 JSON、失敗以 `code` 字串查狀態碼表(404 / 409 / 400 / 500),不 case ServiceError 的建構子。路由到 Op 的映射、狀態碼表、啟動閘門、定時比較、OpenAPI 推導全是純函數;warp 與 handler 是 shell。它是 S3 的第七條里程碑,對應原 shell F001 / F005。不暴露:workspace setup / purge、vault init / add / forget / check、project register / forget、全部重管線指令。
+`aapms-serve` 的殼:一份 servant 型別 `Api` 是唯一契約,server、CLI 遠端模式、OpenAPI 三者由它推導。input 是 HTTP request(路徑、method、query、body、Authorization);output 是狀態碼與 JSON body(成功回 View 的 JSON,失敗回 `{"error":{"code":…,"message":…}}`,與 CLI 信封的 error 同形)。流向:啟動閘門(綁非回送位址而沒設 token → 拒絕啟動,不是印警告)→ 路由解碼(失敗 400 usage_error;每個寫入 method 必填 revision)→ token 定時比較 → 路由對應到唯一的 `Op`(P-009 的統一請求)→ 跑 service → 成功回 JSON、失敗以 `code` 字串查狀態碼表(404 / 409 / 400 / 500),不 case ServiceError 的建構子。路由到 Op 的映射、狀態碼表、啟動閘門、定時比較、OpenAPI 推導全是純函數;warp 與 handler 是 shell。它讓 O-1 的 M-5 往前一步,對應原 shell F001 / F005。不暴露:workspace setup / purge、vault init / add / forget / check、project register / forget、全部重管線指令。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

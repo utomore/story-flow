@@ -1,12 +1,15 @@
 ---
 language: haskell
-updated: 2026-09-06
+updated: 2026-09-08
 ---
 # aapms:素材與故事設定共用一份片段圖譜的工作室資產管理工具
 
+## 願景
+alchbees 工作室與它接入的 AI Agent 面對素材與故事設定時只有一張片段圖譜、一組指令:「琳達用的是哪張立繪」「這段演出要哪首 BGM」「這個 Level 建專案要帶哪些素材、授權過不過」在同一個地方一問就有答案。已存在的壓縮檔與還沒做出來的設定在圖譜上一視同仁,能互相關聯、一起搜尋、一起被檢查矛盾。檔案永遠是真相,任何 vault 的索引丟掉都能等價重建,工具本身不持有任何人給的資料。
+
 ## 目的
 替單人工作室 alchbees 與它接入的 AI Agent(claude code / codex)管理兩種資料:已存在的素材(壓縮檔裡的位元組)與還沒做出來的故事設定(Entity 片段、Level 場景樹)。兩者是同一張片段圖譜上的節點,共用一份 `Meta`、一種有方向的關聯、一張索引、一組指令;一份 servant 契約產出 CLI / HTTP / MCP 三個殼。檔案是真相(Markdown 與壓縮檔),SQLite 只是索引,任何 vault 都能 `rm index.db` 後等價重建。不做:遊戲執行期的載入器與對話引擎、多人協作與權限、即時同步;Web 前端只在最後一期接回。
-發佈驗收(原 S7,不是資料流,不建 pipeline):縮圖瀏覽可用;從乾淨機器跑 `aapms workspace setup` 到 `project new` 一路通。
+發佈驗收(不是資料流,不建 pipeline,也不是目標的里程碑):縮圖瀏覽可用;從乾淨機器跑 `aapms workspace setup` 到 `project new` 一路通。目標與里程碑住 `objectives.md`;每條 pipeline 為什麼做、先後如何,都從那裡推。
 
 ## 語言與工具
 - 建置:`cabal build all`
@@ -19,8 +22,8 @@ updated: 2026-09-06
 
 ## 邊界
 - types:`Aapms.Core.*` 的值型別、強型別 id、關聯詞彙、smart constructor 與存取子(遊戲本體只 import 這一層,零重量級相依);`Aapms.Md.Document` / `Aapms.Md.Error`;各套件的錯誤 ADT 與 View 型別;servant 路由型別。
-- effects:effectful 的效果描述(`Eff es`,不帶 `IOE`):`Index`(索引列的讀寫)、`VaultFs`(vault 目錄裡 Markdown 與 marker 的讀寫)、`HubFile`(中樞 config.toml 的讀寫)、`Clock`、`ToolProbe`(外部工具探測);每個效果配一個純解譯器 `run<Effect>Pure`(記憶體 `Map`)當觀察點。現況為零,由各里程碑 build 時立(ADR-023)。
-- pure:`Aapms.Core.Naming` / `Registry` / `Tree`、`Aapms.Md.*`、`Aapms.Store.Tokenize`,以及各里程碑的 `=` 列:重建規劃、寫入規劃、範圍裁決、生命週期前置檢查、View 投影、CLI 解析與信封。
+- effects:effectful 的效果描述(`Eff es`,不帶 `IOE`):`Index`(索引列的讀寫)、`VaultFs`(vault 目錄裡 Markdown 與 marker 的讀寫)、`HubFile`(中樞 config.toml 的讀寫)、`Clock`、`ToolProbe`(外部工具探測);每個效果配一個純解譯器 `run<Effect>Pure`(記憶體 `Map`)當觀察點。已立的住 `Aapms.Store.Effect.*`、`Aapms.Workspace.Effect.*`、`Aapms.Types.Effect.*`;其餘由各 IO 介面 build 時立(ADR-023)。
+- pure:`Aapms.Core.Naming` / `Registry` / `Tree`、`Aapms.Md.*`、`Aapms.Store.Tokenize`,以及各 IO 介面的 `=` 列:重建規劃、寫入規劃、範圍裁決、生命週期前置檢查、View 投影、CLI 解析與信封。
 - shell:真解譯器(sqlite、directory、http-client、typed-process)與進入點:`Aapms.Store.*` 的 IO 面、`Aapms.Types.Loader`、`Aapms.Workspace.*` 的 IO 面、`Aapms.Service.*`(`ServiceM` 是 `ReaderT Env (ExceptT ServiceError IO)`,屬 shell)、三個殼的 `Main`。
 
 ## 對外 I/O
@@ -71,25 +74,25 @@ updated: 2026-09-06
 ## Pipelines
 | 全名 | 類別 |
 |---|---|
-| P-001-index-rebuild | 里程碑 |
-| P-002-search | 里程碑 |
-| P-003-node-write | 里程碑 |
-| P-004-vault-scope | 里程碑 |
-| P-005-vault-lifecycle | 里程碑 |
-| P-006-workspace-doctor | 里程碑 |
-| P-007-graph-read | 里程碑 |
-| P-008-graph-write | 里程碑 |
-| P-009-cli-shell | 里程碑 |
-| P-010-http-shell | 里程碑 |
-| P-011-mcp-shell | 里程碑 |
-| P-012-asset-scan | 里程碑 |
-| P-013-thumb-cache | 里程碑 |
-| P-014-name-cluster | 里程碑 |
-| P-015-pack-reorganize | 里程碑 |
-| P-016-conflict-check | 里程碑 |
-| P-017-ai-classify | 里程碑 |
-| P-018-workshop | 里程碑 |
-| P-019-project-export | 里程碑 |
+| P-001-index-rebuild | IO 介面 |
+| P-002-search | IO 介面 |
+| P-003-node-write | IO 介面 |
+| P-004-vault-scope | IO 介面 |
+| P-005-vault-lifecycle | IO 介面 |
+| P-006-workspace-doctor | IO 介面 |
+| P-007-graph-read | IO 介面 |
+| P-008-graph-write | IO 介面 |
+| P-009-cli-shell | IO 介面 |
+| P-010-http-shell | IO 介面 |
+| P-011-mcp-shell | IO 介面 |
+| P-012-asset-scan | IO 介面 |
+| P-013-thumb-cache | IO 介面 |
+| P-014-name-cluster | IO 介面 |
+| P-015-pack-reorganize | IO 介面 |
+| P-016-conflict-check | IO 介面 |
+| P-017-ai-classify | IO 介面 |
+| P-018-workshop | IO 介面 |
+| P-019-project-export | IO 介面 |
 | P-020-core-identity | 子流 |
 | P-021-registry-build | 子流 |
 | P-022-logical-name | 子流 |

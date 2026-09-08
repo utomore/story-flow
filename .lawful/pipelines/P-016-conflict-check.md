@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-016-conflict-check:新劇情草稿經圖遍歷、FTS 候選撈取、LLM 逐對判斷,產出指到片段的衝突報告;context 是它的子流
 
 ## Brief
-S5 的第一條里程碑,原 story-flow 的 conflict 接上統一索引。input 是新劇情草稿文字與本次讀取範圍;output 是指到片段的衝突報告。流向:圖遍歷(沿 contradicts / supersedes 找已知矛盾與被取代的設定)→ FTS 候選撈取(只以 status 為 canon 的節點為基準,經 P-002-search,候選集自然含 asset 節點)→ LLM 逐對判斷(經 P-017 的 LLM 門面)→ 報告按層排序、去重、附理由。`context` 是它的子流:前兩層不叫 LLM 的結果就是 context 命令的輸出。圖遍歷、候選合併、排序去重是純函數;LLM 呼叫是 `Llm` 效果,純解譯器回固定判斷。Stages 與 laws 待 S5 設計時寫;願望模組 `Aapms.Conflict.Check`、`Aapms.Conflict.Retrieval`。
+O-3 的 M-8,原 story-flow 的 conflict 接上統一索引。input 是新劇情草稿文字與本次讀取範圍;output 是指到片段的衝突報告。流向:圖遍歷(沿 contradicts / supersedes 找已知矛盾與被取代的設定)→ FTS 候選撈取(只以 status 為 canon 的節點為基準,經 P-002-search,候選集自然含 asset 節點)→ LLM 逐對判斷(經 P-017 的 LLM 門面)→ 報告按層排序、去重、附理由。`context` 是它的子流:前兩層不叫 LLM 的結果就是 context 命令的輸出。圖遍歷、候選合併、排序去重是純函數;LLM 呼叫是 `Llm` 效果,純解譯器回固定判斷。Stages 與 laws 待 lawful:pipeline 設計時寫;願望模組 `Aapms.Conflict.Check`、`Aapms.Conflict.Retrieval`。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

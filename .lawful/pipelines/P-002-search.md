@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-002-search:查詢字串經 CJK 分詞路由到 trigram 與 unicode61 雙 FTS,跨 vault 合併去重排序分頁,每筆帶 vault
 
 ## Brief
-回答「這組 vault 裡哪些節點符合這段文字與這些結構條件」,一次回 asset 與 entity 兩種,每筆帶來源 vault(ADR-016、ADR-017)。input 是 `SearchQuery`(可選的文字條件、`NodeFilter` 結構條件、要不要 facet)與本次生效的 vault 集合;output 是 `SearchResult`(命中清單、總數、facet)。流向:路由判定 → 對每個 vault 查雙 FTS 與結構條件 → 兩張表的命中取分數較大者去重 → 取片段 → 跨 vault 合併 → 排序 → 切窗 → facet 合併。整條是效果程式:`Index` 效果負責一個 vault 內的 FTS 命中與結構過濾(P-001-index-rebuild 同一個效果多兩個查詢操作),`Vaults` 效果負責「對集合裡某個 vault 跑一段 Index 程式」;純解譯器用 P-027-fts-tokenize 的 `matchesQuery` 當參考實作,law 全在記憶體裡跑。真解譯器(sqlite 的 `MATCH` 與 `bm25()`、`ATTACH` 多個索引)住 shell,`searchAcross` 是進入點;單 vault 的 `search` 是同一組解譯器的另一個 shell 入口。它是 S1 的第二條里程碑。
+回答「這組 vault 裡哪些節點符合這段文字與這些結構條件」,一次回 asset 與 entity 兩種,每筆帶來源 vault(ADR-016、ADR-017)。input 是 `SearchQuery`(可選的文字條件、`NodeFilter` 結構條件、要不要 facet)與本次生效的 vault 集合;output 是 `SearchResult`(命中清單、總數、facet)。流向:路由判定 → 對每個 vault 查雙 FTS 與結構條件 → 兩張表的命中取分數較大者去重 → 取片段 → 跨 vault 合併 → 排序 → 切窗 → facet 合併。整條是效果程式:`Index` 效果負責一個 vault 內的 FTS 命中與結構過濾(P-001-index-rebuild 同一個效果多兩個查詢操作),`Vaults` 效果負責「對集合裡某個 vault 跑一段 Index 程式」;純解譯器用 P-027-fts-tokenize 的 `matchesQuery` 當參考實作,law 全在記憶體裡跑。真解譯器(sqlite 的 `MATCH` 與 `bm25()`、`ATTACH` 多個索引)住 shell,`searchAcross` 是進入點;單 vault 的 `search` 是同一組解譯器的另一個 shell 入口。它讓 O-1 的 M-2 往前一步。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

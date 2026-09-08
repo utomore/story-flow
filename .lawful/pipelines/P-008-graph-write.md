@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-008-graph-write:圖譜寫入請求 ADT 經型別與關聯目標驗證、Level 樹合法性、落地寫入,回新 revision 的 NodeView
 
 ## Brief
-service 的寫入契約:三個殼送來的十四種寫入請求(建 entity、加片段、改 Meta、改正文、刪節點、加 / 刪關聯、asset 命名、改 asset 人給欄位、更新授權、建 Level、刪 Level、加 / 刪 Node)在這裡做業務驗證,再交給 P-003-node-write 落地,最後重投影成 NodeView。input 是 `GraphOp` 請求與寫入情境(P-004 開場、P-029 裁決出的寫入目標與讀取範圍);output 是 `WriteReport`(新 revision 的 NodeView,或刪除報告)。流向:解析目標 Ref(只在寫入目標 vault 裡找)→ 驗證(型別要在註冊表、必填欄位、關聯目標在讀取範圍內且存在、asset 邏輯名稱全域唯一、Level 樹合法)→ 翻成 P-003 的 `WriteOp`(建檔類先配號)→ 在目標 vault 跑 `applyWrite` → StoreError 翻成 ServiceError(RevisionMismatch → RevisionConflict)→ 重讀成 NodeView。整條是 `Vaults` 與 `Clock` 效果的程式;純解譯器跑在記憶體的「每個 vault 一份檔案表加索引」上。真解譯器住 shell,`runGraphWrite` 是進入點,ServiceM 的十四個門面是薄包裝。它是 S3 的第五條里程碑,對應原 service F004 / F005 / F006。
+service 的寫入契約:三個殼送來的十四種寫入請求(建 entity、加片段、改 Meta、改正文、刪節點、加 / 刪關聯、asset 命名、改 asset 人給欄位、更新授權、建 Level、刪 Level、加 / 刪 Node)在這裡做業務驗證,再交給 P-003-node-write 落地,最後重投影成 NodeView。input 是 `GraphOp` 請求與寫入情境(P-004 開場、P-029 裁決出的寫入目標與讀取範圍);output 是 `WriteReport`(新 revision 的 NodeView,或刪除報告)。流向:解析目標 Ref(只在寫入目標 vault 裡找)→ 驗證(型別要在註冊表、必填欄位、關聯目標在讀取範圍內且存在、asset 邏輯名稱全域唯一、Level 樹合法)→ 翻成 P-003 的 `WriteOp`(建檔類先配號)→ 在目標 vault 跑 `applyWrite` → StoreError 翻成 ServiceError(RevisionMismatch → RevisionConflict)→ 重讀成 NodeView。整條是 `Vaults` 與 `Clock` 效果的程式;純解譯器跑在記憶體的「每個 vault 一份檔案表加索引」上。真解譯器住 shell,`runGraphWrite` 是進入點,ServiceM 的十四個門面是薄包裝。它讓 O-1 的 M-4 往前一步,對應原 service F004 / F005 / F006。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

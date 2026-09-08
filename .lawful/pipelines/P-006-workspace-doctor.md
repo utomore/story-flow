@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-006-workspace-doctor:中樞快照、marker 重讀、外部工具探測與 [llm] 有無組成 DoctorView;syncHub 才回寫漂移
 
 ## Brief
-回答「這台機器現在長什麼樣」:中樞在哪、註冊表從哪一層找到、每個 vault 認不認得到、起點目錄有沒有一個中樞不認識的 vault、7-Zip 在不在、有沒有設 `[llm]`。input 是 Session 快照(P-004)、每列 marker 的重讀、起點目錄的探測、`[tools]` 覆寫與 PATH;output 是 `DoctorView` 與它拆出來的 `VaultView` 清單、`ToolStatus`。流向:中樞每列重讀 marker 得到降級清單(P-029 的 refOfEntry)→ 投影成每列的 `VaultView`(可達 = 路徑在且 marker 讀得開;id 漂移仍算可達)→ 起點探測到未註冊的 vault 就多一筆 → 三層探測 7-Zip(覆寫 → PATH → 內建候選,找到就停,每一步記進 tsSearched)→ `[llm]` 只報告有沒有,內容不外洩。整條唯讀;`Markers` 與 `ToolProbe` 兩個效果的程式,純解譯器跑在記憶體的 marker 表與可執行檔表上。真解譯器住 shell,`workspaceDoctor` 是進入點;`vaultList` / `vaultCheck` / `workspaceTools` 是同一組投影的三個小門面。它是 S3 的第三條里程碑。
+回答「這台機器現在長什麼樣」:中樞在哪、註冊表從哪一層找到、每個 vault 認不認得到、起點目錄有沒有一個中樞不認識的 vault、7-Zip 在不在、有沒有設 `[llm]`。input 是 Session 快照(P-004)、每列 marker 的重讀、起點目錄的探測、`[tools]` 覆寫與 PATH;output 是 `DoctorView` 與它拆出來的 `VaultView` 清單、`ToolStatus`。流向:中樞每列重讀 marker 得到降級清單(P-029 的 refOfEntry)→ 投影成每列的 `VaultView`(可達 = 路徑在且 marker 讀得開;id 漂移仍算可達)→ 起點探測到未註冊的 vault 就多一筆 → 三層探測 7-Zip(覆寫 → PATH → 內建候選,找到就停,每一步記進 tsSearched)→ `[llm]` 只報告有沒有,內容不外洩。整條唯讀;`Markers` 與 `ToolProbe` 兩個效果的程式,純解譯器跑在記憶體的 marker 表與可執行檔表上。真解譯器住 shell,`workspaceDoctor` 是進入點;`vaultList` / `vaultCheck` / `workspaceTools` 是同一組投影的三個小門面。它讓 O-1 的 M-3 往前一步。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

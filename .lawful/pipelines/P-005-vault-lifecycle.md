@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-005-vault-lifecycle:init / add / forget 請求經前置檢查、marker 建立、撞號比對、AdoptNotice 得到寫回中樞的新 Hub 與 VaultEntry
 
 ## Brief
-工具自己的狀態怎麼建立、納管、撤除:中樞的建立、vault 的 init(含 `--adopt`)/ add / forget、專案的 register / forget、中樞與 marker 的漂移修正、purge。input 是一個 `LifecycleOp` 請求加上目前的中樞快照;output 是 `LifecycleOutcome`(新的 Hub 值、被加入或移除的那一列、AdoptNotice、報告)。流向:名稱與目錄的前置檢查(順序固定,任一失敗零副作用)→ 建 marker 與空索引(graph-core 的 `initVaultAtWith`)→ 與中樞既有列比對撞號(撞了回滾 marker)→ AdoptExisting 時列出舊系統的 marker 目錄(只報告不刪)→ Hub 值上加或減一列(P-028)→ 原子寫回 `config.toml`。中樞檔、vault 目錄、marker、時鐘是四個效果(`HubFile`、`VaultDir`、`Markers`、`Clock`),純解譯器跑在記憶體的中樞文字與目錄樹上;真解譯器住 shell,`runLifecycle` 是唯一進入點,原本的 `setupHub` / `initVault` / `initVaultWith` / `addVault` / `forgetVault` / `purge` / `checkVaults` / `syncHub` / `registerProject` / `forgetProject` 退場,呼叫端(service 門面與測試)改接 `runLifecycle`。它是 S3 的第二條里程碑;service 的 `vaultInit` 等門面(P-006)只做投影。
+工具自己的狀態怎麼建立、納管、撤除:中樞的建立、vault 的 init(含 `--adopt`)/ add / forget、專案的 register / forget、中樞與 marker 的漂移修正、purge。input 是一個 `LifecycleOp` 請求加上目前的中樞快照;output 是 `LifecycleOutcome`(新的 Hub 值、被加入或移除的那一列、AdoptNotice、報告)。流向:名稱與目錄的前置檢查(順序固定,任一失敗零副作用)→ 建 marker 與空索引(graph-core 的 `initVaultAtWith`)→ 與中樞既有列比對撞號(撞了回滾 marker)→ AdoptExisting 時列出舊系統的 marker 目錄(只報告不刪)→ Hub 值上加或減一列(P-028)→ 原子寫回 `config.toml`。中樞檔、vault 目錄、marker、時鐘是四個效果(`HubFile`、`VaultDir`、`Markers`、`Clock`),純解譯器跑在記憶體的中樞文字與目錄樹上;真解譯器住 shell,`runLifecycle` 是唯一進入點,原本的 `setupHub` / `initVault` / `initVaultWith` / `addVault` / `forgetVault` / `purge` / `checkVaults` / `syncHub` / `registerProject` / `forgetProject` 退場,呼叫端(service 門面與測試)改接 `runLifecycle`。它讓 O-1 的 M-3 往前一步;service 的 `vaultInit` 等門面(P-006)只做投影。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

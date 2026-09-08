@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-023-manifest-codec:兩份 manifest 的 schema 2 編解碼、版本閘門與遊戲啟動時的查表索引
 
 ## Brief
-`project` 產出、遊戲本體消費的兩份邊界契約:`assets/manifest.json`(`Manifest`)與 `story/manifest.json`(`StoryManifest`),兩者都是 schema 2。input 是一份 manifest 的值或它的 JSON;output 是編碼後的 JSON、解碼回來的值,以及遊戲啟動時以 `AssetKey` 建的查表索引。流向:manifest 值 → JSON 編碼 → 版本閘門先讀 `schemaVersion` 再解析其餘欄位 → manifest 值 → 以 `maKey` 建索引;kind 專屬的 `meta` 欄位另有一條型別化讀取的岔路(image / audio)。誰產生 manifest、誰做授權判斷不在這條裡(那是 P-019-project-export 與 S6)。它是子流:遊戲本體只 import `aapms-core`,而這組型別是它唯一會用到的匯出。
+`project` 產出、遊戲本體消費的兩份邊界契約:`assets/manifest.json`(`Manifest`)與 `story/manifest.json`(`StoryManifest`),兩者都是 schema 2。input 是一份 manifest 的值或它的 JSON;output 是編碼後的 JSON、解碼回來的值,以及遊戲啟動時以 `AssetKey` 建的查表索引。流向:manifest 值 → JSON 編碼 → 版本閘門先讀 `schemaVersion` 再解析其餘欄位 → manifest 值 → 以 `maKey` 建索引;kind 專屬的 `meta` 欄位另有一條型別化讀取的岔路(image / audio)。誰產生 manifest、誰做授權判斷不在這條裡(那是 P-019-project-export 與 O-4)。它是子流:遊戲本體只 import `aapms-core`,而這組型別是它唯一會用到的匯出。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

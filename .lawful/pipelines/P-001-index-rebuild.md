@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-001-index-rebuild:vault 裡的 Markdown 與 marker 經解析、驗證、列轉換整檔替換進索引;rm index.db 後重建與原索引等價
 
 ## Brief
-把一個 vault 目錄裡的每份 `.md` 變成可查詢的圖譜,並守住「檔案是真相、索引可丟」(ADR-002、ADR-013)。input 是 vault 相對路徑下的 Markdown 檔與它們的 mtime / size;output 是索引狀態(每個檔案一組節點、包含關係、文件種類、檔案指紋)與一份 `IndexIssue` 清單。流向:列出 Markdown → 讀檔與取 stat → 解析成 Document → 依種類轉成節點 → 樹驗證與 Meta 警告 → 組成該檔的 FileIndex → 整檔替換進索引;過時刷新走同一條,只多一步「比對指紋找出過時與消失的檔」。整條是 effectful 的效果程式(`VaultFs` 讀檔、`Index` 寫索引),law 全部用純解譯器跑在記憶體裡;真解譯器(directory / sqlite)住 shell,`rebuildIndex` 是進入點,`refreshStale` / `indexFile` / `unindexFile` 三個既有的 shell 入口跑同一組解譯器。它是 S1 的第一條里程碑;`openVault` 在 schema_version 不符時呼叫它整庫重建。
+把一個 vault 目錄裡的每份 `.md` 變成可查詢的圖譜,並守住「檔案是真相、索引可丟」(ADR-002、ADR-013)。input 是 vault 相對路徑下的 Markdown 檔與它們的 mtime / size;output 是索引狀態(每個檔案一組節點、包含關係、文件種類、檔案指紋)與一份 `IndexIssue` 清單。流向:列出 Markdown → 讀檔與取 stat → 解析成 Document → 依種類轉成節點 → 樹驗證與 Meta 警告 → 組成該檔的 FileIndex → 整檔替換進索引;過時刷新走同一條,只多一步「比對指紋找出過時與消失的檔」。整條是 effectful 的效果程式(`VaultFs` 讀檔、`Index` 寫索引),law 全部用純解譯器跑在記憶體裡;真解譯器(directory / sqlite)住 shell,`rebuildIndex` 是進入點,`refreshStale` / `indexFile` / `unindexFile` 三個既有的 shell 入口跑同一組解譯器。它讓 O-1 的 M-2 往前一步;`openVault` 在 schema_version 不符時呼叫它整庫重建。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |

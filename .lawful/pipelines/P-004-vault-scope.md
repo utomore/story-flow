@@ -7,7 +7,7 @@ updated: 2026-09-06
 # P-004-vault-scope:中樞 config.toml、型別註冊表、--vault 旗標與起點目錄經探測與裁決得到本次生效的讀 / 寫 / 管線 vault 集合
 
 ## Brief
-一次執行的開場:把這台機器的狀態(中樞註冊表、型別註冊表)與這次指令的旗標(`--vault`、起點目錄)組成一份不可變的 `Session` 快照,再依操作類別裁決生效的 vault 集合。input 是中樞 `config.toml` 的文字、`types/registry/*.toml` 的文字、selector 字串、起點目錄;output 是 `Session`(中樞快照、註冊表、命名詞彙、註冊表來源、selector、cwd)與每次操作的 `Scope`。流向:定位中樞 → 讀 → 解析成 Hub(失敗即失敗,不退回空中樞)→ 三層定位註冊表 → 讀全部 TOML → 解析並驗證成 TypeRegistry 與 NamingVocab → 組成 Session;之後每個操作以 Session 加 `ScopeKind` 走 P-029-scope-resolve 的裁決。整條是 `HubFile` / `RegistryFs` / `Markers` 三個效果的程式,不碰索引;`Env` 的可變部分(handle 快取、鎖)是 shell 的事,`openEnv` 是進入點,`withRead` / `withWrite` / `withPipeline` 在 shell 裡用 Session 跑裁決再開 handle。它是 S3 的第一條里程碑,P-005 到 P-011 都從這裡開場。
+一次執行的開場:把這台機器的狀態(中樞註冊表、型別註冊表)與這次指令的旗標(`--vault`、起點目錄)組成一份不可變的 `Session` 快照,再依操作類別裁決生效的 vault 集合。input 是中樞 `config.toml` 的文字、`types/registry/*.toml` 的文字、selector 字串、起點目錄;output 是 `Session`(中樞快照、註冊表、命名詞彙、註冊表來源、selector、cwd)與每次操作的 `Scope`。流向:定位中樞 → 讀 → 解析成 Hub(失敗即失敗,不退回空中樞)→ 三層定位註冊表 → 讀全部 TOML → 解析並驗證成 TypeRegistry 與 NamingVocab → 組成 Session;之後每個操作以 Session 加 `ScopeKind` 走 P-029-scope-resolve 的裁決。整條是 `HubFile` / `RegistryFs` / `Markers` 三個效果的程式,不碰索引;`Env` 的可變部分(handle 快取、鎖)是 shell 的事,`openEnv` 是進入點,`withRead` / `withWrite` / `withPipeline` 在 shell 裡用 Session 跑裁決再開 handle。它讓 O-1 的 M-3 往前一步,P-005 到 P-011 都從這裡開場。
 
 ## Stages
 | # | 簽名 | 做什麼 | 模組 | 層 |
